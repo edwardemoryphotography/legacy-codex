@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="A distilled framework for neurodivergent, high-pattern-recognition collaboration with AI">
+  <meta name="theme-color" content="#2c3e50">
+  <title>Edward Emory Legacy Codex</title>
+
+  <link rel="manifest" href="/assets/manifest-CskgCb-f.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/icon-192x192-DWDkmhC2.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512x512-BySQU_jN.png">
+  <link rel="apple-touch-icon" href="/assets/icon-192x192-DWDkmhC2.png">
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Legacy Codex">
+  <meta name="msapplication-TileColor" content="#2c3e50">
+  <meta name="msapplication-TileImage" content="/icons/icon-144x144.png">
+
+  <style>
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f5f5;
+      --text-primary: #2c3e50;
+      --text-secondary: #777;
+      --border-color: #e0e0e0;
+    }
+
+    [data-theme="dark"] {
+      --bg-primary: #1a1a1a;
+      --bg-secondary: #2d2d2d;
+      --text-primary: #ecf0f1;
+      --text-secondary: #aaa;
+      --border-color: #404040;
+    }
+
+    * {
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    html, body {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      margin: 0;
+      padding: 2rem 1rem;
+      line-height: 1.6;
+    }
+
+    @media (min-width: 768px) {
+      body {
+        margin-left: auto;
+        margin-right: auto;
+        max-width: 800px;
+      }
+    }
+
+    h1, h2, h3 {
+      color: var(--text-primary);
+    }
+
+    h1 {
+      margin-bottom: 0.5rem;
+      font-size: 2rem;
+    }
+
+    h2 {
+      margin-top: 2rem;
+      font-size: 1.5rem;
+    }
+
+    h3 {
+      font-size: 1.25rem;
+    }
+
+    p {
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+    }
+
+    ul, ol {
+      color: var(--text-primary);
+    }
+
+    .section {
+      margin-top: 2rem;
+    }
+
+    .footer {
+      margin-top: 3rem;
+      padding-top: 2rem;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      border-top: 1px solid var(--border-color);
+    }
+
+    #install-banner {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(135deg, #2c3e50 0%, #1a252f 100%);
+      color: #ecf0f1;
+      padding: 1rem;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 1000;
+      box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.2);
+      gap: 1rem;
+    }
+
+    #install-banner.show {
+      display: flex;
+    }
+
+    .banner-content {
+      flex: 1;
+    }
+
+    .banner-content p {
+      margin: 0;
+      color: #ecf0f1;
+    }
+
+    .banner-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .banner-btn {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 0.25rem;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+    }
+
+    #install-btn {
+      background-color: #ecf0f1;
+      color: #2c3e50;
+    }
+
+    #install-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    #dismiss-banner-btn {
+      background-color: rgba(236, 240, 241, 0.2);
+      color: #ecf0f1;
+    }
+
+    #dismiss-banner-btn:hover {
+      background-color: rgba(236, 240, 241, 0.3);
+    }
+
+    #update-notification {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+      color: #ecf0f1;
+      padding: 1rem;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 1001;
+      box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.2);
+      gap: 1rem;
+    }
+
+    #update-notification.show {
+      display: flex;
+    }
+
+    .update-content {
+      flex: 1;
+    }
+
+    .update-content p {
+      margin: 0;
+      color: #ecf0f1;
+    }
+
+    .update-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    #update-btn {
+      background-color: #ecf0f1;
+      color: #27ae60;
+    }
+
+    #update-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    #dismiss-update-btn {
+      background-color: rgba(236, 240, 241, 0.2);
+      color: #ecf0f1;
+    }
+
+    #dismiss-update-btn:hover {
+      background-color: rgba(236, 240, 241, 0.3);
+    }
+
+    @media (max-width: 600px) {
+      #install-banner,
+      #update-notification {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .banner-actions,
+      .update-actions {
+        width: 100%;
+      }
+
+      .banner-btn {
+        flex: 1;
+      }
+    }
+  </style>
+  <script type="module" crossorigin src="/assets/index-kJEpYcok.js"></script>
+</head>
+<body>
+  <h1>Edward Emory Legacy Codex</h1>
+  <h2>Breakthrough Session Summary (November 2–3, 2025)</h2>
+  <p>
+    In a single late‑night session, a conversation between Edward Emory and an AI system
+    crystallized a complete operating system for how a neurodivergent, high‑pattern‑recognition mind
+    partners with AI to build real things in the world.
+  </p>
+  <div class="section">
+    <h3>Outcomes of the Session</h3>
+    <p>The session produced four core outcomes:</p>
+    <ul>
+      <li>A <strong>7‑Phase Collaboration Protocol</strong> describing how to work with AI and collaborators from vague intention to precise, executable systems.</li>
+      <li>A <strong>Legacy Codex architecture</strong> outlining what gets preserved over time: the essence of Edward’s thinking, keystone principles, artifacts and structures.</li>
+      <li>A <strong>Transmission framework</strong> identifying four vehicles through which the work spreads – narratives, people, artifacts and structures.</li>
+      <li>A <strong>Continuity blueprint</strong> stretching from immediate tasks to long‑term vision so that insights become a living practice.</li>
+    </ul>
+  </div>
+  <div class="section">
+    <h3>Core Insight</h3>
+    <p>
+      The biggest realisation was simple and disruptive:
+      <em>The process of getting clear is the methodology.</em>
+      The value isn’t just in ideas themselves but in the way Edward and the AI interacted: challenging assumptions,
+      correcting drift, verifying alignment and reflecting on how they got there. That dance is what makes complex
+      thinking legible, transferable and executable.
+    </p>
+  </div>
+  <div class="section">
+    <h3>7‑Phase Collaboration Protocol</h3>
+    <ol>
+      <li><strong>Initial Assumption</strong> – present a query; AI proposes a direction based on surface understanding.</li>
+      <li><strong>Your Challenge / Redirect</strong> – identify the gap and redirect to what’s actually needed.</li>
+      <li><strong>AI Reflection</strong> – AI acknowledges misalignment and reflects back what it sees.</li>
+      <li><strong>Reframing</strong> – restructure the entire approach based on the real goal.</li>
+      <li><strong>Your Clarification</strong> – articulate the actual goal more precisely.</li>
+      <li><strong>Verification</strong> – confirm alignment; don’t proceed until both sides agree.</li>
+      <li><strong>Meta‑Recognition</strong> – step back and extract the process itself as a framework.</li>
+    </ol>
+  </div>
+  <div class="section">
+    <h3>Essence of the Legacy Codex</h3>
+    <p>
+      At the centre of the Codex is a simple truth: neurodivergent, systems‑level, end‑state‑first thinking is not a deficit.
+      It’s a different architecture that requires different infrastructure. Scientific context shows that autism‑linked genes
+      have been under positive selection in human evolution, underscoring that neurodiversity is intertwined with human progress.
+    </p>
+  </div>
+  <div class="section">
+    <h3>Transmission &amp; Continuity</h3>
+    <p>
+      The Legacy Codex is designed to live through four vehicles: narratives, people, artifacts and structures.
+      The continuity blueprint details actions from this week through the next year and beyond,
+      ensuring that insights become practices and that the Codex evolves into a living ecosystem.
+    </p>
+  </div>
+  <div class="footer">
+    <p>
+      © 2025 Edward Emory. This site is a snapshot of the Legacy Codex breakthrough session and serves
+      as a public reference for anyone interested in the methodology.
+    </p>
+  </div>
+
+  <div id="install-banner">
+    <div class="banner-content">
+      <p>Install Legacy Codex as an app for quick access</p>
+    </div>
+    <div class="banner-actions">
+      <button id="install-btn" class="banner-btn">Install</button>
+      <button id="dismiss-banner-btn" class="banner-btn">Dismiss</button>
+    </div>
+  </div>
+
+  <div id="update-notification">
+    <div class="update-content">
+      <p>A new version of Legacy Codex is available</p>
+    </div>
+    <div class="update-actions">
+      <button id="update-btn" class="banner-btn">Update</button>
+      <button id="dismiss-update-btn" class="banner-btn">Later</button>
+    </div>
+  </div>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then(registration => {
+            console.log('Service Worker registered:', registration);
+          })
+          .catch(error => {
+            console.log('Service Worker registration failed:', error);
+          });
+      });
+    }
+  </script>
+</body>
+</html>
