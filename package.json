@@ -1,0 +1,14 @@
+{
+  "name": "legacy-codex",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Edward Emory Legacy Codex - A framework for neurodivergent collaboration with AI",
+  "scripts": {
+    "generate-icons": "node generate-icons.js",
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "sharp": "^0.33.0",
+    "vite": "^5.0.0"
+  }
+}
