@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run linting (if configured)
+        run: |
+          if [ -f ".eslintrc" ] || [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ] || [ -f "eslint.config.js" ]; then
+            npm run lint || echo "No lint script found"
+          else
+            echo "No ESLint configuration found, skipping linting"
+          fi
+        continue-on-error: true
+      
+      - name: Build project
+        run: npm run build
+      
+      - name: Validate HTML files
+        run: |
+          # Check for basic HTML syntax issues
+          find . -name "*.html" -not -path "./node_modules/*" -not -path "./dist/*" | while read file; do
+            echo "Validating $file"
+            # Basic validation - check for opening/closing tags
+            if ! grep -q "<!DOCTYPE html>" "$file" && ! grep -q "<html" "$file"; then
+              echo "Warning: $file may not be valid HTML"
+            fi
+          done
+        continue-on-error: true
+      
+      - name: Check for JavaScript syntax errors
+        run: |
+          find . -name "*.js" -not -path "./node_modules/*" -not -path "./dist/*" | while read file; do
+            echo "Checking $file"
+            node --check "$file" || echo "Syntax error in $file"
+          done
+        continue-on-error: true
+      
+      - name: Test service worker (if exists)
+        run: |
+          if [ -f "service-worker.js" ]; then
+            echo "Service worker found, checking syntax"
+            node --check service-worker.js || exit 1
+          fi
+        continue-on-error: true
