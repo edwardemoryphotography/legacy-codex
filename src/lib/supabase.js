@@ -11,21 +11,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export const auth = {
   signUp: async (email, password, displayName) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
+    const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
 
     if (data.user) {
       const { error: profileError } = await supabase
         .from('profiles')
-        .insert({
-          id: data.user.id,
-          display_name: displayName || email.split('@')[0],
-        });
-
+        .insert({ id: data.user.id, display_name: displayName || email.split('@')[0] });
       if (profileError) throw profileError;
     }
 
@@ -33,11 +25,7 @@ export const auth = {
   },
 
   signIn: async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
     return data;
   },
@@ -65,7 +53,6 @@ export const db = {
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
-
       if (error) throw error;
       return data;
     },
@@ -73,14 +60,9 @@ export const db = {
     create: async (userId, title, description = '') => {
       const { data, error } = await supabase
         .from('collaboration_sessions')
-        .insert({
-          user_id: userId,
-          title,
-          description,
-        })
+        .insert({ user_id: userId, title, description })
         .select()
         .maybeSingle();
-
       if (error) throw error;
       return data;
     },
@@ -92,7 +74,6 @@ export const db = {
         .eq('id', sessionId)
         .select()
         .maybeSingle();
-
       if (error) throw error;
       return data;
     },
@@ -102,7 +83,6 @@ export const db = {
         .from('collaboration_sessions')
         .delete()
         .eq('id', sessionId);
-
       if (error) throw error;
     },
   },
@@ -114,7 +94,6 @@ export const db = {
         .select('*')
         .eq('session_id', sessionId)
         .order('phase_number', { ascending: true });
-
       if (error) throw error;
       return data;
     },
@@ -122,15 +101,9 @@ export const db = {
     create: async (sessionId, phaseNumber, phaseName, content = '') => {
       const { data, error } = await supabase
         .from('session_phases')
-        .insert({
-          session_id: sessionId,
-          phase_number: phaseNumber,
-          phase_name: phaseName,
-          content,
-        })
+        .insert({ session_id: sessionId, phase_number: phaseNumber, phase_name: phaseName, content })
         .select()
         .maybeSingle();
-
       if (error) throw error;
       return data;
     },
@@ -142,7 +115,6 @@ export const db = {
         .eq('id', phaseId)
         .select()
         .maybeSingle();
-
       if (error) throw error;
       return data;
     },
@@ -155,11 +127,7 @@ export const db = {
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
-
-      if (sessionId) {
-        query = query.eq('session_id', sessionId);
-      }
-
+      if (sessionId) query = query.eq('session_id', sessionId);
       const { data, error } = await query;
       if (error) throw error;
       return data;
@@ -168,18 +136,19 @@ export const db = {
     create: async (userId, title, type, content, sessionId = null) => {
       const { data, error } = await supabase
         .from('artifacts')
-        .insert({
-          user_id: userId,
-          session_id: sessionId,
-          title,
-          type,
-          content,
-        })
+        .insert({ user_id: userId, session_id: sessionId, title, type, content })
         .select()
         .maybeSingle();
-
       if (error) throw error;
       return data;
+    },
+
+    delete: async (artifactId) => {
+      const { error } = await supabase
+        .from('artifacts')
+        .delete()
+        .eq('id', artifactId);
+      if (error) throw error;
     },
   },
 
@@ -190,7 +159,6 @@ export const db = {
         .select('*')
         .eq('user_id', userId)
         .order('order_index', { ascending: true });
-
       if (error) throw error;
       return data;
     },
@@ -198,17 +166,19 @@ export const db = {
     create: async (userId, title, description, category) => {
       const { data, error } = await supabase
         .from('principles')
-        .insert({
-          user_id: userId,
-          title,
-          description,
-          category,
-        })
+        .insert({ user_id: userId, title, description, category })
         .select()
         .maybeSingle();
-
       if (error) throw error;
       return data;
+    },
+
+    delete: async (principleId) => {
+      const { error } = await supabase
+        .from('principles')
+        .delete()
+        .eq('id', principleId);
+      if (error) throw error;
     },
   },
 
@@ -218,13 +188,11 @@ export const db = {
         .from('narratives')
         .select('*')
         .order('created_at', { ascending: false });
-
       if (includePublic) {
         query = query.or(`user_id.eq.${userId},is_public.eq.true`);
       } else {
         query = query.eq('user_id', userId);
       }
-
       const { data, error } = await query;
       if (error) throw error;
       return data;
@@ -233,19 +201,19 @@ export const db = {
     create: async (userId, title, content, tags = [], isPublic = false, sessionId = null) => {
       const { data, error } = await supabase
         .from('narratives')
-        .insert({
-          user_id: userId,
-          session_id: sessionId,
-          title,
-          content,
-          tags,
-          is_public: isPublic,
-        })
+        .insert({ user_id: userId, session_id: sessionId, title, content, tags, is_public: isPublic })
         .select()
         .maybeSingle();
-
       if (error) throw error;
       return data;
+    },
+
+    delete: async (narrativeId) => {
+      const { error } = await supabase
+        .from('narratives')
+        .delete()
+        .eq('id', narrativeId);
+      if (error) throw error;
     },
   },
 
@@ -256,11 +224,7 @@ export const db = {
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
-
-      if (sessionId) {
-        query = query.eq('session_id', sessionId);
-      }
-
+      if (sessionId) query = query.eq('session_id', sessionId);
       const { data, error } = await query;
       if (error) throw error;
       return data;
@@ -269,18 +233,19 @@ export const db = {
     create: async (userId, sessionId, insight, context = '', tags = []) => {
       const { data, error } = await supabase
         .from('reflections')
-        .insert({
-          user_id: userId,
-          session_id: sessionId,
-          insight,
-          context,
-          tags,
-        })
+        .insert({ user_id: userId, session_id: sessionId, insight, context, tags })
         .select()
         .maybeSingle();
-
       if (error) throw error;
       return data;
+    },
+
+    delete: async (reflectionId) => {
+      const { error } = await supabase
+        .from('reflections')
+        .delete()
+        .eq('id', reflectionId);
+      if (error) throw error;
     },
   },
 };

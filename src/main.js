@@ -1,11 +1,17 @@
-import { auth, supabase } from './lib/supabase.js';
+import { auth } from './lib/supabase.js';
+import { initTheme, initPwaInstall, initPwaUpdates } from './lib/utils.js';
 import { renderAuth } from './components/auth.js';
 import { renderDashboard } from './components/dashboard.js';
 import './styles/main.css';
 
 let currentUser = null;
+let isRendering = false;
 
 async function init() {
+  initTheme();
+  initPwaInstall();
+  initPwaUpdates();
+
   const appContainer = document.getElementById('app');
 
   currentUser = await auth.getCurrentUser();
@@ -13,24 +19,23 @@ async function init() {
   if (currentUser) {
     renderDashboard(appContainer, currentUser);
   } else {
-    renderAuth(appContainer, handleAuthSuccess);
+    renderAuth(appContainer);
   }
 
   auth.onAuthStateChange((event, session) => {
+    if (isRendering) return;
+    isRendering = true;
+
     if (event === 'SIGNED_IN' && session) {
       currentUser = session.user;
       renderDashboard(appContainer, currentUser);
     } else if (event === 'SIGNED_OUT') {
       currentUser = null;
-      renderAuth(appContainer, handleAuthSuccess);
+      renderAuth(appContainer);
     }
-  });
-}
 
-function handleAuthSuccess(user) {
-  currentUser = user;
-  const appContainer = document.getElementById('app');
-  renderDashboard(appContainer, currentUser);
+    setTimeout(() => { isRendering = false; }, 100);
+  });
 }
 
 if (document.readyState === 'loading') {
