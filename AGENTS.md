@@ -7,10 +7,9 @@
 - Supabase migrations live in `supabase/migrations/`.
 
 ## Frontend setup
-```bash
-npm install
-npm run build
-```
+- `npm install`: Install dependencies.
+- `npx vite`: Run the development server.
+- `npm run build`: Build for production.
 
 ## Backend setup
 ```bash
