@@ -1,28 +1,36 @@
 # AGENTS.md
 
-## Project overview
-- Static PWA frontend in repo root (Vite build output in `dist/`).
-- FastAPI backend in `artful-backend/`.
-- Supabase client in `src/lib/supabase.js` and migrations in `supabase/migrations/`.
+## Purpose
+This file is a quick operating guide for coding agents working in this
+repository.
 
-## Frontend setup and commands
+## Project overview
+- Frontend: static PWA in repo root (source in `src/`, build output in `dist/`).
+- Backend: FastAPI service in `artful-backend/`.
+- Supabase: JS client in `src/lib/supabase.js`; SQL migrations in
+  `supabase/migrations/`.
+
+## Frontend workflow
+Install dependencies and build from the repository root:
 ```bash
 npm ci
 npm run build
 ```
 
-Optional:
+Optional command:
 ```bash
 npm run generate-icons
 ```
 
 Notes:
-- `dist/` is build output. If you change frontend assets, consider whether
-  regenerated `dist/` files should be updated with `npm run build`.
-- Icons in `icons/` are generated from `icon-base.svg` via
+- `dist/` is generated output from Vite. If frontend code or static assets
+  change, run `npm run build` and include regenerated `dist/` files when needed.
+- Icons in `icons/` are generated from `icon-base.svg` using
   `npm run generate-icons`.
+- There is no dedicated frontend test script in `package.json`.
 
-## Backend setup and commands
+## Backend workflow
+Set up and run the API from `artful-backend/`:
 ```bash
 cd artful-backend
 python3 -m venv venv
@@ -32,9 +40,19 @@ cp .env.example .env
 uvicorn app.main:app --reload
 ```
 
-## Tests and CI
-- No dedicated test suite is configured.
-- CI runs `npm run build` and basic JS/HTML checks in `.github/workflows/ci.yml`.
+Environment requirements:
+- Populate `artful-backend/.env` with valid Supabase credentials.
+- Do not commit secrets or populated `.env` files.
 
-## Environment notes
-- Backend expects Supabase credentials in `artful-backend/.env`.
+## Database and migrations
+- Keep schema changes in `supabase/migrations/`.
+- Use descriptive migration names and preserve timestamp prefixes.
+- Ensure frontend/backend expectations stay aligned with schema updates.
+
+## Validation and CI expectations
+- Primary validation: `npm run build`.
+- CI (`.github/workflows/ci.yml`) runs:
+  - `npm ci`
+  - `npm run build`
+  - basic HTML and JavaScript syntax checks
+- No dedicated repository-wide automated test suite is currently configured.
