@@ -31,6 +31,7 @@ Set these in `artful-backend/.env`:
 - No automated test suite is configured.
 - No lint/format scripts are configured.
 - Use `npm run build` as the primary frontend sanity check.
+- For the backend, check the `http://127.0.0.1:8000/health` endpoint to verify the server is running.
 
 ## Notes
 - `dist/` contains built assets. Update it only when you intentionally rebuild
