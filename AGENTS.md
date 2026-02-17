@@ -1,4 +1,4 @@
-# AGENTS.md
+# Development Setup Guide
 
 ## Overview
 - Frontend: a static Vite-powered PWA in the repo root (`src/`, `index.html`,
