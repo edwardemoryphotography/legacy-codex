@@ -1,5 +1,5 @@
 import { auth } from './lib/supabase.js';
-import { initTheme, initPwaInstall, initPwaUpdates } from './lib/utils.js';
+import { initTheme } from './lib/utils.js';
 import { renderAuth } from './components/auth.js';
 import { renderDashboard } from './components/dashboard.js';
 import './styles/main.css';
@@ -9,8 +9,6 @@ let isRendering = false;
 
 async function init() {
   initTheme();
-  initPwaInstall();
-  initPwaUpdates();
 
   const appContainer = document.getElementById('app');
 

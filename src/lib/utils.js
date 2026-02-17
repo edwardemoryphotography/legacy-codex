@@ -34,14 +34,30 @@ export function showToast(message, type = 'info') {
   }, 3000);
 }
 
+function getStoredTheme() {
+  try {
+    return localStorage.getItem('theme-mode');
+  } catch {
+    return null;
+  }
+}
+
+function setStoredTheme(theme) {
+  try {
+    localStorage.setItem('theme-mode', theme);
+  } catch {
+    // Safari private mode can reject localStorage access.
+  }
+}
+
 export function initTheme() {
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const stored = localStorage.getItem('theme-mode');
+  const stored = getStoredTheme();
   const theme = stored || (prefersDark ? 'dark' : 'light');
   applyTheme(theme);
 
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-    if (!localStorage.getItem('theme-mode')) {
+    if (!getStoredTheme()) {
       applyTheme(e.matches ? 'dark' : 'light');
     }
   });
@@ -50,69 +66,14 @@ export function initTheme() {
 export function applyTheme(theme) {
   if (theme === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
-    localStorage.setItem('theme-mode', 'dark');
+    setStoredTheme('dark');
   } else {
     document.documentElement.removeAttribute('data-theme');
-    localStorage.setItem('theme-mode', 'light');
+    setStoredTheme('light');
   }
 }
 
 export function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') || 'light';
   applyTheme(current === 'dark' ? 'light' : 'dark');
-}
-
-export function initPwaInstall() {
-  let deferredPrompt = null;
-
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    const banner = document.getElementById('install-banner');
-    if (banner) banner.classList.add('show');
-  });
-
-  window.addEventListener('appinstalled', () => {
-    deferredPrompt = null;
-    const banner = document.getElementById('install-banner');
-    if (banner) banner.classList.remove('show');
-  });
-
-  const installBtn = document.getElementById('install-btn');
-  if (installBtn) {
-    installBtn.addEventListener('click', async () => {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        await deferredPrompt.userChoice;
-        deferredPrompt = null;
-        const banner = document.getElementById('install-banner');
-        if (banner) banner.classList.remove('show');
-      }
-    });
-  }
-
-  const dismissBtn = document.getElementById('dismiss-banner-btn');
-  if (dismissBtn) {
-    dismissBtn.addEventListener('click', () => {
-      const banner = document.getElementById('install-banner');
-      if (banner) banner.classList.remove('show');
-    });
-  }
-}
-
-export function initPwaUpdates() {
-  if (!('serviceWorker' in navigator)) return;
-
-  const updateBtn = document.getElementById('update-btn');
-  if (updateBtn) {
-    updateBtn.addEventListener('click', () => window.location.reload());
-  }
-
-  const dismissBtn = document.getElementById('dismiss-update-btn');
-  if (dismissBtn) {
-    dismissBtn.addEventListener('click', () => {
-      const notification = document.getElementById('update-notification');
-      if (notification) notification.classList.remove('show');
-    });
-  }
 }
