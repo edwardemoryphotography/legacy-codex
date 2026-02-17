@@ -3,24 +3,1209 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="description" content="A distilled framework for neurodivergent, high-pattern-recognition collaboration with AI">
-  <meta name="theme-color" content="#2c3e50">
-  <title>Edward Emory Legacy Codex</title>
+  <meta name="theme-color" content="#0a0a0f">
+  <meta name="description" content="Legacy Codex v17 single-file operational dashboard">
+  <link rel="icon" href="data:,">
+  <title>Legacy Codex v17 Dashboard</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --surface-soft: #181826;
+      --surface-strong: #202033;
+      --line: #2a2a40;
+      --line-strong: #353550;
+      --text: #e7e7f2;
+      --text-soft: #b7b8ce;
+      --text-dim: #8e90aa;
+      --teal: #00d4aa;
+      --teal-soft: rgba(0, 212, 170, 0.18);
+      --amber: #f5a623;
+      --amber-soft: rgba(245, 166, 35, 0.18);
+      --error: #ff5a6a;
+      --error-soft: rgba(255, 90, 106, 0.17);
+      --success: #38e08a;
+      --success-soft: rgba(56, 224, 138, 0.17);
+      --radius-sm: 8px;
+      --radius: 12px;
+      --radius-lg: 16px;
+      --space-2xs: 4px;
+      --space-xs: 8px;
+      --space-sm: 12px;
+      --space-md: 16px;
+      --space-lg: 24px;
+      --space-xl: 32px;
+      --safe-bottom: 20px;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+    }
 
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512x512.png">
-  <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Legacy Codex">
-  <meta name="msapplication-TileColor" content="#2c3e50">
-  <meta name="msapplication-TileImage" content="/icons/icon-144x144.png">
+    html, body {
+      width: 100%;
+      min-height: 100%;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      padding-top: var(--safe-top);
+      padding-left: var(--safe-left);
+      padding-right: var(--safe-right);
+      overflow-x: hidden;
+    }
+
+    .app {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+      padding: var(--space-md);
+      padding-bottom: calc(98px + var(--safe-bottom));
+    }
+
+    .overview-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: var(--space-sm);
+      align-items: center;
+      margin-bottom: var(--space-sm);
+    }
+
+    .overview-header h1 {
+      font-size: clamp(1.25rem, 3.8vw, 1.85rem);
+      letter-spacing: 0.01em;
+    }
+
+    .badge {
+      border: 1px solid var(--teal);
+      background: var(--teal-soft);
+      color: var(--teal);
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-xs);
+      margin-bottom: var(--space-lg);
+    }
+
+    .pill {
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      font-size: 0.78rem;
+      color: var(--text-soft);
+      padding: 6px 10px;
+      background: var(--surface-soft);
+    }
+
+    .tab-bar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 1000;
+      border-top: 1px solid var(--line-strong);
+      background: rgba(10, 10, 15, 0.96);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: var(--space-2xs);
+      padding: var(--space-xs);
+      padding-bottom: calc(var(--space-xs) + var(--safe-bottom));
+    }
+
+    .tab-btn {
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 0.72rem;
+      font-weight: 600;
+      line-height: 1.2;
+      min-height: 52px;
+      padding: 8px 6px;
+      cursor: pointer;
+      transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+    }
+
+    .tab-btn.active {
+      border-color: var(--teal);
+      color: var(--teal);
+      background: var(--teal-soft);
+    }
+
+    .tab-btn:focus-visible,
+    .action-btn:focus-visible,
+    .toggle-btn:focus-visible,
+    .save-btn:focus-visible {
+      outline: 2px solid var(--teal);
+      outline-offset: 2px;
+    }
+
+    .tab-panel {
+      display: none;
+      animation: panelIn 0.2s ease;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    @keyframes panelIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .section-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: var(--space-sm);
+      margin-top: var(--space-xs);
+      color: var(--text);
+    }
+
+    .section-subtitle {
+      color: var(--text-soft);
+      margin-bottom: var(--space-md);
+      font-size: 0.92rem;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-lg);
+    }
+
+    .card {
+      background: linear-gradient(180deg, var(--surface-soft), var(--surface));
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: var(--space-md);
+    }
+
+    .principle-card h3 {
+      color: var(--teal);
+      margin-bottom: 6px;
+      font-size: 0.97rem;
+      letter-spacing: 0.01em;
+    }
+
+    .principle-card p {
+      color: var(--text-soft);
+      font-size: 0.9rem;
+    }
+
+    .metric-list {
+      display: grid;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-sm);
+    }
+
+    .metric-item {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: var(--space-sm);
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--space-sm);
+    }
+
+    .metric-label {
+      font-weight: 600;
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+
+    .metric-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .toggle-btn {
+      border: 1px solid var(--line-strong);
+      background: var(--surface-soft);
+      color: var(--text-soft);
+      border-radius: 10px;
+      padding: 8px 12px;
+      min-width: 88px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.18s ease;
+    }
+
+    .toggle-btn.active.pass {
+      border-color: var(--success);
+      color: var(--success);
+      background: var(--success-soft);
+    }
+
+    .toggle-btn.active.fail {
+      border-color: var(--error);
+      color: var(--error);
+      background: var(--error-soft);
+    }
+
+    details.protocol-item {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      margin-bottom: var(--space-sm);
+      overflow: hidden;
+    }
+
+    details.protocol-item > summary {
+      list-style: none;
+      cursor: pointer;
+      padding: var(--space-md);
+      font-weight: 700;
+      color: var(--amber);
+      background: linear-gradient(180deg, #1b1b29, #161623);
+    }
+
+    details.protocol-item > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .protocol-body {
+      padding: var(--space-md);
+      color: var(--text-soft);
+      display: grid;
+      gap: 6px;
+      font-size: 0.9rem;
+    }
+
+    .protocol-body b {
+      color: var(--text);
+    }
+
+    .static-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: var(--space-md);
+      margin-bottom: var(--space-sm);
+    }
+
+    .static-card h3 {
+      font-size: 0.95rem;
+      margin-bottom: var(--space-xs);
+      color: var(--amber);
+    }
+
+    .static-card p,
+    .static-card li {
+      color: var(--text-soft);
+      font-size: 0.9rem;
+    }
+
+    .deployment-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--space-sm);
+      margin: var(--space-sm) 0;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field label {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    input[type="text"],
+    input[type="url"],
+    input[type="date"],
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line-strong);
+      border-radius: 10px;
+      background: #0f0f18;
+      color: var(--text);
+      font: inherit;
+      padding: 11px 12px;
+      min-height: 44px;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 140px;
+    }
+
+    .save-btn,
+    .action-btn {
+      border: 1px solid var(--teal);
+      border-radius: 10px;
+      background: var(--teal-soft);
+      color: var(--teal);
+      font-weight: 700;
+      cursor: pointer;
+      min-height: 44px;
+      padding: 10px 14px;
+    }
+
+    .save-btn:hover,
+    .action-btn:hover {
+      background: rgba(0, 212, 170, 0.28);
+    }
+
+    .helper-line {
+      margin-top: var(--space-xs);
+      color: var(--text-dim);
+      font-size: 0.82rem;
+    }
+
+    .deficit-list {
+      display: grid;
+      gap: var(--space-xs);
+      margin-top: var(--space-xs);
+    }
+
+    .deficit-item {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface-soft);
+      padding: 10px 12px;
+      font-size: 0.9rem;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      color: var(--text-soft);
+    }
+
+    .tag {
+      font-size: 0.7rem;
+      letter-spacing: 0.04em;
+      font-weight: 800;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid;
+      text-transform: uppercase;
+    }
+
+    .tag.resolved {
+      color: var(--success);
+      border-color: var(--success);
+      background: var(--success-soft);
+    }
+
+    .tag.fail {
+      color: var(--error);
+      border-color: var(--error);
+      background: var(--error-soft);
+    }
+
+    .tag.open {
+      color: var(--amber);
+      border-color: var(--amber);
+      background: var(--amber-soft);
+    }
+
+    .result-box {
+      margin-top: var(--space-sm);
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+      background: var(--surface);
+      padding: var(--space-sm);
+      min-height: 58px;
+      color: var(--text-soft);
+    }
+
+    .result-box.linked {
+      border-color: var(--success);
+      background: var(--success-soft);
+      color: #bff5d8;
+    }
+
+    .result-box.orphaned {
+      border-color: var(--error);
+      background: var(--error-soft);
+      color: #ffc8cf;
+    }
+
+    .markdown-output {
+      margin-top: var(--space-sm);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #0f0f18;
+      padding: var(--space-sm);
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 140px;
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-xs);
+      margin-top: var(--space-sm);
+    }
+
+    .constraint-results {
+      margin-top: var(--space-sm);
+      display: grid;
+      gap: var(--space-xs);
+    }
+
+    .constraint-row {
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      padding: 10px 12px;
+      font-size: 0.88rem;
+      color: var(--text-soft);
+      display: grid;
+      gap: 4px;
+    }
+
+    .constraint-row.pass {
+      border-color: var(--success);
+      background: var(--success-soft);
+      color: #c4f7de;
+    }
+
+    .constraint-row.fail {
+      border-color: var(--error);
+      background: var(--error-soft);
+      color: #ffd0d5;
+    }
+
+    .verdict {
+      margin-top: var(--space-sm);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      font-size: 0.83rem;
+    }
+
+    .verdict.aligned {
+      border-color: var(--success);
+      color: var(--success);
+      background: var(--success-soft);
+    }
+
+    .verdict.violation {
+      border-color: var(--error);
+      color: var(--error);
+      background: var(--error-soft);
+    }
+
+    .footer {
+      margin-top: var(--space-xl);
+      color: var(--text-dim);
+      font-size: 0.8rem;
+      padding: var(--space-sm) 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .desktop-title {
+      display: none;
+      margin-bottom: var(--space-md);
+      color: var(--text-soft);
+      font-size: 0.92rem;
+    }
+
+    @media (min-width: 768px) {
+      .app {
+        padding: var(--space-lg);
+        padding-bottom: 110px;
+      }
+
+      .card-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .metric-item {
+        grid-template-columns: 1fr auto;
+        align-items: center;
+      }
+
+      .deployment-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (min-width: 1040px) {
+      .app {
+        padding-bottom: var(--space-xl);
+      }
+
+      .desktop-title {
+        display: block;
+      }
+
+      .tab-bar {
+        position: sticky;
+        top: 0;
+        left: auto;
+        right: auto;
+        bottom: auto;
+        padding: var(--space-xs);
+        margin-bottom: var(--space-md);
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius);
+      }
+
+      .tab-btn {
+        min-height: 42px;
+        font-size: 0.78rem;
+      }
+    }
+  </style>
 </head>
 <body>
-  <div id="app"></div>
-  <div id="toast-container"></div>
+  <div class="app">
+    <div class="desktop-title">Legacy Codex operational dashboard. Single-file mode active.</div>
 
-  <script type="module" src="/src/main.js"></script>
+    <div class="overview-header">
+      <h1>Legacy Codex</h1>
+      <div class="badge">v17 — OPERATIONAL</div>
+    </div>
+
+    <div class="pill-row">
+      <div class="pill">Reality Filter Active</div>
+      <div class="pill">No mock data</div>
+    </div>
+
+    <nav class="tab-bar" role="tablist" aria-label="Legacy Codex navigation">
+      <button class="tab-btn active" type="button" role="tab" aria-selected="true" data-tab="overview">Overview</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="protocols">Protocols</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="sprint-linker">Sprint Linker</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="resumption-log">Resumption Log</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="constraint-validator">Constraint Validator</button>
+    </nav>
+
+    <main>
+      <section class="tab-panel active" data-panel="overview">
+        <h2 class="section-title">Canonical Principles</h2>
+        <p class="section-subtitle">Core authority constraints that govern execution quality.</p>
+
+        <div class="card-grid">
+          <article class="card principle-card">
+            <h3>1. Artifact Anchoring</h3>
+            <p>Every interaction must yield a tangible system change or file.</p>
+          </article>
+          <article class="card principle-card">
+            <h3>2. Interruption Resilience</h3>
+            <p>Systems must be stateless enough to survive pauses.</p>
+          </article>
+          <article class="card principle-card">
+            <h3>3. Governing Law</h3>
+            <p>The system is the authority, not the user's fluctuating energy.</p>
+          </article>
+          <article class="card principle-card">
+            <h3>4. Constraint Discipline</h3>
+            <p>Prefer modifying existing infrastructure over proposing new tools.</p>
+          </article>
+        </div>
+
+        <h2 class="section-title">Validation Metrics</h2>
+        <p class="section-subtitle">Mark each metric PASS or FAIL. Values persist locally on this device.</p>
+
+        <div class="metric-list">
+          <div class="metric-item" data-metric="artifact_existence">
+            <div class="metric-label">Artifact Existence — Does a thing exist post-turn?</div>
+            <div class="metric-actions">
+              <button class="toggle-btn pass" type="button" data-value="PASS">PASS</button>
+              <button class="toggle-btn fail" type="button" data-value="FAIL">FAIL</button>
+            </div>
+          </div>
+          <div class="metric-item" data-metric="stateless_resumption">
+            <div class="metric-label">Stateless Resumption — Can Edward resume from a transcript link?</div>
+            <div class="metric-actions">
+              <button class="toggle-btn pass" type="button" data-value="PASS">PASS</button>
+              <button class="toggle-btn fail" type="button" data-value="FAIL">FAIL</button>
+            </div>
+          </div>
+          <div class="metric-item" data-metric="subtraction_check">
+            <div class="metric-label">Subtraction Check — Did this turn remove or simplify a step?</div>
+            <div class="metric-actions">
+              <button class="toggle-btn pass" type="button" data-value="PASS">PASS</button>
+              <button class="toggle-btn fail" type="button" data-value="FAIL">FAIL</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-panel="protocols">
+        <h2 class="section-title">Protocols</h2>
+        <p class="section-subtitle">Operational cards are collapsed by default. Expand to inspect trigger/output pairs.</p>
+
+        <details class="protocol-item">
+          <summary>1. The Smallest Ship</summary>
+          <div class="protocol-body">
+            <div><b>Trigger:</b> Ambiguity detected</div>
+            <div><b>Output:</b> Smallest shippable artifact</div>
+          </div>
+        </details>
+        <details class="protocol-item">
+          <summary>2. Pre-Friction Triage</summary>
+          <div class="protocol-body">
+            <div><b>Trigger:</b> Execution stall &gt;15m</div>
+            <div><b>Output:</b> Identification of 1 blocker</div>
+          </div>
+        </details>
+        <details class="protocol-item">
+          <summary>3. Constraint Decay</summary>
+          <div class="protocol-body">
+            <div><b>Trigger:</b> Blocker &gt;48 hours</div>
+            <div><b>Output:</b> Automatic purge or 180-pivot</div>
+          </div>
+        </details>
+        <details class="protocol-item">
+          <summary>4. Tech Stack Mandate</summary>
+          <div class="protocol-body">
+            <div><b>Trigger:</b> New tool proposed</div>
+            <div><b>Output:</b> Reject unless Sony/Apple/Muse/Docker</div>
+          </div>
+        </details>
+        <details class="protocol-item">
+          <summary>5. Failure Validation</summary>
+          <div class="protocol-body">
+            <div><b>Trigger:</b> Edward says "doesn't work"</div>
+            <div><b>Output:</b> 5-step debug checklist:</div>
+            <div>(1) Artifact defined?</div>
+            <div>(2) Blocker named?</div>
+            <div>(3) Tool or constraint failure?</div>
+            <div>(4) Smallest reproducible test?</div>
+            <div>(5) 180-pivot if unfixable in 15min?</div>
+          </div>
+        </details>
+
+        <article class="static-card">
+          <h3>Convergence Event</h3>
+          <p><b>Map→Territory Collapse — 2025-11-30</b></p>
+          <p>"The irreversible shift from planning how to work to the work being the system."</p>
+        </article>
+
+        <article class="static-card">
+          <h3>Deployment Status</h3>
+          <div class="deployment-grid">
+            <div class="field">
+              <label for="deployLocalFile">Local file saved</label>
+              <input id="deployLocalFile" type="text" value="YES — index.html committed to GitHub">
+            </div>
+            <div class="field">
+              <label for="deployRepo">GitHub repo</label>
+              <input id="deployRepo" type="url" value="https://github.com/edwardemoryphotography/legacy-codex">
+            </div>
+            <div class="field">
+              <label for="deployUrl">Public URL</label>
+              <input id="deployUrl" type="url" value="https://edwardemoryphotography.github.io/legacy-codex/">
+            </div>
+            <div class="field">
+              <label for="deployExportDate">Last exported</label>
+              <input id="deployExportDate" type="date" value="2026-02-17">
+            </div>
+          </div>
+          <button id="saveDeployStatus" class="save-btn" type="button">Save</button>
+          <div id="deployStatusLine" class="helper-line">Status fields reflect user-declared state. Last saved: never saved</div>
+        </article>
+
+        <article class="static-card">
+          <h3>Open Deficits</h3>
+          <div class="deficit-list">
+            <div class="deficit-item"><span class="tag resolved">Resolved</span> System Persistence → Public URL live</div>
+            <div class="deficit-item"><span class="tag fail">Fail</span> Version History → v1-v16 unrecovered</div>
+            <div class="deficit-item"><span class="tag open">Open</span> Tab count discrepancy → under investigation</div>
+          </div>
+        </article>
+      </section>
+
+      <section class="tab-panel" data-panel="sprint-linker">
+        <h2 class="section-title">Sprint Linker</h2>
+        <p class="section-subtitle">Validate whether a sprint statement is anchored to artifact/system reality.</p>
+
+        <div class="field">
+          <label for="sprintTask">Describe your current task in one sentence</label>
+          <input id="sprintTask" type="text" placeholder="Example: Commit index.html and publish to GitHub Pages">
+        </div>
+
+        <div class="field" style="margin-top:12px;">
+          <label for="sprintPrinciple">Link to Canonical Principle</label>
+          <select id="sprintPrinciple">
+            <option>Artifact Anchoring</option>
+            <option>Interruption Resilience</option>
+            <option>Governing Law</option>
+            <option>Constraint Discipline</option>
+          </select>
+        </div>
+
+        <div class="btn-row">
+          <button id="validateSprint" class="action-btn" type="button">Validate Sprint</button>
+        </div>
+        <div id="sprintResult" class="result-box">No validation run yet.</div>
+      </section>
+
+      <section class="tab-panel" data-panel="resumption-log">
+        <h2 class="section-title">Resumption Log</h2>
+        <p class="section-subtitle">Capture immediate continuity data for interruption-safe restart.</p>
+
+        <div class="field">
+          <label for="resumeArtifact">What was the last artifact produced?</label>
+          <input id="resumeArtifact" type="text" placeholder="index.html update, deployment commit, transcript link">
+        </div>
+        <div class="field" style="margin-top:12px;">
+          <label for="resumeAction">What is the next single action?</label>
+          <input id="resumeAction" type="text" placeholder="Run local smoke check and push main">
+        </div>
+        <div class="field" style="margin-top:12px;">
+          <label for="resumeBlocker">What is the blocker, if any?</label>
+          <input id="resumeBlocker" type="text" placeholder="If none, write none">
+        </div>
+        <div class="btn-row">
+          <button id="generateLog" class="action-btn" type="button">Generate Log Entry</button>
+          <button id="copyLog" class="save-btn" type="button">Copy to Clipboard</button>
+        </div>
+        <div id="copyStatus" class="helper-line">Clipboard status: not copied yet.</div>
+        <pre id="logOutput" class="markdown-output"></pre>
+      </section>
+
+      <section class="tab-panel" data-panel="constraint-validator">
+        <h2 class="section-title">Constraint Validator</h2>
+        <p class="section-subtitle">Run a task against all 4 Canonical Principles with pass/fail reasoning.</p>
+
+        <div class="field">
+          <label for="constraintInput">Paste any task, idea, or prompt here</label>
+          <textarea id="constraintInput" placeholder="Paste task text for validation."></textarea>
+        </div>
+        <div class="btn-row">
+          <button id="validateConstraint" class="action-btn" type="button">Validate Against Codex</button>
+        </div>
+        <div id="constraintRows" class="constraint-results"></div>
+        <div id="constraintVerdict" class="verdict">No validation run yet.</div>
+      </section>
+    </main>
+
+    <footer class="footer">Legacy Codex v17 | Reality Filter Active | No mock data.</footer>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var METRICS_KEY = "codex_v17_metrics";
+      var DEPLOY_KEY = "codex_v17_deploy_status";
+
+      function safeStorageGet(key) {
+        try {
+          return localStorage.getItem(key);
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function safeStorageSet(key, value) {
+        try {
+          localStorage.setItem(key, value);
+          return true;
+        } catch (error) {
+          return false;
+        }
+      }
+
+      function qs(selector, parent) {
+        return (parent || document).querySelector(selector);
+      }
+
+      function qsa(selector, parent) {
+        return Array.prototype.slice.call((parent || document).querySelectorAll(selector));
+      }
+
+      function initTabs() {
+        var tabButtons = qsa(".tab-btn");
+        var panels = qsa(".tab-panel");
+
+        function activateTab(tabName) {
+          tabButtons.forEach(function (button) {
+            var isActive = button.getAttribute("data-tab") === tabName;
+            button.classList.toggle("active", isActive);
+            button.setAttribute("aria-selected", isActive ? "true" : "false");
+          });
+
+          panels.forEach(function (panel) {
+            panel.classList.toggle("active", panel.getAttribute("data-panel") === tabName);
+          });
+        }
+
+        tabButtons.forEach(function (button) {
+          button.addEventListener("click", function () {
+            activateTab(button.getAttribute("data-tab"));
+          });
+        });
+      }
+
+      function initMetrics() {
+        var defaultMetrics = {
+          artifact_existence: "PASS",
+          stateless_resumption: "PASS",
+          subtraction_check: "PASS"
+        };
+
+        var storedRaw = safeStorageGet(METRICS_KEY);
+        var metricsState = defaultMetrics;
+
+        if (storedRaw) {
+          try {
+            var parsed = JSON.parse(storedRaw);
+            metricsState = Object.assign({}, defaultMetrics, parsed);
+          } catch (error) {
+            metricsState = defaultMetrics;
+          }
+        }
+
+        function applyMetricState() {
+          qsa(".metric-item").forEach(function (metricItem) {
+            var metricName = metricItem.getAttribute("data-metric");
+            var currentValue = metricsState[metricName];
+
+            qsa(".toggle-btn", metricItem).forEach(function (toggleBtn) {
+              var isActive = toggleBtn.getAttribute("data-value") === currentValue;
+              toggleBtn.classList.toggle("active", isActive);
+            });
+          });
+        }
+
+        qsa(".metric-item").forEach(function (metricItem) {
+          var metricName = metricItem.getAttribute("data-metric");
+          qsa(".toggle-btn", metricItem).forEach(function (button) {
+            button.addEventListener("click", function () {
+              metricsState[metricName] = button.getAttribute("data-value");
+              applyMetricState();
+              safeStorageSet(METRICS_KEY, JSON.stringify(metricsState));
+            });
+          });
+        });
+
+        applyMetricState();
+      }
+
+      function initDeploymentStatus() {
+        var inputs = {
+          localFile: qs("#deployLocalFile"),
+          repo: qs("#deployRepo"),
+          url: qs("#deployUrl"),
+          exported: qs("#deployExportDate")
+        };
+
+        var statusLine = qs("#deployStatusLine");
+        var saveBtn = qs("#saveDeployStatus");
+        var defaultPayload = {
+          localFile: "YES — index.html committed to GitHub",
+          repo: "https://github.com/edwardemoryphotography/legacy-codex",
+          url: "https://edwardemoryphotography.github.io/legacy-codex/",
+          exported: "2026-02-17",
+          savedAt: null
+        };
+
+        var currentState = defaultPayload;
+        var storedRaw = safeStorageGet(DEPLOY_KEY);
+        if (storedRaw) {
+          try {
+            var parsed = JSON.parse(storedRaw);
+            currentState = Object.assign({}, defaultPayload, parsed);
+          } catch (error) {
+            currentState = defaultPayload;
+          }
+        }
+
+        function renderState(payload) {
+          inputs.localFile.value = payload.localFile;
+          inputs.repo.value = payload.repo;
+          inputs.url.value = payload.url;
+          inputs.exported.value = payload.exported;
+          var savedLabel = payload.savedAt ? payload.savedAt : "never saved";
+          statusLine.textContent = "Status fields reflect user-declared state. Last saved: " + savedLabel;
+        }
+
+        saveBtn.addEventListener("click", function () {
+          var nextState = {
+            localFile: inputs.localFile.value.trim() || defaultPayload.localFile,
+            repo: inputs.repo.value.trim() || defaultPayload.repo,
+            url: inputs.url.value.trim() || defaultPayload.url,
+            exported: inputs.exported.value.trim() || defaultPayload.exported,
+            savedAt: new Date().toLocaleString()
+          };
+
+          var saved = safeStorageSet(DEPLOY_KEY, JSON.stringify(nextState));
+          if (!saved) {
+            statusLine.textContent = "Status fields reflect user-declared state. Last saved: failed (storage unavailable)";
+            return;
+          }
+
+          currentState = nextState;
+          renderState(currentState);
+        });
+
+        renderState(currentState);
+      }
+
+      function initSprintLinker() {
+        var taskInput = qs("#sprintTask");
+        var principleSelect = qs("#sprintPrinciple");
+        var validateBtn = qs("#validateSprint");
+        var resultBox = qs("#sprintResult");
+
+        var artifactTerms = [
+          "file", "repo", "commit", "deploy", "url", "dashboard",
+          "html", "markdown", "doc", "publish", "ship", "build", "export"
+        ];
+
+        var mindsetTerms = [
+          "motivation", "mindset", "habit", "feel", "inspiration",
+          "confidence", "affirmation"
+        ];
+
+        function hasAnyTerm(text, terms) {
+          return terms.some(function (term) {
+            return text.indexOf(term) !== -1;
+          });
+        }
+
+        validateBtn.addEventListener("click", function () {
+          var taskRaw = taskInput.value.trim();
+          if (!taskRaw) {
+            resultBox.className = "result-box orphaned";
+            resultBox.innerHTML = "<strong>ORPHANED</strong><br>Reason: task is empty.";
+            return;
+          }
+
+          var normalizedTask = taskRaw.toLowerCase();
+          var hasArtifactSignal = hasAnyTerm(normalizedTask, artifactTerms);
+          var hasMindsetSignal = hasAnyTerm(normalizedTask, mindsetTerms);
+          var selectedPrinciple = principleSelect.value;
+
+          if (hasArtifactSignal && !hasMindsetSignal) {
+            resultBox.className = "result-box linked";
+            resultBox.innerHTML = "<strong>LINKED</strong><br>Reason: artifact/system language detected and no mindset-only language found. Principle: " + selectedPrinciple + ".";
+            return;
+          }
+
+          resultBox.className = "result-box orphaned";
+
+          if (!hasArtifactSignal) {
+            resultBox.innerHTML = "<strong>ORPHANED</strong><br>Reason: no artifact/system language detected (file, repo, commit, deploy, url, dashboard, html, markdown, doc, publish, ship, build, export).";
+            return;
+          }
+
+          resultBox.innerHTML = "<strong>ORPHANED</strong><br>Reason: mindset-only language detected (motivation, mindset, habit, feel, inspiration, confidence, affirmation).";
+        });
+      }
+
+      function initResumptionLog() {
+        var artifactInput = qs("#resumeArtifact");
+        var actionInput = qs("#resumeAction");
+        var blockerInput = qs("#resumeBlocker");
+        var generateBtn = qs("#generateLog");
+        var copyBtn = qs("#copyLog");
+        var output = qs("#logOutput");
+        var copyStatus = qs("#copyStatus");
+
+        function formatLog() {
+          var timestamp = new Date().toLocaleString();
+          var artifact = artifactInput.value.trim() || "not specified";
+          var action = actionInput.value.trim() || "not specified";
+          var blocker = blockerInput.value.trim() || "not specified";
+          return "## Resumption Log — " + timestamp + "\n" +
+            "- Last artifact: " + artifact + "\n" +
+            "- Next action: " + action + "\n" +
+            "- Blocker: " + blocker;
+        }
+
+        generateBtn.addEventListener("click", function () {
+          output.textContent = formatLog();
+        });
+
+        function fallbackCopy(text) {
+          var temp = document.createElement("textarea");
+          temp.value = text;
+          temp.setAttribute("readonly", "");
+          temp.style.position = "fixed";
+          temp.style.top = "-9999px";
+          document.body.appendChild(temp);
+          temp.focus();
+          temp.select();
+
+          var copied = false;
+          try {
+            copied = document.execCommand("copy");
+          } catch (error) {
+            copied = false;
+          }
+
+          document.body.removeChild(temp);
+          return copied;
+        }
+
+        copyBtn.addEventListener("click", function () {
+          var text = output.textContent.trim();
+          if (!text) {
+            copyStatus.textContent = "Clipboard status: no log text to copy yet.";
+            return;
+          }
+
+          if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(function () {
+              copyStatus.textContent = "Clipboard status: copied successfully.";
+            }).catch(function () {
+              var copied = fallbackCopy(text);
+              copyStatus.textContent = copied
+                ? "Clipboard status: copied using fallback."
+                : "Clipboard status: copy failed.";
+            });
+            return;
+          }
+
+          var fallbackResult = fallbackCopy(text);
+          copyStatus.textContent = fallbackResult
+            ? "Clipboard status: copied using fallback."
+            : "Clipboard status: copy failed.";
+        });
+      }
+
+      function initConstraintValidator() {
+        var input = qs("#constraintInput");
+        var validateBtn = qs("#validateConstraint");
+        var rows = qs("#constraintRows");
+        var verdict = qs("#constraintVerdict");
+
+        var artifactTerms = [
+          "file", "repo", "commit", "deploy", "url", "dashboard",
+          "html", "markdown", "doc", "publish", "ship", "build", "export", "artifact"
+        ];
+
+        var resilienceTerms = [
+          "resumption", "resume", "next action", "blocker", "checkpoint",
+          "log", "transcript", "handoff", "stateless", "continue"
+        ];
+
+        var governingTerms = [
+          "system", "authority", "protocol", "constraint", "rule", "policy", "checklist", "validate"
+        ];
+
+        var existingInfraTerms = [
+          "existing", "current", "reuse", "modify", "simplify", "remove", "prune", "within this repo"
+        ];
+
+        var newToolTerms = [
+          "new tool", "new stack", "new framework", "switch to", "rewrite in", "start over"
+        ];
+
+        function containsAny(text, terms) {
+          return terms.some(function (term) {
+            return text.indexOf(term) !== -1;
+          });
+        }
+
+        function evaluateTask(task) {
+          var normalizedTask = task.toLowerCase();
+          var mentionsArtifact = containsAny(normalizedTask, artifactTerms);
+          var mentionsResilience = containsAny(normalizedTask, resilienceTerms);
+          var mentionsGoverning = containsAny(normalizedTask, governingTerms);
+          var mentionsExistingInfra = containsAny(normalizedTask, existingInfraTerms);
+          var proposesNewTool = containsAny(normalizedTask, newToolTerms);
+
+          return [
+            {
+              name: "Artifact Anchoring",
+              pass: mentionsArtifact,
+              reason: mentionsArtifact
+                ? "Concrete artifact/system language is present."
+                : "No concrete artifact or system deliverable is named."
+            },
+            {
+              name: "Interruption Resilience",
+              pass: mentionsResilience,
+              reason: mentionsResilience
+                ? "Resumption continuity cues are present (log/checkpoint/blocker)."
+                : "No interruption-safe resumption cue is present."
+            },
+            {
+              name: "Governing Law",
+              pass: mentionsGoverning,
+              reason: mentionsGoverning
+                ? "Task references system/protocol/constraint authority."
+                : "Task does not reference system authority constraints."
+            },
+            {
+              name: "Constraint Discipline",
+              pass: mentionsExistingInfra && !proposesNewTool,
+              reason: (mentionsExistingInfra && !proposesNewTool)
+                ? "Task favors modifying existing infrastructure."
+                : "Task does not clearly prefer existing infrastructure."
+            }
+          ];
+        }
+
+        validateBtn.addEventListener("click", function () {
+          var taskText = input.value.trim();
+          if (!taskText) {
+            rows.innerHTML = "";
+            verdict.className = "verdict violation";
+            verdict.textContent = "CODEX-VIOLATION";
+            return;
+          }
+
+          var evaluations = evaluateTask(taskText);
+          rows.innerHTML = "";
+
+          evaluations.forEach(function (entry) {
+            var row = document.createElement("div");
+            row.className = "constraint-row " + (entry.pass ? "pass" : "fail");
+            var status = entry.pass ? "PASS ✓" : "FAIL ✗";
+            row.innerHTML = "<strong>" + entry.name + ": " + status + "</strong><span>" + entry.reason + "</span>";
+            rows.appendChild(row);
+          });
+
+          var allPass = evaluations.every(function (entry) {
+            return entry.pass;
+          });
+
+          verdict.className = allPass ? "verdict aligned" : "verdict violation";
+          verdict.textContent = allPass ? "CODEX-ALIGNED" : "CODEX-VIOLATION";
+        });
+      }
+
+      initTabs();
+      initMetrics();
+      initDeploymentStatus();
+      initSprintLinker();
+      initResumptionLog();
+      initConstraintValidator();
+    })();
+  </script>
 </body>
 </html>
