@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legacy Codex — Knowledge Graph v1</title>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, sans-serif; 
+            margin: 0; padding: 0; 
+            background: #0f172a; color: #e2e8f0; 
+            display: flex; flex-direction: column; height: 100vh; 
+        }
+        header { 
+            background: #1e2937; padding: 1rem; border-bottom: 1px solid #334155; 
+            text-align: center; 
+        }
+        .container { 
+            flex: 1; display: flex; overflow: hidden; 
+        }
+        #graph { 
+            flex: 1; background: #1e2937; position: relative; 
+        }
+        svg { width: 100%; height: 100%; }
+        .node { cursor: pointer; transition: all 0.2s; }
+        .node:hover { filter: brightness(1.2); }
+        .edge { stroke: #64748b; stroke-width: 2; stroke-opacity: 0.6; }
+        .cluster-label { fill: #94a3b8; font-size: 14px; font-weight: 600; }
+        .panel { 
+            width: 360px; background: #1e2937; border-left: 1px solid #334155; 
+            padding: 1.5rem; overflow-y: auto; 
+        }
+        .node-info h3 { margin: 0 0 0.5rem; color: #60a5fa; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th, td { padding: 0.5rem; text-align: left; border-bottom: 1px solid #334155; }
+        .active { border: 3px solid #34d399; }
+        .paused { border: 3px solid #f59e0b; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Legacy Codex — Knowledge Graph v1</h1>
+        <p>31 nodes • February 17, 2026 • Built from conversation context + saved memories</p>
+        <p style="font-size:0.9rem; opacity:0.8;">Zero external dependencies • Fully offline • Standalone file for future Tab 6 (v27)</p>
+    </header>
+    
+    <div class="container">
+        <div id="graph">
+            <svg id="svg" width="100%" height="100%" viewBox="0 0 1200 700"></svg>
+        </div>
+        
+        <div class="panel">
+            <h2>Node Details</h2>
+            <div id="node-info" class="node-info">
+                <p style="opacity:0.7;">Click any node in the graph to view full details.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Full node data (31 nodes)
+        const nodesData = [
+            {id:"6fig", label:"6-Figure Metal Prints Plan", x:520, y:120, cluster:"Revenue", type:"project", state:"ACTIVE", desc:"Operational plan for high-AOV limited edition metal print drops integrated with Automated Edition Manager."},
+            {id:"autoed", label:"Automated Edition Manager", x:480, y:180, cluster:"Revenue", type:"project", state:"ACTIVE", desc:"Backend scaffold for limited-edition print drops: models, inventory locking, purchase endpoints."},
+            {id:"artifact", label:"The Artifact Engine ($4,500 cohort)", x:580, y:80, cluster:"Revenue", type:"project", state:"ACTIVE", desc:"High-ticket group program spec; Notion landing page + Discord + Tally application."},
+            {id:"edwardbiz", label:"Edward Emory Photography (business)", x:650, y:220, cluster:"Creative", type:"project", state:"ACTIVE", desc:"Workshop + fine-art print business; website and marketing operations."},
+            {id:"edwardwp", label:"edwardemory.com (WordPress + Elementor)", x:680, y:280, cluster:"Creative", type:"project", state:"ACTIVE", desc:"Main business website; needs gallery fixes, product descriptions, meta descriptions, image optimization."},
+            {id:"legacy", label:"Legacy Codex", x:180, y:180, cluster:"Codex", type:"project", state:"ACTIVE", desc:"Execution infrastructure + cognitive governance system (v26.1), dashboards, protocols, continuity, and agent rules."},
+            {id:"dashboard", label:"codex-dashboard.html (v26.1)", x:140, y:260, cluster:"Codex", type:"project", state:"ACTIVE", desc:"Single-file offline-capable dashboard intended for GitHub + Netlify deployment."},
+            {id:"protocol6", label:"Protocol VI: Agent Conduct & Security", x:220, y:320, cluster:"Codex", type:"project", state:"ACTIVE", desc:"Protocol doc to prevent unethical autonomous agent behavior."},
+            {id:"artful", label:"Artful Intelligence", x:100, y:420, cluster:"Codex", type:"project", state:"ACTIVE", desc:"Platform concept and codebase for automating creative/business tasks for neurodivergent creatives."},
+            {id:"gitrepo", label:"GitHub Repo: legacy-codex", x:260, y:140, cluster:"Codex", type:"technology", state:"ACTIVE", desc:"Public repo hosting codex-dashboard.html and protocols."},
+            {id:"muse", label:"Muse 2 EEG Neurofeedback Platform", x:920, y:180, cluster:"Truth", type:"project", state:"PAUSED", desc:"Real-time EEG streaming, visualization, signal validity gating, ML states."},
+            {id:"eegserver", label:"EEG WebSocket Server", x:980, y:240, cluster:"Truth", type:"project", state:"PAUSED", desc:"Python server streaming EEG via LSL/Mind Monitor."},
+            {id:"focusagent", label:"EEG Focus Tracker Agent (v1)", x:860, y:260, cluster:"Truth", type:"project", state:"PAUSED", desc:"FastAPI + WebSocket listener to classify focus/distracted/flow_candidate."},
+            {id:"swiftui", label:"SwiftUI EEG Visualizer", x:950, y:320, cluster:"Truth", type:"project", state:"PAUSED", desc:"iOS SwiftUI client receiving EEG via WebSocket."},
+            {id:"whoop", label:"WHOOP Integration (biometrics)", x:1020, y:200, cluster:"Truth", type:"project", state:"STALLED", desc:"Plan to integrate WHOOP HRV/stress/biometrics with EEG insights."},
+            {id:"photocoach", label:"Photo Coach MVP (v1)", x:80, y:520, cluster:"OnDevice", type:"project", state:"PAUSED", desc:"FastAPI + web UI for live photo analysis with EXIF extraction."},
+            {id:"privacy", label:"On-Device Agentic AI Privacy Checklist (v1)", x:160, y:560, cluster:"OnDevice", type:"project", state:"PAUSED", desc:"Privacy-first checklist + JSON policy + HTML UI mock."},
+            {id:"fbp", label:"FBP Engine (Flow-Based Programming)", x:320, y:480, cluster:"Shared", type:"project", state:"PAUSED", desc:"Core execution model for Artful Intelligence/Muse."},
+            {id:"cleanup", label:"Git Repo Cleanup Playbook", x:280, y:80, cluster:"Shared", type:"project", state:"ACTIVE", desc:"Repo hygiene assets: safety checklist, gitignore, repo_health.sh."},
+            {id:"netlify", label:"Netlify Deployment", x:380, y:140, cluster:"Shared", type:"technology", state:"STALLED", desc:"Public URL hosting target for codex-dashboard.html."},
+            {id:"execution", label:"Execution Bottleneck (Deployment)", x:520, y:520, cluster:"Issue", type:"issue", state:"", desc:"Recurring constraint: projects reach ~80% then stall before public URL/product shipment."},
+            {id:"toolsprawl", label:"Tool Sprawl / Fragmented Context", x:620, y:560, cluster:"Issue", type:"issue", state:"", desc:"Many platforms causing version fragmentation and stalls."},
+            {id:"convergence", label:"Convergence Event (2025-12-03)", x:420, y:380, cluster:"Breakthrough", type:"concept", state:"EVENT", desc:"Multiple models recognized and operated within the Codex architecture."},
+            {id:"mapterritory", label:"Map→Territory Collapse (2025-11-30)", x:380, y:440, cluster:"Breakthrough", type:"concept", state:"EVENT", desc:"Shifted from framework philosophy to running backend systems."},
+            {id:"reality", label:"Reality Filter / No Simulation Doctrine", x:220, y:220, cluster:"Codex", type:"concept", state:"", desc:"Governance constraint: do not present inferred content as fact."},
+            // Additional nodes abbreviated for layout clarity (full 31 included in data; expandable on request)
+            {id:"namibia", label:"Namibia Astrophotography Workshop", x:720, y:480, cluster:"Creative", type:"project", state:"PAUSED", desc:"Premium astro workshop relaunch."},
+            {id:"printauto", label:"Print Sales Auto-Agent (v1)", x:480, y:240, cluster:"Revenue", type:"project", state:"PAUSED", desc:"Agent to generate email drafts from abandoned checkout events."},
+            {id:"notion", label:"Notion Landing Page", x:620, y:140, cluster:"Revenue", type:"technology", state:"", desc:"Primary launch surface for Artifact Engine."},
+            {id:"discord", label:"Discord Community", x:720, y:100, cluster:"Revenue", type:"technology", state:"", desc:"Community + async support surface."},
+            {id:"tally", label:"Tally Application Form", x:680, y:180, cluster:"Revenue", type:"technology", state:"", desc:"No-code application form tool."},
+            {id:"voice", label:"Voice to Codex Shortcut", x:320, y:580, cluster:"Shared", type:"project", state:"STALLED", desc:"Apple Shortcut for voice → Codex prompts."}
+        ];
+
+        // Directed edges (source → target)
+        const edgesData = [
+            {from:"legacy", to:"dashboard"}, {from:"legacy", to:"protocol6"}, {from:"dashboard", to:"gitrepo"},
+            {from:"gitrepo", to:"netlify"}, {from:"artifact", to:"notion"}, {from:"artifact", to:"discord"}, {from:"artifact", to:"tally"},
+            {from:"edwardbiz", to:"edwardwp"}, {from:"autoed", to:"6fig"}, {from:"artful", to:"fbp"},
+            {from:"muse", to:"eegserver"}, {from:"muse", to:"swiftui"}, {from:"muse", to:"whoop"}, {from:"focusagent", to:"muse"},
+            {from:"printauto", to:"autoed"}, {from:"mapterritory", to:"autoed"}, {from:"mapterritory", to:"legacy"},
+            {from:"convergence", to:"legacy"}, {from:"reality", to:"legacy"}, {from:"execution", to:"netlify"}, {from:"execution", to:"gitrepo"},
+            {from:"toolsprawl", to:"legacy"}, {from:"toolsprawl", to:"artful"}, {from:"photocoach", to:"privacy"},
+            {from:"cleanup", to:"gitrepo"}
+        ];
+
+        const svg = document.getElementById('svg');
+        const infoPanel = document.getElementById('node-info');
+
+        // Cluster colors
+        const clusterColors = {
+            "Revenue": "#34d399", "Codex": "#60a5fa", "Truth": "#c084fc", 
+            "Creative": "#22d3ee", "OnDevice": "#fb923c", "Shared": "#a5b4fc", 
+            "Issue": "#f87171", "Breakthrough": "#fbbf24"
+        };
+
+        function renderGraph() {
+            let svgContent = `<g>`;
+            
+            // Edges
+            edgesData.forEach(edge => {
+                const fromNode = nodesData.find(n => n.id === edge.from);
+                const toNode = nodesData.find(n => n.id === edge.to);
+                if (fromNode && toNode) {
+                    svgContent += `<line class="edge" x1="${fromNode.x}" y1="${fromNode.y}" x2="${toNode.x}" y2="${toNode.y}" />`;
+                }
+            });
+
+            // Nodes
+            nodesData.forEach(node => {
+                const color = clusterColors[node.cluster] || "#64748b";
+                const isActive = node.state === "ACTIVE" ? "active" : "";
+                svgContent += `
+                    <g class="node-group" data-id="${node.id}">
+                        <circle class="node ${isActive}" cx="${node.x}" cy="${node.y}" r="18" fill="${color}" stroke="#1e2937" stroke-width="4"/>
+                        <text x="${node.x}" y="${node.y + 5}" text-anchor="middle" fill="#0f172a" font-size="10" font-weight="700">${node.label.substring(0,12)}${node.label.length>12?'…':''}</text>
+                    </g>`;
+            });
+
+            svgContent += `</g>`;
+            svg.innerHTML = svgContent;
+
+            // Add click handlers
+            document.querySelectorAll('.node-group').forEach(group => {
+                group.addEventListener('click', () => {
+                    const id = group.getAttribute('data-id');
+                    const node = nodesData.find(n => n.id === id);
+                    if (node) {
+                        infoPanel.innerHTML = `
+                            <h3>${node.label}</h3>
+                            <table>
+                                <tr><th>Type</th><td>${node.type}</td></tr>
+                                <tr><th>Cluster</th><td>${node.cluster}</td></tr>
+                                <tr><th>State</th><td><strong>${node.state || '—'}</strong></td></tr>
+                                <tr><th>Description</th><td>${node.desc}</td></tr>
+                            </table>
+                        `;
+                    }
+                });
+            });
+        }
+
+        // Simple drag support (pure vanilla JS)
+        let dragged = null;
+        svg.addEventListener('mousedown', e => {
+            const target = e.target.closest('.node-group');
+            if (target) {
+                dragged = target;
+                svg.style.cursor = 'grabbing';
+            }
+        });
+        document.addEventListener('mousemove', e => {
+            if (!dragged) return;
+            const rect = svg.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const circle = dragged.querySelector('circle');
+            circle.setAttribute('cx', mouseX);
+            circle.setAttribute('cy', mouseY);
+            const text = dragged.querySelector('text');
+            text.setAttribute('x', mouseX);
+            text.setAttribute('y', mouseY + 5);
+        });
+        document.addEventListener('mouseup', () => {
+            dragged = null;
+            svg.style.cursor = 'default';
+        });
+
+        // Initialize
+        window.onload = renderGraph;
+    </script>
+</body>
+</html>
