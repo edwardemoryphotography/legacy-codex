@@ -523,6 +523,65 @@
       background: var(--error-soft);
     }
 
+    .upload-card {
+      margin-top: var(--space-lg);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: var(--space-sm);
+    }
+
+    .upload-list {
+      margin-top: var(--space-sm);
+      display: grid;
+      gap: var(--space-xs);
+    }
+
+    .upload-item {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface-soft);
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-sm);
+      color: var(--text-soft);
+      font-size: 0.82rem;
+    }
+
+    .upload-item-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+
+    .upload-remove-btn {
+      border: 1px solid var(--line-strong);
+      background: transparent;
+      color: var(--text-dim);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 0.72rem;
+      cursor: pointer;
+      min-width: 44px;
+    }
+
+    .upload-remove-btn:hover {
+      border-color: var(--error);
+      color: var(--error);
+      background: var(--error-soft);
+    }
+
+    .analysis-status-error {
+      color: var(--error);
+    }
+
+    .analysis-status-success {
+      color: var(--success);
+    }
+
     .footer {
       margin-top: var(--space-xl);
       color: var(--text-dim);
@@ -807,6 +866,34 @@
         </div>
         <div id="constraintRows" class="constraint-results"></div>
         <div id="constraintVerdict" class="verdict">No validation run yet.</div>
+
+        <article class="upload-card">
+          <h3 class="section-title" style="margin-top:0;">Artifact Analyzer (PDF/Image/DOCX/Video)</h3>
+          <p class="section-subtitle">Upload files and generate a structured analysis directly in this dashboard.</p>
+
+          <div class="field">
+            <label for="artifactInstruction">Analysis directive (optional)</label>
+            <input id="artifactInstruction" type="text" placeholder="Example: Summarize key actions, risks, and next steps.">
+          </div>
+
+          <input
+            id="artifactFileInput"
+            type="file"
+            multiple
+            accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,image/*,video/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+            style="display:none;"
+          >
+
+          <div class="btn-row">
+            <button id="selectArtifacts" class="action-btn" type="button">Select Files</button>
+            <button id="analyzeArtifacts" class="action-btn" type="button">Analyze Files</button>
+            <button id="clearArtifacts" class="save-btn" type="button">Clear Files</button>
+          </div>
+
+          <div id="artifactUploadList" class="upload-list"></div>
+          <div id="artifactStatus" class="helper-line">No files selected.</div>
+          <pre id="artifactAnalysisOutput" class="markdown-output">Analysis output will appear here.</pre>
+        </article>
       </section>
     </main>
 
@@ -1199,12 +1286,277 @@
         });
       }
 
+      function initArtifactAnalyzer() {
+        var GEMINI_API_KEY = "AIzaSyBVfeOjJWWHYmYyMErLRdKg7uB_CIEuJ4c";
+        var GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + GEMINI_API_KEY;
+        var MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+
+        var instructionInput = qs("#artifactInstruction");
+        var fileInput = qs("#artifactFileInput");
+        var selectBtn = qs("#selectArtifacts");
+        var analyzeBtn = qs("#analyzeArtifacts");
+        var clearBtn = qs("#clearArtifacts");
+        var uploadList = qs("#artifactUploadList");
+        var status = qs("#artifactStatus");
+        var output = qs("#artifactAnalysisOutput");
+
+        var selectedFiles = [];
+
+        function formatBytes(bytes) {
+          if (bytes < 1024) return bytes + " B";
+          if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+          return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+        }
+
+        function guessMime(file) {
+          if (file.type) return file.type;
+
+          var name = (file.name || "").toLowerCase();
+          if (name.endsWith(".pdf")) return "application/pdf";
+          if (name.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+          if (name.endsWith(".doc")) return "application/msword";
+          if (name.endsWith(".txt")) return "text/plain";
+          if (name.endsWith(".md")) return "text/markdown";
+          if (name.endsWith(".csv")) return "text/csv";
+          if (name.endsWith(".json")) return "application/json";
+          if (name.endsWith(".mp4")) return "video/mp4";
+          if (name.endsWith(".mov")) return "video/quicktime";
+          if (name.endsWith(".m4v")) return "video/x-m4v";
+          return "application/octet-stream";
+        }
+
+        function arrayBufferToBase64(arrayBuffer) {
+          var bytes = new Uint8Array(arrayBuffer);
+          var chunkSize = 0x8000;
+          var binary = "";
+
+          for (var i = 0; i < bytes.length; i += chunkSize) {
+            var slice = bytes.subarray(i, i + chunkSize);
+            binary += String.fromCharCode.apply(null, slice);
+          }
+
+          return btoa(binary);
+        }
+
+        function setStatus(text, className) {
+          status.textContent = text;
+          status.className = "helper-line" + (className ? " " + className : "");
+        }
+
+        function renderUploadList() {
+          uploadList.innerHTML = "";
+
+          if (!selectedFiles.length) {
+            setStatus("No files selected.");
+            return;
+          }
+
+          var totalBytes = selectedFiles.reduce(function (sum, file) {
+            return sum + file.size;
+          }, 0);
+
+          setStatus(selectedFiles.length + " file(s) selected · " + formatBytes(totalBytes) + " total");
+
+          selectedFiles.forEach(function (file, index) {
+            var item = document.createElement("div");
+            item.className = "upload-item";
+
+            var name = document.createElement("div");
+            name.className = "upload-item-name";
+            name.textContent = file.name + " (" + formatBytes(file.size) + ")";
+
+            var removeBtn = document.createElement("button");
+            removeBtn.type = "button";
+            removeBtn.className = "upload-remove-btn";
+            removeBtn.textContent = "Remove";
+            removeBtn.setAttribute("data-remove-index", String(index));
+
+            item.appendChild(name);
+            item.appendChild(removeBtn);
+            uploadList.appendChild(item);
+          });
+        }
+
+        function resetAnalyzer() {
+          selectedFiles = [];
+          fileInput.value = "";
+          output.textContent = "Analysis output will appear here.";
+          renderUploadList();
+        }
+
+        function readFileAsText(file) {
+          return new Promise(function (resolve, reject) {
+            var reader = new FileReader();
+            reader.onload = function (event) {
+              resolve(String(event.target && event.target.result ? event.target.result : ""));
+            };
+            reader.onerror = function () {
+              reject(new Error("Failed to read text file: " + file.name));
+            };
+            reader.readAsText(file);
+          });
+        }
+
+        function readFileAsBase64(file) {
+          return new Promise(function (resolve, reject) {
+            var reader = new FileReader();
+            reader.onload = function (event) {
+              var result = String(event.target && event.target.result ? event.target.result : "");
+              var commaIndex = result.indexOf(",");
+              if (commaIndex === -1) {
+                reject(new Error("Invalid data URL for file: " + file.name));
+                return;
+              }
+              resolve(result.slice(commaIndex + 1));
+            };
+            reader.onerror = function () {
+              reject(new Error("Failed to read file: " + file.name));
+            };
+            reader.readAsDataURL(file);
+          });
+        }
+
+        function isPlainTextLike(mime, fileName) {
+          var lowerName = (fileName || "").toLowerCase();
+          return mime.indexOf("text/") === 0 ||
+            lowerName.endsWith(".txt") ||
+            lowerName.endsWith(".md") ||
+            lowerName.endsWith(".csv") ||
+            lowerName.endsWith(".json");
+        }
+
+        async function fileToPart(file) {
+          var mime = guessMime(file);
+          var name = file.name || "unnamed-file";
+
+          if (isPlainTextLike(mime, name)) {
+            var textContent = await readFileAsText(file);
+            return {
+              text: "[FILE: " + name + " | MIME: " + mime + "]\n" + textContent
+            };
+          }
+
+          var base64 = await readFileAsBase64(file);
+          return {
+            inlineData: {
+              mimeType: mime,
+              data: base64
+            }
+          };
+        }
+
+        function parseModelText(data) {
+          var candidates = data && data.candidates ? data.candidates : [];
+          if (!candidates.length) return "";
+          var parts = candidates[0].content && candidates[0].content.parts ? candidates[0].content.parts : [];
+          return parts.map(function (part) {
+            return part.text || "";
+          }).join("\n").trim();
+        }
+
+        selectBtn.addEventListener("click", function () {
+          fileInput.click();
+        });
+
+        fileInput.addEventListener("change", function (event) {
+          var files = Array.prototype.slice.call((event.target && event.target.files) || []);
+          if (!files.length) return;
+
+          files.forEach(function (file) {
+            selectedFiles.push(file);
+          });
+
+          renderUploadList();
+        });
+
+        uploadList.addEventListener("click", function (event) {
+          var target = event.target;
+          if (!(target instanceof HTMLElement)) return;
+
+          var indexText = target.getAttribute("data-remove-index");
+          if (indexText === null) return;
+          var index = Number(indexText);
+          if (Number.isNaN(index)) return;
+
+          selectedFiles.splice(index, 1);
+          renderUploadList();
+        });
+
+        clearBtn.addEventListener("click", function () {
+          resetAnalyzer();
+          setStatus("Selection cleared.");
+        });
+
+        analyzeBtn.addEventListener("click", async function () {
+          if (!selectedFiles.length) {
+            setStatus("Select at least one file before analysis.", "analysis-status-error");
+            return;
+          }
+
+          var oversizeFile = selectedFiles.find(function (file) {
+            return file.size > MAX_FILE_SIZE_BYTES;
+          });
+
+          if (oversizeFile) {
+            setStatus("File too large: " + oversizeFile.name + ". Max 20 MB per file.", "analysis-status-error");
+            return;
+          }
+
+          var directive = instructionInput.value.trim();
+          var prompt = directive || "Analyze the attached artifacts and return: 1) concise summary, 2) key signals, 3) risks, 4) action checklist, 5) next single step.";
+
+          analyzeBtn.disabled = true;
+          selectBtn.disabled = true;
+          clearBtn.disabled = true;
+          setStatus("Analyzing artifacts...");
+          output.textContent = "Running analysis...";
+
+          try {
+            var parts = [{ text: prompt }];
+
+            for (var i = 0; i < selectedFiles.length; i += 1) {
+              parts.push(await fileToPart(selectedFiles[i]));
+            }
+
+            var response = await fetch(GEMINI_ENDPOINT, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                contents: [{ role: "user", parts: parts }]
+              })
+            });
+
+            var data = await response.json();
+            if (!response.ok || data.error) {
+              var message = data && data.error && data.error.message ? data.error.message : ("HTTP " + response.status);
+              throw new Error(message);
+            }
+
+            var analysisText = parseModelText(data);
+            output.textContent = analysisText || "No analysis text returned by model.";
+            setStatus("Analysis complete.", "analysis-status-success");
+          } catch (error) {
+            output.textContent = "Analysis failed.\n\n" + String(error && error.message ? error.message : error);
+            setStatus("Analysis failed. Check file type/size and try again.", "analysis-status-error");
+          } finally {
+            analyzeBtn.disabled = false;
+            selectBtn.disabled = false;
+            clearBtn.disabled = false;
+          }
+        });
+
+        renderUploadList();
+      }
+
       initTabs();
       initMetrics();
       initDeploymentStatus();
       initSprintLinker();
       initResumptionLog();
       initConstraintValidator();
+      initArtifactAnalyzer();
     })();
   </script>
 </body>
