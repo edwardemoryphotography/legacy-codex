@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Codex v35.1 · Living Knowledge</title>
+  
+  <!-- PDF.js for Real PDF Reading -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  
+  <style>
+    :root {
+      /* Theme: Void / Structure */
+      --bg-void: #050505;
+      --bg-panel: #0a0a0a;
+      --bg-card: rgba(255, 255, 255, 0.04);
+      
+      /* Accents */
+      --accent-cyan: #00f0ff;   /* LAR */
+      --accent-purple: #bd00ff; /* CSF */
+      --accent-amber: #ff9d00;  /* REK */
+      --accent-red: #ff2a6d;    /* Inhibition */
+      --accent-green: #00ff9d;  /* Stability */
+      
+      --text-main: #e2e8f0;
+      --text-muted: #64748b;
+      
+      --border: rgba(255, 255, 255, 0.1);
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      margin: 0;
+      background-color: var(--bg-void);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* --- HEADER --- */
+    .header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-panel);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+      z-index: 20;
+    }
+
+    .brand {
+      font-family: var(--font-mono);
+      font-weight: 800;
+      font-size: 14px;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-controls { display: flex; gap: 8px; }
+    
+    .mobile-toggle {
+      background: rgba(255,255,255,0.1); border: 1px solid var(--border); color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 10px; font-weight: bold; cursor: pointer; display: none;
+    }
+    @media (max-width: 900px) { .mobile-toggle { display: block; } }
+
+    .status-pill {
+      font-size: 10px; padding: 4px 10px; border-radius: 99px; background: rgba(0, 255, 157, 0.05); border: 1px solid var(--accent-green); color: var(--accent-green); font-family: var(--font-mono); display: flex; gap: 6px; align-items: center;
+    }
+    .status-dot { width: 6px; height: 6px; background: currentColor; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+
+    /* --- LAYOUT GRID --- */
+    .main-grid { display: flex; flex: 1; overflow: hidden; position: relative; }
+
+    /* --- LEFT: KNOWLEDGE GRAPH --- */
+    .sidebar-left {
+      width: 280px;
+      background: rgba(0,0,0,0.8);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      transition: transform 0.3s ease;
+      z-index: 10;
+    }
+    
+    @media (max-width: 900px) {
+      .sidebar-left {
+        position: absolute; top: 0; left: 0; bottom: 0; width: 85%;
+        transform: translateX(-100%);
+        background: #0a0a0a;
+        border-right: 1px solid var(--accent-cyan);
+      }
+      .sidebar-left.active { transform: translateX(0); }
+    }
+
+    .sidebar-header {
+      padding: 12px 16px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+
+    .graph-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .graph-node {
+      font-size: 11px; padding: 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; gap: 3px; position: relative;
+    }
+    .graph-node:hover { border-color: var(--accent-cyan); color: #fff; background: rgba(0, 240, 255, 0.05); }
+    .graph-node[data-status="ACTIVE"] { border-left: 3px solid var(--accent-green); }
+    .graph-node[data-status="PAUSED"] { border-left: 3px solid var(--accent-amber); opacity: 0.8; }
+    .graph-node[data-status="STALLED"] { border-left: 3px solid var(--accent-red); opacity: 0.7; }
+    .graph-node[data-status="EVENT"] { border-left: 3px solid var(--accent-purple); }
+    
+    .node-title { font-weight: 700; color: #fff; }
+    .node-meta { font-size: 9px; font-family: var(--font-mono); opacity: 0.7; display: flex; justify-content: space-between; }
+
+    /* --- CENTER: THE BRAIN --- */
+    .center-stage {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      background: var(--bg-void);
+      width: 100%;
+    }
+
+    /* Mode Toggles */
+    .mode-bar {
+      display: flex; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.4); overflow-x: auto;
+    }
+
+    .mode-btn {
+      flex: 1; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-muted); padding: 10px; border-radius: 8px; font-size: 10px; font-weight: 700; font-family: var(--font-mono); white-space: nowrap; cursor: pointer; text-align: center; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .mode-btn:hover { background: rgba(255,255,255,0.05); }
+    .mode-btn[data-active="true"] { background: rgba(255,255,255,0.1); color: #fff; border-color: currentColor; }
+    
+    .mode-btn[data-mode="csf"][data-active="true"] { color: var(--accent-purple); box-shadow: 0 0 10px rgba(189,0,255,0.1); }
+    .mode-btn[data-mode="lar"][data-active="true"] { color: var(--accent-cyan); box-shadow: 0 0 10px rgba(0,240,255,0.1); }
+    .mode-btn[data-mode="rek"][data-active="true"] { color: var(--accent-red); box-shadow: 0 0 10px rgba(255,42,109,0.1); }
+
+    /* Warning Banner */
+    #rek-warning {
+      background: rgba(255, 42, 109, 0.1); border-bottom: 1px solid var(--accent-red); color: var(--accent-red); font-size: 10px; padding: 6px 16px; text-align: center; font-family: var(--font-mono); font-weight: 700; display: none;
+    }
+    #rek-warning.active { display: block; }
+
+    /* Chat Feed */
+    .chat-scroll {
+      flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px;
+    }
+
+    .msg { max-width: 800px; font-size: 14px; line-height: 1.6; }
+    .msg.user { align-self: flex-end; text-align: right; }
+    .msg.user .bubble { background: #1e1e24; padding: 12px 16px; border-radius: 12px; display: inline-block; border: 1px solid var(--border); color: #fff; text-align: left; }
+    .msg.ai { align-self: flex-start; width: 100%; }
+    .msg.ai strong { color: #fff; font-weight: 600; }
+    
+    .msg.system { align-self: center; font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); background: rgba(255,255,255,0.03); padding: 4px 12px; border-radius: 12px; }
+
+    /* AI Blocks */
+    .pft-box { margin-top: 10px; background: rgba(255, 42, 109, 0.08); border: 1px solid var(--accent-red); padding: 12px; border-radius: 8px; }
+    .pft-label { font-size: 9px; color: var(--accent-red); font-weight: 800; display: block; margin-bottom: 6px; letter-spacing: 0.5px; }
+    
+    .delta-box { margin-top: 10px; background: rgba(189,0,255,0.05); border-left: 2px solid var(--accent-purple); padding: 12px; border-radius: 0 8px 8px 0; }
+    .delta-label { font-size: 9px; color: var(--accent-purple); font-weight: 800; letter-spacing: 1px; display: block; margin-bottom: 6px; }
+
+    /* Input Area */
+    .input-zone {
+      padding: 16px; border-top: 1px solid var(--border); background: var(--bg-panel); display: flex; flex-direction: column; gap: 10px; padding-bottom: max(16px, env(safe-area-inset-bottom));
+    }
+
+    #upload-preview-bar { display: none; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; }
+    .preview-thumb { height: 50px; width: 50px; object-fit: cover; border-radius: 6px; border: 1px solid var(--accent-cyan); }
+    .preview-file { height: 50px; padding: 0 10px; display: flex; align-items: center; justify-content: center; background: #222; border: 1px solid var(--accent-purple); border-radius: 6px; font-size: 10px; color: #fff; }
+
+    .input-row { display: flex; gap: 10px; }
+    .input-field { flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: #fff; padding: 12px; border-radius: 8px; font-size: 15px; outline: none; }
+    .icon-btn { width: 44px; background: transparent; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; color: var(--text-muted); display:flex; align-items:center; justify-content:center; }
+    .send-btn { width: 44px; background: var(--accent-cyan); border: none; border-radius: 8px; cursor: pointer; color: #000; display:flex; align-items:center; justify-content:center; font-weight: bold; }
+
+    /* --- RIGHT: LEGACY TOOLS --- */
+    .sidebar-right {
+      width: 280px; background: rgba(0,0,0,0.2); border-left: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0;
+    }
+    @media (max-width: 1200px) { .sidebar-right { display: none; } }
+
+    .protocol-card { padding: 16px; border-bottom: 1px solid var(--border); }
+    .protocol-title { font-size: 11px; font-weight: 700; color: var(--accent-cyan); margin-bottom: 4px; font-family: var(--font-mono); }
+    .protocol-desc { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+
+    .resumption-log { padding: 16px; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+    .log-input { width: 100%; background: #111; border: 1px solid var(--border); color: #ccc; padding: 8px; border-radius: 4px; font-size: 11px; font-family: var(--font-mono); }
+    .save-btn { width: 100%; background: var(--accent-green); border: none; padding: 8px; border-radius: 4px; color: #000; font-size: 10px; font-weight: bold; cursor: pointer; }
+
+    /* Overlay for Mobile Sidebar */
+    .sidebar-overlay {
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 5;
+    }
+    .sidebar-overlay.active { display: block; }
+
+    .loader { font-size: 12px; color: var(--accent-cyan); margin-top: 10px; display: flex; gap: 4px; align-items: center; }
+    .loader span { animation: blink 1s infinite; }
+    @keyframes blink { 50% { opacity: 0.3; } }
+
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="brand">CODEX v35.1 // LIVE</div>
+    <div class="header-controls">
+      <button class="mobile-toggle" onclick="toggleSidebar()">🧠 GRAPH</button>
+      <div class="status-pill"><div class="status-dot"></div> CONNECTED</div>
+    </div>
+  </header>
+
+  <div class="main-grid">
+    
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <!-- LEFT: KNOWLEDGE GRAPH (Pre-Loaded from PDF) -->
+    <aside class="sidebar-left" id="sidebar-left">
+      <div class="sidebar-header">
+        <span>Knowledge Graph</span>
+        <button class="mobile-toggle" onclick="toggleSidebar()">✕</button>
+      </div>
+      <div class="graph-scroll" id="graph-container">
+        <!-- Injected via JS -->
+      </div>
+    </aside>
+
+    <!-- CENTER: THE BRAIN -->
+    <main class="center-stage">
+      
+      <!-- Mode Toggles -->
+      <div class="mode-bar">
+        <button class="mode-btn" data-mode="csf" onclick="setMode('csf')" data-active="true">
+          <span>🧠</span> CSF // MEMORY
+        </button>
+        <button class="mode-btn" data-mode="lar" onclick="setMode('lar')">
+          <span>⚡</span> LAR // ROUTER
+        </button>
+        <button class="mode-btn" data-mode="rek" onclick="setMode('rek')">
+          <span>🛡️</span> REK // INHIBITION
+        </button>
+      </div>
+
+      <div id="rek-warning">
+        ⚠️ REK enforces execution physics. Social input rejected.
+      </div>
+
+      <div class="chat-scroll" id="chat-feed">
+        <div class="msg ai">
+          <strong>[SYSTEM]</strong> Codex v35.1 Online.
+          <br><br>
+          <strong>API Status:</strong> Live (Gemini 2.0 Flash).
+          <br>
+          <strong>Knowledge Graph:</strong> Pre-loaded from PDF.
+          <br>
+          > Select a node from the left to inject context.
+          > Upload new artifacts (PDF/Image) for analysis.
+          <div class="delta-box">
+            <span class="delta-label">STATUS</span>
+            <div style="color:#e9d5ff; font-size:13px;">Brain and Body merged. Ready for directive.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-zone">
+        <div id="upload-preview-bar"></div>
+        <input type="file" id="file-input" multiple accept="image/*,application/pdf" style="display:none" onchange="handleFiles(event)">
+        
+        <div class="input-row">
+            <button class="icon-btn" onclick="document.getElementById('file-input').click()">📂</button>
+            <input type="text" class="input-field" id="user-input" placeholder="Enter directive..." autocomplete="off">
+            <button class="send-btn" onclick="handleSend()">➜</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT: LEGACY DISCIPLINE -->
+    <aside class="sidebar-right">
+      <div class="sidebar-header">Legacy Protocols</div>
+      
+      <div class="protocol-card">
+        <div class="protocol-title">1. The Smallest Ship</div>
+        <div class="protocol-desc">What is the smallest shippable artifact? v0.1 only.</div>
+      </div>
+      
+      <div class="protocol-card">
+        <div class="protocol-title">2. Pre-Friction Triage</div>
+        <div class="protocol-desc">Execution stall > 15m = Identify 1 blocker immediately.</div>
+      </div>
+
+      <div class="protocol-card">
+        <div class="protocol-title">3. Constraint Decay</div>
+        <div class="protocol-desc">Task constraints expire after 48h. Purge often.</div>
+      </div>
+
+      <div class="sidebar-header" style="margin-top:20px;">Resumption Log</div>
+      <div class="resumption-log">
+        <input type="text" id="log-artifact" class="log-input" placeholder="Last Artifact Produced...">
+        <input type="text" id="log-action" class="log-input" placeholder="Next Single Action...">
+        <button class="save-btn" onclick="saveLog()">SAVE STATE</button>
+      </div>
+    </aside>
+
+  </div>
+
+<script>
+  // *** API KEY INJECTED ***
+  const apiKey = "AIzaSyBVfeOjJWWHYmYyMErLRdKg7uB_CIEuJ4c"; 
+
+  // --- KNOWLEDGE GRAPH DATA (Extracted from your PDF) ---
+  const graphNodes = [
+    { name: "Legacy Codex", type: "Infrastructure", status: "ACTIVE", desc: "Execution infrastructure + cognitive governance system (v16+)." },
+    { name: "6-Figure Metal Prints", type: "Project", status: "ACTIVE", desc: "High-AOV limited edition drops integrated with Automated Edition Manager." },
+    { name: "Artful Intelligence", type: "Project", status: "ACTIVE", desc: "Platform concept/codebase for automating creative tasks." },
+    { name: "Automated Edition Manager", type: "System", status: "ACTIVE", desc: "Backend scaffold for limited-edition print drops." },
+    { name: "Edward Emory Photography", type: "Business", status: "ACTIVE", desc: "Workshop + fine-art print business." },
+    { name: "The Artifact Engine", type: "Project", status: "ACTIVE", desc: "High-ticket group program spec ($4,500 cohort)." },
+    { name: "EEG Focus Tracker", type: "Project", status: "PAUSED", desc: "FastAPI + WebSocket listener to classify focus states." },
+    { name: "Muse 2 Platform", type: "Project", status: "PAUSED", desc: "Real-time EEG streaming & visualization." },
+    { name: "Photo Coach MVP", type: "Project", status: "PAUSED", desc: "FastAPI + web UI for live photo analysis." },
+    { name: "Protocol VI", type: "Governance", status: "ACTIVE", desc: "Agent Conduct & Security rules." },
+    { name: "Reality Filter", type: "Doctrine", status: "ACTIVE", desc: "Governance constraint: no simulated data/metrics." },
+    { name: "Map Territory Collapse", type: "Event", status: "EVENT", desc: "Breakthrough: shifted from framework to running systems." },
+    { name: "Convergence Event", type: "Event", status: "EVENT", desc: "Breakthrough: multiple models recognized Codex architecture." }
+  ];
+
+  // --- STATE ---
+  let history = [];
+  let currentMode = "csf"; 
+  let pendingFiles = [];
+
+  // --- INIT ---
+  window.onload = () => {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    renderGraph();
+    loadLog();
+  };
+
+  // --- RENDER GRAPH ---
+  function renderGraph() {
+    const container = document.getElementById('graph-container');
+    graphNodes.forEach(node => {
+      const el = document.createElement('div');
+      el.className = 'graph-node';
+      el.setAttribute('data-status', node.status);
+      el.onclick = () => injectContext(node);
+      el.innerHTML = `
+        <span class="node-title">${node.name}</span>
+        <span class="node-meta"><span>${node.type}</span> <span>${node.status}</span></span>
+        <div style="font-size:10px; color:#666; margin-top:4px;">${node.desc}</div>
+      `;
+      container.appendChild(el);
+    });
+  }
+
+  function injectContext(node) {
+    const input = document.getElementById('user-input');
+    const prefix = `[CONTEXT: ${node.name}] `;
+    if (!input.value.includes(prefix)) {
+        input.value = prefix + input.value;
+    }
+    
+    // Close sidebar on mobile after selection
+    if (window.innerWidth <= 900) {
+        toggleSidebar();
+    }
+    input.focus();
+  }
+
+  function toggleSidebar() {
+    const sb = document.getElementById('sidebar-left');
+    const ov = document.querySelector('.sidebar-overlay');
+    sb.classList.toggle('active');
+    ov.classList.toggle('active');
+  }
+
+  // --- RESUMPTION LOG ---
+  function saveLog() {
+    const data = {
+      artifact: document.getElementById('log-artifact').value,
+      action: document.getElementById('log-action').value
+    };
+    localStorage.setItem('codex_log', JSON.stringify(data));
+    appendSystemMsg("RESUMPTION LOG SAVED.");
+  }
+
+  function loadLog() {
+    const data = JSON.parse(localStorage.getItem('codex_log'));
+    if (data) {
+      document.getElementById('log-artifact').value = data.artifact;
+      document.getElementById('log-action').value = data.action;
+    }
+  }
+
+  // --- MODE SWITCHING ---
+  function setMode(mode) {
+    currentMode = mode;
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.dataset.active = (btn.dataset.mode === mode) ? "true" : "false";
+    });
+    
+    const warning = document.getElementById('rek-warning');
+    if (mode === 'rek') warning.classList.add('active');
+    else warning.classList.remove('active');
+
+    appendSystemMsg(`MODE SWITCHED: ${mode.toUpperCase()}`);
+  }
+
+  // --- FILE HANDLING ---
+  async function handleFiles(e) {
+    const files = Array.from(e.target.files);
+    for (const file of files) {
+        if (file.type === "application/pdf") await parsePDF(file);
+        else if (file.type.startsWith("image/")) await parseImage(file);
+    }
+    renderPreviews();
+  }
+
+  function parseImage(file) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const base64 = e.target.result.split(',')[1];
+            pendingFiles.push({ type: 'image', data: base64, mime: file.type, name: file.name });
+            resolve();
+        };
+        reader.readAsDataURL(file);
+    });
+  }
+
+  async function parsePDF(file) {
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+        let fullText = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            fullText += textContent.items.map(item => item.str).join(" ") + "\n";
+        }
+        pendingFiles.push({ type: 'pdf_text', data: fullText, name: file.name });
+    } catch (e) {
+        console.error("PDF Error", e);
+        appendSystemMsg("ERROR READING PDF. Ensure it is a valid text PDF.");
+    }
+  }
+
+  function renderPreviews() {
+    const bar = document.getElementById('upload-preview-bar');
+    bar.innerHTML = "";
+    if (pendingFiles.length > 0) bar.style.display = "flex";
+    else bar.style.display = "none";
+
+    pendingFiles.forEach((file, index) => {
+        const el = document.createElement('div');
+        if (file.type === 'image') el.innerHTML = `<img src="data:${file.mime};base64,${file.data}" class="preview-thumb">`;
+        else el.innerHTML = `<div class="preview-file">📄 ${file.name}</div>`;
+        el.onclick = () => removeFile(index);
+        bar.appendChild(el);
+    });
+  }
+
+  function removeFile(index) {
+    pendingFiles.splice(index, 1);
+    renderPreviews();
+  }
+
+  // --- CHAT & API ---
+  function appendSystemMsg(text) {
+    const div = document.createElement('div');
+    div.className = 'msg system';
+    div.innerText = text;
+    document.getElementById('chat-feed').appendChild(div);
+    scrollToBottom();
+  }
+
+  function appendAiMsg(html) {
+    const div = document.createElement('div');
+    div.className = 'msg ai';
+    div.innerHTML = html;
+    document.getElementById('chat-feed').appendChild(div);
+    scrollToBottom();
+  }
+
+  function appendUserMsg(text, files) {
+    const div = document.createElement('div');
+    div.className = 'msg user';
+    let content = `<div class="bubble">${text || "Attached artifacts..."}</div>`;
+    if (files) {
+        files.forEach(f => content += `<br><div style="font-size:10px; opacity:0.7; margin-top:4px;">📎 ${f.name}</div>`);
+    }
+    div.innerHTML = content;
+    document.getElementById('chat-feed').appendChild(div);
+    scrollToBottom();
+  }
+
+  function scrollToBottom() {
+    const feed = document.getElementById('chat-feed');
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  async function handleSend() {
+    const input = document.getElementById('user-input');
+    const text = input.value.trim();
+    
+    if (!text && pendingFiles.length === 0) return;
+
+    // Reset UI
+    input.value = '';
+    const filesToSend = [...pendingFiles];
+    pendingFiles = [];
+    renderPreviews();
+
+    appendUserMsg(text, filesToSend);
+    
+    const loader = document.createElement('div');
+    loader.className = 'loader';
+    loader.innerHTML = `<span>Thinking...</span>`;
+    document.getElementById('chat-feed').appendChild(loader);
+    scrollToBottom();
+
+    // Payload Construction
+    const parts = [];
+    if (text) parts.push({ text: text });
+    
+    filesToSend.forEach(f => {
+        if (f.type === 'image') {
+            parts.push({ inlineData: { mimeType: f.mime, data: f.data } });
+        } else if (f.type === 'pdf_text') {
+            parts.push({ text: `[PDF CONTENT - ${f.name}]:\n${f.data}` });
+        }
+    });
+
+    history.push({ role: "user", parts: parts });
+
+    // Mode-Specific Prompting
+    let modePrompt = "MODE: LAR (Router). Synthesize and Execute.";
+    if (currentMode === 'csf') modePrompt = "MODE: CSF (Memory). Reference specific nodes in the Knowledge Graph.";
+    if (currentMode === 'rek') modePrompt = "MODE: REK (Inhibition). HALT on impossible constraints. PFT Active.";
+
+    const systemPrompt = `
+      You are Codex v35.1.
+      ${modePrompt}
+      MANDATES: [VELOCITY_FIRST], [APPLE_UI], [NO_SIMULATION].
+      
+      You have access to a Knowledge Graph including:
+      - 6-Figure Metal Prints (Active)
+      - Artful Intelligence (Active)
+      - The Artifact Engine (Active)
+      
+      OUTPUT FORMAT:
+      [Main Response]
+      <<<FRICTION>>>
+      [Contradiction/Risk]
+      <<<DELTA>>>
+      [Strategic Next Step]
+    `;
+
+    // UPDATED URL TO GEMINI 2.0 FLASH
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: history,
+            systemInstruction: { parts: [{ text: systemPrompt }] }
+          })
+        }
+      );
+
+      const data = await response.json();
+      loader.remove();
+
+      if (data.error) {
+        appendSystemMsg(`API ERROR: ${data.error.message}`);
+      } else {
+        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "System Error.";
+        history.push({ role: "model", parts: [{ text: rawText }] });
+
+        let html = `<div>${rawText.split('<<<')[0].replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')}</div>`;
+        
+        if (rawText.includes("<<<FRICTION>>>")) {
+          const friction = rawText.split("<<<FRICTION>>>")[1].split("<<<DELTA>>>")[0].trim();
+          let styleClass = friction.toLowerCase().includes("halt") ? "pft-box" : "friction-block";
+          let label = styleClass === "pft-box" ? "⛔ INHIBITION TRIGGERED" : "⚠️ LOGIC CHECK";
+          html += `<div class="${styleClass}" style="${styleClass === 'friction-block' ? 'margin-top:10px; border:1px solid var(--accent-amber); padding:10px; border-radius:6px; background:rgba(255,157,0,0.05);' : ''}"><span class="${styleClass === 'pft-box' ? 'pft-label' : 'friction-label'}" style="${styleClass === 'friction-block' ? 'color:var(--accent-amber); font-weight:700; font-size:9px;' : ''}">${label}</span><div style="font-size:13px;">${friction}</div></div>`;
+        }
+
+        if (rawText.includes("<<<DELTA>>>")) {
+          const delta = rawText.split("<<<DELTA>>>")[1].trim();
+          html += `<div class="delta-box"><span class="delta-label">STRATEGIC DELTA</span><div style="font-size:13px; color:#e9d5ff;">${delta}</div></div>`;
+        }
+
+        appendAiMsg(html);
+      }
+    } catch (e) {
+      loader.remove();
+      appendSystemMsg(`CONNECTION ERROR: ${e.message}`);
+    }
+  }
+
+  document.getElementById('user-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleSend();
+  });
+
+</script>
+</body>
+</html>
