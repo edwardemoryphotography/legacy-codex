@@ -109,18 +109,19 @@ class RepoAudit:
 
 def run_cmd(cmd: list[str]) -> str:
     """Run command and return stdout."""
-    proc = subprocess.run(
-        cmd,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    if proc.returncode != 0:
-        stderr = (proc.stderr or "").strip()
-        stdout = (proc.stdout or "").strip()
+    try:
+        proc = subprocess.run(
+            cmd,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        return proc.stdout
+    except subprocess.CalledProcessError as e:
+        stderr = (e.stderr or "").strip()
+        stdout = (e.stdout or "").strip()
         details = stderr or stdout or "unknown error"
-        raise RuntimeError(f"Command failed ({' '.join(cmd)}): {details}")
-    return proc.stdout
+        raise RuntimeError(f"Command failed ({' '.join(cmd)}): {details}") from e
 
 
 def gh_json(path: str) -> Any:
