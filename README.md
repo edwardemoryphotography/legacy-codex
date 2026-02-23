@@ -126,6 +126,13 @@ Generated to reduce project fragmentation and preserve the strongest shipped fea
 - **Phase 2 rollout report**: `reports/phase2_rollout_results.md`
 - **Per-repo apply bundles**: `rollout-bundles/`
 
+Starter packs now include full build-out scaffolding:
+- governance docs
+- CI baseline
+- PR + issue templates
+- docs architecture/decisions/runbooks/roadmap trees
+- repo-specific module directories with ownership placeholders
+
 Run the audit refresh at any time:
 
 ```bash

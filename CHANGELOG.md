@@ -2,6 +2,25 @@
 
 All notable changes to the Legacy Codex repository are documented in this file.
 
+## [v22-starter-buildout] - 2026-02-23
+
+### Changed
+- Expanded `scripts/generate_repo_standards.py` from baseline doc generation to full repository scaffold generation.
+- Regenerated `repo-starters/` with structured build-out folders for all targets:
+  - `codex-core`
+  - `neurofeedback-stack`
+  - `memory-intelligence`
+  - `agent-tooling-hub`
+
+### Added
+- Common scaffold assets across all starter repos:
+  - PR template and issue templates
+  - docs structure (`architecture`, `decisions`, `runbooks`, `roadmap`)
+  - executable `scripts/bootstrap.sh`
+  - tests placeholder documentation
+- `repo-starters/README.md` generation manifest.
+- `reports/starter_buildout_matrix.md` summary matrix for the expanded packs.
+
 ## [v21-phase2-rollout] - 2026-02-23
 
 ### Added

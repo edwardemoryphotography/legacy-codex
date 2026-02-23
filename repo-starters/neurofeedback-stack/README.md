@@ -8,7 +8,7 @@ Unify Muse EEG ingestion, signal analysis, session telemetry, and CI-tested depl
 
 ## Project Status
 
-- **Phase**: Standardization bootstrap
+- **Phase**: build-out bootstrap
 - **Primary stack**: Python backend + web dashboard + Docker
 - **First milestone**: Run end-to-end Muse stream -> processing -> dashboard with containerized local bring-up.
 
@@ -19,18 +19,20 @@ This repository follows a mandatory baseline:
 - `CONTRIBUTING.md` for contributor workflow
 - `SECURITY.md` for vulnerability reporting
 - `.github/workflows/repo-standards.yml` for baseline CI checks
+- `.github/pull_request_template.md` and issue templates
+- `docs/` tree for architecture, decisions, runbooks, and roadmap
 
 ## Quickstart
 
 ```bash
-# clone and enter
 git clone <repo-url>
 cd neurofeedback-stack
+./scripts/bootstrap.sh
 ```
 
-## Roadmap
+## Initial Build-Out Checklist
 
-- [ ] Finalize architecture and scope boundaries
-- [ ] Deliver first end-to-end milestone
-- [ ] Add automated tests for core path
-- [ ] Add release workflow
+- [ ] Confirm module ownership for each top-level folder
+- [ ] Add first executable vertical slice
+- [ ] Add test coverage for core behavior
+- [ ] Wire release/version cadence

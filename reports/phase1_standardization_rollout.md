@@ -24,11 +24,19 @@ Starter packs are generated in `repo-starters/`:
 - `repo-starters/agent-tooling-hub/`
 
 Each pack contains:
-- `README.md`
-- `CHANGELOG.md`
-- `CONTRIBUTING.md`
-- `SECURITY.md`
-- `.github/workflows/repo-standards.yml`
+- governance baseline:
+  - `README.md`
+  - `CHANGELOG.md`
+  - `CONTRIBUTING.md`
+  - `SECURITY.md`
+  - `.github/workflows/repo-standards.yml`
+- contribution templates:
+  - `.github/pull_request_template.md`
+  - `.github/ISSUE_TEMPLATE/*`
+- build-out scaffolding:
+  - `docs/architecture`, `docs/decisions`, `docs/runbooks`, `docs/roadmap.md`
+  - `scripts/bootstrap.sh`
+  - repo-specific module directories with `README.md` placeholders
 
 ## Regenerate Starter Packs
 

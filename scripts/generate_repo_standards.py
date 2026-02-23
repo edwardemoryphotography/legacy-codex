@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Generate standardized repo starter packs for consolidation targets.
+"""Generate robust standardized starter packs for consolidation targets.
 
-Outputs complete governance + CI starter files for each target repository:
-- README.md
-- CHANGELOG.md
-- CONTRIBUTING.md
-- SECURITY.md
-- .github/workflows/repo-standards.yml
+Each generated repository includes:
+- Governance docs (`README`, `CHANGELOG`, `CONTRIBUTING`, `SECURITY`)
+- CI baseline (`.github/workflows/repo-standards.yml`)
+- PR + issue templates
+- Structured docs tree
+- Repo-specific module scaffolding
 """
 
 from __future__ import annotations
@@ -25,6 +25,13 @@ class TargetRepo:
     scope_summary: str
     first_milestone: str
     owners: str
+
+
+@dataclass(frozen=True)
+class FileSpec:
+    relative_path: str
+    content: str
+    executable: bool = False
 
 
 TARGETS = [
@@ -87,6 +94,45 @@ TARGETS = [
 ]
 
 
+REPO_MODULES: dict[str, list[tuple[str, str]]] = {
+    "codex-core": [
+        ("apps/dashboard/README.md", "Operational protocol dashboard application."),
+        ("apps/architecture-view/README.md", "Interactive system architecture viewer."),
+        ("docs/protocols/README.md", "Canonical operating protocols and enforcement guidance."),
+        ("docs/integrations/README.md", "Cross-system integration contracts and interfaces."),
+    ],
+    "neurofeedback-stack": [
+        ("backend/ingest/README.md", "Muse EEG signal ingestion services."),
+        ("backend/signal/README.md", "Signal processing and feature extraction modules."),
+        ("backend/api/README.md", "API endpoints and session orchestration layer."),
+        ("frontend/dashboard/README.md", "Real-time visualization dashboard."),
+        ("frontend/session-viewer/README.md", "Historical and live session explorer."),
+        ("infra/docker/README.md", "Container definitions and local orchestration."),
+        ("infra/workflows/README.md", "Deployment and operations workflow docs."),
+        ("tests/integration/README.md", "Integration test scenarios."),
+        ("tests/unit/README.md", "Unit test organization notes."),
+    ],
+    "memory-intelligence": [
+        ("services/ingestion/README.md", "Conversation and artifact ingestion services."),
+        ("services/indexing/README.md", "Index builders and memory normalization pipeline."),
+        ("services/retrieval/README.md", "Retrieval and ranking services."),
+        ("clients/cli/README.md", "CLI interface for memory operations."),
+        ("clients/desktop/README.md", "Desktop application integration notes."),
+        ("docs/memory-model/README.md", "Memory schema and scope design."),
+        ("docs/retention-policies/README.md", "Retention, expiry, and governance policy."),
+        ("docs/mcp/README.md", "MCP server/client integration details."),
+    ],
+    "agent-tooling-hub": [
+        ("cli/README.md", "Terminal-native command surfaces for agents."),
+        ("capture/README.md", "Artifact capture and preprocessing components."),
+        ("bridge/README.md", "Browser-terminal bridge implementation notes."),
+        ("docs/fork-deltas/README.md", "Upstream fork deltas and retained customizations."),
+        ("docs/interface-contracts/README.md", "Shared contracts between tooling surfaces."),
+        ("docs/command-recipes/README.md", "Operational command patterns and examples."),
+    ],
+}
+
+
 README_TEMPLATE = """# {repo_name}
 
 > {purpose}
@@ -97,7 +143,7 @@ README_TEMPLATE = """# {repo_name}
 
 ## Project Status
 
-- **Phase**: Standardization bootstrap
+- **Phase**: build-out bootstrap
 - **Primary stack**: {primary_stack}
 - **First milestone**: {first_milestone}
 
@@ -108,21 +154,23 @@ This repository follows a mandatory baseline:
 - `CONTRIBUTING.md` for contributor workflow
 - `SECURITY.md` for vulnerability reporting
 - `.github/workflows/repo-standards.yml` for baseline CI checks
+- `.github/pull_request_template.md` and issue templates
+- `docs/` tree for architecture, decisions, runbooks, and roadmap
 
 ## Quickstart
 
 ```bash
-# clone and enter
 git clone <repo-url>
 cd {repo_name}
+./scripts/bootstrap.sh
 ```
 
-## Roadmap
+## Initial Build-Out Checklist
 
-- [ ] Finalize architecture and scope boundaries
-- [ ] Deliver first end-to-end milestone
-- [ ] Add automated tests for core path
-- [ ] Add release workflow
+- [ ] Confirm module ownership for each top-level folder
+- [ ] Add first executable vertical slice
+- [ ] Add test coverage for core behavior
+- [ ] Wire release/version cadence
 """
 
 
@@ -135,12 +183,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
-- Repository standardization baseline files and CI checks.
+- Repository governance baseline and scaffold structure.
 
 ## [v0.1.0] - {today}
 
 ### Added
-- Initial repository bootstrap for `{repo_name}`.
+- Initial build-out bootstrap for `{repo_name}`.
 """
 
 
@@ -223,13 +271,165 @@ jobs:
           test -f CHANGELOG.md
           test -f CONTRIBUTING.md
           test -f SECURITY.md
+          test -f docs/roadmap.md
+          test -f scripts/bootstrap.sh
 
-      - name: Verify top-level markdown headers
+      - name: Verify markdown headers
         run: |
           set -euo pipefail
-          for file in README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md; do
+          for file in README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md docs/roadmap.md; do
             rg '^# ' "$file" >/dev/null
           done
+"""
+
+
+PR_TEMPLATE = """## Summary
+
+<!-- What changed and why? -->
+
+## Validation
+
+- [ ] Tests added/updated (or N/A with reason)
+- [ ] Docs updated (`README`, `CHANGELOG`, docs/)
+- [ ] Security and risk review completed
+
+## Checklist
+
+- [ ] Scope is focused
+- [ ] No secrets added
+- [ ] CI passes
+"""
+
+
+BUG_TEMPLATE = """---
+name: Bug report
+about: Report incorrect behavior
+title: "[BUG] "
+labels: bug
+assignees: ""
+---
+
+## Description
+
+## Steps to Reproduce
+
+1.
+2.
+3.
+
+## Expected Behavior
+
+## Actual Behavior
+
+## Environment
+
+- OS:
+- Runtime version:
+- Branch/commit:
+"""
+
+
+FEATURE_TEMPLATE = """---
+name: Feature request
+about: Suggest an enhancement
+title: "[FEATURE] "
+labels: enhancement
+assignees: ""
+---
+
+## Problem
+
+## Proposed Change
+
+## Alternatives Considered
+
+## Success Criteria
+
+- [ ]
+- [ ]
+"""
+
+
+ISSUE_CONFIG = """blank_issues_enabled: false
+contact_links:
+  - name: Security issue
+    url: ./SECURITY.md
+    about: Please report vulnerabilities privately using SECURITY.md guidance.
+"""
+
+
+DOCS_ARCHITECTURE = """# Architecture Notes
+
+Use this directory for system diagrams, dependency boundaries, and interface contracts.
+"""
+
+
+DOCS_DECISIONS = """# Architecture Decision Records
+
+Store design decisions in ADR format:
+
+- Context
+- Decision
+- Consequences
+"""
+
+
+DOCS_RUNBOOKS = """# Runbooks
+
+Operational procedures for bring-up, incident handling, and maintenance workflows.
+"""
+
+
+DOCS_ROADMAP = """# Roadmap
+
+## Near Term
+
+- [ ] Deliver first vertical slice
+- [ ] Add baseline observability and health checks
+- [ ] Publish implementation notes in docs/decisions
+
+## Mid Term
+
+- [ ] Harden CI with tests and lint checks
+- [ ] Add release automation
+"""
+
+
+TESTS_README = """# Tests
+
+Use this directory for repository test suites.
+
+Recommended split:
+- `unit/` for narrow logic tests
+- `integration/` for cross-module behavior
+"""
+
+
+BOOTSTRAP_SCRIPT = """#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Bootstrapping repository structure checks..."
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
+
+required=(
+  "README.md"
+  "CHANGELOG.md"
+  "CONTRIBUTING.md"
+  "SECURITY.md"
+  "docs/roadmap.md"
+)
+
+for file in "${required[@]}"; do
+  if [[ ! -f "$file" ]]; then
+    echo "Missing required file: $file"
+    exit 1
+  fi
+done
+
+echo "Bootstrap checks complete."
 """
 
 
@@ -245,44 +445,114 @@ def render(template: str, target: TargetRepo) -> str:
     )
 
 
-def write_file(path: Path, content: str, overwrite: bool) -> bool:
+def module_placeholder(path: str, summary: str) -> str:
+    section_name = path.rsplit("/", 1)[0]
+    return f"""# {section_name}
+
+{summary}
+
+## Initial Responsibilities
+
+- Define module scope and boundaries
+- Add first executable implementation task
+- Document cross-module dependencies
+"""
+
+
+def common_files(target: TargetRepo) -> list[FileSpec]:
+    return [
+        FileSpec("README.md", render(README_TEMPLATE, target)),
+        FileSpec("CHANGELOG.md", render(CHANGELOG_TEMPLATE, target)),
+        FileSpec("CONTRIBUTING.md", render(CONTRIBUTING_TEMPLATE, target)),
+        FileSpec("SECURITY.md", render(SECURITY_TEMPLATE, target)),
+        FileSpec(".github/workflows/repo-standards.yml", render(WORKFLOW_TEMPLATE, target)),
+        FileSpec(".github/pull_request_template.md", PR_TEMPLATE),
+        FileSpec(".github/ISSUE_TEMPLATE/bug_report.md", BUG_TEMPLATE),
+        FileSpec(".github/ISSUE_TEMPLATE/feature_request.md", FEATURE_TEMPLATE),
+        FileSpec(".github/ISSUE_TEMPLATE/config.yml", ISSUE_CONFIG),
+        FileSpec("docs/architecture/README.md", DOCS_ARCHITECTURE),
+        FileSpec("docs/decisions/README.md", DOCS_DECISIONS),
+        FileSpec("docs/runbooks/README.md", DOCS_RUNBOOKS),
+        FileSpec("docs/roadmap.md", DOCS_ROADMAP),
+        FileSpec("scripts/bootstrap.sh", BOOTSTRAP_SCRIPT, executable=True),
+        FileSpec("tests/README.md", TESTS_README),
+    ]
+
+
+def repo_specific_files(target: TargetRepo) -> list[FileSpec]:
+    modules = REPO_MODULES.get(target.name, [])
+    return [FileSpec(path, module_placeholder(path, summary)) for path, summary in modules]
+
+
+def write_file(path: Path, content: str, overwrite: bool, executable: bool) -> bool:
     if path.exists() and not overwrite:
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content.rstrip() + "\n", encoding="utf-8")
+    if executable:
+        path.chmod(path.stat().st_mode | 0o111)
     return True
+
+
+def write_manifest(output_dir: Path, targets: list[TargetRepo]) -> None:
+    lines = [
+        "# Repo Starter Packs",
+        "",
+        "This directory contains generated starter repositories for consolidation targets.",
+        "",
+        "## Generated Targets",
+        "",
+    ]
+    for target in targets:
+        lines.append(f"- `{target.name}`: {target.purpose}")
+    lines.extend(
+        [
+            "",
+            "## Regenerate",
+            "",
+            "```bash",
+            "python3 scripts/generate_repo_standards.py --output-dir repo-starters --overwrite",
+            "```",
+            "",
+        ]
+    )
+    (output_dir / "README.md").write_text("\n".join(lines), encoding="utf-8")
 
 
 def generate(output_dir: Path, overwrite: bool) -> None:
     created = 0
     skipped = 0
+    per_repo_counts: dict[str, int] = {}
 
     for target in TARGETS:
         base = output_dir / target.name
-        files = [
-            (base / "README.md", render(README_TEMPLATE, target)),
-            (base / "CHANGELOG.md", render(CHANGELOG_TEMPLATE, target)),
-            (base / "CONTRIBUTING.md", render(CONTRIBUTING_TEMPLATE, target)),
-            (base / "SECURITY.md", render(SECURITY_TEMPLATE, target)),
-            (
-                base / ".github/workflows/repo-standards.yml",
-                render(WORKFLOW_TEMPLATE, target),
-            ),
-        ]
+        specs = common_files(target) + repo_specific_files(target)
+        per_repo_counts[target.name] = 0
 
-        for path, content in files:
-            if write_file(path, content, overwrite=overwrite):
+        for spec in specs:
+            path = base / spec.relative_path
+            if write_file(
+                path=path,
+                content=spec.content,
+                overwrite=overwrite,
+                executable=spec.executable,
+            ):
                 created += 1
+                per_repo_counts[target.name] += 1
             else:
                 skipped += 1
+
+    write_manifest(output_dir=output_dir, targets=TARGETS)
 
     print(f"Output directory: {output_dir}")
     print(f"Files written: {created}")
     print(f"Files skipped: {skipped}")
+    for name, count in per_repo_counts.items():
+        print(f"- {name}: {count} files updated")
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate standard repo starter packs.")
+    parser = argparse.ArgumentParser(description="Generate robust repo starter packs.")
     parser.add_argument(
         "--output-dir",
         default="repo-starters",

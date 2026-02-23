@@ -7,9 +7,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
-- Repository standardization baseline files and CI checks.
+- Repository governance baseline and scaffold structure.
 
 ## [v0.1.0] - 2026-02-23
 
 ### Added
-- Initial repository bootstrap for `memory-intelligence`.
+- Initial build-out bootstrap for `memory-intelligence`.

@@ -20,10 +20,12 @@ jobs:
           test -f CHANGELOG.md
           test -f CONTRIBUTING.md
           test -f SECURITY.md
+          test -f docs/roadmap.md
+          test -f scripts/bootstrap.sh
 
-      - name: Verify top-level markdown headers
+      - name: Verify markdown headers
         run: |
           set -euo pipefail
-          for file in README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md; do
+          for file in README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md docs/roadmap.md; do
             rg '^# ' "$file" >/dev/null
           done
