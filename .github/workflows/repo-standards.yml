@@ -33,11 +33,15 @@ jobs:
           test -f reports/unified_repo_blueprint.md
           test -f scripts/repo_portfolio_audit.py
           test -f scripts/generate_repo_standards.py
+          test -f scripts/rollout_repo_standards.py
 
       - name: Python syntax checks
         run: |
           set -euo pipefail
-          python3 -m py_compile scripts/repo_portfolio_audit.py scripts/generate_repo_standards.py
+          python3 -m py_compile \
+            scripts/repo_portfolio_audit.py \
+            scripts/generate_repo_standards.py \
+            scripts/rollout_repo_standards.py
 
       - name: Starter-pack smoke test
         run: |
