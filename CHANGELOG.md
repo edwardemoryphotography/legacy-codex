@@ -2,6 +2,17 @@
 
 All notable changes to the Legacy Codex repository are documented in this file.
 
+## [v19-consolidation] - 2026-02-23
+
+### Added
+- `scripts/repo_portfolio_audit.py` to run live GitHub portfolio audits via `gh` CLI.
+- `reports/repo_portfolio_audit.md` with active repo inventory, redundancy clusters, and key-file coverage.
+- `reports/repo_portfolio_audit.json` machine-readable snapshot of repo health and extracted features.
+- `reports/unified_repo_blueprint.md` defining a robust 4-repo consolidation architecture.
+
+### Changed
+- Updated `README.md` with a cross-repo consolidation toolkit section and rerun instructions.
+
 ## [v19-skill] - 2026-02-23
 
 ### Added

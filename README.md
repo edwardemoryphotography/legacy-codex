@@ -111,6 +111,23 @@ Added: 2026-02-23 via Safe Integration Plan v1.
 
 ---
 
+## Cross-Repo Consolidation Toolkit
+
+Generated to reduce project fragmentation and preserve the strongest shipped features across related repos.
+
+- **Live portfolio audit**: `reports/repo_portfolio_audit.md`
+- **Machine-readable snapshot**: `reports/repo_portfolio_audit.json`
+- **Robust target repo blueprint**: `reports/unified_repo_blueprint.md`
+- **Audit automation script**: `scripts/repo_portfolio_audit.py`
+
+Run the audit refresh at any time:
+
+```bash
+python3 scripts/repo_portfolio_audit.py --owner edwardemoryphotography --output-dir reports
+```
+
+---
+
 ## Related Repos
 
 - [`codex-system-architecture`](https://github.com/edwardemoryphotography/codex-system-architecture) — Visual system architecture for Codex platform
