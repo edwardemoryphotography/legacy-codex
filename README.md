@@ -82,6 +82,24 @@ open index.html
 
 ---
 
+## Skills
+
+### self-improving-agent (v1.0.0)
+
+A workspace-scoped skill that records structured learnings from Codex task
+sessions.  Learnings are stored as timestamped JSON files inside
+`skills/self-improving-agent/learnings/` and committed with normal git flow.
+
+- **Invocation**: manual only — no auto-run hooks, no cron, no background
+  processes.
+- **Security**: no network access, no `eval`/`curl`/`wget`/`base64`; see
+  `skills/self-improving-agent/SECURITY_REVIEW.md` for the full audit.
+- **Usage**: `./skills/self-improving-agent/scripts/record-learning.sh "Your learning here"`
+
+Added: 2026-02-23 via Safe Integration Plan v1.
+
+---
+
 ## Roadmap
 
 - [ ] v19: Interactive phase protocol UI

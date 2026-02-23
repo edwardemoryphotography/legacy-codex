@@ -13,6 +13,8 @@
 edwardemoryphotography/
 ├── legacy-codex/                    # Core framework + codex (LIVE, v18)
 │   ├── features/
+│   ├── skills/
+│   │   └── self-improving-agent/    # Workspace-scoped learning skill (v1.0.0)
 │   ├── .gitignore
 │   ├── CHANGELOG.md
 │   ├── README.md
