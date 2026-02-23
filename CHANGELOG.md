@@ -2,6 +2,51 @@
 
 All notable changes to the Legacy Codex repository are documented in this file.
 
+## [v21-phase2-rollout] - 2026-02-23
+
+### Added
+- `scripts/rollout_repo_standards.py` for automated baseline doc/workflow rollout across core repos.
+- `reports/phase2_rollout_results.md` and `.json` with per-repo rollout outcomes and error visibility.
+- `rollout-bundles/` containing ready-to-apply governance/workflow files for:
+  - `muse-neurofeedback`
+  - `neurocreative-platform`
+  - `MuseEEGProject`
+  - `codex-system-architecture`
+
+### Changed
+- Expanded `README.md` toolkit section with phase-2 rollout command and artifact references.
+
+### Notes
+- Direct cross-repo writes are environment-permission dependent; this run exported complete apply bundles and captured `HTTP 403` write restrictions.
+
+## [v20-phase1-standardization] - 2026-02-23
+
+### Added
+- `CONTRIBUTING.md` with branch, commit, and validation guidance.
+- `SECURITY.md` with private vulnerability reporting expectations.
+- `.github/workflows/repo-standards.yml` to enforce governance file presence and script syntax checks.
+- `scripts/generate_repo_standards.py` to generate standardized starter packs for:
+  - `codex-core`
+  - `neurofeedback-stack`
+  - `memory-intelligence`
+  - `agent-tooling-hub`
+- `repo-starters/` generated baseline governance + CI files for all four target repos.
+- `reports/phase1_standardization_rollout.md` with rollout sequence and done criteria.
+
+### Changed
+- Expanded `README.md` consolidation toolkit with phase-1 rollout assets and generation commands.
+
+## [v19-consolidation] - 2026-02-23
+
+### Added
+- `scripts/repo_portfolio_audit.py` to run live GitHub portfolio audits via `gh` CLI.
+- `reports/repo_portfolio_audit.md` with active repo inventory, redundancy clusters, and key-file coverage.
+- `reports/repo_portfolio_audit.json` machine-readable snapshot of repo health and extracted features.
+- `reports/unified_repo_blueprint.md` defining a robust 4-repo consolidation architecture.
+
+### Changed
+- Updated `README.md` with a cross-repo consolidation toolkit section and rerun instructions.
+
 ## [v19-skill] - 2026-02-23
 
 ### Added

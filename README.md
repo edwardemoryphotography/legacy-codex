@@ -111,6 +111,41 @@ Added: 2026-02-23 via Safe Integration Plan v1.
 
 ---
 
+## Cross-Repo Consolidation Toolkit
+
+Generated to reduce project fragmentation and preserve the strongest shipped features across related repos.
+
+- **Live portfolio audit**: `reports/repo_portfolio_audit.md`
+- **Machine-readable snapshot**: `reports/repo_portfolio_audit.json`
+- **Robust target repo blueprint**: `reports/unified_repo_blueprint.md`
+- **Phase 1 rollout checklist**: `reports/phase1_standardization_rollout.md`
+- **Audit automation script**: `scripts/repo_portfolio_audit.py`
+- **Starter-pack generator script**: `scripts/generate_repo_standards.py`
+- **Phase 2 apply script**: `scripts/rollout_repo_standards.py`
+- **Generated target starter packs**: `repo-starters/`
+- **Phase 2 rollout report**: `reports/phase2_rollout_results.md`
+- **Per-repo apply bundles**: `rollout-bundles/`
+
+Run the audit refresh at any time:
+
+```bash
+python3 scripts/repo_portfolio_audit.py --owner edwardemoryphotography --output-dir reports
+```
+
+Generate standardized target repo packs:
+
+```bash
+python3 scripts/generate_repo_standards.py --output-dir repo-starters --overwrite
+```
+
+Attempt direct cross-repo standards rollout (when token has write access):
+
+```bash
+python3 scripts/rollout_repo_standards.py --owner edwardemoryphotography --output-dir reports --bundle-dir rollout-bundles
+```
+
+---
+
 ## Related Repos
 
 - [`codex-system-architecture`](https://github.com/edwardemoryphotography/codex-system-architecture) — Visual system architecture for Codex platform

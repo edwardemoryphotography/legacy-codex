@@ -1,0 +1,786 @@
+{
+  "owner": "edwardemoryphotography",
+  "generated_at": "2026-02-23 12:47:12 UTC",
+  "repos": [
+    {
+      "name": "legacy-codex",
+      "url": "https://github.com/edwardemoryphotography/legacy-codex",
+      "description": "",
+      "default_branch": "main",
+      "primary_language": "HTML",
+      "is_archived": false,
+      "is_fork": false,
+      "updated_at": "2026-02-23T12:26:48Z",
+      "theme": "codex_framework",
+      "root_items": [
+        ".gitignore",
+        "CHANGELOG.md",
+        "LICENSE",
+        "MVP_Status.md",
+        "Master_Audit_Summary.md",
+        "Project_Structure_Final.md",
+        "README.md",
+        "Update_Docs_List.md",
+        "features",
+        "index.html",
+        "package-lock.json",
+        "robots.txt",
+        "skills"
+      ],
+      "key_docs": {
+        "README": true,
+        "LICENSE": true,
+        "CHANGELOG": true,
+        "CONTRIBUTING": false,
+        "SECURITY": false,
+        "WORKFLOWS": false
+      },
+      "missing_key_docs": [
+        "CONTRIBUTING",
+        "SECURITY",
+        "WORKFLOWS"
+      ],
+      "feature_bullets": [
+        "**7-Phase Collaboration Protocol** \u2014 a step-by-step method for working with AI or collaborators, from initial assumption to meta-recognition.",
+        "**Legacy Codex architecture** \u2014 a structure for preserving keystone principles, narratives, artifacts, and long-term continuity plans.",
+        "**Transmission framework** \u2014 the four vehicles through which this work spreads (Narratives, People, Artifacts, Structures).",
+        "**Continuity blueprint** \u2014 immediate and long-term actions to turn insight into repeatable practice."
+      ]
+    },
+    {
+      "name": "muse-neurofeedback",
+      "url": "https://github.com/edwardemoryphotography/muse-neurofeedback",
+      "description": "Neurofeedback application for Muse EEG headbands with real-time brain visualization and mindfulness training",
+      "default_branch": "main",
+      "primary_language": "HTML",
+      "is_archived": false,
+      "is_fork": false,
+      "updated_at": "2026-02-22T10:17:53Z",
+      "theme": "eeg_neurofeedback",
+      "root_items": [
+        "LICENSE",
+        "README.md",
+        "index.html",
+        "main.py",
+        "requirements.txt"
+      ],
+      "key_docs": {
+        "README": true,
+        "LICENSE": true,
+        "CHANGELOG": false,
+        "CONTRIBUTING": false,
+        "SECURITY": false,
+        "WORKFLOWS": false
+      },
+      "missing_key_docs": [
+        "CHANGELOG",
+        "CONTRIBUTING",
+        "SECURITY",
+        "WORKFLOWS"
+      ],
+      "feature_bullets": [
+        "Real-time EEG data streaming via Python WebSocket",
+        "Muse 2 headband compatibility (Mind Monitor bridge)",
+        "Live brainwave band visualization (alpha, beta, theta, delta, gamma)",
+        "Mindfulness session tracking and scoring",
+        "Neurofeedback loop for focus training",
+        "Simple frontend to view incoming data streams"
+      ]
+    },
+    {
+      "name": "neurocreative-platform",
+      "url": "https://github.com/edwardemoryphotography/neurocreative-platform",
+      "description": "",
+      "default_branch": "main",
+      "primary_language": "Python",
+      "is_archived": false,
+      "is_fork": false,
+      "updated_at": "2026-02-21T09:29:41Z",
+      "theme": "eeg_neurofeedback",
+      "root_items": [
+        ".gitignore",
+        "LICENSE",
+        "README.md",
+        "backend",
+        "frontend",
+        "requirements.txt"
+      ],
+      "key_docs": {
+        "README": true,
+        "LICENSE": true,
+        "CHANGELOG": false,
+        "CONTRIBUTING": false,
+        "SECURITY": false,
+        "WORKFLOWS": false
+      },
+      "missing_key_docs": [
+        "CHANGELOG",
+        "CONTRIBUTING",
+        "SECURITY",
+        "WORKFLOWS"
+      ],
+      "feature_bullets": [
+        "Real-time EEG data streaming via Python WebSocket",
+        "Muse 2 headband integration via Mind Monitor (OSC)",
+        "Live brainwave band display (alpha, beta, theta, delta, gamma)",
+        "WHOOP 4.0 HRV + recovery data overlay (planned)",
+        "Neurodivergent execution state mapping",
+        "Stable `v0.1-mvp` baseline for iterative builds"
+      ]
+    },
+    {
+      "name": "codex-system-architecture",
+      "url": "https://github.com/edwardemoryphotography/codex-system-architecture",
+      "description": "Created with StackBlitz \u26a1\ufe0f",
+      "default_branch": "main",
+      "primary_language": "TypeScript",
+      "is_archived": false,
+      "is_fork": false,
+      "updated_at": "2026-02-21T09:28:24Z",
+      "theme": "codex_framework",
+      "root_items": [
+        ".bolt",
+        ".gitignore",
+        "LICENSE",
+        "README.md",
+        "eslint.config.js",
+        "index.html",
+        "package-lock.json",
+        "package.json",
+        "postcss.config.js",
+        "public",
+        "src",
+        "supabase",
+        "tailwind.config.js",
+        "tsconfig.app.json",
+        "tsconfig.json",
+        "tsconfig.node.json",
+        "vite.config.ts"
+      ],
+      "key_docs": {
+        "README": true,
+        "LICENSE": true,
+        "CHANGELOG": false,
+        "CONTRIBUTING": false,
+        "SECURITY": false,
+        "WORKFLOWS": false
+      },
+      "missing_key_docs": [
+        "CHANGELOG",
+        "CONTRIBUTING",
+        "SECURITY",
+        "WORKFLOWS"
+      ],
+      "feature_bullets": [
+        "Define system components and their relationships",
+        "Map data flows between AI agents, memory, and UI",
+        "Prototype architecture changes before implementation",
+        "Maintain a living technical spec for the platform",
+        "Document neurodivergent execution patterns and system hooks",
+        "[`legacy-codex`](https://github.com/edwardemoryphotography/legacy-codex) \u2014 Neurodivergent execution frameworks",
+        "[`neurocreative-platform`](https://github.com/edwardemoryphotography/neurocreative-platform) \u2014 EEG + WHOOP backend",
+        "[`mem-layer`](https://github.com/edwardemoryphotography/mem-layer) \u2014 AI memory aggregation",
+        "**Last reviewed**: 2025 \u2014 Identified as stale-active during GitHub audit",
+        "**Action taken**: README fully documented"
+      ]
+    },
+    {
+      "name": "MuseEEGProject",
+      "url": "https://github.com/edwardemoryphotography/MuseEEGProject",
+      "description": "Muse EEG Neurofeedback Project for real-time brainwave visualization.",
+      "default_branch": "main",
+      "primary_language": "Dockerfile",
+      "is_archived": false,
+      "is_fork": false,
+      "updated_at": "2026-02-21T09:26:39Z",
+      "theme": "eeg_neurofeedback",
+      "root_items": [
+        ".github",
+        "Dockerfile",
+        "LICENSE",
+        "README.md",
+        "RESOURCES.md",
+        "requirements.txt",
+        "tests"
+      ],
+      "key_docs": {
+        "README": true,
+        "LICENSE": true,
+        "CHANGELOG": false,
+        "CONTRIBUTING": false,
+        "SECURITY": false,
+        "WORKFLOWS": true
+      },
+      "missing_key_docs": [
+        "CHANGELOG",
+        "CONTRIBUTING",
+        "SECURITY"
+      ],
+      "feature_bullets": [
+        "Real-time EEG data ingestion from Muse 2 headband",
+        "Brainwave band analysis (alpha, beta, theta, delta, gamma)",
+        "Docker-containerized deployment for portability",
+        "Automated CI/CD via GitHub Actions workflows",
+        "Comprehensive test suite in `tests/`",
+        "Resource documentation in `RESOURCES.md`"
+      ]
+    },
+    {
+      "name": "brew",
+      "url": "https://github.com/edwardemoryphotography/brew",
+      "description": "\ud83c\udf7a The missing package manager for macOS (or Linux)",
+      "default_branch": "master",
+      "primary_language": "Ruby",
+      "is_archived": false,
+      "is_fork": true,
+      "updated_at": "2026-02-21T08:30:27Z",
+      "theme": "agent_tooling",
+      "root_items": [
+        ".devcontainer",
+        ".dockerignore",
+        ".editorconfig",
+        ".github",
+        ".gitignore",
+        ".shellcheckrc",
+        ".sublime",
+        ".vale.ini",
+        ".vscode",
+        "CHANGELOG.md",
+        "CONTRIBUTING.md",
+        "Dockerfile",
+        "FORK_NOTES.md",
+        "LICENSE.txt",
+        "Library",
+        "README.md",
+        "bin",
+        "completions",
+        "docs",
+        "manpages",
+        "package"
+      ],
+      "key_docs": {
+        "README": true,
+        "LICENSE": true,
+        "CHANGELOG": true,
+        "CONTRIBUTING": true,
+        "SECURITY": false,
+        "WORKFLOWS": true
+      },
+      "missing_key_docs": [
+        "SECURITY"
+      ],
+      "feature_bullets": [
+        "[Homebrew/discussions (forum)](https://github.com/orgs/Homebrew/discussions)",
+        "[@homebrew@fosstodon.org (Mastodon)](https://fosstodon.org/@homebrew)",
+        "[@MacHomebrew (\ud835\udd4f (formerly known as Twitter))](https://x.com/MacHomebrew)"
+      ]
+    },
+    {
+      "name": "retain",
+      "url": "https://github.com/edwardemoryphotography/retain",
+      "description": "Retain is a native macOS application that aggregates AI conversations from multiple platforms into a unified, searchable knowledge base with intelligent learning extraction.",
+      "default_branch": "main",
+      "primary_language": "Swift",
+      "is_archived": false,
+      "is_fork": true,
+      "updated_at": "2026-02-21T08:29:26Z",
+      "theme": "memory_intelligence",
+      "root_items": [
+        ".github",
+        ".gitignore",
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "CODE_OF_CONDUCT.md",
+        "CONTRIBUTING.md",
+        "FORK_NOTES.md",
+        "LICENSE",
+        "PRIVACY.md",
+        "Package.swift",
+        "README.md",
+        "Resources",
+        "Retain.entitlements",
+        "Retain.xctestplan",
+        "SECURITY.md",
+        "Sources",
+        "Tests",
+        "appcast.xml",
+        "build.sh",
+        "docs",
+        "project.yml",
+        "scripts"
+      ],
+      "key_docs": {
+        "README": true,
+        "LICENSE": true,
+        "CHANGELOG": true,
+        "CONTRIBUTING": true,
+        "SECURITY": true,
+        "WORKFLOWS": true
+      },
+      "missing_key_docs": [],
+      "feature_bullets": [
+        "**Multi-source sync**: Auto-sync from CLI tools (Claude Code, Codex, Cursor, Gemini CLI, OpenCode, GitHub Copilot CLI), manual sync from claude.ai and ChatGPT (cookie-based)",
+        "**Instant search**: Full-text search across 10k+ conversations with FTS5",
+        "**Learning extraction**: Automatic detection of corrections (\"no, use X instead\") and preferences",
+        "**CLAUDE.md export**: Export approved learnings so Claude remembers your preferences",
+        "**Auto-updates**: Automatic update notifications via Sparkle framework",
+        "**Local-first**: All data stored locally. Optional cloud features (web sync, AI analysis) connect to external services when enabled."
+      ]
+    },
+    {
+      "name": "snag",
+      "url": "https://github.com/edwardemoryphotography/snag",
+      "description": "Screenshot-to-text CLI tool powered by Google Gemini vision",
+      "default_branch": "master",
+      "primary_language": "Python",
+      "is_archived": false,
+      "is_fork": true,
+      "updated_at": "2026-02-21T08:28:36Z",
+      "theme": "agent_tooling",
+      "root_items": [
+        ".gitignore",
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "FORK_NOTES.md",
+        "LICENSE",
+        "README.md",
+        "plan.md",
+        "pyproject.toml",
+        "snag",
+        "uv.lock"
+      ],
+      "key_docs": {
+        "README": true,
+        "LICENSE": true,
+        "CHANGELOG": true,
+        "CONTRIBUTING": false,
+        "SECURITY": false,
+        "WORKFLOWS": false
+      },
+      "missing_key_docs": [
+        "CONTRIBUTING",
+        "SECURITY",
+        "WORKFLOWS"
+      ],
+      "feature_bullets": [
+        "**Region selection** - Click and drag to capture any part of your screen",
+        "**Multi-monitor support** - Works across all your displays",
+        "**Smart transcription** - Handles text, code, diagrams, charts, UI elements, and images",
+        "**Instant clipboard** - Results copied automatically, ready to paste",
+        "**Multiple providers** - Google Gemini, OpenRouter, or Z.AI (GLM-4.6V)",
+        "**Cross-platform** - Linux (X11/Wayland), Windows, macOS"
+      ]
+    },
+    {
+      "name": "opencode",
+      "url": "https://github.com/edwardemoryphotography/opencode",
+      "description": "The open source coding agent.",
+      "default_branch": "dev",
+      "primary_language": "TypeScript",
+      "is_archived": false,
+      "is_fork": true,
+      "updated_at": "2026-02-21T08:27:54Z",
+      "theme": "agent_tooling",
+      "root_items": [
+        ".editorconfig",
+        ".github",
+        ".gitignore",
+        ".husky",
+        ".opencode",
+        ".prettierignore",
+        ".vscode",
+        "AGENTS.md",
+        "CONTRIBUTING.md",
+        "FORK_NOTES.md",
+        "LICENSE",
+        "README.md",
+        "README.zh-CN.md",
+        "README.zh-TW.md",
+        "SECURITY.md",
+        "STATS.md",
+        "STYLE_GUIDE.md",
+        "bun.lock",
+        "bunfig.toml",
+        "flake.lock",
+        "flake.nix",
+        "github",
+        "infra",
+        "install",
+        "logs",
+        "nix",
+        "package.json",
+        "packages",
+        "patches",
+        "script",
+        "sdks",
+        "specs",
+        "sst-env.d.ts",
+        "sst.config.ts",
+        "themes",
+        "tsconfig.json",
+        "turbo.json"
+      ],
+      "key_docs": {
+        "README": true,
+        "LICENSE": true,
+        "CHANGELOG": false,
+        "CONTRIBUTING": true,
+        "SECURITY": true,
+        "WORKFLOWS": true
+      },
+      "missing_key_docs": [
+        "CHANGELOG"
+      ],
+      "feature_bullets": [
+        "**build** - Default, full access agent for development work",
+        "**plan** - Read-only agent for analysis and code exploration",
+        "Denies file edits by default",
+        "Asks permission before running bash commands",
+        "Ideal for exploring unfamiliar codebases or planning changes",
+        "100% open source",
+        "Not coupled to any provider. Although we recommend the models we provide through [OpenCode Zen](https://opencode.ai/zen); OpenCode can be used with Claude, OpenAI, Google or even local models. As models evolve the gaps between them will close and pricing will drop so being provider-agnostic is important.",
+        "Out of the box LSP support",
+        "A focus on TUI. OpenCode is built by neovim users and the creators of [terminal.shop](https://terminal.shop); we are going to push the limits of what's possible in the terminal.",
+        "A client/server architecture. This for example can allow OpenCode to run on your computer, while you can drive it remotely from a mobile app. Meaning that the TUI frontend is just one of the possible clients."
+      ]
+    },
+    {
+      "name": "gemini-cli",
+      "url": "https://github.com/edwardemoryphotography/gemini-cli",
+      "description": "An open-source AI agent that brings the power of Gemini directly into your terminal.",
+      "default_branch": "main",
+      "primary_language": "TypeScript",
+      "is_archived": false,
+      "is_fork": true,
+      "updated_at": "2026-02-21T08:26:58Z",
+      "theme": "agent_tooling",
+      "root_items": [
+        ".editorconfig",
+        ".gcp",
+        ".gemini",
+        ".gitattributes",
+        ".github",
+        ".gitignore",
+        ".npmrc",
+        ".prettierrc.json",
+        ".vscode",
+        "CONTRIBUTING.md",
+        "Dockerfile",
+        "FORK_NOTES.md",
+        "GEMINI.md",
+        "LICENSE",
+        "Makefile",
+        "README.md",
+        "ROADMAP.md",
+        "docs",
+        "esbuild.config.js",
+        "eslint-rules",
+        "eslint.config.js",
+        "integration-tests",
+        "package-lock.json",
+        "package.json",
+        "packages",
+        "scripts",
+        "tsconfig.json"
+      ],
+      "key_docs": {
+        "README": true,
+        "LICENSE": true,
+        "CHANGELOG": false,
+        "CONTRIBUTING": true,
+        "SECURITY": false,
+        "WORKFLOWS": true
+      },
+      "missing_key_docs": [
+        "CHANGELOG",
+        "SECURITY"
+      ],
+      "feature_bullets": [
+        "Query and edit large codebases in and beyond Gemini's 1M token context window.",
+        "Generate new apps from PDFs or sketches, using Gemini's multimodal capabilities.",
+        "Automate operational tasks, like querying pull requests or handling complex rebases.",
+        "Use tools and MCP servers to connect new capabilities, including [media generation with Imagen,",
+        "Ground your queries with the [Google Search](https://ai.google.dev/gemini-api/docs/grounding)",
+        "Learn how to [contribute to or build from the source](./CONTRIBUTING.md).",
+        "Explore the available **[CLI Commands](./docs/cli/commands.md)**.",
+        "If you encounter any issues, review the **[troubleshooting guide](./docs/troubleshooting.md)**.",
+        "For more comprehensive documentation, see the [full documentation](./docs/index.md).",
+        "Take a look at some [popular tasks](#popular-tasks) for more inspiration."
+      ]
+    },
+    {
+      "name": "vibetunnel",
+      "url": "https://github.com/edwardemoryphotography/vibetunnel",
+      "description": "Turn any browser into your terminal & command your agents on the go.",
+      "default_branch": "main",
+      "primary_language": "TypeScript",
+      "is_archived": false,
+      "is_fork": true,
+      "updated_at": "2026-02-21T08:26:22Z",
+      "theme": "agent_tooling",
+      "root_items": [
+        ".claude",
+        ".dockerignore",
+        ".gitattributes",
+        ".github",
+        ".gitignore",
+        ".husky",
+        ".mcp.json",
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "FORK_NOTES.md",
+        "GEMINI.md",
+        "LICENSE",
+        "README.md",
+        "VibeTunnel.xcworkspace",
+        "appcast-prerelease.xml",
+        "appcast.xml",
+        "apple",
+        "assets",
+        "docs",
+        "ios",
+        "mac",
+        "scripts",
+        "tauri",
+        "web"
+      ],
+      "key_docs": {
+        "README": true,
+        "LICENSE": true,
+        "CHANGELOG": true,
+        "CONTRIBUTING": false,
+        "SECURITY": false,
+        "WORKFLOWS": true
+      },
+      "missing_key_docs": [
+        "CONTRIBUTING",
+        "SECURITY"
+      ],
+      "feature_bullets": [
+        "**\ud83c\udf10 Browser-Based Access** - Control your Mac terminal from any device with a web browser",
+        "**\ud83d\ude80 Zero Configuration** - No SSH keys, no port forwarding, no complexity",
+        "**\ud83e\udd16 AI Agent Friendly** - Perfect for monitoring Claude Code, ChatGPT, or any terminal-based AI tools",
+        "**\ud83d\udcca Dynamic Terminal Titles** - Real-time activity tracking shows what's happening in each session",
+        "**\u2328\ufe0f Smart Keyboard Handling** - Intelligent shortcut routing with toggleable capture modes",
+        "**\ud83d\udd12 Secure by Design** - Multiple authentication modes, localhost-only mode, or secure tunneling via Tailscale/ngrok",
+        "**\ud83d\udcf1 Mobile Ready** - Native iOS app and responsive web interface for phones and tablets",
+        "**\ud83c\udfac Session Recording** - All sessions recorded in asciinema format for later playback",
+        "**\u26a1 High Performance** - Optimized Node.js server with minimal resource usage",
+        "**\ud83c\udf4e Apple Silicon Native** - Optimized for Apple Silicon (M1+) Macs with ARM64-only binaries"
+      ]
+    },
+    {
+      "name": "mem-layer",
+      "url": "https://github.com/edwardemoryphotography/mem-layer",
+      "description": "Organise your AI's memories with graph database entries",
+      "default_branch": "claude/graph-db-memory-system-011CUrXLJwfj2bFXT1pjBkvd",
+      "primary_language": "Python",
+      "is_archived": false,
+      "is_fork": true,
+      "updated_at": "2026-01-20T21:46:09Z",
+      "theme": "memory_intelligence",
+      "root_items": [
+        ".gitignore",
+        "AI_MODEL_TEST_RESULTS.md",
+        "ARCHITECTURE.md",
+        "CHANGELOG.md",
+        "CONTRIBUTING.md",
+        "LICENSE",
+        "MCP_SERVER_SUMMARY.md",
+        "PROJECT_SCOPE.md",
+        "README.md",
+        "TEST_RESULTS.md",
+        "docs",
+        "examples",
+        "mcp-config-example.json",
+        "pyproject.toml",
+        "requirements-dev.txt",
+        "requirements.txt",
+        "src",
+        "test_mcp_server.py",
+        "test_mcp_simple.py",
+        "tests"
+      ],
+      "key_docs": {
+        "README": true,
+        "LICENSE": true,
+        "CHANGELOG": true,
+        "CONTRIBUTING": true,
+        "SECURITY": false,
+        "WORKFLOWS": false
+      },
+      "missing_key_docs": [
+        "SECURITY",
+        "WORKFLOWS"
+      ],
+      "feature_bullets": [
+        "\ud83e\udde0 **Persistent Memory**: Keep context across sessions",
+        "\ud83c\udfaf **Scoped Isolation**: Separate memories for user, project, and code contexts",
+        "\u23f0 **Temporal Awareness**: Track how knowledge changes over time",
+        "\ud83e\udd1d **Model Communication**: Enable models to leave notes for each other",
+        "\ud83d\udd12 **Access Control**: Define what models can read and modify",
+        "\ud83d\udda5\ufe0f **Multiple Interfaces**: CLI, Terminal UI, Web UI, and MCP Server",
+        "\ud83d\udd0c **MCP Integration**: Works with Claude Desktop and other MCP clients"
+      ]
+    },
+    {
+      "name": "congenial-spork-4eec4",
+      "url": "https://github.com/edwardemoryphotography/congenial-spork-4eec4",
+      "description": "",
+      "default_branch": "",
+      "primary_language": "",
+      "is_archived": true,
+      "is_fork": false,
+      "updated_at": "2026-02-21T08:19:42Z",
+      "theme": "general",
+      "root_items": [],
+      "key_docs": {
+        "README": false,
+        "LICENSE": false,
+        "CHANGELOG": false,
+        "CONTRIBUTING": false,
+        "SECURITY": false,
+        "WORKFLOWS": false
+      },
+      "missing_key_docs": [
+        "README",
+        "LICENSE",
+        "CHANGELOG",
+        "CONTRIBUTING",
+        "SECURITY",
+        "WORKFLOWS"
+      ],
+      "feature_bullets": []
+    },
+    {
+      "name": "congenial-spork-d400e",
+      "url": "https://github.com/edwardemoryphotography/congenial-spork-d400e",
+      "description": "",
+      "default_branch": "",
+      "primary_language": "",
+      "is_archived": true,
+      "is_fork": false,
+      "updated_at": "2026-02-21T08:20:26Z",
+      "theme": "general",
+      "root_items": [],
+      "key_docs": {
+        "README": false,
+        "LICENSE": false,
+        "CHANGELOG": false,
+        "CONTRIBUTING": false,
+        "SECURITY": false,
+        "WORKFLOWS": false
+      },
+      "missing_key_docs": [
+        "README",
+        "LICENSE",
+        "CHANGELOG",
+        "CONTRIBUTING",
+        "SECURITY",
+        "WORKFLOWS"
+      ],
+      "feature_bullets": []
+    },
+    {
+      "name": "congenial-spork",
+      "url": "https://github.com/edwardemoryphotography/congenial-spork",
+      "description": "",
+      "default_branch": "",
+      "primary_language": "",
+      "is_archived": true,
+      "is_fork": false,
+      "updated_at": "2026-02-21T08:18:45Z",
+      "theme": "general",
+      "root_items": [],
+      "key_docs": {
+        "README": false,
+        "LICENSE": false,
+        "CHANGELOG": false,
+        "CONTRIBUTING": false,
+        "SECURITY": false,
+        "WORKFLOWS": false
+      },
+      "missing_key_docs": [
+        "README",
+        "LICENSE",
+        "CHANGELOG",
+        "CONTRIBUTING",
+        "SECURITY",
+        "WORKFLOWS"
+      ],
+      "feature_bullets": []
+    },
+    {
+      "name": "muse-r3f-visualizer",
+      "url": "https://github.com/edwardemoryphotography/muse-r3f-visualizer",
+      "description": "",
+      "default_branch": "",
+      "primary_language": "",
+      "is_archived": true,
+      "is_fork": false,
+      "updated_at": "2026-02-21T08:21:29Z",
+      "theme": "eeg_neurofeedback",
+      "root_items": [],
+      "key_docs": {
+        "README": false,
+        "LICENSE": false,
+        "CHANGELOG": false,
+        "CONTRIBUTING": false,
+        "SECURITY": false,
+        "WORKFLOWS": false
+      },
+      "missing_key_docs": [
+        "README",
+        "LICENSE",
+        "CHANGELOG",
+        "CONTRIBUTING",
+        "SECURITY",
+        "WORKFLOWS"
+      ],
+      "feature_bullets": []
+    },
+    {
+      "name": "stackblitz-starters-xkcxeg",
+      "url": "https://github.com/edwardemoryphotography/stackblitz-starters-xkcxeg",
+      "description": "Created with StackBlitz \u26a1\ufe0f",
+      "default_branch": "main",
+      "primary_language": "TypeScript",
+      "is_archived": true,
+      "is_fork": false,
+      "updated_at": "2026-02-21T08:17:48Z",
+      "theme": "memory_intelligence",
+      "root_items": [
+        ".eslintrc.json",
+        ".gitignore",
+        "README.md",
+        "app",
+        "next.config.js",
+        "package-lock.json",
+        "package.json",
+        "postcss.config.js",
+        "public",
+        "tailwind.config.ts",
+        "tsconfig.json"
+      ],
+      "key_docs": {
+        "README": true,
+        "LICENSE": false,
+        "CHANGELOG": false,
+        "CONTRIBUTING": false,
+        "SECURITY": false,
+        "WORKFLOWS": false
+      },
+      "missing_key_docs": [
+        "LICENSE",
+        "CHANGELOG",
+        "CONTRIBUTING",
+        "SECURITY",
+        "WORKFLOWS"
+      ],
+      "feature_bullets": [
+        "[Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.",
+        "[Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial."
+      ]
+    }
+  ]
+}

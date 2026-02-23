@@ -34,3 +34,7 @@ npm-debug.log*
 *.pem
 *.key
 secrets.json
+
+# Python cache
+__pycache__/
+*.pyc
