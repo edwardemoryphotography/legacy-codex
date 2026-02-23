@@ -1,0 +1,48 @@
+name: Repo Standards
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  governance-and-scripts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify required governance files
+        run: |
+          set -euo pipefail
+          test -f README.md
+          test -f CHANGELOG.md
+          test -f CONTRIBUTING.md
+          test -f SECURITY.md
+
+      - name: Verify consolidation artifacts exist
+        run: |
+          set -euo pipefail
+          test -f reports/repo_portfolio_audit.md
+          test -f reports/repo_portfolio_audit.json
+          test -f reports/unified_repo_blueprint.md
+          test -f scripts/repo_portfolio_audit.py
+          test -f scripts/generate_repo_standards.py
+
+      - name: Python syntax checks
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/repo_portfolio_audit.py scripts/generate_repo_standards.py
+
+      - name: Starter-pack smoke test
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/repo-starters-smoke
+          python3 scripts/generate_repo_standards.py --output-dir /tmp/repo-starters-smoke
+          test -f /tmp/repo-starters-smoke/codex-core/README.md
+          test -f /tmp/repo-starters-smoke/neurofeedback-stack/SECURITY.md

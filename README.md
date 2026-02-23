@@ -118,12 +118,21 @@ Generated to reduce project fragmentation and preserve the strongest shipped fea
 - **Live portfolio audit**: `reports/repo_portfolio_audit.md`
 - **Machine-readable snapshot**: `reports/repo_portfolio_audit.json`
 - **Robust target repo blueprint**: `reports/unified_repo_blueprint.md`
+- **Phase 1 rollout checklist**: `reports/phase1_standardization_rollout.md`
 - **Audit automation script**: `scripts/repo_portfolio_audit.py`
+- **Starter-pack generator script**: `scripts/generate_repo_standards.py`
+- **Generated target starter packs**: `repo-starters/`
 
 Run the audit refresh at any time:
 
 ```bash
 python3 scripts/repo_portfolio_audit.py --owner edwardemoryphotography --output-dir reports
+```
+
+Generate standardized target repo packs:
+
+```bash
+python3 scripts/generate_repo_standards.py --output-dir repo-starters --overwrite
 ```
 
 ---

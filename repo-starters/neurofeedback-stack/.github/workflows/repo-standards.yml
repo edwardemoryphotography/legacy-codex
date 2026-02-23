@@ -1,0 +1,29 @@
+name: Repo Standards
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  standards:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify required governance files
+        run: |
+          set -euo pipefail
+          test -f README.md
+          test -f CHANGELOG.md
+          test -f CONTRIBUTING.md
+          test -f SECURITY.md
+
+      - name: Verify top-level markdown headers
+        run: |
+          set -euo pipefail
+          for file in README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md; do
+            rg '^# ' "$file" >/dev/null
+          done

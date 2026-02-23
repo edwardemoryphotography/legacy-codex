@@ -2,6 +2,23 @@
 
 All notable changes to the Legacy Codex repository are documented in this file.
 
+## [v20-phase1-standardization] - 2026-02-23
+
+### Added
+- `CONTRIBUTING.md` with branch, commit, and validation guidance.
+- `SECURITY.md` with private vulnerability reporting expectations.
+- `.github/workflows/repo-standards.yml` to enforce governance file presence and script syntax checks.
+- `scripts/generate_repo_standards.py` to generate standardized starter packs for:
+  - `codex-core`
+  - `neurofeedback-stack`
+  - `memory-intelligence`
+  - `agent-tooling-hub`
+- `repo-starters/` generated baseline governance + CI files for all four target repos.
+- `reports/phase1_standardization_rollout.md` with rollout sequence and done criteria.
+
+### Changed
+- Expanded `README.md` consolidation toolkit with phase-1 rollout assets and generation commands.
+
 ## [v19-consolidation] - 2026-02-23
 
 ### Added
