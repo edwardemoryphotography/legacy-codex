@@ -121,7 +121,10 @@ Generated to reduce project fragmentation and preserve the strongest shipped fea
 - **Phase 1 rollout checklist**: `reports/phase1_standardization_rollout.md`
 - **Audit automation script**: `scripts/repo_portfolio_audit.py`
 - **Starter-pack generator script**: `scripts/generate_repo_standards.py`
+- **Phase 2 apply script**: `scripts/rollout_repo_standards.py`
 - **Generated target starter packs**: `repo-starters/`
+- **Phase 2 rollout report**: `reports/phase2_rollout_results.md`
+- **Per-repo apply bundles**: `rollout-bundles/`
 
 Run the audit refresh at any time:
 
@@ -133,6 +136,12 @@ Generate standardized target repo packs:
 
 ```bash
 python3 scripts/generate_repo_standards.py --output-dir repo-starters --overwrite
+```
+
+Attempt direct cross-repo standards rollout (when token has write access):
+
+```bash
+python3 scripts/rollout_repo_standards.py --owner edwardemoryphotography --output-dir reports --bundle-dir rollout-bundles
 ```
 
 ---

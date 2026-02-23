@@ -2,6 +2,23 @@
 
 All notable changes to the Legacy Codex repository are documented in this file.
 
+## [v21-phase2-rollout] - 2026-02-23
+
+### Added
+- `scripts/rollout_repo_standards.py` for automated baseline doc/workflow rollout across core repos.
+- `reports/phase2_rollout_results.md` and `.json` with per-repo rollout outcomes and error visibility.
+- `rollout-bundles/` containing ready-to-apply governance/workflow files for:
+  - `muse-neurofeedback`
+  - `neurocreative-platform`
+  - `MuseEEGProject`
+  - `codex-system-architecture`
+
+### Changed
+- Expanded `README.md` toolkit section with phase-2 rollout command and artifact references.
+
+### Notes
+- Direct cross-repo writes are environment-permission dependent; this run exported complete apply bundles and captured `HTTP 403` write restrictions.
+
 ## [v20-phase1-standardization] - 2026-02-23
 
 ### Added
