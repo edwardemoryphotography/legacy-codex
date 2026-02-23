@@ -148,9 +148,8 @@ def safe_gh_json(path: str, fallback: Any) -> Any:
 def safe_gh_raw(path: str, fallback: str = "") -> str:
     try:
         return gh_raw(path)
-    except Exception:
+    except RuntimeError:
         return fallback
-
 
 def detect_theme(name: str, description: str, readme_text: str) -> str:
     override_key = name.lower()
