@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireUser } from "@/lib/auth";
 import { requireWorkspaceAccess } from "@/lib/workspace";
 
@@ -7,7 +8,7 @@ async function getCountForTable({
   table,
   workspaceId,
 }: {
-  supabase: any;
+  supabase: SupabaseClient;
   table: string;
   workspaceId: string;
 }) {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 
 async function fetchTable({
@@ -6,7 +7,7 @@ async function fetchTable({
   table,
   workspaceId,
 }: {
-  supabase: any;
+  supabase: SupabaseClient;
   table: string;
   workspaceId: string;
 }) {

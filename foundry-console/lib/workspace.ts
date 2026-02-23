@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 const ADMIN_ROLES = new Set(["admin", "owner"]);
 
@@ -19,7 +20,7 @@ export async function requireWorkspaceAccess({
   userId,
   workspaceId,
 }: {
-  supabase: any;
+  supabase: SupabaseClient;
   userId: string;
   workspaceId: string;
 }) {
