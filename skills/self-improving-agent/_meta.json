@@ -1,0 +1,20 @@
+{
+  "name": "self-improving-agent",
+  "version": "1.0.0",
+  "description": "Records structured learnings from Codex task runs to improve future sessions. Workspace-scoped, no background autonomy.",
+  "author": "edwardemoryphotography",
+  "created": "2026-02-23",
+  "scope": "workspace",
+  "precedence": "workspace",
+  "permissions": {
+    "network": false,
+    "shell_exec": false,
+    "file_write": "skills/self-improving-agent/learnings/",
+    "auto_run": false,
+    "cron": false,
+    "hooks": []
+  },
+  "invocation": "manual-only",
+  "entry": "scripts/record-learning.sh",
+  "tags": ["learning", "self-improvement", "codex", "neurodivergent-workflow"]
+}

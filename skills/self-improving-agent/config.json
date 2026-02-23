@@ -1,0 +1,18 @@
+{
+  "least_privilege": {
+    "auto_run_hooks": false,
+    "cron_enabled": false,
+    "background_autonomy": false,
+    "network_access": false,
+    "shell_exec_allowed": false,
+    "max_file_write_paths": [
+      "skills/self-improving-agent/learnings/"
+    ]
+  },
+  "behavior": {
+    "invocation_mode": "explicit-only",
+    "write_location": "skills/self-improving-agent/learnings/",
+    "output_format": "json",
+    "commit_learnings": true
+  }
+}
