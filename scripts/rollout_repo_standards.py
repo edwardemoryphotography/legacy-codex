@@ -208,6 +208,20 @@ def create_file(
     return json.loads(output)
 
 
+def summarize_error(error_text: str) -> str:
+    if "Resource not accessible by integration" in error_text:
+        return "Resource not accessible by integration (HTTP 403)"
+    if "HTTP 422" in error_text:
+        return "Validation failed (HTTP 422)"
+    if "HTTP 404" in error_text:
+        return "Repository or path not found (HTTP 404)"
+
+    # keep only the final error clause if available
+    if "): " in error_text:
+        return error_text.split("): ", 1)[1].strip()
+    return error_text.strip()
+
+
 def export_bundle(bundle_root: Path, target: RepoTarget, payloads: dict[str, str]) -> Path:
     repo_dir = bundle_root / target.name
     for rel_path, content in payloads.items():
@@ -254,7 +268,7 @@ def apply_repo(owner: str, target: RepoTarget, dry_run: bool) -> dict[str, Any]:
                 }
             )
         except RuntimeError as exc:
-            errors.append({"path": path, "error": str(exc)})
+            errors.append({"path": path, "error": summarize_error(str(exc))})
 
     return {
         "repo": target.name,
