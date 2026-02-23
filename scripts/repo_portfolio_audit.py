@@ -142,9 +142,8 @@ def gh_raw(path: str) -> str:
 def safe_gh_json(path: str, fallback: Any) -> Any:
     try:
         return gh_json(path)
-    except Exception:
+    except (RuntimeError, json.JSONDecodeError):
         return fallback
-
 
 def safe_gh_raw(path: str, fallback: str = "") -> str:
     try:
