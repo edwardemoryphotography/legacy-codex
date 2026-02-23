@@ -14,6 +14,7 @@ existing Supabase backend (RLS-respecting, no mock data).
 
 - No mock data, no seeded rows, no synthetic examples.
 - Empty states only when data is absent.
+- Next.js telemetry is disabled in npm scripts.
 - No service role key in frontend code.
 - Uses only:
   - `NEXT_PUBLIC_SUPABASE_URL`
