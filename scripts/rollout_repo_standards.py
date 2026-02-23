@@ -208,6 +208,15 @@ def create_file(
     return json.loads(output)
 
 
+def export_bundle(bundle_root: Path, target: RepoTarget, payloads: dict[str, str]) -> Path:
+    repo_dir = bundle_root / target.name
+    for rel_path, content in payloads.items():
+        out_path = repo_dir / rel_path
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(content.rstrip() + "\n", encoding="utf-8")
+    return repo_dir
+
+
 def apply_repo(owner: str, target: RepoTarget, dry_run: bool) -> dict[str, Any]:
     repo_meta = gh_json(f"repos/{owner}/{target.name}")
     branch = repo_meta["default_branch"]
@@ -216,6 +225,7 @@ def apply_repo(owner: str, target: RepoTarget, dry_run: bool) -> dict[str, Any]:
 
     created: list[dict[str, str]] = []
     skipped: list[str] = []
+    errors: list[dict[str, str]] = []
 
     for path, content in payloads.items():
         if file_exists(owner=owner, repo=target.name, path=path, branch=branch):
@@ -226,38 +236,50 @@ def apply_repo(owner: str, target: RepoTarget, dry_run: bool) -> dict[str, Any]:
             created.append({"path": path, "commit_sha": "(dry-run)", "commit_url": ""})
             continue
 
-        result = create_file(
-            owner=owner,
-            repo=target.name,
-            branch=branch,
-            path=path,
-            content=content,
-            commit_message=commit_message,
-        )
-        commit = result.get("commit") or {}
-        created.append(
-            {
-                "path": path,
-                "commit_sha": commit.get("sha", ""),
-                "commit_url": commit.get("html_url", ""),
-            }
-        )
+        try:
+            result = create_file(
+                owner=owner,
+                repo=target.name,
+                branch=branch,
+                path=path,
+                content=content,
+                commit_message=commit_message,
+            )
+            commit = result.get("commit") or {}
+            created.append(
+                {
+                    "path": path,
+                    "commit_sha": commit.get("sha", ""),
+                    "commit_url": commit.get("html_url", ""),
+                }
+            )
+        except RuntimeError as exc:
+            errors.append({"path": path, "error": str(exc)})
 
     return {
         "repo": target.name,
         "default_branch": branch,
         "created": created,
         "skipped_existing": skipped,
+        "errors": errors,
+        "planned_payloads": payloads,
     }
 
 
-def to_markdown(owner: str, generated_at: str, dry_run: bool, repos: list[dict[str, Any]]) -> str:
+def to_markdown(
+    owner: str,
+    generated_at: str,
+    dry_run: bool,
+    repos: list[dict[str, Any]],
+    bundle_dir: str,
+) -> str:
     lines: list[str] = []
     lines.append("# Phase 2 Rollout Results")
     lines.append("")
     lines.append(f"- **Owner**: `{owner}`")
     lines.append(f"- **Generated**: {generated_at}")
     lines.append(f"- **Mode**: {'dry-run' if dry_run else 'apply'}")
+    lines.append(f"- **Bundle export dir**: `{bundle_dir}`")
     lines.append("")
 
     for repo in repos:
@@ -266,6 +288,7 @@ def to_markdown(owner: str, generated_at: str, dry_run: bool, repos: list[dict[s
         lines.append(f"- Default branch: `{repo['default_branch']}`")
         lines.append(f"- Files created: **{len(repo['created'])}**")
         lines.append(f"- Existing skipped: **{len(repo['skipped_existing'])}**")
+        lines.append(f"- Errors: **{len(repo['errors'])}**")
         lines.append("")
 
         if repo["created"]:
@@ -280,6 +303,12 @@ def to_markdown(owner: str, generated_at: str, dry_run: bool, repos: list[dict[s
             lines.append("Skipped because file already exists:")
             for path in repo["skipped_existing"]:
                 lines.append(f"- `{path}`")
+            lines.append("")
+
+        if repo["errors"]:
+            lines.append("Create errors:")
+            for err in repo["errors"]:
+                lines.append(f"- `{err['path']}`: {err['error']}")
             lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"
@@ -298,6 +327,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Show what would be created without writing changes",
     )
+    parser.add_argument(
+        "--bundle-dir",
+        default="rollout-bundles",
+        help="Directory for exported per-repo file bundles",
+    )
     return parser.parse_args()
 
 
@@ -306,16 +340,22 @@ def main() -> int:
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    bundle_dir = Path(args.bundle_dir)
+    bundle_dir.mkdir(parents=True, exist_ok=True)
 
     results = []
     for target in TARGET_REPOS:
         result = apply_repo(owner=args.owner, target=target, dry_run=args.dry_run)
+        export_bundle(bundle_root=bundle_dir, target=target, payloads=result["planned_payloads"])
+        # payload bodies are exported to bundle files; omit from JSON report
+        del result["planned_payloads"]
         results.append(result)
 
     payload = {
         "owner": args.owner,
         "generated_at": generated_at,
         "dry_run": args.dry_run,
+        "bundle_dir": str(bundle_dir),
         "repos": results,
     }
 
@@ -328,6 +368,7 @@ def main() -> int:
             generated_at=generated_at,
             dry_run=args.dry_run,
             repos=results,
+            bundle_dir=str(bundle_dir),
         ),
         encoding="utf-8",
     )
