@@ -1,102 +1,122 @@
 # Edward Emory Legacy Codex
 
-> A distilled framework for how a neurodivergent, high-pattern-recognition mind partners with AI to build real-world outputs.
+> A neurodivergent execution framework — and the infrastructure that runs it.
 
 [![View Site](https://img.shields.io/badge/GitHub%20Pages-Live-brightgreen)](https://edwardemoryphotography.github.io/legacy-codex/)
+[![Version](https://img.shields.io/badge/Release-v18-blue)](CHANGELOG.md)
 
 ---
 
-## Overview
+## What This Is
 
-The **Legacy Codex** emerged from a breakthrough session on November 2–3, 2025. It is a living, structured framework for neurodivergent creators who operate in high-intensity hyperfocus bursts and need systems that adapt to their brain — not the other way around.
+The Legacy Codex is an execution framework built by and for a neurodivergent, high-pattern-recognition mind working in deep partnership with AI tools.
 
-This repository contains the codex as a deployable GitHub Pages site with Netlify mirror support.
+It emerged from a breakthrough session on November 2–3, 2025, and has been in active daily use since. The core insight: **most productivity systems are built for neurotypical execution patterns**. This one isn't.
 
----
-
-## Status
-
-| Item | Status |
-|------|--------|
-| Active Development | ✅ Yes |
-| Current Release | v18 |
-| GitHub Pages | ✅ Live |
-| Netlify Mirror | ✅ Active |
-| Language | HTML |
+The Codex is built around three realities:
+- You see architecture before steps
+- You work in hyperfocus bursts followed by recovery
+- You lose context between sessions — so the system has to hold it for you
 
 ---
 
-## Current Release
+## What's In This Repo
 
-- **Release: v18** (documentation and deployment visibility update)
-- **Dashboard runtime: v17** (single-file operational dashboard in `index.html`)
-- **Canonical release notes**: `CHANGELOG.md`
-
----
-
-## What Is Inside
-
-- **7-Phase Collaboration Protocol** — a step-by-step method for working with AI or collaborators, from initial assumption to meta-recognition.
-- **Legacy Codex architecture** — a structure for preserving keystone principles, narratives, artifacts, and long-term continuity plans.
-- **Transmission framework** — the four vehicles through which this work spreads (Narratives, People, Artifacts, Structures).
-- **Continuity blueprint** — immediate and long-term actions to turn insight into repeatable practice.
+| Directory / File | What it is |
+|---|---|
+| `index.html` | Live dashboard — the operational Codex UI (v17) |
+| `foundry-console/` | Next.js console connected to Supabase — sprint tracking, friction log, milestones, audit log |
+| `skills/self-improving-agent/` | Workspace-scoped skill that records structured learnings from Codex sessions |
+| `scripts/` | Repo audit, standards rollout, and starter-pack generation tools |
+| `features/` | Feature documentation |
+| `CHANGELOG.md` | All version notes |
+| `AGENTS.md` | Instructions for AI agents working in this repo |
 
 ---
 
-## Framework Principles
+## Core Framework Principles
 
-1. **Build for your brain** — Systems should adapt to neurodivergent execution patterns, not force conformity
-2. **High-pattern recognition** — Leverage rapid context-switching as a feature, not a bug
-3. **AI as co-creator** — Partner with AI tools to extend executive function and working memory
-4. **Transmit and preserve** — Document insights before the hyperfocus window closes
-5. **Repeatable continuity** — Every breakthrough feeds back into the system
-
----
-
-## View the Site
-
-- **GitHub Pages**: https://edwardemoryphotography.github.io/legacy-codex/
-- **Netlify Drop mirror**: publish from this repo and claim a persistent URL after deploy
+1. **Build for your brain** — Systems adapt to you, not the reverse
+2. **AI as co-creator** — Extend executive function and working memory with AI partners
+3. **Transmit before the window closes** — Capture structure while hyperfocus is active
+4. **No simulation** — Only real data, real metrics, real state. No inferred progress.
+5. **Repeatable continuity** — Every session feeds back into the system
 
 ---
 
-## Tech Stack
+## Live Surfaces
 
-| Layer | Technology |
-|-------|------------|
-| Language | HTML |
-| Deployment | GitHub Pages |
-| Mirror | Netlify Drop |
-| Version Control | Git tags (v17, v18) |
+| Surface | URL | Status |
+|---|---|---|
+| Codex Dashboard | [edwardemoryphotography.github.io/legacy-codex](https://edwardemoryphotography.github.io/legacy-codex/) | ✅ Live |
+| Foundry Console | Deploy to Vercel from `foundry-console/` | Ready to deploy |
 
 ---
 
-## Getting Started
+## The Foundry Console
 
+The Foundry Console is a minimal Next.js web app that connects to a Supabase backend for structured sprint and workspace tracking.
+
+**Stack:** Next.js App Router + TypeScript, Tailwind CSS, Supabase JS, Vercel
+
+**To run locally:**
 ```bash
-git clone https://github.com/edwardemoryphotography/legacy-codex.git
-cd legacy-codex
-# Open index.html in browser to view the dashboard
-open index.html
+cd foundry-console
+npm install
+cp .env.example .env.local
+# Fill in NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY
+npm run dev
 ```
 
+**Guarantees:**
+- No mock data. Empty states only when data is absent.
+- No service role key in frontend code.
+- Supabase magic link auth only.
+
 ---
 
-## Skills
+## Self-Improving Agent Skill
 
-### self-improving-agent (v1.0.0)
+Records structured learnings from Codex task sessions as timestamped JSON.
 
-A workspace-scoped skill that records structured learnings from Codex task
-sessions.  Learnings are stored as timestamped JSON files inside
-`skills/self-improving-agent/learnings/` and committed with normal git flow.
+```bash
+./skills/self-improving-agent/scripts/record-learning.sh "Your learning here"
+```
 
-- **Invocation**: manual only — no auto-run hooks, no cron, no background
-  processes.
-- **Security**: no network access, no `eval`/`curl`/`wget`/`base64`; see
-  `skills/self-improving-agent/SECURITY_REVIEW.md` for the full audit.
-- **Usage**: `./skills/self-improving-agent/scripts/record-learning.sh "Your learning here"`
+- Manual invocation only — no auto-run, no cron
+- Learnings stored in `skills/self-improving-agent/learnings/`
+- Full security audit: `skills/self-improving-agent/SECURITY_REVIEW.md`
 
-Added: 2026-02-23 via Safe Integration Plan v1.
+---
+
+## Repo Audit Toolkit
+
+Tools for maintaining standards across the edwardemoryphotography GitHub ecosystem.
+
+```bash
+# Audit all repos
+python3 scripts/repo_portfolio_audit.py --owner edwardemoryphotography --output-dir reports
+
+# Generate standard starter packs
+python3 scripts/generate_repo_standards.py --output-dir repo-starters --overwrite
+
+# Roll out standards across repos
+python3 scripts/rollout_repo_standards.py --owner edwardemoryphotography --output-dir reports --bundle-dir rollout-bundles
+```
+
+Reports live in `reports/`. Starter packs in `repo-starters/`. Apply bundles in `rollout-bundles/`.
+
+---
+
+## Related Repos
+
+| Repo | Purpose |
+|---|---|
+| [codex-system-architecture](https://github.com/edwardemoryphotography/codex-system-architecture) | Visual system architecture for the Codex platform |
+| [muse-neurofeedback](https://github.com/edwardemoryphotography/muse-neurofeedback) | Real-time EEG brainwave neurofeedback via Muse 2 + Mind Monitor OSC |
+| [neurocreative-platform](https://github.com/edwardemoryphotography/neurocreative-platform) | EEG + WHOOP biometric integration |
+| [Artful-Intelligence](https://github.com/edwardemoryphotography/Artful-Intelligence) | AI automation tools for neurodivergent creatives |
+| [rork-legacy-codex-companion](https://github.com/edwardemoryphotography/rork-legacy-codex-companion) | Mobile companion app for Legacy Codex |
 
 ---
 
@@ -105,67 +125,11 @@ Added: 2026-02-23 via Safe Integration Plan v1.
 - [ ] v19: Interactive phase protocol UI
 - [ ] Notion sync integration
 - [ ] Mobile-optimized dashboard view
-- [ ] Audio narration layer for accessibility
-- [ ] Cross-link with codex-system-architecture
+- [ ] Foundry Console: Vercel deployment + live URL
 - [ ] Workshop export format (PDF/slides)
+- [ ] Audio narration layer for accessibility
 
 ---
 
-## Cross-Repo Consolidation Toolkit
-
-Generated to reduce project fragmentation and preserve the strongest shipped features across related repos.
-
-- **Live portfolio audit**: `reports/repo_portfolio_audit.md`
-- **Machine-readable snapshot**: `reports/repo_portfolio_audit.json`
-- **Robust target repo blueprint**: `reports/unified_repo_blueprint.md`
-- **Phase 1 rollout checklist**: `reports/phase1_standardization_rollout.md`
-- **Audit automation script**: `scripts/repo_portfolio_audit.py`
-- **Starter-pack generator script**: `scripts/generate_repo_standards.py`
-- **Phase 2 apply script**: `scripts/rollout_repo_standards.py`
-- **Generated target starter packs**: `repo-starters/`
-- **Phase 2 rollout report**: `reports/phase2_rollout_results.md`
-- **Per-repo apply bundles**: `rollout-bundles/`
-
-Run the audit refresh at any time:
-
-```bash
-python3 scripts/repo_portfolio_audit.py --owner edwardemoryphotography --output-dir reports
-```
-
-Generate standardized target repo packs:
-
-```bash
-python3 scripts/generate_repo_standards.py --output-dir repo-starters --overwrite
-```
-
-Attempt direct cross-repo standards rollout (when token has write access):
-
-```bash
-python3 scripts/rollout_repo_standards.py --owner edwardemoryphotography --output-dir reports --bundle-dir rollout-bundles
-```
-
----
-
-## Related Repos
-
-- [`codex-system-architecture`](https://github.com/edwardemoryphotography/codex-system-architecture) — Visual system architecture for Codex platform
-- [`neurocreative-platform`](https://github.com/edwardemoryphotography/neurocreative-platform) — EEG + WHOOP integration
-- [`muse-neurofeedback`](https://github.com/edwardemoryphotography/muse-neurofeedback) — Real-time brainwave neurofeedback
-
----
-
-## Why This Update Matters
-
-v18 establishes explicit changelog and deployment references so downstream AI agent runs can resolve the latest state without returning empty or stale results.
-
----
-
-## Audit Notes
-
-- **Last reviewed**: 2025 — Identified as stale-active during GitHub audit
-- **Action taken**: README expanded with full framework documentation
-- **Priority**: High — flagship neurodivergent execution framework
-
----
-
-*Part of the edwardemoryphotography GitHub ecosystem.*
+*Built by [Edward Emory](https://edwardemory.com) — Santa Barbara, CA*
+*Part of the edwardemoryphotography GitHub ecosystem*
