@@ -1,0 +1,104 @@
+{
+  "owner": "edwardemoryphotography",
+  "generated_at": "2026-02-23 14:35:52 UTC",
+  "dry_run": false,
+  "bundle_dir": "/workspace/rollout-bundles",
+  "repos": [
+    {
+      "repo": "muse-neurofeedback",
+      "default_branch": "main",
+      "created": [],
+      "skipped_existing": [],
+      "errors": [
+        {
+          "path": "CHANGELOG.md",
+          "error": "Resource not accessible by integration (HTTP 403)"
+        },
+        {
+          "path": "CONTRIBUTING.md",
+          "error": "Resource not accessible by integration (HTTP 403)"
+        },
+        {
+          "path": "SECURITY.md",
+          "error": "Resource not accessible by integration (HTTP 403)"
+        },
+        {
+          "path": ".github/workflows/repo-standards.yml",
+          "error": "Resource not accessible by integration (HTTP 403)"
+        }
+      ]
+    },
+    {
+      "repo": "neurocreative-platform",
+      "default_branch": "main",
+      "created": [],
+      "skipped_existing": [],
+      "errors": [
+        {
+          "path": "CHANGELOG.md",
+          "error": "Resource not accessible by integration (HTTP 403)"
+        },
+        {
+          "path": "CONTRIBUTING.md",
+          "error": "Resource not accessible by integration (HTTP 403)"
+        },
+        {
+          "path": "SECURITY.md",
+          "error": "Resource not accessible by integration (HTTP 403)"
+        },
+        {
+          "path": ".github/workflows/repo-standards.yml",
+          "error": "Resource not accessible by integration (HTTP 403)"
+        }
+      ]
+    },
+    {
+      "repo": "MuseEEGProject",
+      "default_branch": "main",
+      "created": [],
+      "skipped_existing": [],
+      "errors": [
+        {
+          "path": "CHANGELOG.md",
+          "error": "Resource not accessible by integration (HTTP 403)"
+        },
+        {
+          "path": "CONTRIBUTING.md",
+          "error": "Resource not accessible by integration (HTTP 403)"
+        },
+        {
+          "path": "SECURITY.md",
+          "error": "Resource not accessible by integration (HTTP 403)"
+        },
+        {
+          "path": ".github/workflows/repo-standards.yml",
+          "error": "Resource not accessible by integration (HTTP 403)"
+        }
+      ]
+    },
+    {
+      "repo": "codex-system-architecture",
+      "default_branch": "main",
+      "created": [],
+      "skipped_existing": [],
+      "errors": [
+        {
+          "path": "CHANGELOG.md",
+          "error": "Resource not accessible by integration (HTTP 403)"
+        },
+        {
+          "path": "CONTRIBUTING.md",
+          "error": "Resource not accessible by integration (HTTP 403)"
+        },
+        {
+          "path": "SECURITY.md",
+          "error": "Resource not accessible by integration (HTTP 403)"
+        },
+        {
+          "path": ".github/workflows/repo-standards.yml",
+          "error": "Resource not accessible by integration (HTTP 403)"
+        }
+      ]
+    }
+  ]
+}
