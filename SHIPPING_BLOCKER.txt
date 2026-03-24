@@ -1,0 +1,1 @@
+Shipping Legacy Codex v37 hesitates until I fill notes/VERCEL_PRODUCTION_REF.md with the branch and commit SHA from Vercel’s latest Production deployment (this workspace has no .git yet—recording that ref is the first step to trusting what matches https://legacy-codex.vercel.app).
