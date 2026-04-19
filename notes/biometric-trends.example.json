@@ -1,0 +1,15 @@
+{
+  "generatedAt": "2026-04-18T00:00:00.000Z",
+  "source": "apple-health-whoop-muse-bridge",
+  "days": [
+    {
+      "date": "2026-04-18",
+      "sleepHours": 7.2,
+      "mindfulMinutes": 18,
+      "restingHeartRate": 57,
+      "hrvMs": 66,
+      "recoveryScore": 74,
+      "focusScore": 82
+    }
+  ]
+}

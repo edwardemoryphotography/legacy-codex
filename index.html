@@ -214,6 +214,115 @@
       font-size: 0.9rem;
     }
 
+    .biometric-hero {
+      display: grid;
+      gap: var(--space-md);
+      border: 1px solid rgba(0, 212, 170, 0.28);
+      border-radius: var(--radius-lg);
+      background:
+        radial-gradient(circle at top left, rgba(0, 212, 170, 0.16), transparent 34%),
+        linear-gradient(180deg, var(--surface-soft), var(--surface));
+      padding: var(--space-md);
+      margin-bottom: var(--space-lg);
+    }
+
+    .biometric-status-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-sm);
+    }
+
+    .biometric-score {
+      font-size: clamp(2.4rem, 13vw, 4.8rem);
+      line-height: 0.95;
+      font-weight: 800;
+      letter-spacing: -0.06em;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
+
+    .biometric-mode {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      border: 1px solid var(--teal);
+      color: var(--teal);
+      background: var(--teal-soft);
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .biometric-kpis {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-sm);
+    }
+
+    .biometric-kpi {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(10, 10, 15, 0.32);
+      padding: var(--space-sm);
+    }
+
+    .biometric-kpi span {
+      display: block;
+      color: var(--text-dim);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }
+
+    .biometric-kpi strong {
+      display: block;
+      color: var(--text);
+      font-size: 1.25rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .biometric-chart-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      padding: var(--space-md);
+      margin-bottom: var(--space-md);
+    }
+
+    .biometric-chart-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-md);
+    }
+
+    .biometric-chart {
+      width: 100%;
+      height: 220px;
+      overflow: visible;
+    }
+
+    .biometric-chart path {
+      fill: none;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .biometric-note {
+      color: var(--text-soft);
+      font-size: 0.88rem;
+      line-height: 1.55;
+    }
+
     .metric-list {
       display: grid;
       gap: var(--space-sm);
@@ -615,6 +724,15 @@
       .deployment-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
+
+      .biometric-hero {
+        grid-template-columns: 0.8fr 1.2fr;
+        align-items: end;
+      }
+
+      .biometric-kpis {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
     }
 
     @media (min-width: 1040px) {
@@ -664,6 +782,7 @@
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="protocols">Protocols</button>
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="sprint-linker">Sprint Linker</button>
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="resumption-log">Resumption Log</button>
+      <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="biometrics">Biometrics</button>
       <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab="constraint-validator">Constraint Validator</button>
     </nav>
 
@@ -851,6 +970,46 @@
         </div>
         <div id="copyStatus" class="helper-line">Clipboard status: not copied yet.</div>
         <pre id="logOutput" class="markdown-output"></pre>
+      </section>
+
+      <section class="tab-panel" data-panel="biometrics">
+        <h2 class="section-title">Biometric Governor</h2>
+        <p class="section-subtitle">WHOOP recovery, Apple Health sleep, and Muse mindful minutes become execution constraints.</p>
+
+        <article class="biometric-hero">
+          <div>
+            <div class="biometric-status-row">
+              <div class="biometric-mode" id="biometricMode">Fixture</div>
+              <div class="pill" id="biometricSource">source: local</div>
+            </div>
+            <div class="biometric-score" id="biometricReadiness">79</div>
+            <p class="biometric-note" id="biometricRecommendation">Good creative window; avoid unnecessary scope expansion.</p>
+          </div>
+
+          <div class="biometric-kpis" aria-label="Biometric KPI summary">
+            <div class="biometric-kpi"><span>Recovery</span><strong id="biometricRecovery">72%</strong></div>
+            <div class="biometric-kpi"><span>Focus</span><strong id="biometricFocus">88%</strong></div>
+            <div class="biometric-kpi"><span>Sleep debt</span><strong id="biometricSleepDebt">3.5h</strong></div>
+            <div class="biometric-kpi"><span>Window</span><strong>30d</strong></div>
+          </div>
+        </article>
+
+        <article class="biometric-chart-card">
+          <div class="biometric-chart-header">
+            <div>
+              <h3 class="section-title" style="margin:0;">Trend overlay</h3>
+              <p class="section-subtitle" style="margin:4px 0 0;">Recovery, focus, and sleep trend lines.</p>
+            </div>
+            <button id="refreshBiometrics" class="save-btn" type="button">Refresh fixture</button>
+          </div>
+          <svg class="biometric-chart" id="biometricChart" viewBox="0 0 720 220" role="img" aria-label="30-day biometric trend chart"></svg>
+        </article>
+
+        <article class="static-card">
+          <h3>Operating rule</h3>
+          <p id="biometricRule">When readiness is low, Legacy Codex should prefer docs, triage, and resumption logs over heavy architecture.</p>
+          <p class="biometric-note" style="margin-top:12px;">Live bridge target: write normalized metrics to <code>notes/biometric-trends.json</code> or current state to <code>notes/biometric-state.json</code>. Do not commit raw EEG, raw health exports, or tokens.</p>
+        </article>
       </section>
 
       <section class="tab-panel" data-panel="constraint-validator">
@@ -1286,6 +1445,134 @@
         });
       }
 
+      function initBiometricGovernor() {
+        var readinessEl = qs("#biometricReadiness");
+        var modeEl = qs("#biometricMode");
+        var sourceEl = qs("#biometricSource");
+        var recoveryEl = qs("#biometricRecovery");
+        var focusEl = qs("#biometricFocus");
+        var sleepDebtEl = qs("#biometricSleepDebt");
+        var recommendationEl = qs("#biometricRecommendation");
+        var ruleEl = qs("#biometricRule");
+        var chartEl = qs("#biometricChart");
+        var refreshBtn = qs("#refreshBiometrics");
+
+        function clamp(value, min, max) {
+          return Math.min(max, Math.max(min, Math.round(value)));
+        }
+
+        function buildFixtureTrend() {
+          var now = Date.now();
+          return Array.from({ length: 30 }, function (_, index) {
+            var reverseIndex = 29 - index;
+            var date = new Date(now - reverseIndex * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+            var wave = Math.sin(index / 2.5);
+            var recovery = clamp(62 + wave * 18 - (index % 9 === 0 ? 16 : 0), 0, 100);
+            var mindful = Math.max(0, Math.round(10 + Math.cos(index / 3) * 7 + (index % 6 === 0 ? 20 : 0)));
+            var sleep = Math.round((6.8 + wave * 0.8 - (index % 7 >= 5 ? 0.6 : 0)) * 10) / 10;
+            return {
+              date: date,
+              sleepHours: sleep,
+              mindfulMinutes: mindful,
+              recoveryScore: recovery,
+              focusScore: clamp(50 + mindful * 1.1 + recovery * 0.28, 0, 100)
+            };
+          });
+        }
+
+        function average(values) {
+          return values.reduce(function (sum, value) { return sum + value; }, 0) / Math.max(1, values.length);
+        }
+
+        function summarize(days) {
+          var recent = days.slice(-7);
+          var recovery = average(recent.map(function (day) { return day.recoveryScore; }));
+          var focus = average(recent.map(function (day) { return day.focusScore; }));
+          var sleep = average(recent.map(function (day) { return day.sleepHours; }));
+          var readiness = clamp(recovery * 0.48 + focus * 0.32 + Math.min(100, sleep * 12) * 0.2, 0, 100);
+          var sleepDebt = Math.round(Math.max(0, 7.7 - sleep) * 70) / 10;
+          var mode = "deep_build";
+          var recommendation = "Deep-build lane: architecture, implementation, and launch work are appropriate.";
+
+          if (readiness < 42 || sleep < 6) {
+            mode = "recovery";
+            recommendation = "Recovery lane: capture ideas, avoid irreversible architecture, and protect sleep.";
+          } else if (readiness < 58) {
+            mode = "admin_light";
+            recommendation = "Admin-light lane: triage, docs, small deploy checks, and no scope expansion.";
+          } else if (focus > recovery + 12) {
+            mode = "creative_edit";
+            recommendation = "Creative edit lane: shape assets and workshop material while avoiding heavy refactors.";
+          }
+
+          return {
+            readiness: readiness,
+            recovery: clamp(recovery, 0, 100),
+            focus: clamp(focus, 0, 100),
+            sleepDebt: sleepDebt,
+            mode: mode,
+            recommendation: recommendation
+          };
+        }
+
+        function trendPath(days, key, maxValue) {
+          var width = 720;
+          var height = 180;
+          var top = 18;
+          var values = days.map(function (day) { return Number(day[key]); });
+          var min = maxValue ? 0 : Math.min.apply(null, values) - 1;
+          var max = maxValue || Math.max.apply(null, values) + 1;
+          var step = width / Math.max(1, values.length - 1);
+
+          return values.map(function (value, index) {
+            var x = step * index;
+            var y = top + height - ((value - min) / Math.max(1, max - min)) * height;
+            return (index === 0 ? "M " : "L ") + x.toFixed(2) + " " + Math.max(top, Math.min(top + height, y)).toFixed(2);
+          }).join(" ");
+        }
+
+        function renderChart(days) {
+          chartEl.innerHTML = "";
+          [0, 1, 2, 3].forEach(function (line) {
+            var grid = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            grid.setAttribute("x1", "0");
+            grid.setAttribute("x2", "720");
+            grid.setAttribute("y1", String(28 + line * 48));
+            grid.setAttribute("y2", String(28 + line * 48));
+            grid.setAttribute("stroke", "rgba(255,255,255,0.08)");
+            chartEl.appendChild(grid);
+          });
+
+          [
+            ["recoveryScore", "var(--success)", 100],
+            ["focusScore", "var(--teal)", 100],
+            ["sleepHours", "var(--amber)", 10]
+          ].forEach(function (series) {
+            var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("d", trendPath(days, series[0], series[2]));
+            path.setAttribute("stroke", series[1]);
+            chartEl.appendChild(path);
+          });
+        }
+
+        function render() {
+          var days = buildFixtureTrend();
+          var summary = summarize(days);
+          readinessEl.textContent = String(summary.readiness);
+          modeEl.textContent = summary.mode.replace("_", " ");
+          sourceEl.textContent = "source: fixture bridge";
+          recoveryEl.textContent = summary.recovery + "%";
+          focusEl.textContent = summary.focus + "%";
+          sleepDebtEl.textContent = summary.sleepDebt + "h";
+          recommendationEl.textContent = summary.recommendation;
+          ruleEl.textContent = summary.recommendation + " This should inform task ranking before prompts are sent to Gemini or other build agents.";
+          renderChart(days);
+        }
+
+        refreshBtn.addEventListener("click", render);
+        render();
+      }
+
       function initArtifactAnalyzer() {
             var GEMINI_API_KEY = "YOUR_GOOGLE_API_KEY_HERE"; // SECURITY: key removed - inject via environment variable
         var GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + GEMINI_API_KEY;
@@ -1555,6 +1842,7 @@
       initDeploymentStatus();
       initSprintLinker();
       initResumptionLog();
+      initBiometricGovernor();
       initConstraintValidator();
       initArtifactAnalyzer();
     })();
