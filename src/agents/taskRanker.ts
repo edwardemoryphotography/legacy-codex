@@ -8,9 +8,18 @@ import { withRetry } from "../lib/withRetry.ts";
 async function rankTasks() {
     console.log("[Task Ranker] Initializing EEG-Synchronized Task Ranker...");
     
-    // 1. Get Biometrics
+    // 1. Get Biometrics (REAL DATA ONLY — no mocks or fallbacks)
     const biometrics = await getCurrentBiometrics();
-    
+    if (!biometrics.available) {
+        console.warn(
+            `[Task Ranker] Biometric data unavailable (${biometrics.reason}): ${biometrics.detail}`
+        );
+        console.warn(
+            "[Task Ranker] Refusing to rank without live biometrics. Connect a live bridge that writes notes/biometric-state.json, then retry."
+        );
+        return;
+    }
+
     // 2. Load the current triage queue / backlog
     let backlogContext = "No tasks in queue.";
     try {

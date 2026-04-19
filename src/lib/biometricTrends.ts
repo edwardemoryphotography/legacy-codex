@@ -1,3 +1,11 @@
+// Biometric trend state. REAL DATA ONLY.
+// Trends are loaded from a local JSON file written by a live bridge
+// (Apple Health / WHOOP / Muse). If the file is missing, malformed, or
+// contains no valid day records, this module returns an explicit
+// "unavailable" state with no numeric values, no synthesized days, and
+// no derived readiness / summary. There are no fixtures, mocks, samples,
+// or fallbacks — the Biometric Governor must only ever render real data.
+
 import * as dotenv from "dotenv";
 import { safeReadFile } from "./fs.js";
 
@@ -24,15 +32,24 @@ export interface BiometricTrendSummary {
     recommendation: string;
 }
 
-export interface BiometricTrendState {
+export interface BiometricTrendAvailable {
+    available: true;
     generatedAt: string;
-    source: "file" | "fixture";
+    source: "file";
     summary: BiometricTrendSummary;
     days: BiometricTrendPoint[];
 }
 
+export interface BiometricTrendUnavailable {
+    available: false;
+    reason: "missing_file" | "read_error" | "parse_error" | "empty" | "no_valid_days";
+    detail: string;
+    path: string;
+}
+
+export type BiometricTrendState = BiometricTrendAvailable | BiometricTrendUnavailable;
+
 const TREND_FILE = process.env.BIOMETRICS_TREND_FILE ?? "notes/biometric-trends.json";
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 function clamp(n: number, min = 0, max = 100): number {
     return Math.min(max, Math.max(min, Math.round(n)));
@@ -46,30 +63,6 @@ function round(n: number, digits = 1): number {
 function average(values: number[]): number {
     if (!values.length) return 0;
     return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
-function isoDate(offsetFromToday: number): string {
-    return new Date(Date.now() - offsetFromToday * DAY_MS).toISOString().slice(0, 10);
-}
-
-export function buildFixtureTrend(days = 30): BiometricTrendPoint[] {
-    return Array.from({ length: days }, (_, index) => {
-        const reverseIndex = days - index - 1;
-        const wave = Math.sin(index / 2.5);
-        const recoveryScore = clamp(62 + wave * 18 - (index % 9 === 0 ? 16 : 0));
-        const mindfulMinutes = Math.max(0, Math.round(10 + Math.cos(index / 3) * 7 + (index % 6 === 0 ? 20 : 0)));
-        const sleepHours = round(6.8 + wave * 0.8 - (index % 7 >= 5 ? 0.6 : 0), 1);
-
-        return {
-            date: isoDate(reverseIndex),
-            sleepHours,
-            mindfulMinutes,
-            restingHeartRate: Math.round(58 - wave * 2 + (sleepHours < 6.2 ? 5 : 0)),
-            hrvMs: Math.round(61 + wave * 9 + (mindfulMinutes > 20 ? 6 : 0)),
-            recoveryScore,
-            focusScore: clamp(50 + mindfulMinutes * 1.1 + recoveryScore * 0.28)
-        };
-    });
 }
 
 export function summarizeTrend(days: BiometricTrendPoint[]): BiometricTrendSummary {
@@ -133,37 +126,68 @@ function isTrendPoint(value: unknown): value is BiometricTrendPoint {
 }
 
 export async function getBiometricTrends(): Promise<BiometricTrendState> {
-    const source = (process.env.BIOMETRICS_TRENDS_SOURCE ?? "fixture").toLowerCase();
-
-    if (source === "file") {
-        try {
-            const raw = await safeReadFile(TREND_FILE);
-            const parsed = JSON.parse(raw) as unknown;
-            const candidateDays = Array.isArray(parsed)
-                ? parsed
-                : Array.isArray((parsed as { days?: unknown }).days)
-                    ? (parsed as { days: unknown[] }).days
-                    : [];
-            const days = candidateDays.filter(isTrendPoint).slice(-30);
-
-            if (days.length) {
-                return {
-                    generatedAt: new Date().toISOString(),
-                    source: "file",
-                    summary: summarizeTrend(days),
-                    days
-                };
-            }
-        } catch (error) {
-            const err = error as NodeJS.ErrnoException;
-            console.warn(`[Biometric Trends] Failed to read ${TREND_FILE}: ${err.message}`);
+    let raw: string;
+    try {
+        raw = await safeReadFile(TREND_FILE);
+    } catch (error) {
+        const err = error as NodeJS.ErrnoException;
+        if (err.code === "ENOENT") {
+            return {
+                available: false,
+                reason: "missing_file",
+                detail: `Biometric trend file not found. Connect a live bridge that writes normalized metrics to ${TREND_FILE}.`,
+                path: TREND_FILE
+            };
         }
+        return {
+            available: false,
+            reason: "read_error",
+            detail: `Failed to read ${TREND_FILE}: ${err.message}`,
+            path: TREND_FILE
+        };
     }
 
-    const days = buildFixtureTrend(30);
+    if (!raw || raw.trim() === "") {
+        return {
+            available: false,
+            reason: "empty",
+            detail: `${TREND_FILE} is empty. Live biometric data required.`,
+            path: TREND_FILE
+        };
+    }
+
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(raw);
+    } catch (error) {
+        return {
+            available: false,
+            reason: "parse_error",
+            detail: `Could not parse ${TREND_FILE}: ${(error as Error).message}`,
+            path: TREND_FILE
+        };
+    }
+
+    const candidateDays = Array.isArray(parsed)
+        ? parsed
+        : parsed && typeof parsed === "object" && Array.isArray((parsed as { days?: unknown }).days)
+            ? (parsed as { days: unknown[] }).days
+            : [];
+    const days = candidateDays.filter(isTrendPoint).slice(-30);
+
+    if (!days.length) {
+        return {
+            available: false,
+            reason: "no_valid_days",
+            detail: `${TREND_FILE} contained no valid day records (need date, sleepHours, recoveryScore, focusScore).`,
+            path: TREND_FILE
+        };
+    }
+
     return {
+        available: true,
         generatedAt: new Date().toISOString(),
-        source: "fixture",
+        source: "file",
         summary: summarizeTrend(days),
         days
     };

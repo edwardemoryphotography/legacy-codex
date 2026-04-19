@@ -1,15 +1,16 @@
 {
-  "generatedAt": "2026-04-18T00:00:00.000Z",
+  "_comment": "SCHEMA ONLY. Do not commit real biometric data. A live bridge must write notes/biometric-trends.json with real numeric day records in place of the null placeholders below. Each day entry requires numeric date, sleepHours, recoveryScore, and focusScore. If the file is missing, empty, malformed, or contains no valid day records, the Biometric Governor will render an explicit 'data required' state and will not compute or display a readiness score.",
+  "generatedAt": null,
   "source": "apple-health-whoop-muse-bridge",
   "days": [
     {
-      "date": "2026-04-18",
-      "sleepHours": 7.2,
-      "mindfulMinutes": 18,
-      "restingHeartRate": 57,
-      "hrvMs": 66,
-      "recoveryScore": 74,
-      "focusScore": 82
+      "date": null,
+      "sleepHours": null,
+      "mindfulMinutes": null,
+      "restingHeartRate": null,
+      "hrvMs": null,
+      "recoveryScore": null,
+      "focusScore": null
     }
   ]
 }

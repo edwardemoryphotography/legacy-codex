@@ -979,17 +979,17 @@
         <article class="biometric-hero">
           <div>
             <div class="biometric-status-row">
-              <div class="biometric-mode" id="biometricMode">Fixture</div>
-              <div class="pill" id="biometricSource">source: local</div>
+              <div class="biometric-mode" id="biometricMode">—</div>
+              <div class="pill" id="biometricSource">source: awaiting live bridge</div>
             </div>
-            <div class="biometric-score" id="biometricReadiness">79</div>
-            <p class="biometric-note" id="biometricRecommendation">Good creative window; avoid unnecessary scope expansion.</p>
+            <div class="biometric-score" id="biometricReadiness">—</div>
+            <p class="biometric-note" id="biometricRecommendation">Biometric data required. Connect a live bridge (WHOOP / Muse / Apple Health) that writes real values to <code>notes/biometric-trends.json</code>. No mock or sample data will be shown.</p>
           </div>
 
           <div class="biometric-kpis" aria-label="Biometric KPI summary">
-            <div class="biometric-kpi"><span>Recovery</span><strong id="biometricRecovery">72%</strong></div>
-            <div class="biometric-kpi"><span>Focus</span><strong id="biometricFocus">88%</strong></div>
-            <div class="biometric-kpi"><span>Sleep debt</span><strong id="biometricSleepDebt">3.5h</strong></div>
+            <div class="biometric-kpi"><span>Recovery</span><strong id="biometricRecovery">—</strong></div>
+            <div class="biometric-kpi"><span>Focus</span><strong id="biometricFocus">—</strong></div>
+            <div class="biometric-kpi"><span>Sleep debt</span><strong id="biometricSleepDebt">—</strong></div>
             <div class="biometric-kpi"><span>Window</span><strong>30d</strong></div>
           </div>
         </article>
@@ -998,17 +998,18 @@
           <div class="biometric-chart-header">
             <div>
               <h3 class="section-title" style="margin:0;">Trend overlay</h3>
-              <p class="section-subtitle" style="margin:4px 0 0;">Recovery, focus, and sleep trend lines.</p>
+              <p class="section-subtitle" style="margin:4px 0 0;">Recovery, focus, and sleep trend lines from live bridge output.</p>
             </div>
-            <button id="refreshBiometrics" class="save-btn" type="button">Refresh fixture</button>
+            <button id="refreshBiometrics" class="save-btn" type="button">Reload live data</button>
           </div>
           <svg class="biometric-chart" id="biometricChart" viewBox="0 0 720 220" role="img" aria-label="30-day biometric trend chart"></svg>
+          <p class="biometric-note" id="biometricChartNote" style="margin-top:12px;">No live biometric data loaded. The chart will render only when <code>notes/biometric-trends.json</code> contains real day records.</p>
         </article>
 
         <article class="static-card">
           <h3>Operating rule</h3>
-          <p id="biometricRule">When readiness is low, Legacy Codex should prefer docs, triage, and resumption logs over heavy architecture.</p>
-          <p class="biometric-note" style="margin-top:12px;">Live bridge target: write normalized metrics to <code>notes/biometric-trends.json</code> or current state to <code>notes/biometric-state.json</code>. Do not commit raw EEG, raw health exports, or tokens.</p>
+          <p id="biometricRule">Readiness scores and lane recommendations will appear here only when real biometric data is available. Until then the governor abstains rather than guess.</p>
+          <p class="biometric-note" style="margin-top:12px;">Live bridge target: write normalized metrics to <code>notes/biometric-trends.json</code> or current state to <code>notes/biometric-state.json</code>. Do not commit raw EEG, raw health exports, or tokens. This dashboard has no mock, fixture, sample, or fallback values.</p>
         </article>
       </section>
 
@@ -1446,6 +1447,10 @@
       }
 
       function initBiometricGovernor() {
+        // REAL DATA ONLY. This governor never invents, fabricates, simulates,
+        // or interpolates biometric values. If a live bridge has not written
+        // real records to notes/biometric-trends.json, the UI renders an
+        // explicit "data required" state with no numeric values and no chart.
         var readinessEl = qs("#biometricReadiness");
         var modeEl = qs("#biometricMode");
         var sourceEl = qs("#biometricSource");
@@ -1455,40 +1460,33 @@
         var recommendationEl = qs("#biometricRecommendation");
         var ruleEl = qs("#biometricRule");
         var chartEl = qs("#biometricChart");
+        var chartNoteEl = qs("#biometricChartNote");
         var refreshBtn = qs("#refreshBiometrics");
+
+        var TREND_URL = "notes/biometric-trends.json";
 
         function clamp(value, min, max) {
           return Math.min(max, Math.max(min, Math.round(value)));
         }
 
-        function buildFixtureTrend() {
-          var now = Date.now();
-          return Array.from({ length: 30 }, function (_, index) {
-            var reverseIndex = 29 - index;
-            var date = new Date(now - reverseIndex * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-            var wave = Math.sin(index / 2.5);
-            var recovery = clamp(62 + wave * 18 - (index % 9 === 0 ? 16 : 0), 0, 100);
-            var mindful = Math.max(0, Math.round(10 + Math.cos(index / 3) * 7 + (index % 6 === 0 ? 20 : 0)));
-            var sleep = Math.round((6.8 + wave * 0.8 - (index % 7 >= 5 ? 0.6 : 0)) * 10) / 10;
-            return {
-              date: date,
-              sleepHours: sleep,
-              mindfulMinutes: mindful,
-              recoveryScore: recovery,
-              focusScore: clamp(50 + mindful * 1.1 + recovery * 0.28, 0, 100)
-            };
-          });
+        function average(values) {
+          if (!values.length) return 0;
+          return values.reduce(function (sum, value) { return sum + value; }, 0) / values.length;
         }
 
-        function average(values) {
-          return values.reduce(function (sum, value) { return sum + value; }, 0) / Math.max(1, values.length);
+        function isValidDay(row) {
+          if (!row || typeof row !== "object") return false;
+          return typeof row.date === "string" &&
+            isFinite(Number(row.sleepHours)) &&
+            isFinite(Number(row.recoveryScore)) &&
+            isFinite(Number(row.focusScore));
         }
 
         function summarize(days) {
           var recent = days.slice(-7);
-          var recovery = average(recent.map(function (day) { return day.recoveryScore; }));
-          var focus = average(recent.map(function (day) { return day.focusScore; }));
-          var sleep = average(recent.map(function (day) { return day.sleepHours; }));
+          var recovery = average(recent.map(function (day) { return Number(day.recoveryScore); }));
+          var focus = average(recent.map(function (day) { return Number(day.focusScore); }));
+          var sleep = average(recent.map(function (day) { return Number(day.sleepHours); }));
           var readiness = clamp(recovery * 0.48 + focus * 0.32 + Math.min(100, sleep * 12) * 0.2, 0, 100);
           var sleepDebt = Math.round(Math.max(0, 7.7 - sleep) * 70) / 10;
           var mode = "deep_build";
@@ -1531,6 +1529,10 @@
           }).join(" ");
         }
 
+        function clearChart() {
+          chartEl.innerHTML = "";
+        }
+
         function renderChart(days) {
           chartEl.innerHTML = "";
           [0, 1, 2, 3].forEach(function (line) {
@@ -1555,22 +1557,76 @@
           });
         }
 
-        function render() {
-          var days = buildFixtureTrend();
+        function renderUnavailable(message) {
+          readinessEl.textContent = "—";
+          modeEl.textContent = "—";
+          sourceEl.textContent = "source: awaiting live bridge";
+          recoveryEl.textContent = "—";
+          focusEl.textContent = "—";
+          sleepDebtEl.textContent = "—";
+          recommendationEl.textContent = message;
+          ruleEl.textContent = "No live biometric data. The governor is abstaining — no readiness score, no lane recommendation.";
+          chartNoteEl.textContent = message;
+          clearChart();
+        }
+
+        function renderAvailable(days, sourceLabel) {
           var summary = summarize(days);
           readinessEl.textContent = String(summary.readiness);
           modeEl.textContent = summary.mode.replace("_", " ");
-          sourceEl.textContent = "source: fixture bridge";
+          sourceEl.textContent = "source: " + (sourceLabel || "live bridge");
           recoveryEl.textContent = summary.recovery + "%";
           focusEl.textContent = summary.focus + "%";
           sleepDebtEl.textContent = summary.sleepDebt + "h";
           recommendationEl.textContent = summary.recommendation;
           ruleEl.textContent = summary.recommendation + " This should inform task ranking before prompts are sent to Gemini or other build agents.";
+          chartNoteEl.textContent = "Live data: " + days.length + " day record(s) loaded from " + TREND_URL + ".";
           renderChart(days);
         }
 
-        refreshBtn.addEventListener("click", render);
-        render();
+        function load() {
+          renderUnavailable("Loading live biometric data from " + TREND_URL + "…");
+          if (typeof fetch !== "function") {
+            renderUnavailable("Biometric data required. fetch() is not available in this environment.");
+            return;
+          }
+          fetch(TREND_URL, { cache: "no-store" })
+            .then(function (response) {
+              if (!response.ok) {
+                throw new Error("HTTP " + response.status);
+              }
+              return response.text();
+            })
+            .then(function (raw) {
+              if (!raw || raw.trim() === "") {
+                renderUnavailable("Biometric data required. " + TREND_URL + " is empty. Connect a live bridge.");
+                return;
+              }
+              var parsed;
+              try {
+                parsed = JSON.parse(raw);
+              } catch (e) {
+                renderUnavailable("Biometric data required. " + TREND_URL + " is not valid JSON.");
+                return;
+              }
+              var candidate = Array.isArray(parsed)
+                ? parsed
+                : (parsed && Array.isArray(parsed.days) ? parsed.days : []);
+              var days = candidate.filter(isValidDay).slice(-30);
+              if (!days.length) {
+                renderUnavailable("Biometric data required. " + TREND_URL + " contains no valid day records (need date, sleepHours, recoveryScore, focusScore).");
+                return;
+              }
+              var sourceLabel = parsed && typeof parsed.source === "string" ? parsed.source : "live bridge";
+              renderAvailable(days, sourceLabel);
+            })
+            .catch(function (err) {
+              renderUnavailable("Biometric data required. Could not load " + TREND_URL + " (" + (err && err.message ? err.message : "unknown error") + "). Connect a live bridge (WHOOP / Muse / Apple Health).");
+            });
+        }
+
+        refreshBtn.addEventListener("click", load);
+        load();
       }
 
       function initArtifactAnalyzer() {
