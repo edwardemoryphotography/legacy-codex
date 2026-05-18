@@ -1,4 +1,6 @@
-# legacy-codex — CLAUDE.md
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 Personal operating system for converting captures (voice notes, thoughts, tasks) into clear, executable next steps. Reduces cognitive overhead and prevents fragmentation across local files, GitHub, and Vercel production.
 
@@ -29,7 +31,7 @@ Refer to `AGENTS.md` for the authoritative list of V37 anchors (Production truth
 
 ## Environment Variables
 
-Copy `.env.example` to `.env.local` and fill in values.
+Copy `.env.example` to `.env` and fill in values.
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
@@ -39,27 +41,41 @@ Copy `.env.example` to `.env.local` and fill in values.
 | `BIOMETRICS_STATE_FILE` | Optional | Path to live biometric state JSON (WHOOP/Muse) |
 | `BIOMETRICS_TREND_FILE` | Optional | Path to biometric trends JSON |
 
-> ⚠️ **Security — action required**: `.env.local` was accidentally committed to git history.
-> 1. Run `git rm --cached .env.local` locally and push to untrack the file.
-> 2. `.env.local` is now in `.gitignore` (added in this PR) to prevent future commits.
-> 3. **Rotate any secrets that were in the committed file** — treat them as compromised.
->
-> Do **not** commit secrets to any tracked file.
-
 ---
 
-## NPM Scripts
+## Commands
+
+### Root agents
 
 ```bash
-npm run route          # src/agents/routeOmega.ts — dispatch capture to correct lane via Gemini
-npm run triage         # src/agents/triage.ts — scan notes/, write TRIAGE_QUEUE.md
-npm run distill        # src/agents/distiller.ts — compress logs to session resume nuggets
-npm run rank           # src/agents/taskRanker.ts — re-prioritize tasks using biometric data
-npm run vercel-bridge  # src/hooks/vercelBridge.ts — verify production deployment state
-npm run sync-hook      # src/hooks/syncHook.ts — screenshot live app + Gemini vision analysis
+npm run route "[VOICE-SYNC] <capture text>"   # Dispatch capture to correct lane via Gemini
+npm run triage         # Scan notes/, write TRIAGE_QUEUE.md
+npm run distill        # Compress session logs to resume nuggets
+npm run rank           # Re-prioritize tasks using biometric data
+npm run vercel-bridge  # Verify production deployment state
+npm run sync-hook      # Puppeteer screenshot of live app + Gemini vision diff
 ```
 
-No test runner is configured (`npm test` exits 1). Run agents with `node` directly if needed.
+Run a single agent directly (no npm script needed):
+```bash
+node --no-warnings --experimental-strip-types src/agents/triage.ts
+```
+
+There is no build step — TypeScript is run directly via `--experimental-strip-types`. There is no `tsc` compile. Type errors surface at runtime unless you run `npx tsc --noEmit` manually.
+
+```bash
+npx tsc --noEmit    # Type-check without emitting files
+```
+
+### Foundry Console (`foundry-console/`)
+
+```bash
+cd foundry-console
+npm install
+npm run dev     # Next.js dev server
+npm run build   # Production build
+npm run lint    # ESLint via next lint
+```
 
 ---
 
@@ -76,33 +92,28 @@ src/
     vercelBridge.ts     # Checks Vercel production state; optionally clears SHIPPING_BLOCKER.txt
     syncHook.ts         # Puppeteer screenshot of live app → Gemini vision diff
   lib/
-    gemini.ts           # Google Generative AI SDK wrapper
+    gemini.ts           # Google Generative AI SDK wrapper (defaults to gemini-2.5-pro)
     biometrics.ts       # Strict real-data-only biometric reader (no mocks allowed)
+    biometricTrends.ts  # 7-day trend aggregator; summarizeTrend() computes projectMode
     withRetry.ts        # Exponential backoff for Gemini/Vercel rate-limited calls
     fs.ts               # Protected file system — blocks writes to anchored files
 
 foundry-console/        # Next.js 15 + Supabase dashboard (sprints, milestones, friction logs)
-features/               # Feature specs and design notes
-skills/                 # Skill definitions
 notes/                  # Session logs, decisions, resumption points (source of truth for session state)
 logs/                   # Execution traces, audits, deployment notes
-reports/                # Generated analysis reports
-repo-starters/          # Starter templates
-rollout-bundles/        # Release bundles
-scripts/                # Utility scripts
 
 index.html              # ⛔ FREEZE SPEC — do not modify without explicit command
 AGENTS.md               # Agent behavioral rules — do not auto-modify
-DELEGATION_RULES_v1.md # Routing logic — source of truth for capture-to-lane
+DELEGATION_RULES_v1.md  # Routing logic — source of truth for capture-to-lane
 SHIPPING_BLOCKER.txt    # Current blocker (one sentence max)
-GEMINI.md              # Gemini-specific agent instructions
+GEMINI.md               # Gemini-specific agent instructions
 ```
 
 ---
 
 ## Protected Files
 
-`src/lib/fs.ts` blocks agent writes to the following files. Do **not** attempt to overwrite them without explicit user instruction:
+`src/lib/fs.ts` blocks agent writes to the following files at runtime. Do **not** attempt to overwrite them without explicit user instruction:
 
 - `AGENTS.md`
 - `DELEGATION_RULES_v1.md`
@@ -126,10 +137,24 @@ See `AGENTS.md` for behavioral rules, trigger phrases, and output formats for ea
 
 ## Biometrics Rules
 
-`src/lib/biometrics.ts` enforces **real-data-only**:
-- Never simulate or mock biometric data
-- `taskRanker.ts` fails gracefully if `BIOMETRICS_STATE_FILE` does not exist or contains stale data
-- Do not add fixture/test values to biometric files
+`src/lib/biometrics.ts` and `src/lib/biometricTrends.ts` enforce **real-data-only**:
+- Never simulate or mock biometric data in the actual state/trend files
+- `taskRanker.ts` refuses to rank and exits if biometric data is unavailable or stale
+- `biometricTrends.ts` exposes `summarizeTrend(days)` — a pure function that computes `projectMode` (`deep_build`, `creative_edit`, `admin_light`, `recovery`) and `readinessScore` from the last 7 days of data
+
+---
+
+## Test Coverage
+
+No test runner is configured (`npm test` exits 1). The following modules contain pure functions that are fully testable without network or file I/O and are the highest-priority candidates if tests are added:
+
+| Module | Testable surface | Why |
+|--------|-----------------|-----|
+| `src/lib/biometricTrends.ts` | `summarizeTrend()`, `isTrendPoint()`, `clamp()`, `average()` | Pure functions with complex branching logic; `summarizeTrend` determines `projectMode` thresholds that affect task routing |
+| `src/lib/withRetry.ts` | `isRetryableCapacityError()`, `withRetry()` retry count/backoff | Error classification logic covers 6 distinct conditions; retry sequencing is hard to verify manually |
+| `src/lib/fs.ts` | `safeWriteFile()` / `safeAppendFile()` protection | Protected-file enforcement is a safety invariant — a regression here would allow overwriting `AGENTS.md` |
+
+Recommended runner: `node:test` (built-in, no extra deps) or `vitest` (ESM-native, compatible with this project's `"type": "module"` setup). Tests for biometric pure functions **may** use synthetic fixture values — the real-data-only rule applies only to the live state/trend JSON files, not to unit test inputs.
 
 ---
 
