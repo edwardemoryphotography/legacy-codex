@@ -9,8 +9,8 @@ This repository contains:
 
 ## Control Panel (primary deliverable)
 
-The 7-tab Next.js dashboard has been built and pushed to:
-**`edwardemoryphotography/codex-control-panel`** on branch `claude/run-project-setup-NLF9V`
+The 7-tab Next.js dashboard has been built and lives on the `main` branch of:
+**`edwardemoryphotography/codex-control-panel`**
 
 Tabs:
 1. **Overview** — 4 Canonical Principles + PASS/FAIL Validation Metrics (localStorage)
@@ -24,7 +24,7 @@ Tabs:
 ## Deployment
 
 Vercel project: `prj_HxkvNkeYGEFDDjdkhd9yYdHCdPOf` is connected to `codex-control-panel`.
-Merge the PR on `codex-control-panel` → auto-deploys to Vercel.
+Pushing to `main` on `codex-control-panel` auto-deploys to Vercel.
 
 See `setup.sh` for the deployment checklist.
 
@@ -37,10 +37,12 @@ See `setup.sh` for the deployment checklist.
 
 ## Biometric Bridge
 
-Write real metrics to `notes/biometric-trends.json`:
+Write real metrics to `public/notes/biometric-trends.json` in `codex-control-panel`:
 ```json
-[
-  { "date": "2026-05-18", "sleepHours": 7.5, "recoveryScore": 78, "focusScore": 65 }
-]
+{
+  "days": [
+    { "date": "2026-05-18", "sleepHours": 7.5, "recoveryScore": 78, "focusScore": 65 }
+  ]
+}
 ```
 No mock data. The governor abstains rather than guesses.
