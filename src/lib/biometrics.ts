@@ -6,7 +6,7 @@
 // biometric values are ever produced.
 
 import * as dotenv from "dotenv";
-import { safeReadFile } from "./fs.js";
+import { safeReadFile } from "./fs.ts";
 
 dotenv.config();
 
