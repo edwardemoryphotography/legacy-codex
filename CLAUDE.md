@@ -11,14 +11,7 @@ Personal operating system for converting captures (voice notes, thoughts, tasks)
 
 ## Critical Anchors (V37 — Never Drift)
 
-Resolve all ambiguity toward these anchors, not toward memory, Notion, or other branches:
-
-| Anchor | Rule |
-|--------|------|
-| **Production truth** | `https://legacy-codex.vercel.app` — treat as current external behavior unless explicitly verifying a preview or local build |
-| **FREEZE SPEC** | Do **not** rewrite `index.html`, core JS, or core CSS unless the user explicitly types: `REWRITE THE APP CODE` |
-| **Shipping blocker** | `SHIPPING_BLOCKER.txt` — exactly **one** concrete sentence; update when blocker changes; never leave stale |
-| **Delegation routing** | `DELEGATION_RULES_v1.md` — classify captures and route to a single lane; never invent parallel routing schemes |
+Refer to `AGENTS.md` for the authoritative list of V37 anchors (Production truth, FREEZE SPEC, Shipping blocker, and Delegation routing). AI assistants must resolve all ambiguity toward the definitions in that file, not toward memory or other branches.
 
 ---
 
@@ -46,7 +39,12 @@ Copy `.env.example` to `.env.local` and fill in values.
 | `BIOMETRICS_STATE_FILE` | Optional | Path to live biometric state JSON (WHOOP/Muse) |
 | `BIOMETRICS_TREND_FILE` | Optional | Path to biometric trends JSON |
 
-> ⚠️ **Security note**: `.env.local` is accidentally tracked in git. Do **not** commit additional secrets to any tracked file. Use `.env.example` as the template.
+> ⚠️ **Security — action required**: `.env.local` was accidentally committed to git history.
+> 1. Run `git rm --cached .env.local` locally and push to untrack the file.
+> 2. `.env.local` is now in `.gitignore` (added in this PR) to prevent future commits.
+> 3. **Rotate any secrets that were in the committed file** — treat them as compromised.
+>
+> Do **not** commit secrets to any tracked file.
 
 ---
 
