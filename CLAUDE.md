@@ -61,7 +61,7 @@ Run a single agent directly (no npm script needed):
 node --no-warnings --experimental-strip-types src/agents/triage.ts
 ```
 
-There is no build step — TypeScript is run directly via `--experimental-strip-types`. There is no `tsc` compile. Type errors surface at runtime unless you run `npx tsc --noEmit` manually.
+There is no build step — TypeScript is run directly via `--experimental-strip-types`, which strips type annotations and executes the file as plain JavaScript. Type errors are **silently ignored** at runtime; use `npx tsc --noEmit` for static type checking.
 
 ```bash
 npx tsc --noEmit    # Type-check without emitting files
@@ -150,8 +150,8 @@ No test runner is configured (`npm test` exits 1). The following modules contain
 
 | Module | Testable surface | Why |
 |--------|-----------------|-----|
-| `src/lib/biometricTrends.ts` | `summarizeTrend()`, `isTrendPoint()`, `clamp()`, `average()` | Pure functions with complex branching logic; `summarizeTrend` determines `projectMode` thresholds that affect task routing |
-| `src/lib/withRetry.ts` | `isRetryableCapacityError()`, `withRetry()` retry count/backoff | Error classification logic covers 6 distinct conditions; retry sequencing is hard to verify manually |
+| `src/lib/biometricTrends.ts` | `summarizeTrend()` | Pure function with complex branching logic; determines `projectMode` thresholds that affect task routing |
+| `src/lib/withRetry.ts` | `withRetry()` retry count/backoff | Retry sequencing and backoff logic for API calls; handles multiple transient error conditions |
 | `src/lib/fs.ts` | `safeWriteFile()` / `safeAppendFile()` protection | Protected-file enforcement is a safety invariant — a regression here would allow overwriting `AGENTS.md` |
 
 Recommended runner: `node:test` (built-in, no extra deps) or `vitest` (ESM-native, compatible with this project's `"type": "module"` setup). Tests for biometric pure functions **may** use synthetic fixture values — the real-data-only rule applies only to the live state/trend JSON files, not to unit test inputs.
