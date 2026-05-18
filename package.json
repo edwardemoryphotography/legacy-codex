@@ -4,7 +4,7 @@
   "description": "Grounding workspace for Legacy Codex: blockers, delegation, and session continuity. **Production behavior** is defined by what is live at [legacy-codex.vercel.app](https://legacy-codex.vercel.app).",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --no-warnings --experimental-strip-types --test src/lib/biometricTrends.test.ts src/lib/withRetry.test.ts src/lib/fs.test.ts",
     "route": "node --no-warnings --experimental-strip-types src/agents/routeOmega.ts",
     "triage": "node --no-warnings --experimental-strip-types src/agents/triage.ts",
     "distill": "node --no-warnings --experimental-strip-types src/agents/distiller.ts",

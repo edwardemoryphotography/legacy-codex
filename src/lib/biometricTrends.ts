@@ -7,7 +7,7 @@
 // or fallbacks — the Biometric Governor must only ever render real data.
 
 import * as dotenv from "dotenv";
-import { safeReadFile } from "./fs.js";
+import { safeReadFile } from "./fs.ts";
 
 dotenv.config();
 
