@@ -6,9 +6,9 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
 fi
 
 cd "$CLAUDE_PROJECT_DIR"
-npm install
+npm install --no-audit --no-fund
 
-if [ -d "foundry-console" ]; then
+if [ -f "foundry-console/package.json" ]; then
   cd foundry-console
-  npm install
+  npm install --no-audit --no-fund
 fi
