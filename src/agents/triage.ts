@@ -55,11 +55,8 @@ ${content}
     console.log("[Capture Inbox Triage] Triage complete. Appended summary to TRIAGE_QUEUE.md.");
 }
 
-import { fileURLToPath } from "url";
-import { resolve } from "path";
-
 // Example Execution
-const nodePath = resolve(process.argv[1] || "");
+const nodePath = path.resolve(process.argv[1] || "");
 const modulePath = fileURLToPath(import.meta.url);
 
 if (nodePath === modulePath || nodePath.endsWith("triage.ts")) {

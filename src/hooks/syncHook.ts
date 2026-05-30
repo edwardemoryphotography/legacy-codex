@@ -1,9 +1,14 @@
+import * as dotenv from "dotenv";
 import puppeteer from "puppeteer";
 import * as path from "path";
 import * as fs from "fs/promises";
 import { getModel } from "../lib/gemini.ts";
 import { withRetry } from "../lib/withRetry.ts";
 import { safeReadFile } from "../lib/fs.ts";
+
+// Load .env.local first (project convention), then fall back to .env.
+dotenv.config({ path: ".env.local" });
+dotenv.config();
 
 import { fileURLToPath } from "url";
 
@@ -14,16 +19,52 @@ const VERCEL_URL = "https://legacy-codex.vercel.app";
 const SCREENSHOT_PATH = path.resolve(__dirname, "../../logs/latest_sync.png");
 
 async function runSyncHook() {
+    if (!process.env.GEMINI_API_KEY) {
+        console.error(
+            "[Production-Intent Sync] GEMINI_API_KEY is missing.\n" +
+            "  → Copy .env.example to .env.local and set GEMINI_API_KEY.\n" +
+            "  → Get a key at https://aistudio.google.com/app/apikey"
+        );
+        return;
+    }
+
+    const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+
     console.log(`[Production-Intent Sync] Capturing screenshot of ${VERCEL_URL}...`);
-    
+
     const browser = await puppeteer.launch({ headless: true });
     const page = await browser.newPage();
-    
+
     // Set a realistic viewport
     await page.setViewport({ width: 1280, height: 800 });
-    
+
+    // If the deployment is behind Vercel Authentication / Deployment Protection,
+    // set the bypass header so Puppeteer can reach the page without SSO.
+    // Set VERCEL_AUTOMATION_BYPASS_SECRET in .env.local (see .env.example).
+    if (bypassSecret) {
+        await page.setExtraHTTPHeaders({ "x-vercel-protection-bypass": bypassSecret });
+    }
+
     try {
-        await page.goto(VERCEL_URL, { waitUntil: "networkidle2" });
+        const res = await page.goto(VERCEL_URL, { waitUntil: "networkidle2" });
+        const status = res?.status() ?? 0;
+        if (status === 403 || status === 401) {
+            console.error(
+                `[Production-Intent Sync] Vercel page returned HTTP ${status}.\n` +
+                "  The deployment is protected by Vercel Authentication (team SSO) or\n" +
+                "  Deployment Protection. How to fix:\n" +
+                "  Option A — Disable protection (simplest for a public site):\n" +
+                "    Vercel → Project → Settings → Deployment Protection → disable 'Vercel Authentication'.\n" +
+                "  Option B — Add a Protection Bypass secret:\n" +
+                "    Vercel → Project → Settings → Deployment Protection → 'Protection Bypass for Automation'.\n" +
+                "    Copy the secret, add VERCEL_AUTOMATION_BYPASS_SECRET=<secret> to .env.local,\n" +
+                "    then re-run. The script will send the x-vercel-protection-bypass header.\n" +
+                "  Option C — Use the Vercel CLI:\n" +
+                "    vercel dev  (serves the project locally without auth gating)"
+            );
+            await browser.close();
+            return;
+        }
         await page.screenshot({ path: SCREENSHOT_PATH, fullPage: true });
         console.log(`Screenshot saved to ${SCREENSHOT_PATH}`);
     } catch (e) {

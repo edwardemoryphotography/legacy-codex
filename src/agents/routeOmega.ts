@@ -2,7 +2,7 @@ import { getModel } from "../lib/gemini.ts";
 import { safeReadFile } from "../lib/fs.ts";
 import { withRetry } from "../lib/withRetry.ts";
 
-async function routeCapture(captureText: string) {
+export async function routeCapture(captureText: string) {
     console.log(`[Route-Omega] Analyzing capture: "${captureText.substring(0, 50)}..."`);
     
     // Load the manual routing rules to serve as context for the LLM
