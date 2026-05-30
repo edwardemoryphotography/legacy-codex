@@ -84,7 +84,12 @@ async function checkDeployments() {
             const raw = await res.text();
             let parsed: { error?: { code?: string; message?: string }; deployments?: DeploymentRecord[] } = {};
             try {
-                parsed = JSON.parse(raw) as typeof parsed;
+                const val: unknown = JSON.parse(raw);
+                if (val !== null && typeof val === "object") {
+                    parsed = val as typeof parsed;
+                } else {
+                    throw new Error("Response is not a JSON object");
+                }
             } catch {
                 throw new Error(`[Vercel Truth Bridge] Non-JSON response (HTTP ${res.status}): ${raw.slice(0, 200)}`);
             }

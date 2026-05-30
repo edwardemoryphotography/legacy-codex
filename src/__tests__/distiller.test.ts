@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// distiller.ts calls getModel (which throws without GEMINI_API_KEY) and
-// safeWriteFile, so we mock both modules before any import resolves.
+// distiller.ts calls getModel (throws without GEMINI_API_KEY) and safeWriteFile,
+// so mock both modules before any import resolves.
 
 const { mockGenerateContent, mockGetModel } = vi.hoisted(() => {
   const mockGenerateContent = vi.fn();
@@ -22,21 +22,7 @@ vi.mock("../lib/fs.js", () => ({
   safeAppendFile: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { getModel } from "../lib/gemini.js";
-import { withRetry } from "../lib/withRetry.js";
-
-// Mirror the core distillation contract: takes a combined log string, sends it
-// to Gemini, and returns the model's text response.
-async function callDistillerLogic(combinedLogs: string): Promise<string> {
-  const prompt = `You are the Memory Distiller.\n\nLOGS:\n${combinedLogs}\n\nGenerate a Session Resume.`;
-  const model = getModel("gemini-2.5-pro");
-  const result = await withRetry(() =>
-    model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-    })
-  );
-  return (result as { response: { text: () => string } }).response.text();
-}
+import { distill } from "../agents/distiller.js";
 
 describe("distiller — compression contract", () => {
   beforeEach(() => {
@@ -60,14 +46,13 @@ describe("distiller — compression contract", () => {
       response: { text: () => compressedSummary },
     });
 
-    const output = await callDistillerLogic(sampleLog);
+    const output = await distill(sampleLog);
 
     expect(output).toBeTruthy();
     expect(output.length).toBeGreaterThan(0);
   });
 
   it("produces output shorter than a verbose input log (compression happened)", async () => {
-    // A verbose 2000-character log
     const verboseLog = "VERBOSE LOG ENTRY: ".repeat(100) + " lots of noise and repetition in the session logs that need to be compressed down into a brief summary.";
 
     const conciseSummary = "## Session Resume\n\n- Key decision made.\n- No blocker.\n- Next: ship the feature.";
@@ -76,7 +61,7 @@ describe("distiller — compression contract", () => {
       response: { text: () => conciseSummary },
     });
 
-    const output = await callDistillerLogic(verboseLog);
+    const output = await distill(verboseLog);
 
     expect(output.length).toBeLessThan(verboseLog.length);
     expect(output.length).toBeGreaterThan(0);
