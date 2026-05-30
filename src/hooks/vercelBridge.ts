@@ -1,7 +1,11 @@
 import * as dotenv from "dotenv";
 import { safeReadFile, safeWriteFile } from "../lib/fs.ts";
+import { withRetry } from "../lib/withRetry.ts";
 
-dotenv.config();
+// Load .env.local first (project convention), then fall back to .env.
+// Both are local-only files — never committed.
+dotenv.config({ path: ".env.local" });
+dotenv.config(); // no-op if .env doesn't exist
 
 const VERCEL_PROJECT_ID = process.env.VERCEL_PROJECT_ID;
 const VERCEL_TEAM_ID = process.env.VERCEL_TEAM_ID;
@@ -44,7 +48,13 @@ async function checkDeployments() {
     console.log("[Vercel Truth Bridge] Latest **production** deployment for linked project...\n");
 
     if (!VERCEL_TOKEN) {
-        console.warn("VERCEL_TOKEN not found in environment variables. Skipping check.");
+        console.error(
+            "[Vercel Truth Bridge] VERCEL_TOKEN is missing.\n" +
+            "  → Copy .env.example to .env.local and set VERCEL_TOKEN to a Vercel personal access token.\n" +
+            "  → Create one at https://vercel.com/account/tokens\n" +
+            "  → The token needs at least read access to Deployments.\n" +
+            "  → If your project lives under a Team, also set VERCEL_TEAM_ID (starts with team_)."
+        );
         return;
     }
 
@@ -59,33 +69,55 @@ async function checkDeployments() {
         let url = `https://api.vercel.com/v6/deployments?projectId=${encodeURIComponent(VERCEL_PROJECT_ID)}&target=production&limit=1`;
         if (VERCEL_TEAM_ID) url += `&teamId=${encodeURIComponent(VERCEL_TEAM_ID)}`;
 
-        const response = await fetch(url, {
-            headers: {
-                Authorization: `Bearer ${VERCEL_TOKEN}`
+        // withRetry handles transient 429/503 capacity errors from the Vercel API.
+        // Auth errors (401/403) are not retried — they surface immediately with
+        // a clear message so the user knows exactly what to fix.
+        const { response, data } = await withRetry(async () => {
+            const res = await fetch(url, {
+                headers: {
+                    // Vercel REST API requires: Authorization: Bearer <token>
+                    // Do NOT use "Token <token>" — that format is rejected with 403.
+                    Authorization: `Bearer ${VERCEL_TOKEN}`
+                }
+            });
+
+            const raw = await res.text();
+            let parsed: { error?: { code?: string; message?: string }; deployments?: DeploymentRecord[] } = {};
+            try {
+                parsed = JSON.parse(raw) as typeof parsed;
+            } catch {
+                throw new Error(`[Vercel Truth Bridge] Non-JSON response (HTTP ${res.status}): ${raw.slice(0, 200)}`);
             }
+
+            // Throw on rate-limit so withRetry can back off and retry.
+            if (res.status === 429 || res.status === 503) {
+                const err = Object.assign(new Error(`Vercel API rate limited (HTTP ${res.status})`), { status: res.status });
+                throw err;
+            }
+
+            return { response: res, data: parsed };
         });
 
-        const raw = await response.text();
-        let data: { error?: { code?: string; message?: string }; deployments?: DeploymentRecord[] } = {};
-        try {
-            data = JSON.parse(raw) as typeof data;
-        } catch {
-            console.error(`[Vercel Truth Bridge] Non-JSON response (HTTP ${response.status}): ${raw.slice(0, 200)}`);
-            return;
-        }
-
         if (response.status === 401 || response.status === 403) {
-            const msg = data.error?.message ?? raw.slice(0, 200);
-            console.error(`[Vercel Truth Bridge] Not authorized (HTTP ${response.status}): ${msg}`);
+            const msg = data.error?.message ?? `HTTP ${response.status}`;
+            console.error(`[Vercel Truth Bridge] Auth failed (HTTP ${response.status}): ${msg}`);
             console.error(
-                "Fix: Create a new token at https://vercel.com/account/tokens — scope must allow this project. If the project lives under a Team, set VERCEL_TEAM_ID (Team Settings → Team ID) and use a token with team access."
+                "\nHow to fix a 403 Forbidden:\n" +
+                "  1. Ensure VERCEL_TOKEN in .env.local is a valid personal access token.\n" +
+                "     Create or regenerate one at https://vercel.com/account/tokens\n" +
+                "  2. The token must use Authorization: Bearer format — this is already correct in the code.\n" +
+                "     If you recently switched from a legacy 'Token' format, that causes 403.\n" +
+                "  3. If the project belongs to a Vercel Team, set VERCEL_TEAM_ID in .env.local\n" +
+                "     (find it at Vercel → Team Settings → General; starts with team_).\n" +
+                "  4. Ensure VERCEL_PROJECT_ID is the prj_... ID from Vercel → Project → Settings → General.\n" +
+                "     Using the project name instead of the ID also causes 403."
             );
             return;
         }
 
         if (!response.ok) {
             console.error(
-                `[Vercel Truth Bridge] HTTP ${response.status}: ${data.error?.message ?? raw.slice(0, 200)}`
+                `[Vercel Truth Bridge] HTTP ${response.status}: ${data.error?.message ?? `unexpected status`}`
             );
             return;
         }
@@ -113,7 +145,12 @@ async function checkDeployments() {
             return;
         }
 
-        const d = data.deployments[0];
+        // noUncheckedIndexedAccess: array[0] is T | undefined even after length check.
+        const d: DeploymentRecord | undefined = data.deployments[0];
+        if (!d) {
+            console.log("[Vercel Truth Bridge] Deployment list was unexpectedly empty.");
+            return;
+        }
         const created = d.createdAt ? new Date(d.createdAt).toISOString() : "?";
         console.log("--- Production truth (from Vercel API) ---");
         console.log(`State:     ${d.state ?? "?"}`);

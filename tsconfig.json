@@ -16,9 +16,11 @@
     // and npm install -D @types/node
 
     // Other Outputs
-    "sourceMap": true,
-    "declaration": true,
-    "declarationMap": true,
+    // sourceMap, declaration, and declarationMap are omitted because this
+    // project runs via --experimental-strip-types (no tsc emit step).
+    // noEmit is required by allowImportingTsExtensions.
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
 
     // Stricter Typechecking Options
     "noUncheckedIndexedAccess": true,
@@ -40,5 +42,6 @@
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
     "skipLibCheck": true,
-  }
+  },
+  "exclude": ["foundry-console", "node_modules"]
 }
