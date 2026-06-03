@@ -1,6 +1,14 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="dark" class="no-js">
 <head>
+<script>
+  /* Progressive enhancement: mark JS active, and apply saved theme before paint (no flash). */
+  document.documentElement.classList.replace('no-js', 'js');
+  try {
+    var t = localStorage.getItem('theme');
+    if (t) document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+</script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Legacy Codex v37 — Capture → Clarity → Motion</title>
@@ -326,13 +334,13 @@
   .foot { display:flex; gap:1rem; flex-wrap:wrap; align-items:center; justify-content:space-between; color: var(--text-faint); font-size:.82rem; }
   .foot .mono { color: var(--text-muted); }
 
-  /* reveal on scroll */
-  .reveal { opacity:0; transform: translateY(16px); transition: opacity .6s var(--ease), transform .6s var(--ease); }
-  .reveal.in { opacity:1; transform:none; }
+  /* reveal on scroll — only hidden when JS is active (progressive enhancement) */
+  .js .reveal { opacity:0; transform: translateY(16px); transition: opacity .6s var(--ease), transform .6s var(--ease); }
+  .js .reveal.in { opacity:1; transform:none; }
 
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; scroll-behavior:auto !important; }
-    .reveal { opacity:1; transform:none; }
+    .js .reveal { opacity:1; transform:none; }
   }
 </style>
 </head>
@@ -591,17 +599,17 @@
    ========================================================= */
 const LANES = {
   A: { name:"Legacy Codex v37", color:"var(--lane-a)",
-       kws:["codex","lar","csf","rek","rout","capture","deploy","vercel","agent","dashboard","memory","execution","workspace","scope","spec"],
+       kws:["codex","csf","rek","routing","route","capture","deploy","vercel","agent","dashboard","memory","execution","workspace","scope"],
        why:"This is about routing behavior inside the Codex system itself.",
        next:"Add one line to a Codex note or spec capturing the next move.",
        dest:"~/legacy-codex/notes/ · Codex actions queue" },
   B: { name:"6-Figure Metal Prints", color:"var(--lane-b)",
-       kws:["print","metal","edition","collector","pricing","price","drop","fulfil","sales","revenue","artwork","offer","tier"],
+       kws:["print","metal","edition","collector","pricing","price","drop","drops","fulfil","sales","revenue","artwork","offer","tier"],
        why:"This concerns print revenue, pricing, or a collector drop.",
        next:"Add it to the offer/pricing action list with one concrete decision.",
        dest:"~/revenue/print-offer.md" },
   C: { name:"Artful Intelligence", color:"var(--lane-c)",
-       kws:["automation","automate","workflow","ai ","agent pack","client system","editing","lightroom","photographer","product","software","saas","handoff","booking"],
+       kws:["automation","automate","workflow","ai","agent pack","client system","editing","lightroom","photographer","product","software","saas","handoff","booking"],
        why:"This is a creative-automation or AI product idea.",
        next:"Drop it in the feature backlog as a one-line workflow spec.",
        dest:"~/artful-intelligence/backlog.md" },
@@ -618,16 +626,27 @@ const LANES = {
 };
 const OVERLOAD = ["everything","don't know","dont know","overwhelm","too much","can't tell","cant tell","matters","lost","stuck everywhere"];
 
+/* Word-boundary keyword match.
+   - Short tokens / acronyms (<=4 chars) match as a WHOLE word, so "ai" ⊄ "air",
+     "lar" ⊄ "large", "spec" never bleeds into "special", "muse" ⊄ "museum".
+   - Longer tokens allow STEM matching ("capture" → "captures", "deploy" → "deployment"). */
+function matchesKeyword(str, kw){
+  const k = kw.trim();
+  const escaped = k.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
+  const pattern = k.length <= 4 ? "\\b" + escaped + "\\b" : "\\b" + escaped;
+  return new RegExp(pattern, "i").test(str);
+}
+
 function classify(text){
-  const t = " " + text.toLowerCase() + " ";
   if(!text.trim()) return null;
+  const t = text.toLowerCase();
   // overload → Holding
-  if(OVERLOAD.some(o => t.includes(o))) return { key:"E", score:99, ...LANES.E };
+  if(OVERLOAD.some(o => matchesKeyword(t, o))) return { key:"E", score:99, ...LANES.E };
   let best = { key:"E", score:0 };
   for(const [key,lane] of Object.entries(LANES)){
     if(key==="E") continue;
     let s = 0;
-    for(const kw of lane.kws){ if(t.includes(kw)) s++; }
+    for(const kw of lane.kws){ if(matchesKeyword(t, kw)) s++; }
     if(s > best.score) best = { key, score:s };
   }
   if(best.score === 0) return { key:"E", score:0, ...LANES.E };
@@ -664,6 +683,7 @@ const root = document.documentElement;
 $("themeToggle").addEventListener("click", ()=>{
   const next = root.getAttribute("data-theme")==="dark" ? "light" : "dark";
   root.setAttribute("data-theme", next);
+  try { localStorage.setItem("theme", next); } catch (e) {}
 });
 
 /* =========================================================
