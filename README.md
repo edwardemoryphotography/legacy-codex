@@ -9,13 +9,13 @@ folder; here's what each does and how they connect.
 
 | Part | Lives in | What it does |
 | --- | --- | --- |
-| **The routing brain** | `src/agents/` | Takes a raw capture (voice note, thought, task) and sorts it into a lane. `routeOmega` does the routing using the rules in [DELEGATION_RULES_v1.md](DELEGATION_RULES_v1.md); `triage`, `distiller`, and `taskRanker` clean up, compress, and re-prioritize. |
-| **The rulebook** | `AGENTS.md`, `DELEGATION_RULES_v1.md` | The plain-language definitions of the roles, routes (A–E), and V37 anchors that the routing brain follows. The docs and the code are two halves of the same thing. |
-| **The Foundry Console** | `foundry-console/` | A separate web dashboard (Next.js + Supabase) for tracking sprints, milestones, and friction logs. Stands alone — it reads the work, it doesn't run the agents. |
-| **The repo factory** | `scripts/`, `repo-starters/`, `rollout-bundles/` | Stamps out standard files (README, SECURITY, CHANGELOG, CI) across the other Codex repos so they all follow one baseline. `rollout_repo_standards.py` is the engine. |
-| **Session memory** | `notes/`, `logs/` | Where decisions, blockers, and resume points get written down so nothing is lost between sessions. This is the cure for fragmentation — if a decision matters, it lands here. |
+| **The routing brain** | [`src/agents/`](src/agents/) | Takes a raw capture (voice note, thought, task) and sorts it into a lane. [`routeOmega`](src/agents/routeOmega.ts) does the routing using the rules in [DELEGATION_RULES_v1.md](DELEGATION_RULES_v1.md); [`triage`](src/agents/triage.ts), [`distiller`](src/agents/distiller.ts), and [`taskRanker`](src/agents/taskRanker.ts) clean up, compress, and re-prioritize. |
+| **The rulebook** | [`AGENTS.md`](AGENTS.md), [`DELEGATION_RULES_v1.md`](DELEGATION_RULES_v1.md) | The plain-language definitions of the roles, routes (A–E), and V37 anchors that the routing brain follows. The docs and the code are two halves of the same thing. |
+| **The Foundry Console** | [`foundry-console/`](foundry-console/) | A separate web dashboard (Next.js + Supabase) for tracking sprints, milestones, and friction logs. Stands alone — it reads the work, it doesn't run the agents. |
+| **The repo factory** | [`scripts/`](scripts/), [`repo-starters/`](repo-starters/), [`rollout-bundles/`](rollout-bundles/) | Stamps out standard files (README, SECURITY, CHANGELOG, CI) across the other Codex repos so they all follow one baseline. `rollout_repo_standards.py` is the engine. |
+| **Session memory** | [`notes/`](notes/), [`logs/`](logs/) | Where decisions, blockers, and resume points get written down so nothing is lost between sessions. This is the cure for fragmentation — if a decision matters, it lands here. |
 
-> **The Muse / biometric thread** runs through several parts: `taskRanker`
+> **The Muse / biometric thread** runs through several parts: [`taskRanker`](src/agents/taskRanker.ts)
 > reads biometric state, and the integration plan lives in
 > [notes/muse-integration-finalization-plan.md](notes/muse-integration-finalization-plan.md).
 
