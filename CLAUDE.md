@@ -1,172 +1,72 @@
-# legacy-codex — CLAUDE.md
+# CLAUDE.md
 
-Personal operating system for converting captures (voice notes, thoughts, tasks) into clear, executable next steps. Reduces cognitive overhead and prevents fragmentation across local files, GitHub, and Vercel production.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Production truth**: `https://legacy-codex.vercel.app`
-
-> For agent behavioral rules, specialist agent definitions, and operating protocols, see **`AGENTS.md`**.
-> This file covers the technical codebase: structure, commands, conventions, and constraints for AI assistants.
-
----
-
-## Critical Anchors (V37 — Never Drift)
-
-Refer to `AGENTS.md` for the authoritative list of V37 anchors (Production truth, FREEZE SPEC, Shipping blocker, and Delegation routing). AI assistants must resolve all ambiguity toward the definitions in that file, not toward memory or other branches.
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Runtime | Node.js (ES modules, `--experimental-strip-types`) |
-| Language | TypeScript 6 (strict: `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`) |
-| AI | Google Generative AI SDK (`@google/generative-ai`) |
-| Automation | Puppeteer (headless browser for Vercel screenshots) |
-| Foundry Console | Next.js 15 + Supabase + Tailwind CSS (in `foundry-console/`) |
-
----
-
-## Environment Variables
-
-Copy `.env.example` to `.env.local` and fill in values.
-
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `GEMINI_API_KEY` | ✅ Yes | Google AI — used by all agent scripts |
-| `VERCEL_TOKEN` | Optional | `vercelBridge.ts` — checks deployment state |
-| `VERCEL_PROJECT_ID` | Optional | Identifies which Vercel project to query |
-| `BIOMETRICS_STATE_FILE` | Optional | Path to live biometric state JSON (WHOOP/Muse) |
-| `BIOMETRICS_TREND_FILE` | Optional | Path to biometric trends JSON |
-
-> ⚠️ **Security — action required**: `.env.local` was accidentally committed to git history.
-> 1. Run `git rm --cached .env.local` locally and push to untrack the file.
-> 2. `.env.local` is now in `.gitignore` (added in this PR) to prevent future commits.
-> 3. **Rotate any secrets that were in the committed file** — treat them as compromised.
->
-> Do **not** commit secrets to any tracked file.
-
----
-
-## NPM Scripts
+## Commands
 
 ```bash
-npm run route          # src/agents/routeOmega.ts — dispatch capture to correct lane via Gemini
-npm run triage         # src/agents/triage.ts — scan notes/, write TRIAGE_QUEUE.md
-npm run distill        # src/agents/distiller.ts — compress logs to session resume nuggets
-npm run rank           # src/agents/taskRanker.ts — re-prioritize tasks using biometric data
-npm run vercel-bridge  # src/hooks/vercelBridge.ts — verify production deployment state
-npm run sync-hook      # src/hooks/syncHook.ts — screenshot live app + Gemini vision analysis
+npm run dev      # Next.js dev server (http://localhost:3000)
+npm run build    # Production build — runs tsc + ESLint before emitting
+npm run start    # Serve the production build locally
+npm run lint     # ESLint via next lint
 ```
 
-No test runner is configured (`npm test` exits 1). Run agents with `node` directly if needed.
+No test runner is installed. Type-checking happens only during `npm run build`. To check types in isolation without a full build, run `npx tsc --noEmit`.
 
----
+**Config file note:** Next.js 14.2.5 does not support `next.config.ts`. The project uses `next.config.mjs`. Do not create a `next.config.ts`.
 
-## Project Structure
+## Architecture
 
+### Entry point and tab system
+
+`src/app/page.tsx` is a server component that simply renders `<CodexApp />`. All real logic lives in `src/components/CodexApp.tsx`, a `'use client'` component.
+
+`CodexApp` owns a single piece of state: `activeTab: TabId`. It renders a fixed/sticky `<nav role="tablist">` with 7 tab buttons and conditionally mounts the matching tab component. Tabs are fully independent — they share no state with each other or with `CodexApp`. Adding a tab requires: (1) adding a `TabId` union member in `src/types/index.ts`, (2) adding an entry to the `TABS` array in `CodexApp.tsx`, and (3) creating the tab component and wiring it in the conditional render block.
+
+### State persistence via `useLocalStorage`
+
+`src/hooks/useLocalStorage.ts` exports `useLocalStorage<T>(key, defaultValue)` → `[value, set, mounted]`.
+
+The hook is SSR-safe: it initialises from `defaultValue` synchronously, then reads `localStorage` in a `useEffect` and resolves to the stored value. The third return value `mounted: boolean` flips to `true` after that effect runs — use it to suppress hydration-sensitive UI (e.g. hide a metric that differs server/client until `mounted`). The `set` function accepts either a value or an updater `(prev: T) => T`, matching the React `setState` signature.
+
+Currently used by: `OverviewTab` (`codex_v27_metrics`), and `ConstraintValidatorTab`.
+
+### Codex data shape (`src/data/codex.ts`)
+
+`CODEX_SECTIONS: CodexSection[]` is the root export — 9 sections (`root`, `council`, `territory`, `artistic`, `neuro`, `automation`, `business`, `personalos`, `convergence`). Each section contains an `entries: CodexEntry[]` array where entries may nest arbitrarily deep via `children?: CodexEntry[]`.
+
+`CodexEntry.content` is a Markdown string. `CodexTab` renders it with `ReactMarkdown` + `remark-gfm`. All helper functions (`flattenEntries`, `getAllEntries`, `findEntryById`, `findSectionByEntryId`, `getSectionEntries`) work recursively on this tree — always use them rather than `.flatMap` directly, since `.flatMap` does not recurse into `children`.
+
+To add a new section: add a `SectionKey` union member in `src/types/index.ts`, build a `CodexSection` object in `codex.ts`, and append it to `CODEX_SECTIONS`. The sidebar and search in `CodexTab` are data-driven and will pick it up automatically.
+
+### Biometrics data contract
+
+`BiometricsTab` fetches `GET /notes/biometric-trends.json` (file must live in `public/notes/`) on mount via an auto-load `useEffect`. It accepts two JSON shapes:
+
+```jsonc
+// Shape A — bare array
+[{ "date": "2025-01-01", "sleepHours": 7.5, "recoveryScore": 74, "focusScore": 68 }, ...]
+
+// Shape B — object wrapper
+{ "source": "whoop-bridge", "days": [ ...same objects... ] }
 ```
-src/
-  agents/
-    routeOmega.ts       # Capture dispatcher: reads input, calls Gemini, routes to lane
-    triage.ts           # Scans notes/ for unclassified captures → TRIAGE_QUEUE.md
-    distiller.ts        # Compresses verbose session logs into restart nuggets
-    taskRanker.ts       # Re-orders tasks using WHOOP/Muse biometric scores
-  hooks/
-    vercelBridge.ts     # Checks Vercel production state; optionally clears SHIPPING_BLOCKER.txt
-    syncHook.ts         # Puppeteer screenshot of live app → Gemini vision diff
-  lib/
-    gemini.ts           # Google Generative AI SDK wrapper
-    biometrics.ts       # Strict real-data-only biometric reader (no mocks allowed)
-    withRetry.ts        # Exponential backoff for Gemini/Vercel rate-limited calls
-    fs.ts               # Protected file system — blocks writes to anchored files
 
-foundry-console/        # Next.js 15 + Supabase dashboard (sprints, milestones, friction logs)
-features/               # Feature specs and design notes
-skills/                 # Skill definitions
-notes/                  # Session logs, decisions, resumption points (source of truth for session state)
-logs/                   # Execution traces, audits, deployment notes
-reports/                # Generated analysis reports
-repo-starters/          # Starter templates
-rollout-bundles/        # Release bundles
-scripts/                # Utility scripts
+The component takes the last 30 valid records, validates each row with `isValidDay` (requires `date: string`, finite `sleepHours`, `recoveryScore`, `focusScore`), and refuses to render numeric values if the file is absent or yields zero valid rows. **There are no mock values, fixtures, or fallbacks anywhere in this component** — an unavailable file produces an explicit "data required" UI state.
 
-index.html              # ⛔ FREEZE SPEC — do not modify without explicit command
-AGENTS.md               # Agent behavioral rules — do not auto-modify
-DELEGATION_RULES_v1.md # Routing logic — source of truth for capture-to-lane
-SHIPPING_BLOCKER.txt    # Current blocker (one sentence max)
-GEMINI.md              # Gemini-specific agent instructions
-```
+Readiness is computed as: `recovery × 0.48 + focus × 0.32 + min(100, sleep × 12) × 0.20`, clamped 0–100. Execution mode thresholds: `recovery` (readiness < 42 or sleep < 6 h), `admin_light` (readiness 42–58), `creative_edit` (focus > recovery + 12), `deep_build` (otherwise). All thresholds and weights are named constants at the top of `BiometricsTab.tsx`.
 
----
+A live bridge is expected to write this file externally (WHOOP API, Apple Health export, Muse, etc.). The dashboard has no opinion about how the file is produced — it only reads it.
 
-## Protected Files
+### Styling system
 
-`src/lib/fs.ts` blocks agent writes to the following files. Do **not** attempt to overwrite them without explicit user instruction:
+The design uses CSS custom properties defined in `src/app/globals.css` as the single source of truth for colour, surface, and radius tokens. These are mirrored into the Tailwind theme in `tailwind.config.ts` under shortened aliases (`bg`, `surface`, `tx`, `teal`, `amber`, `error`, `success`, `line`, `codex`/`codex-sm`/`codex-lg` border-radius). Inline `style` props use `var(--*)` directly for values that would be verbose as utility classes. The app is dark-only — there is no light-mode variant.
 
-- `AGENTS.md`
-- `DELEGATION_RULES_v1.md`
-- `GEMINI.md`
-- `index.html` (FREEZE SPEC)
+### Types (`src/types/index.ts`)
 
----
+This is the single type source for the whole project. Key exports: `TabId` (union of all 7 tab IDs), `BiometricDay / BiometricSummary / BiometricMode`, `CodexEntry / CodexSection / SectionKey`, `ValidationMetric / MetricValue`. When adding a feature that spans multiple files, define its shape here first.
 
-## Key Agents (src/agents/)
+### Deployment
 
-| Agent | Script | What it does |
-|-------|--------|--------------|
-| **routeOmega** | `routeOmega.ts` | Reads a raw capture, calls Gemini to classify it per `DELEGATION_RULES_v1.md`, outputs the routed lane + next action |
-| **triage** | `triage.ts` | Scans `notes/` for unclassified files, summarizes into `TRIAGE_QUEUE.md` |
-| **distiller** | `distiller.ts` | Reads session logs and compresses to a minimal "resume point" knowledge nugget |
-| **taskRanker** | `taskRanker.ts` | Reads biometric state (WHOOP recovery + Muse focus scores) and reorders the active task list accordingly |
+All routes are prerendered as static content (`○` in build output). The layout sets `robots: noindex, nofollow` — this is a private operational dashboard. It deploys correctly to Vercel, Netlify, or any static host without additional configuration. There is no API route, no server action, and no runtime server dependency.
 
-See `AGENTS.md` for behavioral rules, trigger phrases, and output formats for each agent.
-
----
-
-## Biometrics Rules
-
-`src/lib/biometrics.ts` enforces **real-data-only**:
-- Never simulate or mock biometric data
-- `taskRanker.ts` fails gracefully if `BIOMETRICS_STATE_FILE` does not exist or contains stale data
-- Do not add fixture/test values to biometric files
-
----
-
-## Coding Rules
-
-1. **Small diffs only** — extend the current system; never introduce parallel systems.
-2. **Decisions land in files** — if a decision matters, write it to `notes/`, `SHIPPING_BLOCKER.txt`, or a spec file. Never rely on conversation memory.
-3. **Retry via `withRetry`** — all Gemini and Vercel API calls must use `src/lib/withRetry.ts` for exponential backoff.
-4. **Explicit status markers** — use concrete language (`BLOCKED`, `DONE`, `IN PROGRESS`); never assume completion.
-5. **One blocker at a time** — `SHIPPING_BLOCKER.txt` holds exactly one sentence. Update it; do not append.
-6. **No branch archaeology during execution** — treat live deployment and current local files as reality unless doing explicit repo cleanup.
-7. **TypeScript strict** — `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` are enabled. Index access returns `T | undefined`; handle it.
-
----
-
-## Session State
-
-- Active session notes go in `notes/` with a dated filename (e.g., `notes/2025-05-18-session.md`).
-- Use `npm run distill` at session end to compress the log into a minimal resume point.
-- The `distiller` output is the starting context for the next session — keep it terse.
-
----
-
-## When Stuck
-
-1. Stop expanding scope.
-2. Summarize the blocker in 2–4 lines.
-3. Update `SHIPPING_BLOCKER.txt` with one sentence.
-4. Offer exactly 2 options.
-5. Recommend the lower-cognitive-load option first.
-
----
-
-## Related Repos
-
-| Repo | Role |
-|------|------|
-| [`codex-system-architecture`](https://github.com/edwardemoryphotography/codex-system-architecture) | Visual architecture/design layer for the Codex platform |
-| `neurocreative-platform` | EEG + WHOOP biometric backend |
-| `mem-layer` | AI memory/conversation aggregation |
+No Gemini API integration currently exists in the codebase. The natural integration point would be a bridge script (outside this repo) that calls the Gemini API and writes the result to `public/notes/biometric-trends.json` or a similar file consumed by a tab component.
