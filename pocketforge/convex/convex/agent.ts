@@ -54,8 +54,9 @@ function parseFileBlocks(text: string): { files: Map<string, string>; summary: s
   let match: RegExpExecArray | null;
   while ((match = fileRegex.exec(text)) !== null) {
     const path = match[1].trim().replace(/^\/+/, "");
-    // Reject anything that could escape the app directory in the sandbox.
-    if (path.includes("..") || path.length === 0) continue;
+    // Paths get interpolated into sandbox shell commands, so allowlist the
+    // characters and reject anything that could escape the app directory.
+    if (!/^[a-zA-Z0-9_\-./]+$/.test(path) || path.includes("..")) continue;
     files.set(path, match[2].replace(/\n$/, "") + "\n");
   }
   const summaryMatch = /<summary>([\s\S]*?)<\/summary>/.exec(text);
@@ -157,21 +158,33 @@ async function ensureSandbox(
 async function deployFiles(sandbox: Sandbox, files: Map<string, string>): Promise<string> {
   const rootDir = (await sandbox.getUserRootDir()) ?? "/home/daytona";
   const appDir = `${rootDir}/${APP_DIR}`;
-  await sandbox.process.executeCommand(`mkdir -p ${appDir}`);
 
-  for (const [path, content] of files) {
+  // One mkdir for every directory, then upload all files in parallel —
+  // each sandbox call is a network round-trip, so batching matters.
+  const dirs = new Set<string>([appDir]);
+  for (const path of files.keys()) {
     if (path.includes("/")) {
-      const dir = path.slice(0, path.lastIndexOf("/"));
-      await sandbox.process.executeCommand(`mkdir -p ${appDir}/${dir}`);
+      dirs.add(`${appDir}/${path.slice(0, path.lastIndexOf("/"))}`);
     }
-    await sandbox.fs.uploadFile(Buffer.from(content, "utf-8"), `${appDir}/${path}`);
   }
+  await sandbox.process.executeCommand(
+    `mkdir -p ${Array.from(dirs).map((dir) => `"${dir}"`).join(" ")}`,
+  );
+  await Promise.all(
+    Array.from(files.entries()).map(([path, content]) =>
+      sandbox.fs.uploadFile(Buffer.from(content, "utf-8"), `${appDir}/${path}`),
+    ),
+  );
 
   // (Re)start the static file server. Killing first makes the deploy
   // idempotent across rebuilds.
   await sandbox.process.executeCommand(`pkill -f "http.server ${APP_PORT}" || true`);
-  const sessionId = `web-${Date.now()}`;
-  await sandbox.process.createSession(sessionId);
+  const sessionId = "pocketforge-server";
+  try {
+    await sandbox.process.createSession(sessionId);
+  } catch {
+    // Session already exists from a previous deploy — reuse it.
+  }
   await sandbox.process.executeSessionCommand(sessionId, {
     command: `cd ${appDir} && python3 -m http.server ${APP_PORT} --bind 0.0.0.0`,
     runAsync: true,
