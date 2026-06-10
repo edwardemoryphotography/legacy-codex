@@ -57,12 +57,14 @@ This workspace is the **local body** of Legacy Codex v37. It exists to reduce fr
 
 Resolve ambiguity toward these—not toward memory, Notion, or “some other branch.”
 
-| Anchor | What it is |
-| --- | --- |
+
+| Anchor                        | What it is                                                                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | **Vercel (production truth)** | `https://legacy-codex.vercel.app` — treat as current external behavior unless you are explicitly verifying a preview or local build. |
-| **FREEZE SPEC** | Do not rewrite `index.html`, core JS, or core CSS unless the user explicitly commands: `REWRITE THE APP CODE`. |
-| **Shipping blocker** | `SHIPPING_BLOCKER.txt` — exactly **one** concrete sentence for what blocks shipping right now; update it when the blocker changes. |
-| **Delegation** | `DELEGATION_RULES_v1.md` — classify captures and route to a single lane; avoid inventing parallel routing schemes. |
+| **FREEZE SPEC**               | Do not rewrite `index.html`, core JS, or core CSS unless the user explicitly commands: `REWRITE THE APP CODE`.                       |
+| **Shipping blocker**          | `SHIPPING_BLOCKER.txt` — exactly **one** concrete sentence for what blocks shipping right now; update it when the blocker changes.   |
+| **Delegation**                | `DELEGATION_RULES_v1.md` — classify captures and route to a single lane; avoid inventing parallel routing schemes.                   |
+
 
 ---
 

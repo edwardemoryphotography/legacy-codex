@@ -44,8 +44,8 @@ struct WelcomeView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     featureRow(symbol: "wand.and.stars", title: "AI builder",
                                detail: "Claude designs and codes complete web apps from a sentence.")
-                    featureRow(symbol: "cloud.fill", title: "Cloud sandboxes",
-                               detail: "Every app runs live in its own Daytona sandbox.")
+                    featureRow(symbol: "cloud.fill", title: "Instant publishing",
+                               detail: "Every app goes live on the web with its own URL.")
                     featureRow(symbol: "bubble.left.and.bubble.right.fill", title: "Iterate by chat",
                                detail: "Ask for changes and watch them go live in seconds.")
                 }

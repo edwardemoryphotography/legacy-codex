@@ -11,7 +11,8 @@ export default defineSchema({
     status: v.string(),
     // Short human-readable line shown under the status pill while building.
     statusDetail: v.optional(v.string()),
-    sandboxId: v.optional(v.string()),
+    // Name of the Vercel project this app deploys to (pf-<slug>-<suffix>).
+    vercelProject: v.optional(v.string()),
     previewUrl: v.optional(v.string()),
     // SF Symbol name picked client-side for a bit of personality.
     icon: v.optional(v.string()),
@@ -26,7 +27,7 @@ export default defineSchema({
     content: v.string(),
   }).index("by_project", ["projectId"]),
 
-  // Source files of the generated web app, mirrored from the sandbox so
+  // Source files of the generated web app, mirrored from the deployment so
   // the iOS code browser can show them instantly.
   files: defineTable({
     projectId: v.id("projects"),

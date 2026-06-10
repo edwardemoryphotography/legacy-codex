@@ -72,8 +72,8 @@ final class ConvexService: ObservableObject {
         )
     }
 
-    /// Runs the agent: generates code with Claude, deploys it to the
-    /// Daytona sandbox, and updates the project. Long-running — callers
+    /// Runs the agent: generates code with Claude, deploys it to Vercel,
+    /// and updates the project. Long-running — callers
     /// should fire this in a background Task and let the subscriptions
     /// drive the UI.
     func build(projectId: String, prompt: String) async throws {
@@ -83,13 +83,13 @@ final class ConvexService: ObservableObject {
         )
     }
 
-    /// Makes sure a live project's sandbox is awake and its preview URL is
-    /// fresh. Safe to call every time a workspace opens.
+    /// Confirms a live project's URL. Vercel deployments never sleep, so
+    /// this is a fast no-op check. Safe to call every time a workspace opens.
     func wake(projectId: String) async {
         try? await client.action("agent:wake", with: ["projectId": projectId])
     }
 
-    /// Deletes the sandbox and all project data.
+    /// Deletes the Vercel deployment and all project data.
     func destroy(projectId: String) async throws {
         try await client.action("agent:destroy", with: ["projectId": projectId])
     }

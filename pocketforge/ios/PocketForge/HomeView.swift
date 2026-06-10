@@ -63,7 +63,7 @@ struct HomeView: View {
             Text("Nothing forged yet")
                 .font(.system(.title2, design: .rounded).weight(.bold))
                 .foregroundStyle(Theme.textPrimary)
-            Text("Describe an app and watch it come to life in a live cloud sandbox.")
+            Text("Describe an app and watch it come to life at its own live URL.")
                 .font(.system(.subheadline, design: .rounded))
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)

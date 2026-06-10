@@ -99,7 +99,7 @@ struct WorkspaceView: View {
             }
         }
         .confirmationDialog(
-            "Delete this app and its sandbox?",
+            "Delete this app and its deployment?",
             isPresented: $showDeleteConfirm,
             titleVisibility: .visible
         ) {
@@ -212,7 +212,7 @@ private struct PreviewTab: View {
                 placeholder(
                     symbol: "hammer.fill",
                     title: "Forging your app",
-                    detail: "Claude is writing the code and the sandbox is warming up. The preview appears here the moment it's live."
+                    detail: "Claude is writing the code and publishing it to the web. The preview appears here the moment it's live."
                 )
             } else if project?.isError == true {
                 placeholder(

@@ -7,7 +7,7 @@ struct Project: Decodable, Identifiable, Equatable, Hashable {
     let prompt: String
     let status: String
     let statusDetail: String?
-    let sandboxId: String?
+    let vercelProject: String?
     let previewUrl: String?
     let icon: String?
     let updatedAt: Double
@@ -15,7 +15,7 @@ struct Project: Decodable, Identifiable, Equatable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case creationTime = "_creationTime"
-        case name, prompt, status, statusDetail, sandboxId, previewUrl, icon, updatedAt
+        case name, prompt, status, statusDetail, vercelProject, previewUrl, icon, updatedAt
     }
 
     var isBuilding: Bool { status == "building" }
