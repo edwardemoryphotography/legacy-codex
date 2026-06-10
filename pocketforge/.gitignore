@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env.local
+convex/.env.local
+
+# Convex CLI local state
+.convex/
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+.DS_Store
