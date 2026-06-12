@@ -45,7 +45,7 @@ export const patch = internalMutation({
     projectId: v.id("projects"),
     status: v.optional(v.string()),
     statusDetail: v.optional(v.string()),
-    sandboxId: v.optional(v.string()),
+    hostProjectName: v.optional(v.string()),
     previewUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {

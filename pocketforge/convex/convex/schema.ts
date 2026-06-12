@@ -11,7 +11,8 @@ export default defineSchema({
     status: v.string(),
     // Short human-readable line shown under the status pill while building.
     statusDetail: v.optional(v.string()),
-    sandboxId: v.optional(v.string()),
+    // Name of the Vercel project that hosts this app's deployments.
+    hostProjectName: v.optional(v.string()),
     previewUrl: v.optional(v.string()),
     // SF Symbol name picked client-side for a bit of personality.
     icon: v.optional(v.string()),

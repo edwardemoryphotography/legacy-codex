@@ -6,10 +6,6 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import type { ActionCtx } from "./_generated/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { Daytona, Sandbox } from "@daytonaio/sdk";
-
-const APP_PORT = 3000;
-const APP_DIR = "pocketforge-app";
 
 const SYSTEM_PROMPT = `You are PocketForge, an expert web-app builder living inside a mobile app.
 The user describes an app; you produce a complete, polished, working web app.
@@ -42,20 +38,14 @@ function getAnthropic(): Anthropic {
   return new Anthropic({ apiKey });
 }
 
-function getDaytona(): Daytona {
-  const apiKey = process.env.DAYTONA_API_KEY;
-  if (!apiKey) throw new Error("DAYTONA_API_KEY is not set. Run: npx convex env set DAYTONA_API_KEY <key>");
-  return new Daytona({ apiKey });
-}
-
 function parseFileBlocks(text: string): { files: Map<string, string>; summary: string } {
   const files = new Map<string, string>();
   const fileRegex = /<file path="([^"]+)">\n?([\s\S]*?)<\/file>/g;
   let match: RegExpExecArray | null;
   while ((match = fileRegex.exec(text)) !== null) {
     const path = match[1].trim().replace(/^\/+/, "");
-    // Paths get interpolated into sandbox shell commands, so allowlist the
-    // characters and reject anything that could escape the app directory.
+    // Defense in depth: allowlist characters and reject directory escapes
+    // before the path is used anywhere outside this function.
     if (!/^[a-zA-Z0-9_\-./]+$/.test(path) || path.includes("..")) continue;
     files.set(path, match[2].replace(/\n$/, "") + "\n");
   }
@@ -127,73 +117,92 @@ async function generateFiles(
   return parsed;
 }
 
-async function ensureSandbox(
-  ctx: ActionCtx,
-  projectId: Id<"projects">,
-  existingSandboxId: string | undefined,
-): Promise<Sandbox> {
-  const daytona = getDaytona();
+// --- Hosting: Vercel static deployments, one Vercel project per app ---
 
-  if (existingSandboxId) {
-    try {
-      const sandbox = await daytona.get(existingSandboxId);
-      if (sandbox.state !== "started") {
-        await sandbox.start();
-      }
-      return sandbox;
-    } catch {
-      // Sandbox was deleted or expired — fall through and create a fresh one.
-    }
-  }
+const VERCEL_API = "https://api.vercel.com";
 
-  const sandbox = await daytona.create({
-    public: true,
-    autoStopInterval: 0,
-    labels: { app: "pocketforge", projectId: projectId as string },
-  });
-  await ctx.runMutation(internal.projects.patch, { projectId, sandboxId: sandbox.id });
-  return sandbox;
+function getVercelToken(): string {
+  const token = process.env.VERCEL_TOKEN;
+  if (!token) throw new Error("VERCEL_TOKEN is not set. Run: npx convex env set VERCEL_TOKEN <token>");
+  return token;
 }
 
-async function deployFiles(sandbox: Sandbox, files: Map<string, string>): Promise<string> {
-  const rootDir = (await sandbox.getUserRootDir()) ?? "/home/daytona";
-  const appDir = `${rootDir}/${APP_DIR}`;
+function teamQuery(): string {
+  const teamId = process.env.VERCEL_TEAM_ID;
+  return teamId ? `?teamId=${encodeURIComponent(teamId)}` : "";
+}
 
-  // One mkdir for every directory, then upload all files in parallel —
-  // each sandbox call is a network round-trip, so batching matters.
-  const dirs = new Set<string>([appDir]);
-  for (const path of files.keys()) {
-    if (path.includes("/")) {
-      dirs.add(`${appDir}/${path.slice(0, path.lastIndexOf("/"))}`);
-    }
-  }
-  await sandbox.process.executeCommand(
-    `mkdir -p ${Array.from(dirs).map((dir) => `"${dir}"`).join(" ")}`,
-  );
-  await Promise.all(
-    Array.from(files.entries()).map(([path, content]) =>
-      sandbox.fs.uploadFile(Buffer.from(content, "utf-8"), `${appDir}/${path}`),
-    ),
-  );
-
-  // (Re)start the static file server. Killing first makes the deploy
-  // idempotent across rebuilds.
-  await sandbox.process.executeCommand(`pkill -f "http.server ${APP_PORT}" || true`);
-  const sessionId = "pocketforge-server";
-  try {
-    await sandbox.process.createSession(sessionId);
-  } catch {
-    // Session already exists from a previous deploy — reuse it.
-  }
-  await sandbox.process.executeSessionCommand(sessionId, {
-    command: `cd ${appDir} && python3 -m http.server ${APP_PORT} --bind 0.0.0.0`,
-    runAsync: true,
+async function vercelFetch(path: string, init?: RequestInit): Promise<Response> {
+  return await fetch(`${VERCEL_API}${path}${teamQuery()}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${getVercelToken()}`,
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
   });
-  // Give the server a moment to bind before handing out the URL.
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+}
 
-  const preview = await sandbox.getPreviewLink(APP_PORT);
-  return preview.url;
+function newHostProjectName(appName: string): string {
+  const base =
+    appName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "app";
+  const suffix = Math.random().toString(36).slice(2, 8);
+  return `pocketforge-${base}-${suffix}`;
+}
+
+async function ensureHostProject(
+  ctx: ActionCtx,
+  projectId: Id<"projects">,
+  appName: string,
+  existing: string | undefined,
+): Promise<string> {
+  if (existing) return existing;
+  const hostProjectName = newHostProjectName(appName);
+  await ctx.runMutation(internal.projects.patch, { projectId, hostProjectName });
+  return hostProjectName;
+}
+
+// Creates a production deployment with the files inlined. Vercel
+// auto-creates the project on first deploy; framework null = plain static
+// hosting, immune to framework misdetection.
+async function deployFiles(hostProjectName: string, files: Map<string, string>): Promise<string> {
+  const response = await vercelFetch("/v13/deployments", {
+    method: "POST",
+    body: JSON.stringify({
+      name: hostProjectName,
+      target: "production",
+      projectSettings: { framework: null },
+      files: Array.from(files.entries()).map(([file, data]) => ({
+        file,
+        data,
+        encoding: "utf-8",
+      })),
+    }),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Vercel deploy failed (${response.status}): ${detail.slice(0, 300)}`);
+  }
+  const deployment = (await response.json()) as { id: string; url: string };
+
+  // Static deploys are ready in seconds; poll so we never hand the app a
+  // URL that isn't serving yet.
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const poll = await vercelFetch(`/v13/deployments/${deployment.id}`);
+    if (poll.ok) {
+      const { readyState } = (await poll.json()) as { readyState?: string };
+      if (readyState === "READY") return `https://${deployment.url}`;
+      if (readyState === "ERROR" || readyState === "CANCELED") {
+        throw new Error(`Vercel deployment ended in state ${readyState}`);
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  throw new Error("Timed out waiting for the Vercel deployment to become ready");
 }
 
 // Main entry point: builds the app initially and handles every follow-up
@@ -227,17 +236,22 @@ export const build = action({
         });
       }
 
-      await setStatus(ctx, args.projectId, "building", "Spinning up your sandbox…");
-      const sandbox = await ensureSandbox(ctx, args.projectId, project.sandboxId);
-
-      await setStatus(ctx, args.projectId, "building", "Deploying to the sandbox…");
-      // Deploy the full current file set, not just the changed files, so a
-      // recreated sandbox always has everything.
+      await setStatus(ctx, args.projectId, "building", "Publishing to the web…");
+      const hostProjectName = await ensureHostProject(
+        ctx,
+        args.projectId,
+        project.name,
+        project.hostProjectName,
+      );
+      // Deploy the full current file set, not just the changed files, so
+      // every deployment is complete and self-contained.
       const allFiles = await ctx.runQuery(internal.files.listInternal, {
         projectId: args.projectId,
       });
-      const deploySet = new Map(allFiles.map((f) => [f.path, f.content]));
-      const previewUrl = await deployFiles(sandbox, deploySet);
+      const previewUrl = await deployFiles(
+        hostProjectName,
+        new Map(allFiles.map((f) => [f.path, f.content])),
+      );
 
       await ctx.runMutation(internal.projects.patch, {
         projectId: args.projectId,
@@ -268,45 +282,21 @@ export const build = action({
   },
 });
 
-// Called when the user opens a project: makes sure the sandbox is awake and
-// the preview URL is current (sandboxes can stop or be reclaimed).
+// Called when the user opens a project. Vercel deployments never sleep, so
+// this just hands back the current URL — kept as an action so the iOS app's
+// open-project flow stays the same.
 export const wake = action({
   args: { projectId: v.id("projects") },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ previewUrl: string } | null> => {
     const project = await ctx.runQuery(internal.projects.getInternal, {
       projectId: args.projectId,
     });
-    if (!project || !project.sandboxId || project.status !== "live") return null;
-
-    try {
-      const sandbox = await ensureSandbox(ctx, args.projectId, project.sandboxId);
-      const allFiles = await ctx.runQuery(internal.files.listInternal, {
-        projectId: args.projectId,
-      });
-      const previewUrl = await deployFiles(
-        sandbox,
-        new Map(allFiles.map((f) => [f.path, f.content])),
-      );
-      await ctx.runMutation(internal.projects.patch, {
-        projectId: args.projectId,
-        previewUrl,
-        status: "live",
-        statusDetail: "Live",
-      });
-      return { previewUrl };
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : "Unknown error";
-      await ctx.runMutation(internal.projects.patch, {
-        projectId: args.projectId,
-        status: "error",
-        statusDetail: `Could not wake sandbox: ${detail}`,
-      });
-      return null;
-    }
+    if (!project || !project.previewUrl) return null;
+    return { previewUrl: project.previewUrl };
   },
 });
 
-// Deletes the sandbox (best effort) and then all project data.
+// Deletes the Vercel project (best effort) and then all project data.
 export const destroy = action({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
@@ -315,13 +305,13 @@ export const destroy = action({
     });
     if (!project) return;
 
-    if (project.sandboxId) {
+    if (project.hostProjectName) {
       try {
-        const daytona = getDaytona();
-        const sandbox = await daytona.get(project.sandboxId);
-        await sandbox.delete();
+        await vercelFetch(`/v9/projects/${encodeURIComponent(project.hostProjectName)}`, {
+          method: "DELETE",
+        });
       } catch {
-        // Sandbox already gone — nothing to clean up.
+        // Project already gone — nothing to clean up.
       }
     }
     await ctx.runMutation(internal.projects.removeInternal, { projectId: args.projectId });
