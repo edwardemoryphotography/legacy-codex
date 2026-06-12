@@ -1,9 +1,6 @@
 import Foundation
 
 enum AppConfig {
-    /// Your Convex deployment URL. After running `npx convex dev` (or
-    /// `npx convex deploy`) in pocketforge/convex, paste the deployment URL
-    /// printed by the CLI here. It looks like:
-    /// https://happy-animal-123.convex.cloud
-    static let convexDeploymentURL = "https://YOUR-DEPLOYMENT.convex.cloud"
+    /// Convex deployment URL (printed by `npx convex dev` / `npx convex deploy`).
+    static let convexDeploymentURL = "https://scintillating-loris-226.convex.cloud"
 }
