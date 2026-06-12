@@ -58,8 +58,8 @@ export const patch = internalMutation({
   },
 });
 
-// Removes the project row and all of its messages/files. The Daytona
-// sandbox itself is torn down by the `agent:destroy` action, which calls
+// Removes the project row and all of its messages/files. The Vercel
+// project itself is torn down by the `agent:destroy` action, which calls
 // this afterwards.
 export const removeInternal = internalMutation({
   args: { projectId: v.id("projects") },
