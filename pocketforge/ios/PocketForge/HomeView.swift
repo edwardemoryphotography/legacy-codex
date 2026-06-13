@@ -44,6 +44,7 @@ struct HomeView: View {
             }
             .navigationDestination(for: String.self) { projectId in
                 WorkspaceView(projectId: projectId)
+                    .id(projectId)
             }
             .sheet(isPresented: $showComposer) {
                 ComposerView { projectId in

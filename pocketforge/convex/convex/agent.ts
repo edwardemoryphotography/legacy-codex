@@ -54,8 +54,8 @@ function parseFileBlocks(text: string): { files: Map<string, string>; summary: s
   let match: RegExpExecArray | null;
   while ((match = fileRegex.exec(text)) !== null) {
     const path = match[1].trim().replace(/^\/+/, "");
-    // Reject anything that could escape the app directory in the sandbox.
-    if (path.includes("..") || path.length === 0) continue;
+    // Reject anything that could escape the app directory in the sandbox or contain shell metacharacters.
+    if (path.includes("..") || path.length === 0 || !/^[a-zA-Z0-9_\-./]+$/.test(path)) continue;
     files.set(path, match[2].replace(/\n$/, "") + "\n");
   }
   const summaryMatch = /<summary>([\s\S]*?)<\/summary>/.exec(text);
