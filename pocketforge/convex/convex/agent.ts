@@ -2,7 +2,7 @@
 
 import { v } from "convex/values";
 import { action } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import type { ActionCtx } from "./_generated/server";
 import Anthropic from "@anthropic-ai/sdk";
@@ -113,6 +113,35 @@ const PROVIDERS: Provider[] = [
   { name: `GPT (${OPENAI_MODEL})`, envKey: "OPENAI_API_KEY", run: openaiText },
   { name: `Gemini (${GEMINI_MODEL})`, envKey: "GEMINI_API_KEY", run: geminiText },
 ];
+
+// SF Symbols the idea generator is allowed to pick from, so every suggested
+// icon renders on the client.
+const ALLOWED_ICONS = [
+  "sparkles", "bolt.fill", "leaf.fill", "flame.fill", "star.fill", "heart.fill",
+  "moon.stars.fill", "gamecontroller.fill", "cart.fill", "book.fill", "music.note",
+  "paperplane.fill", "dumbbell.fill", "fork.knife", "camera.fill", "map.fill",
+  "dollarsign.circle.fill", "calendar", "checklist", "chart.bar.fill",
+  "brain.head.profile", "airplane", "pawprint.fill", "drop.fill", "timer", "globe",
+];
+
+// Run the provider fallback chain once and return the first successful text.
+// Lighter sibling of generateFiles (no per-stage status writes) for one-shot
+// text generation like idea suggestions.
+async function runChain(system: string, turns: Turn[], maxTokens: number): Promise<string> {
+  const available = PROVIDERS.filter((p) => !!process.env[p.envKey]);
+  if (available.length === 0) {
+    throw new Error("No model provider configured (set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY).");
+  }
+  const failures: string[] = [];
+  for (const provider of available) {
+    try {
+      return await provider.run(system, turns, maxTokens);
+    } catch (err) {
+      failures.push(`${provider.name}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  throw new Error(`All providers failed — ${failures.join(" · ")}`);
+}
 
 function getDaytona(): Daytona {
   const apiKey = process.env.DAYTONA_API_KEY;
@@ -395,5 +424,74 @@ export const destroy = action({
       }
     }
     await ctx.runMutation(internal.projects.removeInternal, { projectId: args.projectId });
+  },
+});
+
+type AppIdea = { title: string; prompt: string; icon: string };
+
+function parseIdeas(text: string): AppIdea[] {
+  let t = text.trim();
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fence) t = fence[1].trim();
+  const start = t.indexOf("[");
+  const end = t.lastIndexOf("]");
+  if (start !== -1 && end !== -1) t = t.slice(start, end + 1);
+  let arr: unknown;
+  try {
+    arr = JSON.parse(t);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+    .filter((x) => typeof x.title === "string" && typeof x.prompt === "string")
+    .map((x) => ({
+      title: String(x.title).slice(0, 40),
+      prompt: String(x.prompt),
+      icon: ALLOWED_ICONS.includes(String(x.icon)) ? String(x.icon) : "sparkles",
+    }))
+    .slice(0, 6);
+}
+
+// "Roll the dice": generate fresh, personalized app ideas based on what the
+// user has already built (their evident topics of interest).
+export const suggestIdeas = action({
+  args: {},
+  handler: async (ctx): Promise<AppIdea[]> => {
+    const projects = await ctx.runQuery(api.projects.list, {});
+    const built = projects
+      .filter((p) => p.name && p.prompt)
+      .slice(0, 12)
+      .map((p) => `- ${p.name}: ${p.prompt}`)
+      .join("\n");
+
+    const system =
+      "You generate creative app ideas for PocketForge, a tool that builds " +
+      "polished, self-contained mobile-first static web apps (HTML/CSS/JS, " +
+      "localStorage, CDN libs — no backend). Ideas must be buildable as such. " +
+      "Respond with ONLY a JSON array, no prose, no code fences.";
+
+    const ask =
+      built.length > 0
+        ? `The user has already built these apps:\n${built}\n\n` +
+          `Infer their interests and the kinds of things they're working on, then suggest 6 FRESH, ` +
+          `diverse app ideas they'd be excited to build next. Vary the domains — don't just repeat themes. ` +
+          `Mix a couple of close-to-their-interests ideas with a couple of pleasantly unexpected ones.`
+        : `The user hasn't built anything yet. Suggest 6 diverse, delightful starter app ideas that ` +
+          `show off what PocketForge can do.`;
+
+    const format =
+      `\n\nReturn a JSON array of exactly 6 objects: ` +
+      `{"title": short name ≤4 words, "prompt": a vivid 1-2 sentence build description, ` +
+      `"icon": one SF Symbol name chosen from this list: ${ALLOWED_ICONS.join(", ")}}. ` +
+      `Output ONLY the JSON array.`;
+
+    const text = await runChain(system, [{ role: "user", content: ask + format }], 2000);
+    const ideas = parseIdeas(text);
+    if (ideas.length === 0) {
+      throw new Error("Couldn't generate ideas just now — give the dice another roll.");
+    }
+    return ideas;
   },
 });
