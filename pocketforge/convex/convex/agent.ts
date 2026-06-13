@@ -457,8 +457,8 @@ function parseIdeas(text: string): AppIdea[] {
 // "Roll the dice": generate fresh, personalized app ideas based on what the
 // user has already built (their evident topics of interest).
 export const suggestIdeas = action({
-  args: {},
-  handler: async (ctx): Promise<AppIdea[]> => {
+  args: { profile: v.optional(v.string()) },
+  handler: async (ctx, args): Promise<AppIdea[]> => {
     const projects = await ctx.runQuery(api.projects.list, {});
     const built = projects
       .filter((p) => p.name && p.prompt)
@@ -466,20 +466,24 @@ export const suggestIdeas = action({
       .map((p) => `- ${p.name}: ${p.prompt}`)
       .join("\n");
 
+    const profile = (args.profile ?? "").trim();
+    const who = profile.length > 0 ? `About the user, in their own words: ${profile}\n\n` : "";
+
     const system =
       "You generate creative app ideas for PocketForge, a tool that builds " +
       "polished, self-contained mobile-first static web apps (HTML/CSS/JS, " +
       "localStorage, CDN libs — no backend). Ideas must be buildable as such. " +
       "Respond with ONLY a JSON array, no prose, no code fences.";
 
-    const ask =
+    const ask = who + (
       built.length > 0
         ? `The user has already built these apps:\n${built}\n\n` +
-          `Infer their interests and the kinds of things they're working on, then suggest 6 FRESH, ` +
-          `diverse app ideas they'd be excited to build next. Vary the domains — don't just repeat themes. ` +
+          `Using both the profile above (if any) and these projects, infer their interests and the ` +
+          `kinds of things they're working on, then suggest 6 FRESH, diverse app ideas they'd be ` +
+          `excited to build next. Vary the domains — don't just repeat themes. ` +
           `Mix a couple of close-to-their-interests ideas with a couple of pleasantly unexpected ones.`
-        : `The user hasn't built anything yet. Suggest 6 diverse, delightful starter app ideas that ` +
-          `show off what PocketForge can do.`;
+        : `The user hasn't built anything yet. Using the profile above (if any), suggest 6 diverse, ` +
+          `delightful starter app ideas tailored to them that show off what PocketForge can do.`);
 
     const format =
       `\n\nReturn a JSON array of exactly 6 objects: ` +

@@ -95,8 +95,8 @@ final class ConvexService: ObservableObject {
     }
 
     /// "Roll the dice": asks the agent for fresh app ideas personalized to
-    /// what the user has already built.
-    func suggestIdeas() async throws -> [AppIdea] {
-        try await client.action("agent:suggestIdeas")
+    /// what the user has already built and an optional self-description.
+    func suggestIdeas(profile: String) async throws -> [AppIdea] {
+        try await client.action("agent:suggestIdeas", with: ["profile": profile])
     }
 }

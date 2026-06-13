@@ -16,6 +16,7 @@ struct ComposerView: View {
     @State private var ideas: [AppIdea] = ComposerView.starterIdeas
     @State private var isRolling = false
     @State private var rollCount = 0
+    @AppStorage(ProfileStore.key) private var profile = ""
 
     private static let starterIdeas: [AppIdea] = [
         AppIdea(title: "Todo app", prompt: "A beautiful todo app with categories, due dates, swipe to complete, and a progress ring showing how much of today is done.", icon: "checklist"),
@@ -173,7 +174,7 @@ struct ComposerView: View {
         errorMessage = nil
         Task {
             do {
-                let fresh = try await ConvexService.shared.suggestIdeas()
+                let fresh = try await ConvexService.shared.suggestIdeas(profile: profile)
                 await MainActor.run {
                     withAnimation(.snappy) { ideas = fresh }
                     isRolling = false
