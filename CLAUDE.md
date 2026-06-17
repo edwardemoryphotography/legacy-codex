@@ -21,7 +21,7 @@ No test runner is installed. Type-checking happens only during `npm run build`. 
 
 `src/app/page.tsx` is a server component that simply renders `<CodexApp />`. All real logic lives in `src/components/CodexApp.tsx`, a `'use client'` component.
 
-`CodexApp` owns a single piece of state: `activeTab: TabId`. It renders a fixed/sticky `<nav role="tablist">` with 7 tab buttons and conditionally mounts the matching tab component. Tabs are fully independent — they share no state with each other or with `CodexApp`. Adding a tab requires: (1) adding a `TabId` union member in `src/types/index.ts`, (2) adding an entry to the `TABS` array in `CodexApp.tsx`, and (3) creating the tab component and wiring it in the conditional render block.
+`CodexApp` owns a single piece of state: `activeTab: TabId`. It renders a fixed/sticky `<nav role="tablist">` with 8 tab buttons (added Controls for neuro UX) and conditionally mounts the matching tab component. Tabs are fully independent — they share no state with each other or with `CodexApp`. Adding a tab requires: (1) adding a `TabId` (now includes controls) in `src/types/index.ts`, (2) adding an entry to the `TABS` array in `CodexApp.tsx`, and (3) creating the tab component and wiring it in the conditional render block.
 
 ### State persistence via `useLocalStorage`
 
