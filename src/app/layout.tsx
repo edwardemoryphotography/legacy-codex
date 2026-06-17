@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Legacy Codex v27',
-  description: 'Legacy Codex operational dashboard. Reality Filter Active.',
+  title: 'Legacy Codex v38',
+  description: 'Legacy Codex v38 — a beautiful interactive command center for Edward Emory Photography and adjacent systems.',
   robots: 'noindex, nofollow',
 }
 

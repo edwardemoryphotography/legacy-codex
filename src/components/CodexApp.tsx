@@ -9,6 +9,7 @@ import ResumptionLogTab from './tabs/ResumptionLogTab'
 import BiometricsTab from './tabs/BiometricsTab'
 import ConstraintValidatorTab from './tabs/ConstraintValidatorTab'
 import CodexTab from './tabs/CodexTab'
+import ControlsTab from './tabs/ControlsTab'
 
 interface Tab {
   id: TabId
@@ -23,6 +24,7 @@ const TABS: Tab[] = [
   { id: 'biometrics',            label: 'Biometrics' },
   { id: 'constraint-validator',  label: 'Constraint Validator' },
   { id: 'codex',                 label: 'Codex' },
+  { id: 'controls',             label: 'Controls' },
 ]
 
 export default function CodexApp() {
@@ -125,6 +127,7 @@ export default function CodexApp() {
           {activeTab === 'biometrics'           && <BiometricsTab />}
           {activeTab === 'constraint-validator' && <ConstraintValidatorTab />}
           {activeTab === 'codex'                && <CodexTab />}
+          {activeTab === 'controls'             && <ControlsTab />}
         </div>
       </main>
 
