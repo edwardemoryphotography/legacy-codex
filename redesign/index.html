@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" class="no-js">
+<head>
+<script>
+  /* Progressive enhancement: mark JS active, and apply saved theme before paint (no flash). */
+  document.documentElement.classList.replace('no-js', 'js');
+  try {
+    var t = localStorage.getItem('theme');
+    if (t) document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Legacy Codex v37 — Capture → Clarity → Motion</title>
+<meta name="description" content="Personal operating system that converts captures into clear, executable next steps." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* ============================================================
+     DESIGN TOKENS  —  Style: Dark Mode (OLED), WCAG AAA
+     Typography: Developer Mono (JetBrains Mono + IBM Plex Sans)
+     ============================================================ */
+  :root {
+    --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
+    /* radii / elevation / motion */
+    --radius-sm: 8px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+    --radius-xl: 28px;
+    --dur-fast: 150ms;
+    --dur-mid: 240ms;
+    --ease: cubic-bezier(.22,.61,.36,1);
+
+    /* lane accents (shared across themes) */
+    --lane-a: #2dd4bf;  /* Codex     — teal   */
+    --lane-b: #f59e0b;  /* Prints    — amber  */
+    --lane-c: #a78bfa;  /* Artful AI — violet */
+    --lane-d: #38bdf8;  /* Muse/EEG  — sky    */
+    --lane-e: #94a3b8;  /* Holding   — slate  */
+  }
+
+  /* DARK (default) */
+  html[data-theme="dark"] {
+    --bg: #070a12;
+    --bg-grad-1: #0c1626;
+    --bg-grad-2: #0a0f1c;
+    --surface: #0f1622;
+    --surface-2: #141d2c;
+    --surface-3: #1a2434;
+    --border: #243043;
+    --border-soft: #1a2433;
+    --text: #e9eef6;
+    --text-muted: #9aa8bd;
+    --text-faint: #64728a;
+    --accent: #2dd4bf;
+    --accent-strong: #14b8a6;
+    --action: #f59e0b;
+    --action-strong: #f97316;
+    --glow: 0 0 0 1px rgba(45,212,191,.18), 0 0 32px -8px rgba(45,212,191,.35);
+    --shadow: 0 24px 60px -24px rgba(0,0,0,.7);
+    color-scheme: dark;
+  }
+  /* LIGHT */
+  html[data-theme="light"] {
+    --bg: #f4f6fb;
+    --bg-grad-1: #e8edf7;
+    --bg-grad-2: #eef1f8;
+    --surface: #ffffff;
+    --surface-2: #f7f9fd;
+    --surface-3: #eef2f8;
+    --border: #d8e0ec;
+    --border-soft: #e6ebf3;
+    --text: #0f172a;
+    --text-muted: #475569;
+    --text-faint: #7c8aa0;
+    --accent: #0d9488;
+    --accent-strong: #0f766e;
+    --action: #d97706;
+    --action-strong: #ea580c;
+    --glow: 0 0 0 1px rgba(13,148,136,.16), 0 8px 30px -12px rgba(13,148,136,.28);
+    --shadow: 0 18px 50px -28px rgba(15,23,42,.35);
+    color-scheme: light;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+  /* ambient mesh background */
+  body::before {
+    content: "";
+    position: fixed; inset: 0; z-index: -1;
+    background:
+      radial-gradient(60rem 60rem at 12% -10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 55%),
+      radial-gradient(50rem 50rem at 100% 0%, color-mix(in srgb, var(--lane-c) 10%, transparent), transparent 55%),
+      radial-gradient(70rem 50rem at 50% 120%, color-mix(in srgb, var(--action) 8%, transparent), transparent 55%),
+      linear-gradient(180deg, var(--bg-grad-1), var(--bg-grad-2));
+  }
+
+  a { color: inherit; text-decoration: none; }
+  .mono { font-family: var(--font-mono); }
+  .wrap { width: min(1180px, 100% - 3rem); margin-inline: auto; }
+
+  /* ---------- focus visibility (a11y) ---------- */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+
+  /* ===================== NАВ ===================== */
+  header.nav {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(14px) saturate(140%);
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .nav-inner { display: flex; align-items: center; gap: 1rem; padding: .85rem 0; }
+  .brand { display: flex; align-items: center; gap: .7rem; font-weight: 600; letter-spacing: -.01em; }
+  .brand .mark {
+    width: 34px; height: 34px; border-radius: 10px;
+    display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+    color: #04201d; box-shadow: var(--glow);
+  }
+  .brand small { display:block; font-size:.66rem; color: var(--text-faint); font-weight:500; letter-spacing:.06em; text-transform:uppercase; }
+  .badge {
+    font-family: var(--font-mono); font-size: .68rem; font-weight: 600;
+    padding: .2rem .5rem; border-radius: 999px;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  }
+  .nav-spacer { flex: 1; }
+  .nav-links { display: flex; align-items: center; gap: .35rem; }
+  .nav-links a {
+    font-size: .85rem; color: var(--text-muted); padding: .45rem .7rem; border-radius: 8px;
+    transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+  }
+  .nav-links a:hover { color: var(--text); background: var(--surface-2); }
+  .icon-btn {
+    cursor: pointer; display: grid; place-items: center;
+    width: 38px; height: 38px; border-radius: 10px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    color: var(--text-muted);
+    transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--accent); }
+  @media (max-width: 760px){ .nav-links a:not(.cta){ display:none; } }
+
+  /* ===================== HERO ===================== */
+  .hero { padding: clamp(3rem, 8vw, 6rem) 0 2.5rem; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: .5rem;
+    font-family: var(--font-mono); font-size: .74rem; letter-spacing: .04em;
+    color: var(--accent); margin-bottom: 1.1rem;
+    padding: .35rem .7rem; border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+  .hero h1 {
+    font-size: clamp(2.2rem, 6vw, 4rem); line-height: 1.04;
+    letter-spacing: -.03em; font-weight: 700; margin: 0 0 1rem;
+    max-width: 18ch;
+  }
+  .hero h1 .grad {
+    background: linear-gradient(120deg, var(--accent), var(--lane-c) 60%, var(--action));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero p.lede { font-size: clamp(1rem, 2.2vw, 1.2rem); color: var(--text-muted); max-width: 60ch; margin: 0 0 2rem; }
+
+  /* ---------- Capture console ---------- */
+  .console {
+    background: linear-gradient(180deg, var(--surface), var(--surface-2));
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .console-head {
+    display:flex; align-items:center; gap:.6rem;
+    padding: .8rem 1.1rem; border-bottom: 1px solid var(--border-soft);
+    background: var(--surface);
+  }
+  .dot { width:11px; height:11px; border-radius:50%; }
+  .console-title { margin-left:.4rem; font-family:var(--font-mono); font-size:.78rem; color:var(--text-faint); }
+  .console-body { padding: clamp(1.1rem, 3vw, 1.8rem); }
+  .capture-label { font-family:var(--font-mono); font-size:.72rem; color:var(--text-faint); letter-spacing:.05em; text-transform:uppercase; }
+  .capture-row { display:flex; gap:.75rem; margin-top:.6rem; flex-wrap:wrap; }
+  textarea#capture {
+    flex:1; min-width: 240px; min-height: 86px; resize: vertical;
+    font-family: var(--font-mono); font-size: .98rem; line-height:1.6;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: .85rem 1rem;
+    transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+  }
+  textarea#capture::placeholder { color: var(--text-faint); }
+  textarea#capture:focus { outline:none; border-color: var(--accent); box-shadow: var(--glow); }
+
+  .btn {
+    cursor: pointer; font-family: var(--font-sans); font-weight: 600; font-size: .92rem;
+    display: inline-flex; align-items:center; gap:.5rem; justify-content:center;
+    padding: .8rem 1.25rem; border-radius: var(--radius-md); border: 1px solid transparent;
+    transition: transform var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+    white-space: nowrap;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-strong)); color:#04201d; box-shadow: var(--glow); }
+  .btn-primary:hover { filter: brightness(1.06); }
+  .btn-ghost { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .chips { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.85rem; }
+  .chip {
+    cursor:pointer; font-family:var(--font-mono); font-size:.72rem; color:var(--text-muted);
+    padding:.32rem .6rem; border-radius:999px; border:1px solid var(--border-soft); background:var(--surface);
+    transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+  }
+  .chip:hover { color: var(--text); border-color: var(--accent); }
+
+  /* ---------- Router result ---------- */
+  .result {
+    margin-top: 1.2rem; border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    overflow: hidden;
+    max-height: 0; opacity: 0;
+    transition: max-height var(--dur-mid) var(--ease), opacity var(--dur-mid) var(--ease);
+  }
+  .result.show { max-height: 640px; opacity: 1; }
+  .result-bar { height: 4px; width: 100%; background: var(--accent); transition: background var(--dur-mid) var(--ease); }
+  .result-inner { padding: 1.2rem 1.3rem; }
+  .result-route { display:flex; align-items:center; gap:.7rem; flex-wrap:wrap; }
+  .route-pill {
+    font-family:var(--font-mono); font-weight:600; font-size:.82rem;
+    padding:.3rem .7rem; border-radius:999px;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border:1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+    transition: all var(--dur-mid) var(--ease);
+  }
+  .result-grid { display:grid; grid-template-columns: 1fr; gap:.9rem; margin-top:1rem; }
+  @media (min-width:640px){ .result-grid { grid-template-columns: 1fr 1fr; } }
+  .result-cell .k { font-family:var(--font-mono); font-size:.68rem; letter-spacing:.06em; text-transform:uppercase; color:var(--text-faint); margin-bottom:.25rem; }
+  .result-cell .v { color: var(--text); font-size:.95rem; }
+  .result-cell .v.path { font-family:var(--font-mono); font-size:.84rem; color: var(--accent); word-break: break-all; }
+
+  /* ===================== SECTIONS ===================== */
+  section { padding: clamp(2.5rem, 6vw, 4.5rem) 0; }
+  .sec-head { max-width: 56ch; margin-bottom: 2rem; }
+  .sec-head h2 { font-size: clamp(1.5rem, 3.4vw, 2.2rem); letter-spacing:-.02em; margin:0 0 .6rem; }
+  .sec-head .k { font-family:var(--font-mono); font-size:.74rem; letter-spacing:.08em; text-transform:uppercase; color: var(--accent); }
+  .sec-head p { color: var(--text-muted); margin:.5rem 0 0; }
+
+  /* lanes bento */
+  .lanes { display:grid; gap:1rem; grid-template-columns: repeat(1, 1fr); }
+  @media (min-width:680px){ .lanes { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width:1024px){ .lanes { grid-template-columns: repeat(3, 1fr); } .lanes .feature { grid-column: span 2; } }
+  .card {
+    position: relative; border:1px solid var(--border); background: linear-gradient(180deg, var(--surface), var(--surface-2));
+    border-radius: var(--radius-lg); padding: 1.3rem; overflow:hidden;
+    transition: border-color var(--dur-mid) var(--ease), transform var(--dur-mid) var(--ease), box-shadow var(--dur-mid) var(--ease);
+  }
+  .card:hover { border-color: color-mix(in srgb, var(--lane) 55%, var(--border)); box-shadow: 0 18px 50px -30px color-mix(in srgb, var(--lane) 60%, transparent); transform: translateY(-3px); }
+  .card .lane-top { display:flex; align-items:center; gap:.7rem; }
+  .lane-tag { font-family:var(--font-mono); font-size:.7rem; font-weight:600; color: var(--lane); }
+  .lane-ico { width:38px; height:38px; border-radius:11px; display:grid; place-items:center; color: var(--lane);
+    background: color-mix(in srgb, var(--lane) 14%, transparent); border:1px solid color-mix(in srgb, var(--lane) 30%, transparent); }
+  .card h3 { margin:.85rem 0 .35rem; font-size:1.12rem; letter-spacing:-.01em; }
+  .card p { color: var(--text-muted); font-size:.9rem; margin:0 0 .9rem; }
+  .kw { display:flex; flex-wrap:wrap; gap:.35rem; }
+  .kw span { font-family:var(--font-mono); font-size:.68rem; color: var(--text-faint); padding:.2rem .5rem; border-radius:6px; background: var(--surface-3); border:1px solid var(--border-soft); }
+  .card .dest { margin-top:1rem; font-family:var(--font-mono); font-size:.74rem; color: var(--text-faint); display:flex; align-items:center; gap:.4rem; }
+  .card .dest b { color: var(--lane); font-weight:600; }
+
+  /* shipping blocker */
+  .blocker {
+    border:1px solid color-mix(in srgb, var(--action) 40%, var(--border));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--action) 8%, var(--surface)), var(--surface-2));
+    border-radius: var(--radius-lg); padding: clamp(1.3rem,3vw,2rem);
+    display:grid; gap:1.2rem; grid-template-columns:1fr;
+  }
+  @media (min-width:840px){ .blocker { grid-template-columns: 64px 1fr auto; align-items:center; } }
+  .blocker .b-ico { width:64px; height:64px; border-radius:18px; display:grid; place-items:center; color:var(--action);
+    background: color-mix(in srgb, var(--action) 16%, transparent); border:1px solid color-mix(in srgb, var(--action) 34%, transparent); }
+  .blocker .k { font-family:var(--font-mono); font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color: var(--action); }
+  .blocker p { margin:.4rem 0 0; color: var(--text); font-size:1rem; max-width:70ch; }
+
+  /* agents */
+  .agents { display:grid; gap:1rem; grid-template-columns:repeat(1,1fr); }
+  @media (min-width:560px){ .agents { grid-template-columns:repeat(2,1fr);} }
+  @media (min-width:1024px){ .agents { grid-template-columns:repeat(4,1fr);} }
+  .agent { border:1px solid var(--border); background: var(--surface); border-radius: var(--radius-md); padding:1.1rem; transition: border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+  .agent:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .agent .cmd { font-family:var(--font-mono); font-size:.78rem; color: var(--accent); }
+  .agent h4 { margin:.55rem 0 .3rem; font-size:1rem; }
+  .agent p { margin:0; font-size:.85rem; color: var(--text-muted); }
+
+  /* biometric panel */
+  .bio { display:grid; gap:1.4rem; grid-template-columns:1fr; }
+  @media (min-width:900px){ .bio { grid-template-columns: 320px 1fr; align-items:start; } }
+  .gauges { display:grid; gap:1rem; }
+  .gauge { border:1px solid var(--border); background:var(--surface); border-radius:var(--radius-md); padding:1.1rem; }
+  .gauge .row { display:flex; justify-content:space-between; align-items:baseline; }
+  .gauge .lab { font-family:var(--font-mono); font-size:.74rem; color:var(--text-muted); letter-spacing:.04em; }
+  .gauge .num { font-family:var(--font-mono); font-weight:600; font-size:1.5rem; }
+  .meter { height:8px; border-radius:999px; background: var(--surface-3); margin-top:.7rem; overflow:hidden; }
+  .meter > i { display:block; height:100%; border-radius:999px; transition: width var(--dur-mid) var(--ease); }
+  .ranklist { border:1px solid var(--border); background:var(--surface); border-radius:var(--radius-lg); padding:.5rem; }
+  .task { display:flex; align-items:center; gap:.85rem; padding:.85rem 1rem; border-radius:var(--radius-sm); transition: background var(--dur-fast) var(--ease); }
+  .task:hover { background: var(--surface-2); }
+  .task + .task { border-top:1px solid var(--border-soft); }
+  .task .ord { font-family:var(--font-mono); font-weight:600; color: var(--accent); width:1.4rem; text-align:center; }
+  .task .body { flex:1; }
+  .task .body .t { font-size:.94rem; }
+  .task .body .m { font-family:var(--font-mono); font-size:.7rem; color: var(--text-faint); }
+  .task .tag { font-family:var(--font-mono); font-size:.66rem; padding:.2rem .5rem; border-radius:999px; border:1px solid var(--border); color:var(--text-muted); }
+
+  /* footer */
+  footer { border-top:1px solid var(--border-soft); padding: 2.5rem 0; margin-top: 2rem; }
+  .foot { display:flex; gap:1rem; flex-wrap:wrap; align-items:center; justify-content:space-between; color: var(--text-faint); font-size:.82rem; }
+  .foot .mono { color: var(--text-muted); }
+
+  /* reveal on scroll — only hidden when JS is active (progressive enhancement) */
+  .js .reveal { opacity:0; transform: translateY(16px); transition: opacity .6s var(--ease), transform .6s var(--ease); }
+  .js .reveal.in { opacity:1; transform:none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; scroll-behavior:auto !important; }
+    .js .reveal { opacity:1; transform:none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== NAV ===================== -->
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top" aria-label="Legacy Codex home">
+      <span class="mark" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </span>
+      <span>Legacy Codex <small>Personal Operating System</small></span>
+    </a>
+    <span class="badge mono">v37</span>
+    <span class="nav-spacer"></span>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#router">Router</a>
+      <a href="#lanes">Lanes</a>
+      <a href="#agents">Agents</a>
+      <a href="#focus">Focus</a>
+      <a class="cta" href="https://legacy-codex.vercel.app" target="_blank" rel="noopener">Production ↗</a>
+    </nav>
+    <button class="icon-btn" id="themeToggle" aria-label="Toggle color theme" title="Toggle theme">
+      <svg class="ico-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ===================== HERO + ROUTER ===================== -->
+  <section class="hero" id="router">
+    <div class="wrap">
+      <span class="eyebrow mono">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+        capture → clarify → motion
+      </span>
+      <h1>Turn every capture into <span class="grad">one clear next move.</span></h1>
+      <p class="lede">Legacy Codex routes voice notes, thoughts, and tasks into the single project lane where the next physical action actually happens — so you stop opening five tools and overthinking where things go.</p>
+
+      <!-- Capture console -->
+      <div class="console reveal" role="region" aria-label="Capture router">
+        <div class="console-head">
+          <span class="dot" style="background:#ff5f57"></span>
+          <span class="dot" style="background:#febc2e"></span>
+          <span class="dot" style="background:#28c840"></span>
+          <span class="console-title mono">~/legacy-codex · routeOmega</span>
+        </div>
+        <div class="console-body">
+          <label class="capture-label" for="capture">[VOICE-SYNC] raw capture</label>
+          <div class="capture-row">
+            <textarea id="capture" placeholder="e.g. I need a better way to route all these voice notes before they pile up…"></textarea>
+          </div>
+          <div class="capture-row">
+            <button class="btn btn-primary" id="routeBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              Route it
+            </button>
+            <button class="btn btn-ghost" id="clearBtn">Clear</button>
+          </div>
+          <div class="chips" aria-label="Example captures">
+            <button class="chip" data-ex="The REK guard should stop me from bloating scope on Codex.">Codex routing</button>
+            <button class="chip" data-ex="I need to finalize the metal print pricing tiers for the next collector drop.">Print drop</button>
+            <button class="chip" data-ex="There should be a Lightroom handoff agent for photographer client workflows.">Creative AI</button>
+            <button class="chip" data-ex="WHOOP recovery should sync with the Muse EEG focus pipeline.">Muse / EEG</button>
+            <button class="chip" data-ex="Everything matters and I genuinely don't know where to start today.">Overloaded</button>
+          </div>
+
+          <!-- Router result -->
+          <div class="result" id="result" aria-live="polite">
+            <div class="result-bar" id="resultBar"></div>
+            <div class="result-inner">
+              <div class="result-route">
+                <span class="route-pill mono" id="routePill">Route</span>
+                <span class="mono" id="routeConf" style="font-size:.74rem;color:var(--text-faint)"></span>
+              </div>
+              <div class="result-grid">
+                <div class="result-cell"><div class="k">Why</div><div class="v" id="routeWhy"></div></div>
+                <div class="result-cell"><div class="k">Next action</div><div class="v" id="routeNext"></div></div>
+                <div class="result-cell" style="grid-column:1/-1"><div class="k">Destination</div><div class="v path" id="routeDest"></div></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== LANES ===================== -->
+  <section id="lanes">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <div class="k">Delegation Rules · v1</div>
+        <h2>Five lanes. One primary destination per capture.</h2>
+        <p>Every capture is routed to the place where the next real action is most likely to happen — never multi-homed until it has been clarified.</p>
+      </div>
+      <div class="lanes">
+
+        <article class="card feature reveal" style="--lane:var(--lane-a)">
+          <div class="lane-top">
+            <span class="lane-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
+            <span class="lane-tag mono">ROUTE A</span>
+          </div>
+          <h3>Legacy Codex v37</h3>
+          <p>Routing behavior, the capture system itself, agents, dashboard, memory structure, deployment truth.</p>
+          <div class="kw"><span>Codex</span><span>CSF · LAR · REK</span><span>routing</span><span>agents</span><span>deployment</span></div>
+          <div class="dest"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-3H5a2 2 0 0 0-2 2Z"/></svg> <b>notes/ · Codex actions queue</b></div>
+        </article>
+
+        <article class="card reveal" style="--lane:var(--lane-b)">
+          <div class="lane-top">
+            <span class="lane-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg></span>
+            <span class="lane-tag mono">ROUTE B</span>
+          </div>
+          <h3>6-Figure Metal Prints</h3>
+          <p>Limited edition drops, collector pricing, fulfillment, and revenue from artwork.</p>
+          <div class="kw"><span>prints</span><span>drops</span><span>pricing</span><span>collectors</span></div>
+          <div class="dest"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-3H5a2 2 0 0 0-2 2Z"/></svg> <b>revenue / offer doc</b></div>
+        </article>
+
+        <article class="card reveal" style="--lane:var(--lane-c)">
+          <div class="lane-top">
+            <span class="lane-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/></svg></span>
+            <span class="lane-tag mono">ROUTE C</span>
+          </div>
+          <h3>Artful Intelligence</h3>
+          <p>Automation for creatives, AI workflows, agent packs, software for photographers.</p>
+          <div class="kw"><span>automation</span><span>AI workflows</span><span>agent packs</span><span>products</span></div>
+          <div class="dest"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-3H5a2 2 0 0 0-2 2Z"/></svg> <b>feature backlog / spec</b></div>
+        </article>
+
+        <article class="card reveal" style="--lane:var(--lane-d)">
+          <div class="lane-top">
+            <span class="lane-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h3l2-5 4 14 3-9 2 4h6"/></svg></span>
+            <span class="lane-tag mono">ROUTE D</span>
+          </div>
+          <h3>Muse2 / Neurofeedback</h3>
+          <p>EEG, WHOOP, brain-state and focus tracking, signal processing, biometrics.</p>
+          <div class="kw"><span>Muse</span><span>EEG</span><span>WHOOP</span><span>focus</span></div>
+          <div class="dest"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-3H5a2 2 0 0 0-2 2Z"/></svg> <b>research / experiment log</b></div>
+        </article>
+
+        <article class="card reveal" style="--lane:var(--lane-e)">
+          <div class="lane-top">
+            <span class="lane-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+            <span class="lane-tag mono">ROUTE E</span>
+          </div>
+          <h3>Holding / Clarify</h3>
+          <p>Emotionally real but operationally unclear. One sentence of clarification before routing.</p>
+          <div class="kw"><span>reflection</span><span>mixed</span><span>unclear</span><span>overloaded</span></div>
+          <div class="dest"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-3H5a2 2 0 0 0-2 2Z"/></svg> <b>notes/ clarify note</b></div>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SHIPPING BLOCKER ===================== -->
+  <section id="focus" style="padding-top:0">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <div class="k">One blocker at a time</div>
+        <h2>The single thing standing between you and shipping.</h2>
+        <p><code class="mono">SHIPPING_BLOCKER.txt</code> holds exactly one sentence. Update it — never append.</p>
+      </div>
+      <div class="blocker reveal">
+        <span class="b-ico" aria-hidden="true">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        </span>
+        <div>
+          <div class="k">Current shipping blocker</div>
+          <p>Shipping Legacy Codex v37 hesitates until <code class="mono">notes/VERCEL_PRODUCTION_REF.md</code> is filled with the branch and commit SHA from Vercel's latest Production deployment — recording that ref is the first step to trusting what matches the live app.</p>
+        </div>
+        <a class="btn btn-ghost" href="https://legacy-codex.vercel.app" target="_blank" rel="noopener" style="align-self:center">
+          Verify production ↗
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== AGENTS ===================== -->
+  <section id="agents" style="padding-top:0">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <div class="k">src/agents</div>
+        <h2>Four agents keep the system in motion.</h2>
+        <p>Each owns one job. Run them from the CLI; decisions always land in files, never in conversation memory.</p>
+      </div>
+      <div class="agents">
+        <div class="agent reveal">
+          <div class="cmd mono">npm run route</div>
+          <h4>routeOmega</h4>
+          <p>Reads a raw capture, classifies it per the delegation rules, and returns the lane + smallest next action.</p>
+        </div>
+        <div class="agent reveal">
+          <div class="cmd mono">npm run triage</div>
+          <h4>triage</h4>
+          <p>Scans <span class="mono">notes/</span> for unclassified captures and summarizes them into a single triage queue.</p>
+        </div>
+        <div class="agent reveal">
+          <div class="cmd mono">npm run distill</div>
+          <h4>distiller</h4>
+          <p>Compresses verbose session logs into a minimal resume nugget — the starting context for next session.</p>
+        </div>
+        <div class="agent reveal">
+          <div class="cmd mono">npm run rank</div>
+          <h4>taskRanker</h4>
+          <p>Re-orders today's tasks using real WHOOP recovery and Muse focus scores. No mock data, ever.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== BIOMETRIC FOCUS ===================== -->
+  <section style="padding-top:0">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <div class="k">taskRanker · real-data-only</div>
+        <h2>Your physiology decides the order of the day.</h2>
+        <p>High recovery and focus surface deep work first. Low signal pushes it down and protects you from overcommitting. Drag the sliders to feel the re-rank.</p>
+      </div>
+
+      <div class="bio">
+        <div class="gauges reveal">
+          <div class="gauge">
+            <div class="row"><span class="lab">WHOOP recovery</span><span class="num" id="recoVal" style="color:var(--lane-a)">68%</span></div>
+            <div class="meter"><i id="recoBar" style="width:68%;background:linear-gradient(90deg,var(--lane-a),var(--accent-strong))"></i></div>
+            <input type="range" min="0" max="100" value="68" id="recoSlider" style="width:100%;margin-top:.8rem;accent-color:var(--lane-a);cursor:pointer" aria-label="WHOOP recovery percent" />
+          </div>
+          <div class="gauge">
+            <div class="row"><span class="lab">Muse focus</span><span class="num" id="focusVal" style="color:var(--lane-d)">74%</span></div>
+            <div class="meter"><i id="focusBar" style="width:74%;background:linear-gradient(90deg,var(--lane-d),#0ea5e9)"></i></div>
+            <input type="range" min="0" max="100" value="74" id="focusSlider" style="width:100%;margin-top:.8rem;accent-color:var(--lane-d);cursor:pointer" aria-label="Muse focus percent" />
+          </div>
+        </div>
+
+        <div class="ranklist reveal" id="ranklist" aria-live="polite"></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <span>Legacy Codex <span class="mono">v37</span> — capture → clarify → motion.</span>
+    <span class="mono">Production truth · <a href="https://legacy-codex.vercel.app" target="_blank" rel="noopener" style="color:var(--accent)">legacy-codex.vercel.app</a></span>
+  </div>
+</footer>
+
+<script>
+/* =========================================================
+   CAPTURE ROUTER  — Fast If/Then rules (DELEGATION_RULES_v1)
+   ========================================================= */
+const LANES = {
+  A: { name:"Legacy Codex v37", color:"var(--lane-a)",
+       kws:["codex","csf","rek","routing","route","capture","deploy","vercel","agent","dashboard","memory","execution","workspace","scope"],
+       why:"This is about routing behavior inside the Codex system itself.",
+       next:"Add one line to a Codex note or spec capturing the next move.",
+       dest:"~/legacy-codex/notes/ · Codex actions queue" },
+  B: { name:"6-Figure Metal Prints", color:"var(--lane-b)",
+       kws:["print","metal","edition","collector","pricing","price","drop","drops","fulfil","sales","revenue","artwork","offer","tier"],
+       why:"This concerns print revenue, pricing, or a collector drop.",
+       next:"Add it to the offer/pricing action list with one concrete decision.",
+       dest:"~/revenue/print-offer.md" },
+  C: { name:"Artful Intelligence", color:"var(--lane-c)",
+       kws:["automation","automate","workflow","ai","agent pack","client system","editing","lightroom","photographer","product","software","saas","handoff","booking"],
+       why:"This is a creative-automation or AI product idea.",
+       next:"Drop it in the feature backlog as a one-line workflow spec.",
+       dest:"~/artful-intelligence/backlog.md" },
+  D: { name:"Muse2 / Neurofeedback", color:"var(--lane-d)",
+       kws:["muse","eeg","whoop","neuro","brain","focus","stress","signal","biometric","flow","recovery","graph","sync"],
+       why:"This is research/engineering on the biometric pipeline.",
+       next:"Log a technical next-step in the experiment log.",
+       dest:"~/muse/experiment-log.md" },
+  E: { name:"Holding / Clarify", color:"var(--lane-e)",
+       kws:[],
+       why:"Operationally unclear or emotionally overloaded — needs one clarifying sentence first.",
+       next:"Write one sentence: what it's mainly about + the next real action.",
+       dest:"~/legacy-codex/notes/clarify.md" }
+};
+const OVERLOAD = ["everything","don't know","dont know","overwhelm","too much","can't tell","cant tell","matters","lost","stuck everywhere"];
+
+/* Word-boundary keyword match.
+   - Short tokens / acronyms (<=4 chars) match as a WHOLE word, so "ai" ⊄ "air",
+     "lar" ⊄ "large", "spec" never bleeds into "special", "muse" ⊄ "museum".
+   - Longer tokens allow STEM matching ("capture" → "captures", "deploy" → "deployment"). */
+function matchesKeyword(str, kw){
+  const k = kw.trim();
+  const escaped = k.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
+  const pattern = k.length <= 4 ? "\\b" + escaped + "\\b" : "\\b" + escaped;
+  return new RegExp(pattern, "i").test(str);
+}
+
+function classify(text){
+  if(!text.trim()) return null;
+  const t = text.toLowerCase();
+  // overload → Holding
+  if(OVERLOAD.some(o => matchesKeyword(t, o))) return { key:"E", score:99, ...LANES.E };
+  let best = { key:"E", score:0 };
+  for(const [key,lane] of Object.entries(LANES)){
+    if(key==="E") continue;
+    let s = 0;
+    for(const kw of lane.kws){ if(matchesKeyword(t, kw)) s++; }
+    if(s > best.score) best = { key, score:s };
+  }
+  if(best.score === 0) return { key:"E", score:0, ...LANES.E };
+  return { key:best.key, score:best.score, ...LANES[best.key] };
+}
+
+const $ = id => document.getElementById(id);
+const result = $("result");
+
+function route(){
+  const text = $("capture").value;
+  const r = classify(text);
+  if(!r){ result.classList.remove("show"); return; }
+  $("routePill").textContent = "Route " + r.key + " · " + r.name;
+  $("routePill").style.color = r.color;
+  $("routePill").style.background = "color-mix(in srgb, "+r.color+" 14%, transparent)";
+  $("routePill").style.borderColor = "color-mix(in srgb, "+r.color+" 34%, transparent)";
+  $("resultBar").style.background = r.color;
+  $("routeConf").textContent = r.key==="E" && r.score<=0 ? "no strong keyword match" : "matched on "+r.score+" signal"+(r.score>1?"s":"");
+  $("routeWhy").textContent = r.why;
+  $("routeNext").textContent = r.next;
+  $("routeDest").textContent = r.dest;
+  result.classList.add("show");
+}
+$("routeBtn").addEventListener("click", route);
+$("clearBtn").addEventListener("click", ()=>{ $("capture").value=""; result.classList.remove("show"); $("capture").focus(); });
+$("capture").addEventListener("keydown", e=>{ if((e.metaKey||e.ctrlKey)&&e.key==="Enter") route(); });
+document.querySelectorAll(".chip").forEach(c=> c.addEventListener("click", ()=>{ $("capture").value=c.dataset.ex; route(); $("capture").focus(); }));
+
+/* =========================================================
+   THEME TOGGLE
+   ========================================================= */
+const root = document.documentElement;
+$("themeToggle").addEventListener("click", ()=>{
+  const next = root.getAttribute("data-theme")==="dark" ? "light" : "dark";
+  root.setAttribute("data-theme", next);
+  try { localStorage.setItem("theme", next); } catch (e) {}
+});
+
+/* =========================================================
+   BIOMETRIC TASK RE-RANK
+   ========================================================= */
+const TASKS = [
+  { t:"Fill notes/VERCEL_PRODUCTION_REF.md (unblock shipping)", m:"Route A · deep", base:9, deep:true,  lane:"var(--lane-a)" },
+  { t:"Draft next metal-print drop pricing tiers",            m:"Route B · deep", base:7, deep:true,  lane:"var(--lane-b)" },
+  { t:"Spec the Lightroom handoff agent",                     m:"Route C · deep", base:7, deep:true,  lane:"var(--lane-c)" },
+  { t:"Triage notes/ inbox into the queue",                   m:"Route A · light",base:6, deep:false, lane:"var(--lane-a)" },
+  { t:"Reply to collector inquiry email",                     m:"Route B · light",base:5, deep:false, lane:"var(--lane-b)" },
+  { t:"Distill yesterday's session log",                      m:"Route A · light",base:4, deep:false, lane:"var(--lane-e)" },
+];
+function rank(){
+  const reco = +$("recoSlider").value, focus = +$("focusSlider").value;
+  const energy = (reco*0.55 + focus*0.45)/100; // 0..1
+  const scored = TASKS.map(x=>{
+    // deep work rewarded when energy high; light work rewarded when energy low
+    const fit = x.deep ? (x.base + energy*6) : (x.base + (1-energy)*5);
+    return {...x, fit};
+  }).sort((a,b)=> b.fit - a.fit);
+  const list = $("ranklist");
+  list.innerHTML = scored.map((x,i)=>`
+    <div class="task">
+      <span class="ord mono" style="color:${x.lane}">${i+1}</span>
+      <span class="body"><span class="t">${x.t}</span><br><span class="m mono">${x.m}</span></span>
+      <span class="tag mono">${x.deep?"deep":"light"}</span>
+    </div>`).join("");
+}
+["recoSlider","focusSlider"].forEach(id=>{
+  $(id).addEventListener("input", ()=>{
+    const v=$(id).value;
+    if(id==="recoSlider"){ $("recoVal").textContent=v+"%"; $("recoBar").style.width=v+"%"; }
+    else { $("focusVal").textContent=v+"%"; $("focusBar").style.width=v+"%"; }
+    rank();
+  });
+});
+rank();
+
+/* =========================================================
+   SCROLL REVEAL
+   ========================================================= */
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target); } });
+}, { threshold: 0.12 });
+document.querySelectorAll(".reveal").forEach(el=> io.observe(el));
+</script>
+</body>
+</html>
