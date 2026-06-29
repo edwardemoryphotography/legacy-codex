@@ -154,12 +154,22 @@ async function ensureSandbox(
   return sandbox;
 }
 
+const WEB_SESSION_ID = "web-server";
+
+function isSafePath(p: string): boolean {
+  return p.length > 0 && !p.includes("..") && /^[a-zA-Z0-9_\-./]+$/.test(p);
+}
+
 async function deployFiles(sandbox: Sandbox, files: Map<string, string>): Promise<string> {
   const rootDir = (await sandbox.getUserRootDir()) ?? "/home/daytona";
   const appDir = `${rootDir}/${APP_DIR}`;
   await sandbox.process.executeCommand(`mkdir -p ${appDir}`);
 
   for (const [path, content] of files) {
+    // Re-validate paths here even though they were validated by parseFileBlocks
+    // on write — deployFiles receives data from the DB, so defense-in-depth
+    // requires checking again before any path is used in a shell command.
+    if (!isSafePath(path)) continue;
     if (path.includes("/")) {
       const dir = path.slice(0, path.lastIndexOf("/"));
       await sandbox.process.executeCommand(`mkdir -p ${appDir}/${dir}`);
@@ -167,12 +177,18 @@ async function deployFiles(sandbox: Sandbox, files: Map<string, string>): Promis
     await sandbox.fs.uploadFile(Buffer.from(content, "utf-8"), `${appDir}/${path}`);
   }
 
-  // (Re)start the static file server. Killing first makes the deploy
-  // idempotent across rebuilds.
+  // (Re)start the static file server. Killing the process first makes the
+  // deploy idempotent across rebuilds. We reuse a stable session ID so that
+  // sessions don't accumulate — a new unique ID on every build would leak
+  // one Daytona session per deploy.
   await sandbox.process.executeCommand(`pkill -f "http.server ${APP_PORT}" || true`);
-  const sessionId = `web-${Date.now()}`;
-  await sandbox.process.createSession(sessionId);
-  await sandbox.process.executeSessionCommand(sessionId, {
+  try {
+    await sandbox.process.createSession(WEB_SESSION_ID);
+  } catch {
+    // Session already exists from a prior deploy; the old server process was
+    // already killed above so we can reuse the session as-is.
+  }
+  await sandbox.process.executeSessionCommand(WEB_SESSION_ID, {
     command: `cd ${appDir} && python3 -m http.server ${APP_PORT} --bind 0.0.0.0`,
     runAsync: true,
   });
