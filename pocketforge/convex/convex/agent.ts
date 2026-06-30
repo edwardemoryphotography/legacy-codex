@@ -2,14 +2,23 @@
 
 import { v } from "convex/values";
 import { action } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import type { ActionCtx } from "./_generated/server";
 import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Daytona, Sandbox } from "@daytonaio/sdk";
 
 const APP_PORT = 3000;
 const APP_DIR = "pocketforge-app";
+const MAX_OUTPUT_TOKENS = 64000;
+
+// Model IDs are overridable via Convex env vars so you can point each provider
+// at whatever your account has access to (e.g. `npx convex env set OPENAI_MODEL gpt-5.1`).
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-opus-4-8";
+const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o";
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-pro";
 
 const SYSTEM_PROMPT = `You are PocketForge, an expert web-app builder living inside a mobile app.
 The user describes an app; you produce a complete, polished, working web app.
@@ -36,10 +45,102 @@ Output rules — follow them exactly:
 6. After the file blocks, add exactly one block:
    <summary>One or two friendly sentences telling the user what you built or changed.</summary>`;
 
-function getAnthropic(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set. Run: npx convex env set ANTHROPIC_API_KEY <key>");
-  return new Anthropic({ apiKey });
+// A provider-neutral chat turn. Each provider maps these onto its own SDK shape.
+type Turn = { role: "user" | "assistant"; content: string };
+
+// One generation backend. `run` returns the raw model text (which is then
+// parsed for <file> blocks). Providers are tried in order; the first whose
+// API key is set and whose call succeeds wins.
+type Provider = {
+  name: string;
+  envKey: string;
+  run: (system: string, turns: Turn[], maxTokens: number) => Promise<string>;
+};
+
+// Anthropic (primary). Streams to dodge HTTP timeouts on large generations.
+async function anthropicText(system: string, turns: Turn[], maxTokens: number): Promise<string> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const stream = anthropic.messages.stream({
+    model: ANTHROPIC_MODEL,
+    max_tokens: maxTokens,
+    thinking: { type: "adaptive" },
+    system,
+    messages: turns.map((t) => ({ role: t.role, content: t.content })),
+  });
+  const message = await stream.finalMessage();
+  return message.content
+    .filter((block): block is Anthropic.TextBlock => block.type === "text")
+    .map((block) => block.text)
+    .join("\n");
+}
+
+// OpenAI fallback. System prompt becomes a leading system message.
+async function openaiText(system: string, turns: Turn[], maxTokens: number): Promise<string> {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const completion = await openai.chat.completions.create({
+    model: OPENAI_MODEL,
+    max_completion_tokens: maxTokens,
+    messages: [
+      { role: "system", content: system },
+      ...turns.map((t) => ({ role: t.role, content: t.content })),
+    ],
+  });
+  return completion.choices[0]?.message?.content ?? "";
+}
+
+// Google Gemini fallback. System prompt becomes systemInstruction; assistant
+// turns map to the "model" role.
+async function geminiText(system: string, turns: Turn[], maxTokens: number): Promise<string> {
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
+  const model = genAI.getGenerativeModel({
+    model: GEMINI_MODEL,
+    systemInstruction: system,
+    generationConfig: { maxOutputTokens: maxTokens },
+  });
+  const result = await model.generateContent({
+    contents: turns.map((t) => ({
+      role: t.role === "assistant" ? "model" : "user",
+      parts: [{ text: t.content }],
+    })),
+  });
+  return result.response.text();
+}
+
+// Fallback order: Claude first, then OpenAI, then Gemini. A provider is only
+// attempted if its API key is configured.
+const PROVIDERS: Provider[] = [
+  { name: `Claude (${ANTHROPIC_MODEL})`, envKey: "ANTHROPIC_API_KEY", run: anthropicText },
+  { name: `GPT (${OPENAI_MODEL})`, envKey: "OPENAI_API_KEY", run: openaiText },
+  { name: `Gemini (${GEMINI_MODEL})`, envKey: "GEMINI_API_KEY", run: geminiText },
+];
+
+// SF Symbols the idea generator is allowed to pick from, so every suggested
+// icon renders on the client.
+const ALLOWED_ICONS = [
+  "sparkles", "bolt.fill", "leaf.fill", "flame.fill", "star.fill", "heart.fill",
+  "moon.stars.fill", "gamecontroller.fill", "cart.fill", "book.fill", "music.note",
+  "paperplane.fill", "dumbbell.fill", "fork.knife", "camera.fill", "map.fill",
+  "dollarsign.circle.fill", "calendar", "checklist", "chart.bar.fill",
+  "brain.head.profile", "airplane", "pawprint.fill", "drop.fill", "timer", "globe",
+];
+
+// Run the provider fallback chain once and return the first successful text.
+// Lighter sibling of generateFiles (no per-stage status writes) for one-shot
+// text generation like idea suggestions.
+async function runChain(system: string, turns: Turn[], maxTokens: number): Promise<string> {
+  const available = PROVIDERS.filter((p) => !!process.env[p.envKey]);
+  if (available.length === 0) {
+    throw new Error("No model provider configured (set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY).");
+  }
+  const failures: string[] = [];
+  for (const provider of available) {
+    try {
+      return await provider.run(system, turns, maxTokens);
+    } catch (err) {
+      failures.push(`${provider.name}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  throw new Error(`All providers failed — ${failures.join(" · ")}`);
 }
 
 function getDaytona(): Daytona {
@@ -81,11 +182,11 @@ async function generateFiles(
   ctx: ActionCtx,
   projectId: Id<"projects">,
   userPrompt: string,
-): Promise<{ files: Map<string, string>; summary: string }> {
+): Promise<{ files: Map<string, string>; summary: string; provider: string }> {
   const history = await ctx.runQuery(internal.messages.historyInternal, { projectId });
   const existingFiles = await ctx.runQuery(internal.files.listInternal, { projectId });
 
-  const turns: Anthropic.MessageParam[] = history.map((m) => ({
+  const turns: Turn[] = history.map((m) => ({
     role: m.role === "user" ? ("user" as const) : ("assistant" as const),
     content: m.content,
   }));
@@ -102,28 +203,39 @@ async function generateFiles(
   }
   turns.push({ role: "user", content: finalUserContent });
 
-  const anthropic = getAnthropic();
-  // Stream to avoid HTTP timeouts on large generations, then collect the
-  // final message.
-  const stream = anthropic.messages.stream({
-    model: "claude-opus-4-8",
-    max_tokens: 64000,
-    thinking: { type: "adaptive" },
-    system: SYSTEM_PROMPT,
-    messages: turns,
-  });
-  const message = await stream.finalMessage();
-
-  const text = message.content
-    .filter((block): block is Anthropic.TextBlock => block.type === "text")
-    .map((block) => block.text)
-    .join("\n");
-
-  const parsed = parseFileBlocks(text);
-  if (parsed.files.size === 0 && existingFiles.length === 0) {
-    throw new Error("The agent did not produce any files. Try rephrasing your request.");
+  // Only attempt providers whose API key is configured, in priority order.
+  const available = PROVIDERS.filter((p) => !!process.env[p.envKey]);
+  if (available.length === 0) {
+    throw new Error(
+      "No model provider configured. Set at least one of ANTHROPIC_API_KEY, " +
+        "OPENAI_API_KEY, or GEMINI_API_KEY via `npx convex env set`.",
+    );
   }
-  return parsed;
+
+  // Try each provider in turn; fall through to the next on any failure
+  // (usage cap, rate limit, transient error, or empty output).
+  const failures: string[] = [];
+  for (let i = 0; i < available.length; i++) {
+    const provider = available[i];
+    const label =
+      i === 0
+        ? `Designing your app with ${provider.name}…`
+        : `${available[i - 1].name} unavailable — falling back to ${provider.name}…`;
+    await setStatus(ctx, projectId, "building", label);
+
+    try {
+      const text = await provider.run(SYSTEM_PROMPT, turns, MAX_OUTPUT_TOKENS);
+      const parsed = parseFileBlocks(text);
+      if (parsed.files.size === 0 && existingFiles.length === 0) {
+        throw new Error("model returned no <file> blocks");
+      }
+      return { ...parsed, provider: provider.name };
+    } catch (err) {
+      failures.push(`${provider.name}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  throw new Error(`All configured model providers failed — ${failures.join(" · ")}`);
 }
 
 async function ensureSandbox(
@@ -219,8 +331,8 @@ export const build = action({
     });
 
     try {
-      await setStatus(ctx, args.projectId, "building", "Designing your app with Claude…");
-      const { files, summary } = await generateFiles(ctx, args.projectId, args.prompt);
+      // generateFiles drives its own per-provider status (and fallback notices).
+      const { files, summary, provider } = await generateFiles(ctx, args.projectId, args.prompt);
 
       for (const [path, content] of files) {
         await ctx.runMutation(internal.files.upsert, {
@@ -251,7 +363,7 @@ export const build = action({
       await ctx.runMutation(internal.messages.add, {
         projectId: args.projectId,
         role: "assistant",
-        content: summary,
+        content: `${summary}\n\n_Built with ${provider}._`,
       });
       return { previewUrl };
     } catch (error) {
@@ -328,5 +440,78 @@ export const destroy = action({
       }
     }
     await ctx.runMutation(internal.projects.removeInternal, { projectId: args.projectId });
+  },
+});
+
+type AppIdea = { title: string; prompt: string; icon: string };
+
+function parseIdeas(text: string): AppIdea[] {
+  let t = text.trim();
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fence) t = fence[1].trim();
+  const start = t.indexOf("[");
+  const end = t.lastIndexOf("]");
+  if (start !== -1 && end !== -1) t = t.slice(start, end + 1);
+  let arr: unknown;
+  try {
+    arr = JSON.parse(t);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+    .filter((x) => typeof x.title === "string" && typeof x.prompt === "string")
+    .map((x) => ({
+      title: String(x.title).slice(0, 40),
+      prompt: String(x.prompt),
+      icon: ALLOWED_ICONS.includes(String(x.icon)) ? String(x.icon) : "sparkles",
+    }))
+    .slice(0, 6);
+}
+
+// "Roll the dice": generate fresh, personalized app ideas based on what the
+// user has already built (their evident topics of interest).
+export const suggestIdeas = action({
+  args: { profile: v.optional(v.string()) },
+  handler: async (ctx, args): Promise<AppIdea[]> => {
+    const projects = await ctx.runQuery(api.projects.list, {});
+    const built = projects
+      .filter((p) => p.name && p.prompt)
+      .slice(0, 12)
+      .map((p) => `- ${p.name}: ${p.prompt}`)
+      .join("\n");
+
+    const profile = (args.profile ?? "").trim();
+    const who = profile.length > 0 ? `About the user, in their own words: ${profile}\n\n` : "";
+
+    const system =
+      "You generate creative app ideas for PocketForge, a tool that builds " +
+      "polished, self-contained mobile-first static web apps (HTML/CSS/JS, " +
+      "localStorage, CDN libs — no backend). Ideas must be buildable as such. " +
+      "Respond with ONLY a JSON array, no prose, no code fences.";
+
+    const ask = who + (
+      built.length > 0
+        ? `The user has already built these apps:\n${built}\n\n` +
+          `Using both the profile above (if any) and these projects, infer their interests and the ` +
+          `kinds of things they're working on, then suggest 6 FRESH, diverse app ideas they'd be ` +
+          `excited to build next. Vary the domains — don't just repeat themes. ` +
+          `Mix a couple of close-to-their-interests ideas with a couple of pleasantly unexpected ones.`
+        : `The user hasn't built anything yet. Using the profile above (if any), suggest 6 diverse, ` +
+          `delightful starter app ideas tailored to them that show off what PocketForge can do.`);
+
+    const format =
+      `\n\nReturn a JSON array of exactly 6 objects: ` +
+      `{"title": short name ≤4 words, "prompt": a vivid 1-2 sentence build description, ` +
+      `"icon": one SF Symbol name chosen from this list: ${ALLOWED_ICONS.join(", ")}}. ` +
+      `Output ONLY the JSON array.`;
+
+    const text = await runChain(system, [{ role: "user", content: ask + format }], 2000);
+    const ideas = parseIdeas(text);
+    if (ideas.length === 0) {
+      throw new Error("Couldn't generate ideas just now — give the dice another roll.");
+    }
+    return ideas;
   },
 });

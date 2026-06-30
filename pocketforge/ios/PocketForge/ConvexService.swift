@@ -93,4 +93,10 @@ final class ConvexService: ObservableObject {
     func destroy(projectId: String) async throws {
         try await client.action("agent:destroy", with: ["projectId": projectId])
     }
+
+    /// "Roll the dice": asks the agent for fresh app ideas personalized to
+    /// what the user has already built and an optional self-description.
+    func suggestIdeas(profile: String) async throws -> [AppIdea] {
+        try await client.action("agent:suggestIdeas", with: ["profile": profile])
+    }
 }
