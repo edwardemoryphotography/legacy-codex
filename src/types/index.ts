@@ -91,3 +91,18 @@ export type TabId =
   | 'biometrics'
   | 'constraint-validator'
   | 'codex'
+  | 'controls'
+
+export interface UIPrefs {
+  density: 'compact' | 'comfortable'
+  fontScale: number
+  highContrast: boolean
+  reducedMotion: boolean
+}
+
+export interface CaptureItem {
+  id: string
+  text: string
+  timestamp: string
+  suggested?: string
+}

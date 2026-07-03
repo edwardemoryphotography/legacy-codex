@@ -1146,3 +1146,21 @@ export function getSectionEntries(key: SectionKey): CodexEntry[] {
   const section = CODEX_SECTIONS.find(s => s.key === key)
   return section ? flattenEntries(section.entries) : []
 }
+
+/** Serialize a single entry as markdown for clipboard or export use */
+export function serializeEntryMarkdown(entry: CodexEntry): string {
+  const lines = [
+    `> Section: \`${entry.section}\``,
+    `> Path: \`${entry.path}\``,
+  ]
+
+  if (entry.category) {
+    lines.push(`> Category: \`${entry.category}\``)
+  }
+
+  if (entry.tags?.length) {
+    lines.push(`> Tags: ${entry.tags.map(tag => `#${tag}`).join(' ')}`)
+  }
+
+  return [...lines, '', entry.content.trim(), ''].join('\n')
+}

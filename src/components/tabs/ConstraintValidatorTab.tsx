@@ -1,29 +1,42 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useRef, useState } from 'react'
 import { CONSTRAINT_TERMS, CANONICAL_PRINCIPLES } from '@/data/principles'
 import {
-  SectionTitle, SectionSubtitle,
-  FieldLabel, Textarea, ActionBtn, HelperLine,
+  SectionTitle,
+  SectionSubtitle,
+  FieldLabel,
+  Textarea,
+  ActionBtn,
+  HelperLine,
 } from '@/components/ui'
 
 interface EvalResult {
   name: string
   pass: boolean
   reason: string
+  fix: string
 }
 
 function containsAny(text: string, terms: string[]): boolean {
   return terms.some(t => text.includes(t))
 }
 
+function matchedTerms(text: string, terms: string[]): string[] {
+  return terms.filter(term => text.includes(term))
+}
+
+function describeTerms(terms: string[]): string {
+  return terms.length ? terms.join(', ') : 'none'
+}
+
 function evaluate(task: string): EvalResult[] {
   const t = task.toLowerCase()
-  const mentionsArtifact    = containsAny(t, CONSTRAINT_TERMS.artifact)
-  const mentionsResilience  = containsAny(t, CONSTRAINT_TERMS.resilience)
-  const mentionsGoverning   = containsAny(t, CONSTRAINT_TERMS.governing)
-  const mentionsExisting    = containsAny(t, CONSTRAINT_TERMS.existingInfra)
-  const proposesNewTool     = containsAny(t, CONSTRAINT_TERMS.newTool)
+  const mentionsArtifact = containsAny(t, CONSTRAINT_TERMS.artifact)
+  const mentionsResilience = containsAny(t, CONSTRAINT_TERMS.resilience)
+  const mentionsGoverning = containsAny(t, CONSTRAINT_TERMS.governing)
+  const mentionsExisting = containsAny(t, CONSTRAINT_TERMS.existingInfra)
+  const proposesNewTool = containsAny(t, CONSTRAINT_TERMS.newTool)
 
   return [
     {
@@ -32,6 +45,9 @@ function evaluate(task: string): EvalResult[] {
       reason: mentionsArtifact
         ? 'Concrete artifact/system language is present.'
         : 'No concrete artifact or system deliverable is named.',
+      fix: mentionsArtifact
+        ? 'Keep the artifact target explicit and add an acceptance check.'
+        : 'Name a file, repo, commit, deploy target, dashboard, or export.',
     },
     {
       name: CANONICAL_PRINCIPLES[1].name,
@@ -39,6 +55,9 @@ function evaluate(task: string): EvalResult[] {
       reason: mentionsResilience
         ? 'Resumption continuity cues are present (log/checkpoint/blocker).'
         : 'No interruption-safe resumption cue is present.',
+      fix: mentionsResilience
+        ? 'Keep the next action visible for the next operator.'
+        : 'Add a blocker, checkpoint, transcript, or next action so the work can resume cleanly.',
     },
     {
       name: CANONICAL_PRINCIPLES[2].name,
@@ -46,6 +65,9 @@ function evaluate(task: string): EvalResult[] {
       reason: mentionsGoverning
         ? 'Task references system/protocol/constraint authority.'
         : 'Task does not reference system authority constraints.',
+      fix: mentionsGoverning
+        ? 'Keep the governing rule explicit and non-optional.'
+        : 'Reference the system, protocol, policy, or constraint that governs the task.',
     },
     {
       name: CANONICAL_PRINCIPLES[3].name,
@@ -53,17 +75,22 @@ function evaluate(task: string): EvalResult[] {
       reason: mentionsExisting && !proposesNewTool
         ? 'Task favors modifying existing infrastructure.'
         : 'Task does not clearly prefer existing infrastructure.',
+      fix: mentionsExisting && !proposesNewTool
+        ? 'Stay within the current stack and keep the change small.'
+        : proposesNewTool
+        ? 'Remove the new-tool proposal and restate the work in the current repo or stack.'
+        : 'State what current file, flow, or repo path should be modified instead of inventing a new tool.',
     },
   ]
 }
 
-// ─── Artifact Analyzer using Gemini ───────────────────────────
 const GEMINI_ENDPOINT =
   process.env.NEXT_PUBLIC_GEMINI_API_KEY
     ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_API_KEY}`
     : null
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024
+const ACCEPTED_FILE_TYPES = '.pdf,.doc,.docx,.txt,.md,.csv,.json,image/*,video/*'
 
 export default function ConstraintValidatorTab() {
   const [input, setInput] = useState('')
@@ -85,8 +112,11 @@ export default function ConstraintValidatorTab() {
     setResults(evaluate(t))
   }
 
-  const allPass = results !== null && results.length > 0 && results.every(r => r.pass)
+  const passedCount = results?.filter(r => r.pass).length ?? 0
+  const failedResults = results?.filter(r => !r.pass) ?? []
   const anyResult = results !== null
+  const noTaskSubmitted = anyResult && results.length === 0
+  const allPass = anyResult && results.length > 0 && failedResults.length === 0
 
   const addFiles = (newFiles: FileList | null) => {
     if (!newFiles) return
@@ -97,10 +127,24 @@ export default function ConstraintValidatorTab() {
     setFiles(prev => prev.filter((_, i) => i !== index))
   }
 
+  const totalBytes = files.reduce((sum, file) => sum + file.size, 0)
+  const analysisEnabled = Boolean(GEMINI_ENDPOINT)
+  const analysisHelperText = !analysisEnabled
+    ? 'Artifact analysis is disabled until NEXT_PUBLIC_GEMINI_API_KEY is set. Validation still works locally.'
+    : files.length === 0
+    ? 'No files selected yet. Upload one or more real artifacts to enable analysis.'
+    : analyzeStatus === 'running'
+    ? `Analyzing ${files.length} file(s)…`
+    : `${files.length} file(s) selected · ${formatBytes(totalBytes)} total`
+
   const analyze = async () => {
-    if (!files.length) return
+    if (!files.length) {
+      setAnalysisOutput('Attach at least one file before running artifact analysis.')
+      setAnalyzeStatus('error')
+      return
+    }
     if (!GEMINI_ENDPOINT) {
-      setAnalysisOutput('Set NEXT_PUBLIC_GEMINI_API_KEY environment variable to enable artifact analysis.')
+      setAnalysisOutput('Set NEXT_PUBLIC_GEMINI_API_KEY to enable artifact analysis.')
       setAnalyzeStatus('error')
       return
     }
@@ -115,7 +159,11 @@ export default function ConstraintValidatorTab() {
 
     try {
       const parts: unknown[] = [
-        { text: instruction.trim() || 'Analyze the attached artifacts and return: 1) concise summary, 2) key signals, 3) risks, 4) action checklist, 5) next single step.' },
+        {
+          text:
+            instruction.trim() ||
+            'Analyze the attached artifacts and return: 1) concise summary, 2) key signals, 3) risks, 4) action checklist, 5) next single step.',
+        },
       ]
       for (const file of files) {
         parts.push(await fileToPart(file))
@@ -144,7 +192,7 @@ export default function ConstraintValidatorTab() {
     <section>
       <SectionTitle>Constraint Validator</SectionTitle>
       <SectionSubtitle>
-        Run a task against all 4 Canonical Principles with pass/fail reasoning.
+        Run a task against all 4 Canonical Principles with pass/fail reasoning and operator fixes.
       </SectionSubtitle>
 
       <div className="mb-3">
@@ -163,7 +211,6 @@ export default function ConstraintValidatorTab() {
         <ActionBtn onClick={validate}>Validate Against Codex</ActionBtn>
       </div>
 
-      {/* Results */}
       {results !== null && (
         <div className="grid gap-2 mb-3">
           {results.map(r => (
@@ -180,30 +227,51 @@ export default function ConstraintValidatorTab() {
                 {r.name}: {r.pass ? 'PASS ✓' : 'FAIL ✗'}
               </strong>
               <span>{r.reason}</span>
+              <span style={{ color: r.pass ? 'var(--success)' : 'var(--amber)' }}>
+                Fix: {r.fix}
+              </span>
             </div>
           ))}
         </div>
       )}
 
       <div
-        className="px-3 py-2.5 rounded-[10px] text-xs font-black tracking-wide uppercase mb-6"
+        className="px-3 py-2.5 rounded-[10px] text-xs font-black tracking-wide uppercase mb-2"
         style={{
           border: !anyResult
             ? '1px solid var(--line)'
+            : noTaskSubmitted
+            ? '1px solid var(--amber)'
             : allPass
             ? '1px solid var(--success)'
             : '1px solid var(--error)',
-          color: !anyResult ? 'var(--text-dim)' : allPass ? 'var(--success)' : 'var(--error)',
+          color: !anyResult
+            ? 'var(--text-dim)'
+            : noTaskSubmitted
+            ? 'var(--amber)'
+            : allPass
+            ? 'var(--success)'
+            : 'var(--error)',
           background: !anyResult
             ? 'var(--surface)'
+            : noTaskSubmitted
+            ? 'var(--amber-soft)'
             : allPass
             ? 'var(--success-soft)'
             : 'var(--error-soft)',
         }}
       >
         {!anyResult && 'No validation run yet.'}
-        {anyResult && (allPass ? 'CODEX-ALIGNED' : 'CODEX-VIOLATION')}
+        {noTaskSubmitted && 'Task required — paste one sentence before validating.'}
+        {allPass && 'CODEX-ALIGNED'}
+        {anyResult && !noTaskSubmitted && !allPass && `CODEX-VIOLATION · ${passedCount}/4 pass`}
       </div>
+
+      {anyResult && !allPass && !noTaskSubmitted && (
+        <p className="mb-5 text-sm" style={{ color: 'var(--text-soft)', lineHeight: 1.55 }}>
+          Next move: tighten {failedResults.map(r => r.name).join(', ')} before you hand this off.
+        </p>
+      )}
 
       {/* ─── Artifact Analyzer ────────────────────────────────── */}
       <div
@@ -213,9 +281,24 @@ export default function ConstraintValidatorTab() {
         <h3 className="font-bold mb-1" style={{ fontSize: '1.05rem' }}>
           Artifact Analyzer
         </h3>
-        <p className="text-sm mb-4" style={{ color: 'var(--text-soft)' }}>
-          Upload files and generate a structured analysis via Gemini.
+        <p className="text-sm mb-3" style={{ color: 'var(--text-soft)' }}>
+          Upload real files and generate a structured analysis via Gemini. The directive field is optional and becomes the prompt.
         </p>
+
+        <div
+          className="mb-4 rounded-codex p-3"
+          style={{ border: '1px solid var(--line)', background: 'var(--surface-soft)' }}
+        >
+          <div className="text-xs font-black uppercase tracking-[0.22em] mb-2" style={{ color: 'var(--text-dim)' }}>
+            Analysis guidance
+          </div>
+          <ul className="grid gap-1.5 text-sm" style={{ color: 'var(--text-soft)', lineHeight: 1.55 }}>
+            <li>{analysisEnabled ? 'Live Gemini analysis is enabled.' : 'Live analysis is disabled until NEXT_PUBLIC_GEMINI_API_KEY is set.'}</li>
+            <li>Accepted inputs: pdf, doc, docx, txt, md, csv, json, images, and video.</li>
+            <li>Max file size: 20 MB per file.</li>
+            <li>Validation stays local; analysis only runs when files and an API key are present.</li>
+          </ul>
+        </div>
 
         <div className="mb-3">
           <FieldLabel htmlFor="artifactInstruction">Analysis directive (optional)</FieldLabel>
@@ -242,7 +325,7 @@ export default function ConstraintValidatorTab() {
           ref={fileInputRef}
           type="file"
           multiple
-          accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,image/*,video/*"
+          accept={ACCEPTED_FILE_TYPES}
           style={{ display: 'none' }}
           onChange={e => addFiles(e.target.files)}
         />
@@ -287,7 +370,7 @@ export default function ConstraintValidatorTab() {
         )}
 
         <HelperLine variant={analyzeStatus === 'error' ? 'error' : analyzeStatus === 'done' ? 'success' : undefined}>
-          {files.length === 0 ? 'No files selected.' : `${files.length} file(s) selected · ${formatBytes(files.reduce((s, f) => s + f.size, 0))} total`}
+          {analysisHelperText}
         </HelperLine>
 
         {analysisOutput && (
@@ -326,11 +409,11 @@ async function fileToPart(file: File): Promise<unknown> {
 
 function guessMime(name: string): string {
   const n = name.toLowerCase()
-  if (n.endsWith('.pdf'))  return 'application/pdf'
+  if (n.endsWith('.pdf')) return 'application/pdf'
   if (n.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  if (n.endsWith('.txt'))  return 'text/plain'
-  if (n.endsWith('.md'))   return 'text/markdown'
-  if (n.endsWith('.csv'))  return 'text/csv'
+  if (n.endsWith('.txt')) return 'text/plain'
+  if (n.endsWith('.md')) return 'text/markdown'
+  if (n.endsWith('.csv')) return 'text/csv'
   if (n.endsWith('.json')) return 'application/json'
   return 'application/octet-stream'
 }
