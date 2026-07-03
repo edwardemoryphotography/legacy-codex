@@ -279,7 +279,10 @@ export const wake = action({
     const project = await ctx.runQuery(internal.projects.getInternal, {
       projectId: args.projectId,
     });
-    if (!project || !project.sandboxId || project.status !== "live") return null;
+    // Allow wake whenever we have a sandbox to revive — including projects
+    // currently marked "error" from an earlier transient failure, so they can
+    // recover instead of being stuck until a rebuild.
+    if (!project || !project.sandboxId) return null;
 
     try {
       const sandbox = await ensureSandbox(ctx, args.projectId, project.sandboxId);
@@ -297,13 +300,10 @@ export const wake = action({
         statusDetail: "Live",
       });
       return { previewUrl };
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : "Unknown error";
-      await ctx.runMutation(internal.projects.patch, {
-        projectId: args.projectId,
-        status: "error",
-        statusDetail: `Could not wake sandbox: ${detail}`,
-      });
+    } catch {
+      // Transient wake failure (sandbox asleep, Daytona blip). Leave the
+      // project's status untouched so simply reopening it retries, instead of
+      // downgrading a live project to a stuck "error" state.
       return null;
     }
   },
@@ -323,8 +323,21 @@ export const destroy = action({
         const daytona = getDaytona();
         const sandbox = await daytona.get(project.sandboxId);
         await sandbox.delete();
-      } catch {
-        // Sandbox already gone — nothing to clean up.
+      } catch (error) {
+        const msg = error instanceof Error ? error.message.toLowerCase() : String(error);
+        const alreadyGone =
+          msg.includes("not found") || msg.includes("404") || msg.includes("does not exist");
+        if (!alreadyGone) {
+          // Real failure (transient Daytona error, bad credentials). Keep the
+          // project and its sandboxId so cleanup can be retried, rather than
+          // orphaning a sandbox that may keep serving publicly.
+          throw new Error(
+            `Could not delete sandbox — project left intact for retry: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+        // Sandbox already gone — safe to remove the project record.
       }
     }
     await ctx.runMutation(internal.projects.removeInternal, { projectId: args.projectId });
