@@ -42,6 +42,14 @@ struct Message: Decodable, Identifiable, Equatable {
     var isStatus: Bool { role == "status" }
 }
 
+/// A dice-rolled app suggestion from the backend idea generator.
+struct AppIdea: Decodable, Identifiable, Equatable {
+    var id: String { title }
+    let title: String
+    let prompt: String
+    let icon: String
+}
+
 struct ProjectFile: Decodable, Identifiable, Equatable {
     let id: String
     let projectId: String
