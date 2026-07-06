@@ -10,6 +10,8 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.0",
+    "@supabase/supabase-js": "^2.108.2",
     "next": "14.2.5",
     "react": "^18",
     "react-dom": "^18",

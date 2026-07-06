@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useLocalStorage } from '@/hooks/useLocalStorage'
 import type { UIPrefs, CaptureItem, BiometricMode } from '@/types'
+import { supabase } from '@/lib/supabase/client'
 import {
   ActionBtn,
   ActionChip,
@@ -50,6 +51,13 @@ export default function ControlsTab() {
   const [bioSummary, setBioSummary] = useState<{ readiness: number; mode: BiometricMode; source: string } | null>(null)
   const [status, setStatus] = useState('')
 
+  // Supabase hybrid sync state (augments localStorage when keys + migration + auth are present)
+  const [supabaseConnected, setSupabaseConnected] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [user, setUser] = useState<any>(null)
+  const [authStatus, setAuthStatus] = useState('')
+  const [syncedCaptureIds, setSyncedCaptureIds] = useState<Set<string>>(new Set())
+
   // Apply global CSS vars + data attrs for future tab integration (demo effect)
   useEffect(() => {
     const root = document.documentElement
@@ -95,8 +103,195 @@ export default function ControlsTab() {
     return () => { cancelled = true }
   }, [])
 
+  // Auth + Supabase load on mount (hybrid: Supabase source of truth when available, LS fallback)
+  useEffect(() => {
+    let cancelled = false
+    async function initAuthAndLoad() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const currentUser = session?.user || null
+        if (currentUser) {
+          setUser(currentUser)
+          setSupabaseConnected(true)
+          setAuthStatus('Signed in')
+          await loadFromSupabase(currentUser.id)
+        } else {
+          // Check if keys look real (fix: check anon key, not url which is always the project)
+          const anonKey = (supabase as any)?.supabaseKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+          const url = (supabase as any)?.supabaseUrl || ''
+          if (anonKey && !anonKey.includes('your-anon') && url && !url.includes('your-project')) {
+            setSupabaseConnected(false) // connected means signed-in for RLS
+            setAuthStatus('Keys present — sign in to enable cloud sync (RLS requires auth)')
+          } else {
+            setSupabaseConnected(false)
+            setAuthStatus('Local only (configure real Supabase keys in .env.local)')
+          }
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setSupabaseConnected(false)
+          setAuthStatus('Auth check failed')
+        }
+      }
+    }
+    initAuthAndLoad()
+    return () => { cancelled = true }
+  }, [])
+
+  async function loadFromSupabase(userId: string) {
+    if (!userId) return
+    try {
+      // Load prefs
+      const { data: prefsData } = await supabase
+        .from('nd_prefs')
+        .select('data')
+        .eq('user_id', userId)
+        .single()
+      if (prefsData?.data) {
+        setPrefs(prefsData.data as UIPrefs)
+      }
+
+      // Load recent captures as inbox
+      const { data: capData } = await supabase
+        .from('nd_captures')
+        .select('id, text, created_at, tags')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(12)
+      if (capData && capData.length > 0) {
+        const items: CaptureItem[] = capData.map((d: any) => ({
+          id: d.id,
+          text: d.text,
+          timestamp: d.created_at,
+          suggested: (d.tags && d.tags[0]) || 'general',
+        }))
+        setInbox(items)
+        // mark all loaded as synced
+        setSyncedCaptureIds(new Set(items.map(i => i.id)))
+      }
+      setStatus('Loaded from Supabase')
+      setTimeout(() => setStatus(''), 800)
+    } catch (e) {
+      setStatus('Supabase load failed (check RLS / user row)')
+      setTimeout(() => setStatus(''), 1400)
+    }
+  }
+
+  async function signInForSync() {
+    setAuthStatus('Signing in...')
+    try {
+      const { data, error } = await supabase.auth.signInAnonymously()
+      if (error) throw error
+      const signedUser = data.user
+      if (signedUser) {
+        setUser(signedUser)
+        setSupabaseConnected(true)
+        setAuthStatus('Signed in (anon)')
+        await loadFromSupabase(signedUser.id)
+        setStatus('Cloud sync enabled')
+        setTimeout(() => setStatus(''), 1200)
+      }
+    } catch (e: any) {
+      setAuthStatus('Sign in failed — enable Anonymous provider in Supabase dashboard or use email')
+      setTimeout(() => setAuthStatus(''), 3000)
+    }
+  }
+
   const effectiveMode = bioSummary ? bioSummary.mode : manualMode
   const rec = MODE_RECS[effectiveMode]
+
+  // Supabase helpers (non-blocking, fall back to localStorage). Now user_id scoped.
+  async function syncPrefsToSupabase(next: UIPrefs) {
+    if (!user?.id) return
+    setIsSyncing(true)
+    try {
+      await supabase.from('nd_prefs').upsert({ user_id: user.id, data: next })
+      setStatus('Prefs synced to Supabase')
+      setTimeout(() => setStatus(''), 800)
+    } catch (e: any) {
+      setStatus('Supabase sync failed — using local only')
+      setTimeout(() => setStatus(''), 1400)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  async function saveCaptureToSupabase(item: CaptureItem) {
+    if (!user?.id) return
+    try {
+      await supabase.from('nd_captures').insert({
+        id: item.id,
+        user_id: user.id,
+        text: item.text,
+        tags: [item.suggested || 'general'],
+        created_at: item.timestamp,
+      })
+      setSyncedCaptureIds(prev => {
+        const next = new Set(prev)
+        next.add(item.id)
+        return next
+      })
+      setStatus('Saved to Supabase')
+      setTimeout(() => setStatus(''), 600)
+    } catch (e) {
+      // silent fallback
+      setStatus('Capture sync failed (RLS?)')
+      setTimeout(() => setStatus(''), 1200)
+    }
+  }
+
+  async function removeCaptureFromSupabase(id: string) {
+    if (!user?.id) return
+    try {
+      await supabase.from('nd_captures').delete().eq('id', id).eq('user_id', user.id)
+      setSyncedCaptureIds(prev => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    } catch (e) {}
+  }
+
+  // Force full sync: pull from Supabase then push local state (last-write wins for prefs, union for inbox)
+  async function forceSync() {
+    if (!user?.id) {
+      await signInForSync()
+      return
+    }
+    setIsSyncing(true)
+    setStatus('Force syncing...')
+    try {
+      // pull first
+      await loadFromSupabase(user.id)
+
+      // push current local prefs
+      await supabase.from('nd_prefs').upsert({ user_id: user.id, data: prefs })
+
+      // push any local-only captures (those not yet in synced set)
+      const localOnly = inbox.filter(item => !syncedCaptureIds.has(item.id))
+      if (localOnly.length > 0) {
+        const rows = localOnly.map(item => ({
+          id: item.id,
+          user_id: user.id,
+          text: item.text,
+          tags: [item.suggested || 'general'],
+          created_at: item.timestamp,
+        }))
+        await supabase.from('nd_captures').upsert(rows, { onConflict: 'id' })
+        setSyncedCaptureIds(prev => {
+          const next = new Set(prev)
+          localOnly.forEach(i => next.add(i.id))
+          return next
+        })
+      }
+      setStatus('Force sync complete')
+    } catch (e) {
+      setStatus('Force sync error (see console / RLS policies)')
+    } finally {
+      setIsSyncing(false)
+      setTimeout(() => setStatus(''), 1600)
+    }
+  }
 
   const densityPadding = prefs.density === 'compact' ? '12px' : '18px'
   const scaleStyle = { fontSize: `${prefs.fontScale}rem` } as const
@@ -112,12 +307,15 @@ export default function ControlsTab() {
       next = { density: 'comfortable', fontScale: 1.12, highContrast: true, reducedMotion: false }
     }
     setPrefs(next)
+    syncPrefsToSupabase(next)
     setStatus(`Preset "${preset}" applied`)
     setTimeout(() => setStatus(''), 1400)
   }
 
   function updatePref<K extends keyof UIPrefs>(key: K, value: UIPrefs[K]) {
-    setPrefs(prev => ({ ...prev, [key]: value }))
+    const next = { ...prefs, [key]: value }
+    setPrefs(next)
+    syncPrefsToSupabase(next)
   }
 
   function handleCapture() {
@@ -133,6 +331,7 @@ export default function ControlsTab() {
     setInbox(prev => [item, ...prev].slice(0, 12))
     setCaptureText('')
     setStatus('Captured to inbox')
+    saveCaptureToSupabase(item)
     setTimeout(() => setStatus(''), 1200)
   }
 
@@ -145,6 +344,8 @@ export default function ControlsTab() {
 
   function removeItem(id: string) {
     setInbox(prev => prev.filter(i => i.id !== id))
+    setSyncedCaptureIds(prev => { const n = new Set(prev); n.delete(id); return n })
+    removeCaptureFromSupabase(id)
   }
 
   function logToResumptionStub(item: CaptureItem) {
@@ -170,8 +371,18 @@ export default function ControlsTab() {
 
   function clearInbox() {
     setInbox([])
+    setSyncedCaptureIds(new Set())
     setStatus('Inbox cleared')
     setTimeout(() => setStatus(''), 900)
+  }
+
+  // Per-item force sync helper
+  function forceSyncItem(item: CaptureItem) {
+    if (!user?.id) {
+      signInForSync()
+      return
+    }
+    saveCaptureToSupabase(item)
   }
 
   return (
@@ -179,7 +390,7 @@ export default function ControlsTab() {
       <div className="space-y-2">
         <SectionTitle>Governor Controls</SectionTitle>
         <SectionSubtitle>
-          Sensory prefs, energy mode surface, and quick capture. Local only. Shapes the rest of the dashboard.
+          Sensory prefs, energy mode surface, and quick capture. Hybrid local + Supabase (user_id scoped + RLS). Shapes the rest of the dashboard.
         </SectionSubtitle>
       </div>
 
@@ -187,6 +398,27 @@ export default function ControlsTab() {
       {status && (
         <div style={{ color: 'var(--success)', fontSize: '0.8rem' }}>{status}</div>
       )}
+      {authStatus && (
+        <div style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>{authStatus}</div>
+      )}
+
+      {/* Supabase hybrid status + Force sync + Auth */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.75rem', flexWrap: 'wrap' }}>
+        {user ? (
+          <Badge tone="success">Supabase • {user.email || user.id?.slice(0,8)}</Badge>
+        ) : supabaseConnected ? (
+          <Badge tone="teal">Keys ready</Badge>
+        ) : (
+          <Badge tone="muted">Local only (add keys + run migration for sync)</Badge>
+        )}
+        {isSyncing && <Badge tone="teal">syncing…</Badge>}
+        <ActionChip onClick={forceSync} disabled={isSyncing}>
+          {user ? 'Force sync' : 'Sign in + Force sync'}
+        </ActionChip>
+        {!user && (
+          <ActionChip onClick={signInForSync}>Sign in (anon) for cloud</ActionChip>
+        )}
+      </div>
 
       {/* Presets - dopamine light, forgiving */}
       <Card>
@@ -216,7 +448,6 @@ export default function ControlsTab() {
               <option value="compact">Compact (focus mode)</option>
             </select>
           </div>
-
           <div>
             <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: 4 }}>
               Font scale: {prefs.fontScale.toFixed(2)}
@@ -231,7 +462,6 @@ export default function ControlsTab() {
               style={{ width: '100%' }}
             />
           </div>
-
           <div className="flex items-center gap-3">
             <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>High contrast</label>
             <input
@@ -240,7 +470,6 @@ export default function ControlsTab() {
               onChange={e => updatePref('highContrast', e.target.checked)}
             />
           </div>
-
           <div className="flex items-center gap-3">
             <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Reduced motion</label>
             <input
@@ -250,7 +479,6 @@ export default function ControlsTab() {
             />
           </div>
         </div>
-
         {/* Live preview card that reacts to prefs */}
         <div style={{ marginTop: 16 }}>
           <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', marginBottom: 6 }}>Live preview (density + scale + contrast)</div>
@@ -279,7 +507,6 @@ export default function ControlsTab() {
             <Badge tone="amber">No live data — using manual</Badge>
           )}
         </div>
-
         <div className="mb-3">
           <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: 4 }}>Effective mode</label>
           <select
@@ -296,12 +523,10 @@ export default function ControlsTab() {
             ))}
           </select>
         </div>
-
         <div style={{ padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 10, background: 'var(--surface-soft)' }}>
           <div style={{ fontWeight: 600, marginBottom: 4 }}>{MODE_LABELS[effectiveMode]}</div>
           <div style={{ color: 'var(--text-soft)', fontSize: '0.9rem', lineHeight: 1.4 }}>{rec}</div>
         </div>
-
         <p style={{ marginTop: 10, fontSize: '0.8rem', color: 'var(--text-dim)' }}>
           Mode influences future tab highlights and recommendations. Biometrics data (if present) auto-detects; manual override always available.
         </p>
@@ -310,7 +535,7 @@ export default function ControlsTab() {
       {/* Quick Capture + Inbox */}
       <Card>
         <SectionTitle>Quick Capture (Externalize Now)</SectionTitle>
-        <SectionSubtitle>Zero-friction inbox. Capture client notes, code ideas, shoot framing, blockers. Process later.</SectionSubtitle>
+        <SectionSubtitle>Zero-friction inbox. Capture client notes, code ideas, shoot framing, blockers. Process later. Per-item Supabase status + force sync available.</SectionSubtitle>
 
         <div className="flex gap-2 mb-3">
           <Input
@@ -325,10 +550,11 @@ export default function ControlsTab() {
           <ActionChip onClick={exportInbox} disabled={inbox.length === 0}>Export JSON</ActionChip>
           <ActionChip variant="danger" onClick={clearInbox} disabled={inbox.length === 0}>Clear all</ActionChip>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', alignSelf: 'center' }}>{inbox.length} captured</span>
+          <ActionChip onClick={forceSync} disabled={isSyncing || !user}>Force full sync</ActionChip>
         </div>
 
         {inbox.length === 0 ? (
-          <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>Inbox empty. Captures persist locally and survive reloads.</div>
+          <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>Inbox empty. Captures persist locally + Supabase (when signed in + RLS allows).</div>
         ) : (
           <div className="space-y-2 max-h-[260px] overflow-auto pr-1">
             {inbox.map(item => (
@@ -337,10 +563,17 @@ export default function ControlsTab() {
                 <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', marginBottom: 6 }}>
                   {new Date(item.timestamp).toLocaleString()} • suggested: {item.suggested || 'general'}
                 </div>
-                <div className="flex gap-1 flex-wrap">
+                <div className="flex gap-1 flex-wrap items-center">
                   <ActionChip onClick={() => copyItem(item)}>Copy</ActionChip>
                   <ActionChip onClick={() => logToResumptionStub(item)}>Log to Resumption (stub)</ActionChip>
                   <ActionChip variant="ghost" onClick={() => removeItem(item.id)}>Remove</ActionChip>
+                  {syncedCaptureIds.has(item.id) ? (
+                    <Badge tone="success">Supabase synced</Badge>
+                  ) : user ? (
+                    <ActionChip onClick={() => forceSyncItem(item)}>Sync to Supabase</ActionChip>
+                  ) : (
+                    <Badge tone="muted">local</Badge>
+                  )}
                 </div>
               </div>
             ))}
@@ -349,7 +582,7 @@ export default function ControlsTab() {
       </Card>
 
       <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
-        Prefs and inbox live in localStorage on this device only. Apply presets before long sessions. This tab is the seed for adaptive UI across the dashboard.
+        Hybrid: localStorage + Supabase (user_id + RLS policies). {user ? 'Authenticated sync.' : 'Sign in for cloud (anon supported).'} Force sync merges state. Apply presets before long sessions. This tab seeds adaptive UI.
       </div>
     </section>
   )
