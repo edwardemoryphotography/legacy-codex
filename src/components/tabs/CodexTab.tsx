@@ -12,6 +12,7 @@ import {
 } from '@/data/codex'
 import type { CodexEntry, CodexSection, SectionKey } from '@/types'
 import { ActionChip, Badge, Card, HelperLine, SectionSubtitle, SectionTitle } from '@/components/ui'
+import { supabase } from '@/lib/supabase/client'
 
 const BOOKMARKS_KEY = 'codex_v39_codex_bookmarks'
 const RECENTS_KEY = 'codex_v39_recent_entries'
@@ -39,12 +40,14 @@ function removeId(ids: string[], id: string) {
 }
 
 function makeEntryUrl(entryId: string) {
+  if (typeof window === 'undefined') return '#'
   const url = new URL(window.location.href)
   url.hash = `codex=${encodeURIComponent(entryId)}`
   return url.toString()
 }
 
 function syncEntryHash(entryId: string) {
+  if (typeof window === 'undefined') return
   const url = new URL(window.location.href)
   url.hash = `codex=${encodeURIComponent(entryId)}`
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
@@ -78,6 +81,12 @@ export default function CodexTab() {
   const [bookmarks, setBookmarks] = useLocalStorage<string[]>(BOOKMARKS_KEY, [])
   const [recents, setRecents] = useLocalStorage<string[]>(RECENTS_KEY, [])
   const [status, setStatus] = useState('')
+
+  // Supabase hybrid for bookmarks (saved "searches"/pins) — same pattern as Controls
+  const [sbUser, setSbUser] = useState<any>(null)
+  const [sbConnected, setSbConnected] = useState(false)
+  const [sbSyncing, setSbSyncing] = useState(false)
+  const [sbStatus, setSbStatus] = useState('')
 
   const allEntries = useMemo(() => CODEX_SECTIONS.flatMap(section => flattenEntries(section.entries)), [])
   const entryMap = useMemo(() => new Map(allEntries.map(entry => [entry.id, entry])), [allEntries])
@@ -116,6 +125,95 @@ export default function CodexTab() {
     () => recents.map(id => entryMap.get(id)).filter(Boolean) as CodexEntry[],
     [recents, entryMap]
   )
+
+  // Auth + load bookmarks from Supabase (user scoped)
+  useEffect(() => {
+    let cancelled = false
+    async function initSb() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const u = session?.user || null
+        if (u) {
+          setSbUser(u)
+          setSbConnected(true)
+          await loadBookmarksFromSupabase(u.id)
+        } else {
+          const key = (supabase as any)?.supabaseKey || ''
+          if (key && !key.includes('your-anon')) {
+            setSbConnected(false)
+            setSbStatus('Sign in from Controls tab to persist bookmarks to Supabase')
+          }
+        }
+      } catch {}
+    }
+    initSb()
+    return () => { cancelled = true }
+  }, [])
+
+  async function loadBookmarksFromSupabase(userId: string) {
+    if (!userId) return
+    try {
+      const { data } = await supabase
+        .from('nd_codex_bookmarks')
+        .select('entry_id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(12)
+      if (data && data.length) {
+        const ids = data.map((r: any) => r.entry_id)
+        setBookmarks(ids)
+        setSbStatus('Bookmarks loaded from Supabase')
+        setTimeout(() => setSbStatus(''), 700)
+      }
+    } catch (e) {
+      setSbStatus('Bookmark load skipped (RLS/user row)')
+      setTimeout(() => setSbStatus(''), 1200)
+    }
+  }
+
+  async function syncBookmarkToSupabase(entryId: string, isAdd: boolean) {
+    if (!sbUser?.id) return
+    setSbSyncing(true)
+    try {
+      if (isAdd) {
+        await supabase.from('nd_codex_bookmarks').insert({ user_id: sbUser.id, entry_id: entryId })
+      } else {
+        await supabase.from('nd_codex_bookmarks').delete().eq('user_id', sbUser.id).eq('entry_id', entryId)
+      }
+      setSbStatus(isAdd ? 'Pinned to Supabase' : 'Unpinned from Supabase')
+      setTimeout(() => setSbStatus(''), 600)
+    } catch (e) {
+      setSbStatus('Supabase bookmark sync failed')
+      setTimeout(() => setSbStatus(''), 1200)
+    } finally {
+      setSbSyncing(false)
+    }
+  }
+
+  async function forceSyncBookmarks() {
+    if (!sbUser?.id) {
+      setSbStatus('Sign in (via Controls) first')
+      setTimeout(() => setSbStatus(''), 1500)
+      return
+    }
+    setSbSyncing(true)
+    setSbStatus('Force syncing bookmarks...')
+    try {
+      // push current local bookmarks
+      if (bookmarks.length > 0) {
+        const rows = bookmarks.map(id => ({ user_id: sbUser.id, entry_id: id }))
+        await supabase.from('nd_codex_bookmarks').upsert(rows, { onConflict: 'user_id,entry_id' })
+      }
+      // pull back authoritative
+      await loadBookmarksFromSupabase(sbUser.id)
+      setSbStatus('Bookmarks force-synced')
+    } catch (e) {
+      setSbStatus('Force bookmark sync error')
+    } finally {
+      setSbSyncing(false)
+      setTimeout(() => setSbStatus(''), 1400)
+    }
+  }
 
   const selectEntry = (
     entry: CodexEntry,
@@ -176,12 +274,18 @@ export default function CodexTab() {
   }, [activeEntry, trimmed, visibleEntries])
 
   const toggleBookmark = (entry: CodexEntry) => {
+    const isAdding = !bookmarks.includes(entry.id)
     setBookmarks(prev =>
       prev.includes(entry.id)
         ? removeId(prev, entry.id)
         : [entry.id, ...prev].slice(0, MAX_BOOKMARKS)
     )
     setStatus(bookmarks.includes(entry.id) ? `Unpinned ${entry.title}.` : `Pinned ${entry.title}.`)
+
+    // Wire Supabase pattern (same as Controls captures/prefs)
+    if (sbUser?.id) {
+      syncBookmarkToSupabase(entry.id, isAdding)
+    }
   }
 
   const copyLink = async (entry: CodexEntry) => {
@@ -206,7 +310,8 @@ export default function CodexTab() {
 
   const clearBookmarks = () => {
     setBookmarks([])
-    setStatus('Cleared pinned entries.')
+    setSbStatus('Cleared local pins (Supabase not touched)')
+    setTimeout(() => setSbStatus(''), 900)
   }
 
   return (
@@ -214,7 +319,7 @@ export default function CodexTab() {
       <div className="space-y-2">
         <SectionTitle>Codex</SectionTitle>
         <SectionSubtitle>
-          Knowledge graph — the systematic record of Edward Emory Photography&apos;s operating principles, creative frameworks, and strategic decisions.
+          Knowledge graph — the systematic record of Edward Emory Photography&apos;s operating principles, creative frameworks, and strategic decisions. Bookmarks now persist to Supabase (user scoped) when signed in.
         </SectionSubtitle>
       </div>
 
@@ -226,6 +331,8 @@ export default function CodexTab() {
               <Badge tone="amber">{totalEntries} entries</Badge>
               <Badge tone="success">{bookmarkedEntries.length} pinned</Badge>
               <Badge tone="muted">{recentEntries.length} recent</Badge>
+              {sbConnected && <Badge tone="teal">Supabase bookmarks</Badge>}
+              {sbSyncing && <Badge tone="teal">syncing…</Badge>}
             </div>
             <h3 className="text-2xl font-black tracking-tight" style={{ letterSpacing: '-0.04em' }}>
               Browse the system, pin what matters, and keep every entry linkable.
@@ -233,8 +340,13 @@ export default function CodexTab() {
             <p className="mt-2 text-sm sm:text-[0.95rem]" style={{ color: 'var(--text-soft)', lineHeight: 1.65 }}>
               Search the graph, open a section, pin load-bearing entries, and copy either the markdown or a deep link to the current card.
             </p>
+            {sbStatus && <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: 6 }}>{sbStatus}</div>}
+            <div className="mt-2">
+              <ActionChip onClick={forceSyncBookmarks} disabled={sbSyncing || !sbUser}>
+                {sbUser ? 'Force sync bookmarks' : 'Sign in (Controls) to enable Supabase bookmarks'}
+              </ActionChip>
+            </div>
           </div>
-
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full lg:w-auto">
             {[
               { label: 'Visible', value: trimmed ? String(visibleEntries.length) : String(totalEntries) },
@@ -292,7 +404,7 @@ export default function CodexTab() {
             <QuickAccessList
               title="Pinned"
               items={bookmarkedEntries}
-              emptyMessage="Pin load-bearing entries from the active card."
+              emptyMessage="Pin load-bearing entries from the active card. Synced to Supabase when signed in."
               onOpen={entry => selectEntry(entry, { clearSearch: true })}
               onAction={toggleBookmark}
               actionLabel={() => 'Unpin'}
@@ -349,7 +461,7 @@ export default function CodexTab() {
       </div>
 
       <HelperLine variant={status.includes('unavailable') ? 'error' : status ? 'success' : undefined}>
-        {status || 'Pinned entries persist locally, and entry links remain copyable without a backend.'}
+        {status || (sbConnected ? 'Pinned entries persist locally + Supabase (user_id + RLS). Use Force sync bookmarks.' : 'Pinned entries persist locally, and entry links remain copyable without a backend. Sign in via Controls for Supabase sync.')}
       </HelperLine>
     </section>
   )
@@ -579,7 +691,7 @@ function CodexContent({
 
       <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--line)' }}>
         <HelperLine>
-          Pinned entries persist locally, and entry links remain copyable without a backend.
+          Pinned entries persist locally + Supabase (when signed in). Force sync available above.
         </HelperLine>
       </div>
     </div>
