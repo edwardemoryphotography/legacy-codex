@@ -163,12 +163,12 @@ function LoginForm() {
                   }
                   placeholder="000000"
                   className="mt-1 block w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-center font-mono text-lg tracking-[0.4em] text-zinc-100 placeholder-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  disabled={verifying}
+                  disabled={verifying || loading}
                 />
               </div>
               <button
                 type="submit"
-                disabled={verifying || otpCode.trim().length < 6}
+                disabled={verifying || loading || otpCode.trim().length < 6}
                 className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-zinc-950 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {verifying ? "Verifying…" : "Sign In with Code"}
@@ -178,7 +178,7 @@ function LoginForm() {
             <div className="space-y-2 text-center">
               <button
                 onClick={handleResend}
-                disabled={loading}
+                disabled={verifying || loading}
                 className="text-sm text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
               >
                 {loading ? "Resending…" : "Resend code"}
@@ -186,7 +186,8 @@ function LoginForm() {
 
               <button
                 onClick={handleBackToLogin}
-                className="block w-full text-xs text-zinc-500 hover:text-zinc-400"
+                disabled={verifying || loading}
+                className="block w-full text-xs text-zinc-500 hover:text-zinc-400 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Use a different email
               </button>
