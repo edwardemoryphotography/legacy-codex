@@ -1,23 +1,19 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+"use client";
+
 import { WorkspaceProvider } from "@/lib/workspace-context";
+import { ToastProvider } from "@/components/toast";
 import { DashboardShell } from "@/components/dashboard-shell";
 
-export default async function DashboardLayout({
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
-
   return (
-    <WorkspaceProvider>
-      <DashboardShell userEmail={user.email ?? ""}>{children}</DashboardShell>
-    </WorkspaceProvider>
+    <ToastProvider>
+      <WorkspaceProvider>
+        <DashboardShell>{children}</DashboardShell>
+      </WorkspaceProvider>
+    </ToastProvider>
   );
 }
