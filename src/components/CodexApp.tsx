@@ -80,7 +80,7 @@ export default function CodexApp() {
 
       {/* Tab bar */}
       <nav
-        className="fixed lg:sticky bottom-0 lg:top-0 left-0 right-0 z-50 grid gap-1 mb-4"
+        className="codex-tabbar fixed lg:sticky bottom-0 lg:top-0 left-0 right-0 z-50 gap-1 mb-4"
         style={{
           gridTemplateColumns: `repeat(${TABS.length}, minmax(0, 1fr))`,
           background: 'rgba(10, 10, 15, 0.96)',
@@ -99,7 +99,11 @@ export default function CodexApp() {
             type="button"
             role="tab"
             aria-selected={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={event => {
+              setActiveTab(tab.id)
+              // On phones the bar scrolls horizontally; keep the tapped tab in view.
+              event.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+            }}
             className="rounded-lg text-xs font-semibold leading-tight transition-all duration-150"
             style={{
               minHeight: '52px',

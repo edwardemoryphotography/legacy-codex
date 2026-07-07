@@ -78,6 +78,41 @@ pre {
   max-width: 100%;
 }
 
+/* Responsive tab bar:
+   - Phones/tablets (<1024px): horizontally scrollable strip with full-size touch
+     targets, so 8 tabs never squeeze or overlap.
+   - Laptops/desktops (>=1024px): full-width grid, all tabs visible at once. */
+.codex-tabbar {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.codex-tabbar::-webkit-scrollbar {
+  display: none;
+}
+
+.codex-tabbar > button {
+  flex: 0 0 auto;
+  min-width: 96px;
+  scroll-snap-align: center;
+  white-space: nowrap;
+}
+
+@media (min-width: 1024px) {
+  .codex-tabbar {
+    display: grid;
+    overflow-x: visible;
+  }
+
+  .codex-tabbar > button {
+    min-width: 0;
+    white-space: normal;
+  }
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: var(--surface); }
