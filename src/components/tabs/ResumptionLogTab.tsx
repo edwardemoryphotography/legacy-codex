@@ -16,9 +16,6 @@ interface ResumptionPacket extends ResumptionDraft {
   markdown: string
 }
 
-
-  const [ndInbox] = useLocalStorage<any[]>("nd_inbox_v1", [])
-
 const DRAFT_KEY = 'codex_v39_resumption_draft'
 const HISTORY_KEY = 'codex_v39_resumption_history'
 const MAX_HISTORY = 12
