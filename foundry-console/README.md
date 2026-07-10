@@ -1,7 +1,54 @@
-# The Foundry Console
+# Foundry Console
 
-Minimal Next.js web console for **Case Study Zero**.  
-Connects to an existing Supabase backend — no mock data, no synthetic examples.
+Foundry Console is the **technical builder and operations environment** for creating, connecting, deploying, inspecting, and maintaining the systems that power Legacy Codex and the wider Artful Intelligence ecosystem.
+
+> **Canonical question:** What exists, what is running, what is broken, and what technical action must happen next?
+
+The current application began as a minimal Next.js web console for **Case Study Zero**. Case Study Zero is now classified as a workspace inside Foundry Console, not the definition of the product itself.
+
+Canonical architecture:
+
+- [`../docs/architecture/PRODUCT_BOUNDARY.md`](../docs/architecture/PRODUCT_BOUNDARY.md)
+- [`../docs/architecture/FEATURE_PLACEMENT.md`](../docs/architecture/FEATURE_PLACEMENT.md)
+- [`../docs/superpowers/plans/2026-07-10-legacy-codex-foundry-boundary.md`](../docs/superpowers/plans/2026-07-10-legacy-codex-foundry-boundary.md)
+
+## Product responsibility
+
+Foundry Console owns:
+
+- System, application, repository, service, and module registry
+- Branch, commit, build, test, deployment, environment, and verification state
+- Agent execution, provider routing, task history, and approval state
+- Integration configuration and health
+- Technical diagnostics, audit trails, exports, and rollback controls
+- Module publishing into Legacy Codex
+- PocketForge as the mobile builder and execution module
+
+Foundry Console does **not** own:
+
+- The user’s daily cognitive homepage
+- Personal journaling or resumption context
+- Cognitive friction as a primary record
+- Human project meaning, intention, or next-action selection
+- A duplicate version of the Legacy Codex Today surface
+
+## Current implementation status
+
+The current routes remain a transitional Case Study Zero implementation. Their canonical placement is:
+
+| Current feature | Current route | Canonical disposition |
+|---|---|---|
+| Magic-link auth | `/login` | Keep in Foundry |
+| Workspace selector | Sidebar | Keep in Foundry → Systems |
+| Sprints list + edit | `/dashboard/sprints`, `/dashboard/sprints/[id]` | Split between Legacy project state and Foundry execution state |
+| Friction log + add | `/dashboard/friction` | Move to Legacy → Review / Memory after schema inventory |
+| Milestones timeline + add | `/dashboard/milestones` | Move to Legacy → Projects after schema inventory |
+| Manual pages | `/dashboard/manual` | Split into user playbooks and technical runbooks |
+| Settings | `/dashboard/settings` | Keep in Foundry |
+| Audit log | `/dashboard/events` | Keep in Foundry → Diagnostics / Audit |
+| JSON export | `/dashboard/export` | Keep in Foundry → Data Management |
+
+No route or database migration is authorized until the current schema inventory and route map are completed and reviewed.
 
 ## Stack
 
@@ -9,20 +56,6 @@ Connects to an existing Supabase backend — no mock data, no synthetic examples
 - **Tailwind CSS v4**
 - **Supabase JS** (@supabase/ssr)
 - **Hosting**: Vercel
-
-## Features
-
-| Feature | Route |
-|---------|-------|
-| Magic-link auth | `/login` |
-| Workspace selector | Sidebar (auto-loads from `workspace_members`) |
-| Sprints list + edit | `/dashboard/sprints`, `/dashboard/sprints/[id]` |
-| Friction log + add | `/dashboard/friction` |
-| Milestones timeline + add | `/dashboard/milestones` |
-| Manual pages (admin edit) | `/dashboard/manual` |
-| Settings (admin) | `/dashboard/settings` |
-| Audit log (read-only) | `/dashboard/events` |
-| JSON export | `/dashboard/export` |
 
 ## Prerequisites
 
@@ -63,6 +96,8 @@ Open [http://localhost:3000](http://localhost:3000).
 2. Paste and run the contents of `SCHEMA.sql`
 3. This creates all tables with RLS policies
 
+Before changing `SCHEMA.sql`, document every current reader and writer in `docs/architecture/SCHEMA_INVENTORY.md` as required by the canonical migration plan.
+
 ## Deploy to Vercel
 
 ### 1. Connect GitHub
@@ -100,6 +135,8 @@ After deploying, add your Vercel URL to Supabase:
 2. You should see the login page
 3. Enter your email → receive a magic link → sign in
 4. If you're a member of a workspace, you'll see the dashboard
+
+A successful Foundry session must end with a verified technical state change, such as a passing build, verified deployment, diagnosed failure, restored integration, or published module.
 
 ## Security Notes
 
