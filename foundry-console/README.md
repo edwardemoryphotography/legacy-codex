@@ -1,147 +1,123 @@
-# Foundry Console
+# The Foundry Console
 
-Foundry Console is the **technical builder and operations environment** for creating, connecting, deploying, inspecting, and maintaining the systems that power Legacy Codex and the wider Artful Intelligence ecosystem.
+## Canonical ecosystem role
 
-> **Canonical question:** What exists, what is running, what is broken, and what technical action must happen next?
+Foundry Console is the **technical build and operations environment** for Legacy Codex and the wider Artful Intelligence ecosystem.
 
-The current application began as a minimal Next.js web console for **Case Study Zero**. Case Study Zero is now classified as a workspace inside Foundry Console, not the definition of the product itself.
+It answers:
 
-Canonical architecture:
+> What exists, what is running, what is broken, and what technical action must happen next?
 
-- [`../docs/architecture/PRODUCT_BOUNDARY.md`](../docs/architecture/PRODUCT_BOUNDARY.md)
-- [`../docs/architecture/FEATURE_PLACEMENT.md`](../docs/architecture/FEATURE_PLACEMENT.md)
-- [`../docs/superpowers/plans/2026-07-10-legacy-codex-foundry-boundary.md`](../docs/superpowers/plans/2026-07-10-legacy-codex-foundry-boundary.md)
+Foundry owns repositories, applications, services, builds, deployments, integrations, agent operations, diagnostics, audit history, exports, permissions, and module publishing.
 
-## Product responsibility
+It does **not** own the user's daily cognitive homepage, personal journal, energy-aware task selection, friction history, or human project milestones. Those responsibilities belong to Legacy Codex.
 
-Foundry Console owns:
+**Case Study Zero is a workspace and implementation case inside Foundry Console. It is not the product definition of Foundry Console.**
 
-- System, application, repository, service, and module registry
-- Branch, commit, build, test, deployment, environment, and verification state
-- Agent execution, provider routing, task history, and approval state
-- Integration configuration and health
-- Technical diagnostics, audit trails, exports, and rollback controls
-- Module publishing into Legacy Codex
-- PocketForge as the mobile builder and execution module
+See:
 
-Foundry Console does **not** own:
+- `../docs/architecture/PRODUCT_BOUNDARY.md`
+- `../docs/architecture/FEATURE_PLACEMENT.md`
+- `../docs/superpowers/plans/2026-07-10-legacy-codex-foundry-boundary.md`
 
-- The user’s daily cognitive homepage
-- Personal journaling or resumption context
-- Cognitive friction as a primary record
-- Human project meaning, intention, or next-action selection
-- A duplicate version of the Legacy Codex Today surface
+## Current implementation
 
-## Current implementation status
+Minimal, fast web console for **Case Study Zero**.  
+**No sign-in.** Open the link and you're in — the URL is the key.
 
-The current routes remain a transitional Case Study Zero implementation. Their canonical placement is:
+Connects to a Supabase backend and shows only real database data. No mock data, no synthetic examples, no analytics.
 
-| Current feature | Current route | Canonical disposition |
-|---|---|---|
-| Magic-link auth | `/login` | Keep in Foundry |
-| Workspace selector | Sidebar | Keep in Foundry → Systems |
-| Sprints list + edit | `/dashboard/sprints`, `/dashboard/sprints/[id]` | Split between Legacy project state and Foundry execution state |
-| Friction log + add | `/dashboard/friction` | Move to Legacy → Review / Memory after schema inventory |
-| Milestones timeline + add | `/dashboard/milestones` | Move to Legacy → Projects after schema inventory |
-| Manual pages | `/dashboard/manual` | Split into user playbooks and technical runbooks |
-| Settings | `/dashboard/settings` | Keep in Foundry |
-| Audit log | `/dashboard/events` | Keep in Foundry → Diagnostics / Audit |
-| JSON export | `/dashboard/export` | Keep in Foundry → Data Management |
+The current route set predates the canonical product boundary. Preserve it as working implementation evidence, but use the feature-placement registry before extending or relocating features.
 
-No route or database migration is authorized until the current schema inventory and route map are completed and reviewed.
+## How access works (read this)
+
+There is no login, no magic link, no email loop. The app talks to Supabase
+with the **anon key** and open row-level-security policies:
+
+- **Anyone who has the deployed URL can read and write workspace data.**
+  Treat the URL like a password — share it only with people you trust.
+- The **events** table is append-only *at the database level*: the anon key
+  has no update or delete permission on it, and no table has a delete policy
+  at all. Nothing can be destroyed through the app.
+- The service role key is never used in the frontend.
+
+If you later want real access control, add Supabase auth back and tighten
+the RLS policies — the schema supports it.
 
 ## Stack
 
 - **Next.js 15** (App Router) + TypeScript
 - **Tailwind CSS v4**
-- **Supabase JS** (@supabase/ssr)
+- **Supabase JS** (anon key only)
 - **Hosting**: Vercel
 
-## Prerequisites
+## Features
 
-- Node.js 18+
-- A Supabase project with the schema from `SCHEMA.sql` applied
-- Auth → Email → "Enable Magic Link" turned on in Supabase dashboard
+| Feature | Route | Canonical placement note |
+|---------|-------|--------------------------|
+| Overview: live counts, active sprint, next milestone, recent activity | `/dashboard` | Split human progress from technical system health |
+| Workspace switcher + create workspaces in-app | Sidebar | Keep in Foundry |
+| Sprints: create, list, full-field edit | `/dashboard/sprints` | Split cognitive goal view from technical execution metadata |
+| Friction: log, resolve | `/dashboard/friction` | Move primary ownership to Legacy Review / Memory |
+| Milestones: timeline, add, complete/reopen | `/dashboard/milestones` | Move human milestones to Legacy Projects |
+| Manual: create + edit pages, auto version bump | `/dashboard/manual` | Split user playbooks from technical runbooks |
+| Settings: AI kill switch, PII warning toggle | `/dashboard/settings` | Keep in Foundry |
+| Audit log: read-only, append-only | `/dashboard/events` | Keep in Foundry |
+| Export: full workspace JSON download | `/dashboard/export` | Keep in Foundry |
 
-## Local Development
+Every create/update action writes an entry to the audit log automatically.
+
+## Setup
+
+### 1. Database
+
+1. Create a Supabase project (or reuse one)
+2. Open **SQL Editor**, paste the contents of `SCHEMA.sql`, run it
+
+### 2. Local development
 
 ```bash
 cd foundry-console
-
-# 1. Install dependencies
+cp .env.local.example .env.local   # fill in URL + anon key
 npm install
-
-# 2. Create env file
-cp .env.local.example .env.local
-# Edit .env.local with your Supabase project URL and anon key
-
-# 3. Run dev server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000). First visit shows a
+one-field "create workspace" screen; after that you land straight on the
+Overview.
 
-## Environment Variables
+## Environment variables
 
 | Variable | Description |
 |----------|-------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL (e.g. `https://abc123.supabase.co`) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your Supabase anon/public key |
-
-**Security**: Only the anon key is used in the frontend. RLS policies on the database enforce access control. No service role key is ever exposed to the client.
-
-## Database Setup
-
-1. Open your Supabase project → SQL Editor
-2. Paste and run the contents of `SCHEMA.sql`
-3. This creates all tables with RLS policies
-
-Before changing `SCHEMA.sql`, document every current reader and writer in `docs/architecture/SCHEMA_INVENTORY.md` as required by the canonical migration plan.
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (`https://xyz.supabase.co`) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
 
 ## Deploy to Vercel
 
-### 1. Connect GitHub
+### Connect GitHub
 
-1. Go to [vercel.com](https://vercel.com) and sign in
-2. Click **"Add New…" → Project**
-3. Import this repository from GitHub
-4. Vercel auto-detects it as a Next.js project
+1. [vercel.com](https://vercel.com) → **Add New… → Project**
+2. Import this repository
+3. Set **Root Directory** to `foundry-console`
+4. Framework preset: Next.js (auto-detected)
 
-### 2. Set Environment Variables
+### Set env vars
 
-In the Vercel project settings (**Settings → Environment Variables**):
+**Settings → Environment Variables**, for Production, Preview, and Development:
 
 | Key | Value |
 |-----|-------|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://your-project.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `your-anon-key` |
+| `NEXT_PUBLIC_SUPABASE_URL` | your project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your anon key |
 
-Set these for **Production**, **Preview**, and **Development** environments.
+### Deploy & verify
 
-### 3. Deploy
+1. Click **Deploy**
+2. Open the Vercel URL — you should immediately see either the
+   "create workspace" screen (fresh database) or the Overview (existing data)
+3. Create a sprint; confirm it appears in the Supabase table editor and in
+   the audit log — that proves the live connection end to end
 
-Click **Deploy**. Vercel will build and deploy automatically.
-
-### 4. Configure Supabase Redirect
-
-After deploying, add your Vercel URL to Supabase:
-
-1. Supabase Dashboard → Authentication → URL Configuration
-2. Add `https://your-app.vercel.app/auth/callback` to **Redirect URLs**
-
-### 5. Verify It's Live
-
-1. Visit your Vercel URL (e.g. `https://foundry-console.vercel.app`)
-2. You should see the login page
-3. Enter your email → receive a magic link → sign in
-4. If you're a member of a workspace, you'll see the dashboard
-
-A successful Foundry session must end with a verified technical state change, such as a passing build, verified deployment, diagnosed failure, restored integration, or published module.
-
-## Security Notes
-
-- Uses only the Supabase **anon key** (never the service role key)
-- All data access is governed by Supabase RLS policies
-- Admin-only UI (Settings, Manual edit) checks `workspace_members.role`
-- Events table is append-only: the UI cannot edit or delete events
-- No analytics, no tracking, no cookies beyond auth session
+No auth redirect configuration is needed. There is nothing else to set up.
