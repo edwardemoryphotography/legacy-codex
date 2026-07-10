@@ -2,6 +2,24 @@
 
 **Build web apps from your phone — a Replit-style mobile app builder.**
 
+PocketForge is the **mobile builder and execution module of Foundry Console**.
+
+Its technical responsibilities belong to Foundry:
+
+- AI provider selection and routing
+- Convex deployment and realtime state
+- Daytona sandbox creation, wake, teardown, and preview health
+- Generated source inspection
+- Build and iteration history
+- Environment configuration and diagnostics
+
+Legacy Codex may expose a small approved action such as **Build this idea in PocketForge**, but it must not expose provider keys, sandbox administration, deployment internals, or code-level diagnostics.
+
+Canonical product boundary:
+
+- [`../docs/architecture/PRODUCT_BOUNDARY.md`](../docs/architecture/PRODUCT_BOUNDARY.md)
+- [`../docs/architecture/FEATURE_PLACEMENT.md`](../docs/architecture/FEATURE_PLACEMENT.md)
+
 Describe an app in a sentence. Claude designs and codes it, a Daytona cloud
 sandbox runs it, and the live app appears right inside the iOS app — with an
 agent chat to iterate and a code browser to inspect every file.
@@ -37,6 +55,19 @@ agent chat to iterate and a code browser to inspect every file.
 Generated apps are deliberately **static-site + CDN** (no npm/build step in
 the sandbox): builds are fast, never flaky, and previews load instantly on a
 phone. `localStorage` gives them real persistence.
+
+## Product acceptance gate
+
+A PocketForge session counts as successful only when it produces a verified technical state change:
+
+- A project record was created.
+- Generated files were persisted.
+- A sandbox was created or recovered.
+- The preview URL loaded.
+- A requested iteration was applied and redeployed.
+- A failed build or sandbox operation produced a recoverable diagnostic state.
+
+Generating code text without a verified preview does not count as shipped.
 
 ## Repo layout
 
