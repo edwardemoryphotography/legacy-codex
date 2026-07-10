@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { firstResultError, getErrorMessage } from "./errors";
+import {
+  firstResultError,
+  getErrorMessage,
+} from "../../foundry-console/src/lib/errors";
 
 describe("firstResultError", () => {
   it("returns the first Supabase result error", () => {

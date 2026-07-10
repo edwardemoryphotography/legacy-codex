@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRequestGate } from "./request-gate";
+import { createRequestGate } from "../../foundry-console/src/lib/request-gate";
 
 describe("createRequestGate", () => {
   it("allows only the newest request token to update state", () => {

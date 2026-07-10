@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, formatDateTime, timeAgo } from "./format";
+import {
+  formatDate,
+  formatDateTime,
+  timeAgo,
+} from "../../foundry-console/src/lib/format";
 
 describe("formatDate", () => {
   it("keeps date-only values on the same UTC calendar day", () => {
