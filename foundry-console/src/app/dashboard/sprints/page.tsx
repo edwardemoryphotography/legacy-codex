@@ -11,13 +11,18 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { ListSkeleton } from "@/components/skeleton";
+import { LoadError } from "@/components/load-error";
 import { formatDate } from "@/lib/format";
+import { getErrorMessage } from "@/lib/errors";
+import { useRequestGate } from "@/lib/use-request-gate";
 import type { Sprint } from "@/lib/types";
 
 export default function SprintsPage() {
   const { current } = useWorkspace();
   const { toast } = useToast();
+  const requestGate = useRequestGate();
   const [sprints, setSprints] = useState<Sprint[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [goal, setGoal] = useState("");
@@ -25,14 +30,25 @@ export default function SprintsPage() {
 
   const load = useCallback(async () => {
     if (!current) return;
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("sprints")
-      .select("*")
-      .eq("workspace_id", current.id)
-      .order("created_at", { ascending: false });
-    setSprints(data ?? []);
-  }, [current]);
+    const token = requestGate.begin();
+    const workspaceId = current.id;
+    setLoadError(null);
+    try {
+      const { data, error } = await createClient()
+        .from("sprints")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false });
+      if (!requestGate.isCurrent(token)) return;
+      if (error) throw error;
+      setSprints(data ?? []);
+    } catch (error) {
+      if (!requestGate.isCurrent(token)) return;
+      const message = getErrorMessage(error);
+      setLoadError(message);
+      toast(message, "error");
+    }
+  }, [current, requestGate, toast]);
 
   useEffect(() => {
     setSprints(null);
@@ -121,7 +137,9 @@ export default function SprintsPage() {
         </form>
       )}
 
-      {sprints === null ? (
+      {loadError ? (
+        <LoadError message={loadError} onRetry={() => void load()} />
+      ) : sprints === null ? (
         <ListSkeleton />
       ) : sprints.length === 0 ? (
         <EmptyState

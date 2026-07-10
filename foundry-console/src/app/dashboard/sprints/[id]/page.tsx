@@ -9,6 +9,9 @@ import { useWorkspace } from "@/lib/workspace-context";
 import { useToast } from "@/components/toast";
 import { logEvent } from "@/lib/events";
 import { formatDateTime } from "@/lib/format";
+import { getErrorMessage } from "@/lib/errors";
+import { useRequestGate } from "@/lib/use-request-gate";
+import { LoadError } from "@/components/load-error";
 import type { Sprint } from "@/lib/types";
 
 const STATUSES = ["planned", "active", "completed", "cancelled"] as const;
@@ -18,24 +21,45 @@ export default function SprintDetailPage() {
   const router = useRouter();
   const { current } = useWorkspace();
   const { toast } = useToast();
+  const requestGate = useRequestGate();
   const [sprint, setSprint] = useState<Sprint | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
     if (!current || !id) return;
-    const supabase = createClient();
-    supabase
-      .from("sprints")
-      .select("*")
-      .eq("id", id)
-      .eq("workspace_id", current.id)
-      .maybeSingle()
-      .then(({ data }) => {
+    const token = requestGate.begin();
+    const workspaceId = current.id;
+    const sprintId = id;
+    setSprint(null);
+    setNotFound(false);
+    setLoadError(null);
+
+    async function load() {
+      try {
+        const { data, error } = await createClient()
+          .from("sprints")
+          .select("*")
+          .eq("id", sprintId)
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+
+        if (!requestGate.isCurrent(token)) return;
+        if (error) throw error;
         if (data) setSprint(data);
         else setNotFound(true);
-      });
-  }, [current, id]);
+      } catch (error) {
+        if (!requestGate.isCurrent(token)) return;
+        const message = getErrorMessage(error);
+        setLoadError(message);
+        toast(message, "error");
+      }
+    }
+
+    void load();
+  }, [current, id, reloadNonce, requestGate, toast]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -53,7 +77,8 @@ export default function SprintDetailPage() {
         notes: sprint.notes || null,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", sprint.id);
+      .eq("id", sprint.id)
+      .eq("workspace_id", current.id);
     setSaving(false);
     if (error) {
       toast(error.message, "error");
@@ -65,6 +90,15 @@ export default function SprintDetailPage() {
     });
     toast("Sprint saved");
     router.push("/dashboard/sprints");
+  }
+
+  if (loadError) {
+    return (
+      <LoadError
+        message={loadError}
+        onRetry={() => setReloadNonce((value) => value + 1)}
+      />
+    );
   }
 
   if (notFound) {

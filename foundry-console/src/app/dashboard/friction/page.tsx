@@ -10,7 +10,10 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { ListSkeleton } from "@/components/skeleton";
+import { LoadError } from "@/components/load-error";
 import { timeAgo } from "@/lib/format";
+import { getErrorMessage } from "@/lib/errors";
+import { useRequestGate } from "@/lib/use-request-gate";
 import type { FrictionEntry } from "@/lib/types";
 
 const SEVERITIES = ["low", "medium", "high", "critical"] as const;
@@ -18,7 +21,9 @@ const SEVERITIES = ["low", "medium", "high", "critical"] as const;
 export default function FrictionPage() {
   const { current } = useWorkspace();
   const { toast } = useToast();
+  const requestGate = useRequestGate();
   const [entries, setEntries] = useState<FrictionEntry[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -28,14 +33,25 @@ export default function FrictionPage() {
 
   const load = useCallback(async () => {
     if (!current) return;
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("friction_entries")
-      .select("*")
-      .eq("workspace_id", current.id)
-      .order("created_at", { ascending: false });
-    setEntries(data ?? []);
-  }, [current]);
+    const token = requestGate.begin();
+    const workspaceId = current.id;
+    setLoadError(null);
+    try {
+      const { data, error } = await createClient()
+        .from("friction_entries")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false });
+      if (!requestGate.isCurrent(token)) return;
+      if (error) throw error;
+      setEntries(data ?? []);
+    } catch (error) {
+      if (!requestGate.isCurrent(token)) return;
+      const message = getErrorMessage(error);
+      setLoadError(message);
+      toast(message, "error");
+    }
+  }, [current, requestGate, toast]);
 
   useEffect(() => {
     setEntries(null);
@@ -169,7 +185,9 @@ export default function FrictionPage() {
         </form>
       )}
 
-      {entries === null ? (
+      {loadError ? (
+        <LoadError message={loadError} onRetry={() => void load()} />
+      ) : entries === null ? (
         <ListSkeleton />
       ) : entries.length === 0 ? (
         <EmptyState

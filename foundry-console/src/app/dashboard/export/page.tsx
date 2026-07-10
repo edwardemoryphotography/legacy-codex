@@ -7,6 +7,7 @@ import { useWorkspace } from "@/lib/workspace-context";
 import { useToast } from "@/components/toast";
 import { logEvent } from "@/lib/events";
 import { PageHeader } from "@/components/page-header";
+import { firstResultError, getErrorMessage } from "@/lib/errors";
 
 export default function ExportPage() {
   const { current } = useWorkspace();
@@ -18,64 +19,58 @@ export default function ExportPage() {
 
   async function handleExport() {
     if (!current) return;
+    const workspace = { id: current.id, name: current.name };
     setExporting(true);
-    const supabase = createClient();
+    setLastCounts(null);
+    let objectUrl: string | null = null;
 
-    const [sprints, friction, milestones, events] = await Promise.all([
-      supabase
-        .from("sprints")
-        .select("*")
-        .eq("workspace_id", current.id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("friction_entries")
-        .select("*")
-        .eq("workspace_id", current.id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("milestones")
-        .select("*")
-        .eq("workspace_id", current.id)
-        .order("target_date", { ascending: true }),
-      supabase
-        .from("events")
-        .select("*")
-        .eq("workspace_id", current.id)
-        .order("created_at", { ascending: false }),
-    ]);
+    try {
+      const supabase = createClient();
+      const [sprints, friction, milestones, events] = await Promise.all([
+        supabase.from("sprints").select("*").eq("workspace_id", workspace.id).order("created_at", { ascending: false }),
+        supabase.from("friction_entries").select("*").eq("workspace_id", workspace.id).order("created_at", { ascending: false }),
+        supabase.from("milestones").select("*").eq("workspace_id", workspace.id).order("target_date", { ascending: true }),
+        supabase.from("events").select("*").eq("workspace_id", workspace.id).order("created_at", { ascending: false }),
+      ]);
 
-    const payload = {
-      workspace: { id: current.id, name: current.name },
-      exported_at: new Date().toISOString(),
-      sprints: sprints.data ?? [],
-      friction_entries: friction.data ?? [],
-      milestones: milestones.data ?? [],
-      events: events.data ?? [],
-    };
+      const queryError = firstResultError([sprints, friction, milestones, events]);
+      if (queryError) throw queryError;
 
-    const counts = {
-      sprints: payload.sprints.length,
-      friction: payload.friction_entries.length,
-      milestones: payload.milestones.length,
-      events: payload.events.length,
-    };
-    setLastCounts(counts);
+      const payload = {
+        workspace,
+        exported_at: new Date().toISOString(),
+        sprints: sprints.data ?? [],
+        friction_entries: friction.data ?? [],
+        milestones: milestones.data ?? [],
+        events: events.data ?? [],
+      };
+      const counts = {
+        sprints: payload.sprints.length,
+        friction: payload.friction_entries.length,
+        milestones: payload.milestones.length,
+        events: payload.events.length,
+      };
 
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${current.name.replace(/\s+/g, "_").toLowerCase()}_export_${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: "application/json",
+      });
+      objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = `${workspace.name.replace(/\s+/g, "_").toLowerCase()}_export_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
 
-    logEvent(current.id, "workspace.exported", "workspace", current.id, counts);
-    toast("Export downloaded");
-    setExporting(false);
+      setLastCounts(counts);
+      void logEvent(workspace.id, "workspace.exported", "workspace", workspace.id, counts);
+      toast("Export downloaded");
+    } catch (error) {
+      toast(getErrorMessage(error), "error");
+    } finally {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      setExporting(false);
+    }
   }
 
   return (

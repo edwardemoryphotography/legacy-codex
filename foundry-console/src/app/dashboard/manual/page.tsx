@@ -9,27 +9,43 @@ import { logEvent } from "@/lib/events";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ListSkeleton } from "@/components/skeleton";
+import { LoadError } from "@/components/load-error";
 import { formatDateTime } from "@/lib/format";
+import { getErrorMessage } from "@/lib/errors";
+import { useRequestGate } from "@/lib/use-request-gate";
 import type { ManualPage } from "@/lib/types";
 
 export default function ManualPageView() {
   const { current } = useWorkspace();
   const { toast } = useToast();
+  const requestGate = useRequestGate();
   const [pages, setPages] = useState<ManualPage[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ManualPage | null>(null);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     if (!current) return;
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("manual")
-      .select("*")
-      .eq("workspace_id", current.id)
-      .order("title");
-    setPages(data ?? []);
-  }, [current]);
+    const token = requestGate.begin();
+    const workspaceId = current.id;
+    setLoadError(null);
+    try {
+      const { data, error } = await createClient()
+        .from("manual")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("title");
+      if (!requestGate.isCurrent(token)) return;
+      if (error) throw error;
+      setPages(data ?? []);
+    } catch (error) {
+      if (!requestGate.isCurrent(token)) return;
+      const message = getErrorMessage(error);
+      setLoadError(message);
+      toast(message, "error");
+    }
+  }, [current, requestGate, toast]);
 
   useEffect(() => {
     setPages(null);
@@ -159,7 +175,9 @@ export default function ManualPageView() {
         }
       />
 
-      {pages === null ? (
+      {loadError ? (
+        <LoadError message={loadError} onRetry={() => void load()} />
+      ) : pages === null ? (
         <ListSkeleton />
       ) : pages.length === 0 ? (
         <EmptyState

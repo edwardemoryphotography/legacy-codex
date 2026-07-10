@@ -10,13 +10,18 @@ import {
 } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logEvent } from "@/lib/events";
+import { getErrorMessage } from "@/lib/errors";
 import type { Workspace } from "@/lib/types";
+
+export type CreateWorkspaceResult =
+  | { ok: true; workspace: Workspace }
+  | { ok: false; error: string };
 
 interface WorkspaceContextValue {
   workspaces: Workspace[];
   current: Workspace | null;
   setCurrent: (ws: Workspace) => void;
-  createWorkspace: (name: string) => Promise<Workspace | null>;
+  createWorkspace: (name: string) => Promise<CreateWorkspaceResult>;
   loading: boolean;
   connectionError: string | null;
 }
@@ -25,7 +30,10 @@ const WorkspaceContext = createContext<WorkspaceContextValue>({
   workspaces: [],
   current: null,
   setCurrent: () => {},
-  createWorkspace: async () => null,
+  createWorkspace: async () => ({
+    ok: false,
+    error: "Workspace creation is unavailable.",
+  }),
   loading: true,
   connectionError: null,
 });
@@ -73,20 +81,27 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const createWorkspace = useCallback(
-    async (name: string): Promise<Workspace | null> => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("workspaces")
-        .insert({ name })
-        .select()
-        .single();
-      if (error || !data) return null;
-      logEvent(data.id, "workspace.created", "workspace", data.id, { name });
-      setWorkspaces((prev) =>
-        [...prev, data].sort((a, b) => a.name.localeCompare(b.name))
-      );
-      setCurrent(data);
-      return data;
+    async (name: string): Promise<CreateWorkspaceResult> => {
+      try {
+        const { data, error } = await createClient()
+          .from("workspaces")
+          .insert({ name })
+          .select()
+          .single();
+        if (error) throw error;
+        if (!data) throw new Error("Supabase returned no workspace row.");
+
+        void logEvent(data.id, "workspace.created", "workspace", data.id, {
+          name,
+        });
+        setWorkspaces((prev) =>
+          [...prev, data].sort((a, b) => a.name.localeCompare(b.name))
+        );
+        setCurrent(data);
+        return { ok: true, workspace: data };
+      } catch (error) {
+        return { ok: false, error: getErrorMessage(error) };
+      }
     },
     [setCurrent]
   );

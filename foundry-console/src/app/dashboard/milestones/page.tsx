@@ -9,13 +9,18 @@ import { logEvent } from "@/lib/events";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ListSkeleton } from "@/components/skeleton";
+import { LoadError } from "@/components/load-error";
 import { formatDate } from "@/lib/format";
+import { getErrorMessage } from "@/lib/errors";
+import { useRequestGate } from "@/lib/use-request-gate";
 import type { Milestone } from "@/lib/types";
 
 export default function MilestonesPage() {
   const { current } = useWorkspace();
   const { toast } = useToast();
+  const requestGate = useRequestGate();
   const [milestones, setMilestones] = useState<Milestone[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -24,14 +29,25 @@ export default function MilestonesPage() {
 
   const load = useCallback(async () => {
     if (!current) return;
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("milestones")
-      .select("*")
-      .eq("workspace_id", current.id)
-      .order("target_date", { ascending: true, nullsFirst: false });
-    setMilestones(data ?? []);
-  }, [current]);
+    const token = requestGate.begin();
+    const workspaceId = current.id;
+    setLoadError(null);
+    try {
+      const { data, error } = await createClient()
+        .from("milestones")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("target_date", { ascending: true, nullsFirst: false });
+      if (!requestGate.isCurrent(token)) return;
+      if (error) throw error;
+      setMilestones(data ?? []);
+    } catch (error) {
+      if (!requestGate.isCurrent(token)) return;
+      const message = getErrorMessage(error);
+      setLoadError(message);
+      toast(message, "error");
+    }
+  }, [current, requestGate, toast]);
 
   useEffect(() => {
     setMilestones(null);
@@ -159,7 +175,9 @@ export default function MilestonesPage() {
         </form>
       )}
 
-      {milestones === null ? (
+      {loadError ? (
+        <LoadError message={loadError} onRetry={() => void load()} />
+      ) : milestones === null ? (
         <ListSkeleton />
       ) : milestones.length === 0 ? (
         <EmptyState

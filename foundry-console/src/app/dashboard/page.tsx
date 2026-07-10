@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Rocket, Flame, Flag, ScrollText, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/lib/workspace-context";
+import { useToast } from "@/components/toast";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { LoadError } from "@/components/load-error";
 import { timeAgo, formatDate } from "@/lib/format";
+import { firstResultError, getErrorMessage } from "@/lib/errors";
+import { useRequestGate } from "@/lib/use-request-gate";
 import type { Sprint, Milestone, Event } from "@/lib/types";
 
 interface OverviewData {
@@ -22,15 +26,19 @@ interface OverviewData {
 
 export default function OverviewPage() {
   const { current } = useWorkspace();
+  const { toast } = useToast();
+  const requestGate = useRequestGate();
   const [data, setData] = useState<OverviewData | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!current) return;
-    setData(null);
-    const supabase = createClient();
+    const token = requestGate.begin();
     const wsId = current.id;
-
-    async function load() {
+    setData(null);
+    setLoadError(null);
+    try {
+      const supabase = createClient();
       const [
         sprints,
         friction,
@@ -82,6 +90,18 @@ export default function OverviewPage() {
           .limit(6),
       ]);
 
+      if (!requestGate.isCurrent(token)) return;
+      const queryError = firstResultError([
+        sprints,
+        friction,
+        milestones,
+        events,
+        activeSprint,
+        nextMilestone,
+        recentEvents,
+      ]);
+      if (queryError) throw queryError;
+
       setData({
         sprintCount: sprints.count ?? 0,
         openFrictionCount: friction.count ?? 0,
@@ -91,9 +111,17 @@ export default function OverviewPage() {
         nextMilestone: nextMilestone.data,
         recentEvents: recentEvents.data ?? [],
       });
+    } catch (error) {
+      if (!requestGate.isCurrent(token)) return;
+      const message = getErrorMessage(error);
+      setLoadError(message);
+      toast(message, "error");
     }
-    load();
-  }, [current]);
+  }, [current, requestGate, toast]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   if (!current) return null;
 
@@ -104,7 +132,9 @@ export default function OverviewPage() {
         description={`Live snapshot of ${current.name}.`}
       />
 
-      {!data ? (
+      {loadError ? (
+        <LoadError message={loadError} onRetry={() => void load()} />
+      ) : !data ? (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div
