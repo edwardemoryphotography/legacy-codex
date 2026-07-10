@@ -15,7 +15,6 @@ export default function SettingsPage() {
   const { current } = useWorkspace();
   const { toast } = useToast();
   const loadGate = useRequestGate();
-  const saveGate = useRequestGate();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -25,7 +24,6 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!current) return;
     const token = loadGate.begin();
-    saveGate.invalidate();
     const wsId = current.id;
     setLoading(true);
     setSaving(false);
@@ -69,11 +67,10 @@ export default function SettingsPage() {
     }
 
     void load();
-  }, [current, loadGate, reloadNonce, saveGate, toast]);
+  }, [current, loadGate, reloadNonce, toast]);
 
   async function handleToggle(field: "kill_switch_ai" | "pii_warning_enabled") {
     if (!settings || !current) return;
-    const token = saveGate.begin();
     const settingsId = settings.id;
     const workspaceId = current.id;
     setSaving(true);
@@ -84,7 +81,6 @@ export default function SettingsPage() {
         .update({ [field]: newValue, updated_at: new Date().toISOString() })
         .eq("id", settingsId)
         .eq("workspace_id", workspaceId);
-      if (!saveGate.isCurrent(token)) return;
       if (error) throw error;
 
       setSettings((previous) =>
@@ -100,9 +96,9 @@ export default function SettingsPage() {
       );
       toast(newValue ? "Enabled" : "Disabled");
     } catch (error) {
-      if (saveGate.isCurrent(token)) toast(getErrorMessage(error), "error");
+      toast(getErrorMessage(error), "error");
     } finally {
-      if (saveGate.isCurrent(token)) setSaving(false);
+      setSaving(false);
     }
   }
 
