@@ -1,112 +1,134 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/lib/workspace-context";
+import { useToast } from "@/components/toast";
+import { logEvent } from "@/lib/events";
 import { PageHeader } from "@/components/page-header";
 import type { Settings } from "@/lib/types";
 
 export default function SettingsPage() {
-  const { current, currentRole } = useWorkspace();
-  const router = useRouter();
+  const { current } = useWorkspace();
+  const { toast } = useToast();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (currentRole !== "admin") {
-      router.replace("/dashboard/sprints");
-      return;
-    }
     if (!current) return;
     setLoading(true);
     const supabase = createClient();
-    supabase
-      .from("settings")
-      .select("*")
-      .eq("workspace_id", current.id)
-      .single()
-      .then(({ data }) => {
+    const wsId = current.id;
+
+    async function load() {
+      const { data } = await supabase
+        .from("settings")
+        .select("*")
+        .eq("workspace_id", wsId)
+        .maybeSingle();
+
+      if (data) {
         setSettings(data);
-        setLoading(false);
-      });
-  }, [current, currentRole, router]);
+      } else {
+        // First visit for this workspace: initialize a settings row
+        // with safe defaults (everything off).
+        const { data: created } = await supabase
+          .from("settings")
+          .insert({ workspace_id: wsId })
+          .select()
+          .single();
+        setSettings(created ?? null);
+      }
+      setLoading(false);
+    }
+    load();
+  }, [current]);
 
   async function handleToggle(field: "kill_switch_ai" | "pii_warning_enabled") {
-    if (!settings) return;
+    if (!settings || !current) return;
     setSaving(true);
     const newValue = !settings[field];
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("settings")
-      .update({
-        [field]: newValue,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ [field]: newValue, updated_at: new Date().toISOString() })
       .eq("id", settings.id);
-    setSettings({ ...settings, [field]: newValue });
     setSaving(false);
-  }
-
-  if (currentRole !== "admin") return null;
-  if (loading) return <p className="text-sm text-zinc-500">Loading…</p>;
-
-  if (!settings) {
-    return (
-      <>
-        <PageHeader title="Settings" />
-        <p className="text-sm text-zinc-400">
-          No settings row found for this workspace. Create one in the database.
-        </p>
-      </>
-    );
+    if (error) {
+      toast(error.message, "error");
+      return;
+    }
+    setSettings({ ...settings, [field]: newValue });
+    logEvent(current.id, `settings.${field}.${newValue ? "on" : "off"}`, "settings", settings.id);
+    toast(newValue ? "Enabled" : "Disabled");
   }
 
   return (
     <>
       <PageHeader
         title="Settings"
-        description="Admin-only workspace configuration."
+        description="Workspace-level safety controls."
       />
-      <div className="max-w-md space-y-4">
-        <Toggle
-          label="AI Kill Switch"
-          description="Disable all AI-powered features in this workspace."
-          checked={settings.kill_switch_ai}
-          onChange={() => handleToggle("kill_switch_ai")}
-          disabled={saving}
-        />
-        <Toggle
-          label="PII Warning"
-          description="Show a warning banner when PII may be present."
-          checked={settings.pii_warning_enabled}
-          onChange={() => handleToggle("pii_warning_enabled")}
-          disabled={saving}
-        />
-      </div>
+
+      {loading ? (
+        <div className="max-w-lg space-y-3">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-[76px] animate-pulse rounded-xl border border-zinc-800/60 bg-zinc-900/40"
+            />
+          ))}
+        </div>
+      ) : !settings ? (
+        <p className="text-sm text-zinc-500">
+          Couldn&apos;t load settings. Make sure SCHEMA.sql has been applied.
+        </p>
+      ) : (
+        <div className="animate-fade-up max-w-lg space-y-3">
+          <ToggleRow
+            label="AI kill switch"
+            description="Immediately disable every AI-powered feature in this workspace."
+            checked={settings.kill_switch_ai}
+            onChange={() => handleToggle("kill_switch_ai")}
+            disabled={saving}
+            danger
+          />
+          <ToggleRow
+            label="PII warning"
+            description="Show a warning banner wherever personal data might appear."
+            checked={settings.pii_warning_enabled}
+            onChange={() => handleToggle("pii_warning_enabled")}
+            disabled={saving}
+          />
+        </div>
+      )}
     </>
   );
 }
 
-function Toggle({
+function ToggleRow({
   label,
   description,
   checked,
   onChange,
   disabled,
+  danger,
 }: {
   label: string;
   description: string;
   checked: boolean;
   onChange: () => void;
   disabled: boolean;
+  danger?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+    <div className="card flex items-center justify-between gap-4 px-5 py-4">
       <div>
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-zinc-500 mt-0.5">{description}</p>
+        <p className="text-sm font-semibold">{label}</p>
+        <p className="mt-0.5 text-[13px] leading-relaxed text-zinc-500">
+          {description}
+        </p>
       </div>
       <button
         type="button"
@@ -114,12 +136,12 @@ function Toggle({
         aria-checked={checked}
         onClick={onChange}
         disabled={disabled}
-        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-          checked ? "bg-indigo-600" : "bg-zinc-700"
-        } disabled:opacity-50`}
+        className={`relative inline-flex h-[26px] w-[46px] shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 disabled:opacity-50 ${
+          checked ? (danger ? "bg-red-500" : "bg-indigo-500") : "bg-zinc-700"
+        }`}
       >
         <span
-          className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+          className={`pointer-events-none inline-block h-[22px] w-[22px] transform rounded-full bg-white shadow transition-transform duration-200 ${
             checked ? "translate-x-5" : "translate-x-0"
           }`}
         />
