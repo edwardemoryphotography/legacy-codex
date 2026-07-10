@@ -40,7 +40,7 @@ Any older document that conflicts with these files is historical context, not cu
 - **Starforge** → working prompt → Claude API → live HTML preview loop
 - **MacBook file system** → dead Downloads symlink replaced; automated file organizer scripts verified
 - **Legacy Codex** → live at `legacy-codex.vercel.app`
-- **Legacy Codex / Foundry Console product boundary** → defined, audited, and recorded on `docs/canonical-product-boundary`
+- **Legacy Codex / Foundry Console product boundary** → defined, audited, and recorded in docs/architecture/PRODUCT_BOUNDARY.md
 
 ---
 
