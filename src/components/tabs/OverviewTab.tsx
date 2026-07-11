@@ -199,7 +199,7 @@ function ToggleBtn({
         fontSize: '0.82rem',
         fontWeight: 700,
         cursor: 'pointer',
-        transition: 'all 0.15s ease',
+        transition: 'background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out',
       }}
     >
       {label}

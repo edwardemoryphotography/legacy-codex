@@ -100,7 +100,7 @@ export default function CodexApp() {
             role="tab"
             aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className="rounded-lg text-xs font-semibold leading-tight transition-all duration-150"
+            className="rounded-lg text-xs font-semibold leading-tight transition-colors duration-150"
             style={{
               minHeight: '52px',
               padding: '8px 6px',
