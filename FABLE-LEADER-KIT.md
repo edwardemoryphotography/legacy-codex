@@ -6,13 +6,13 @@ Leadership/onboarding reference kit for this workspace — read this to get orie
 
 ## Orientation
 
-- Start with `STATE.md` for the current shipped / blocked / next snapshot and the frozen-file list.
-- Then `AGENTS.md` for the router and session rules.
+- Start with `AGENTS.md` for the workspace router and session rules.
+- Then `STATE.md` for the current shipped / blocked / next snapshot and the frozen-file list.
 - Then `TODOS.md` and `TRIAGE-STATE.md` for what's actually queued and what's pending a decision.
 
 ## Standing constraints
 
-- Never touch legacy-codex `index.html` (frozen — see `STATE.md`).
+- Never touch legacy-codex `app/index.html` (frozen — see `STATE.md`).
 - Real data only — no mock/synthetic/simulated content (see `STATE.md` § Active Governance Rules).
 - Smallest safe patch, always (see `AGENTS.md` § RULES).
 
