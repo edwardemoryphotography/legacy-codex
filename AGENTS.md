@@ -29,6 +29,19 @@ Repeated Supabase/Vercel configuration rediscovery is a system failure. Before c
 7. After any environment change, run a fresh deployment and verify the live/preview behavior directly. "Configured" is not "Verified" and "Verified" is not automatically "Live".
 8. Record any recurrent failure pattern as durable documentation or a test so the next agent does not rediscover it.
 
+## Workspace coordination
+
+Read this file first, then `STATE.md` for the latest project status, then `TODOS.md` for the approved task queue. Coordination docs are docs/coordination only — they do not authorize application, external-system, or production-data changes.
+
+**Never touch legacy-codex application source without an explicit go-ahead.** See `STATE.md` § FROZEN.
+
+### RULES
+
+1. **Verify before claiming done.** Run or otherwise check your work; don't report success on an unverified change.
+2. **Keep `STATE.md` current.** Update its shipped / blocked / next lines after any session that changes them, per its own Update Protocol.
+3. **Record only durable lessons.** Append to `STATE.md` § LESSONS only when a repository-specific improvement is worth preserving.
+4. **Smallest safe patch, always.** Prefer the minimal change that satisfies the request over a broader rewrite.
+
 ## Commands
 
 ```bash
