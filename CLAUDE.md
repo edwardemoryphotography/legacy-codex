@@ -69,7 +69,7 @@ This is the single type source for the whole project. Key exports: `TabId` (unio
 
 `src/lib/supabase/client.ts` creates a browser Supabase client (`@supabase/ssr`'s `createBrowserClient`) against its own project — `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY`, falling back to project `pkydkbuodikttfeawqsw` if unset (see `.env.local.example`). This is a **separate Supabase project from `codex-system-architecture`'s canonical `supabase-indigo-paddle`** — do not assume shared tables or credentials between the two repos.
 
-`CodexTab` and `ControlsTab` use it for anonymous auth (`signInAnonymously`) plus reads/writes to `nd_codex_bookmarks`, `nd_prefs`, and `nd_captures`. If the client fails to construct (missing/placeholder keys), it falls back to a no-op stub so the rest of the UI still renders; sync features are simply inactive.
+`CodexTab` and `ControlsTab` use it for anonymous auth (`signInAnonymously`) plus reads/writes to `nd_codex_bookmarks`, `nd_prefs`, and `nd_captures`. If the client fails to construct (e.g. due to initialization or environment issues), it falls back to a no-op stub. Note that placeholder keys do not prevent construction — `createBrowserClient` succeeds even with the placeholder fallback values — so runtime calls against a misconfigured project fail gracefully via component-level error handling instead.
 
 ### Deployment
 
