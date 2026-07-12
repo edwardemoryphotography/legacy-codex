@@ -22,14 +22,16 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       setLoading(false);
     });
 
     return () => {
       mounted = false;
-      subscription.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
   }, [supabase]);
 
@@ -50,6 +52,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     setMessage(error ? error.message : "Check your email for the secure sign-in link.");
   }
 
+  async function signOut() {
+    setMessage(null);
+    const { error } = await supabase.auth.signOut();
+    if (error) setMessage(error.message);
+  }
+
   if (loading) {
     return <main className="grid min-h-screen place-items-center">Checking session…</main>;
   }
@@ -58,36 +66,49 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   if (!session || signedInEmail !== ALLOWED_EMAIL) {
     return (
       <main className="grid min-h-screen place-items-center bg-neutral-950 px-6 text-neutral-100">
-        <form
-          onSubmit={requestMagicLink}
-          className="w-full max-w-md space-y-5 rounded-2xl border border-neutral-800 bg-neutral-900 p-7 shadow-2xl"
-        >
-          <div>
-            <p className="text-sm uppercase tracking-[0.2em] text-neutral-400">Foundry Console</p>
-            <h1 className="mt-2 text-2xl font-semibold">Owner sign-in required</h1>
-            <p className="mt-2 text-sm text-neutral-400">
-              Access is restricted at both the application and database layers.
-            </p>
-          </div>
-          <label className="block text-sm font-medium">
-            Email
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              autoComplete="email"
-              required
-              className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 outline-none focus:border-neutral-400"
-            />
-          </label>
-          <button
-            type="submit"
-            className="w-full rounded-lg bg-neutral-100 px-4 py-2 font-medium text-neutral-950 hover:bg-white"
-          >
-            Email me a sign-in link
-          </button>
-          {message ? <p className="text-sm text-neutral-300">{message}</p> : null}
-        </form>
+        <div className="w-full max-w-md space-y-5 rounded-2xl border border-neutral-800 bg-neutral-900 p-7 shadow-2xl">
+          <form onSubmit={requestMagicLink} className="space-y-5">
+            <div>
+              <p className="text-sm uppercase tracking-[0.2em] text-neutral-400">Foundry Console</p>
+              <h1 className="mt-2 text-2xl font-semibold">Owner sign-in required</h1>
+              <p className="mt-2 text-sm text-neutral-400">
+                Access is restricted at both the application and database layers.
+              </p>
+            </div>
+            <label className="block text-sm font-medium">
+              Email
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                autoComplete="email"
+                required
+                className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 outline-none focus:border-neutral-400"
+              />
+            </label>
+            <button
+              type="submit"
+              className="w-full rounded-lg bg-neutral-100 px-4 py-2 font-medium text-neutral-950 hover:bg-white"
+            >
+              Email me a sign-in link
+            </button>
+            {message ? <p className="text-sm text-neutral-300">{message}</p> : null}
+          </form>
+          {session ? (
+            <div className="border-t border-neutral-800 pt-4 text-center">
+              <p className="mb-2 text-xs text-neutral-500">
+                Signed in as {session.user.email}
+              </p>
+              <button
+                type="button"
+                onClick={signOut}
+                className="text-sm text-red-400 underline hover:text-red-300"
+              >
+                Sign out
+              </button>
+            </div>
+          ) : null}
+        </div>
       </main>
     );
   }
