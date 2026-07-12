@@ -93,6 +93,13 @@ alter table manual enable row level security;
 alter table settings enable row level security;
 alter table events enable row level security;
 
+-- Defense in depth: anonymous clients cannot discover or call these tables even
+-- if a permissive policy is added accidentally later. Authenticated requests
+-- still require the owner-email RLS checks below.
+revoke all on table workspaces, sprints, friction_entries, milestones, manual, settings, events from anon;
+grant select, insert, update, delete on table workspaces, sprints, friction_entries, milestones, manual, settings to authenticated;
+grant select, insert on table events to authenticated;
+
 -- Remove the former public link-access policies if this schema is reapplied.
 drop policy if exists "anon read workspaces" on workspaces;
 drop policy if exists "anon insert workspaces" on workspaces;
