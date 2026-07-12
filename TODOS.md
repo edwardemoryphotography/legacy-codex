@@ -10,8 +10,8 @@ Task queue for this workspace. See `AGENTS.md` for how this file fits with the o
 
 ## Next
 
-- [ ]
+_(no items currently queued)_
 
 ## Later
 
-- [ ]
+_(no items currently queued)_
