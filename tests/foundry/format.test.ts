@@ -13,6 +13,10 @@ describe("formatDate", () => {
   it("returns an em dash for an absent date", () => {
     expect(formatDate(null)).toBe("—");
   });
+
+  it("formats timezone-boundary timestamps by their UTC calendar day", () => {
+    expect(formatDate("2026-01-01T00:30:00+14:00")).toBe("Dec 31, 2025");
+  });
 });
 
 describe("formatDateTime", () => {

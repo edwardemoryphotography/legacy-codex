@@ -19,4 +19,15 @@ describe("createRequestGate", () => {
 
     expect(gate.isCurrent(request)).toBe(false);
   });
+
+  it("rejects a late request that belongs to a previous workspace", () => {
+    const gate = createRequestGate();
+    gate.setScope("workspace-a");
+    gate.setScope("workspace-b");
+
+    const lateWorkspaceARequest = gate.begin();
+
+    expect(gate.isCurrent(lateWorkspaceARequest, "workspace-a")).toBe(false);
+    expect(gate.isCurrent(lateWorkspaceARequest, "workspace-b")).toBe(true);
+  });
 });

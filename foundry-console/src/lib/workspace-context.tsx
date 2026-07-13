@@ -6,6 +6,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -47,32 +48,43 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [current, setCurrentState] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
     async function load() {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("workspaces")
-        .select("*")
-        .order("name");
+      try {
+        const { data, error } = await createClient()
+          .from("workspaces")
+          .select("*")
+          .order("name");
 
-      if (error) {
-        setConnectionError(error.message);
-        setLoading(false);
-        return;
+        if (!active) return;
+        if (error) throw error;
+        const ws = data ?? [];
+        setWorkspaces(ws);
+        const saved = localStorage.getItem("foundry_workspace_id");
+        const match = ws.find((w: Workspace) => w.id === saved);
+        setCurrentState(match || ws[0] || null);
+        setConnectionError(null);
+      } catch (error) {
+        if (!active) return;
+        setConnectionError(getErrorMessage(error));
+      } finally {
+        if (active) setLoading(false);
       }
-
-      const ws = data ?? [];
-      setWorkspaces(ws);
-      const saved =
-        typeof window !== "undefined"
-          ? localStorage.getItem("foundry_workspace_id")
-          : null;
-      const match = ws.find((w: Workspace) => w.id === saved);
-      setCurrentState(match || ws[0] || null);
-      setLoading(false);
     }
-    load();
+    void load();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const setCurrent = useCallback((ws: Workspace) => {
@@ -94,6 +106,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         void logEvent(data.id, "workspace.created", "workspace", data.id, {
           name,
         });
+        if (!mountedRef.current) return { ok: true, workspace: data };
         setWorkspaces((prev) =>
           [...prev, data].sort((a, b) => a.name.localeCompare(b.name))
         );

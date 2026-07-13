@@ -17,7 +17,7 @@ import type { Event } from "@/lib/types";
 export default function EventsPage() {
   const { current } = useWorkspace();
   const { toast } = useToast();
-  const requestGate = useRequestGate();
+  const requestGate = useRequestGate(current?.id ?? null);
   const [events, setEvents] = useState<Event[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -25,6 +25,7 @@ export default function EventsPage() {
     if (!current) return;
     const token = requestGate.begin();
     const workspaceId = current.id;
+    if (!requestGate.isScopeCurrent(workspaceId)) return;
     setEvents(null);
     setLoadError(null);
 
@@ -36,11 +37,11 @@ export default function EventsPage() {
         .order("created_at", { ascending: false })
         .limit(300);
 
-      if (!requestGate.isCurrent(token)) return;
+      if (!requestGate.isCurrent(token, workspaceId)) return;
       if (error) throw error;
       setEvents(data ?? []);
     } catch (error) {
-      if (!requestGate.isCurrent(token)) return;
+      if (!requestGate.isCurrent(token, workspaceId)) return;
       const message = getErrorMessage(error);
       setLoadError(message);
       toast(message, "error");

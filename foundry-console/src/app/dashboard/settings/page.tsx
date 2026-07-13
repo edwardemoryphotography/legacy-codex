@@ -14,7 +14,7 @@ import type { Settings } from "@/lib/types";
 export default function SettingsPage() {
   const { current } = useWorkspace();
   const { toast } = useToast();
-  const loadGate = useRequestGate();
+  const loadGate = useRequestGate(current?.id ?? null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -39,7 +39,7 @@ export default function SettingsPage() {
           .eq("workspace_id", wsId)
           .maybeSingle();
 
-        if (!loadGate.isCurrent(token)) return;
+        if (!loadGate.isCurrent(token, wsId)) return;
         if (error) throw error;
 
         if (data) {
@@ -53,16 +53,16 @@ export default function SettingsPage() {
           .select()
           .single();
 
-        if (!loadGate.isCurrent(token)) return;
+        if (!loadGate.isCurrent(token, wsId)) return;
         if (insertError) throw insertError;
         setSettings(created);
       } catch (error) {
-        if (!loadGate.isCurrent(token)) return;
+        if (!loadGate.isCurrent(token, wsId)) return;
         const message = getErrorMessage(error);
         setLoadError(message);
         toast(message, "error");
       } finally {
-        if (loadGate.isCurrent(token)) setLoading(false);
+        if (loadGate.isCurrent(token, wsId)) setLoading(false);
       }
     }
 
@@ -81,6 +81,7 @@ export default function SettingsPage() {
         .update({ [field]: newValue, updated_at: new Date().toISOString() })
         .eq("id", settingsId)
         .eq("workspace_id", workspaceId);
+      if (!loadGate.isScopeCurrent(workspaceId)) return;
       if (error) throw error;
 
       setSettings((previous) =>
@@ -96,9 +97,11 @@ export default function SettingsPage() {
       );
       toast(newValue ? "Enabled" : "Disabled");
     } catch (error) {
-      toast(getErrorMessage(error), "error");
+      if (loadGate.isScopeCurrent(workspaceId)) {
+        toast(getErrorMessage(error), "error");
+      }
     } finally {
-      setSaving(false);
+      if (loadGate.isScopeCurrent(workspaceId)) setSaving(false);
     }
   }
 

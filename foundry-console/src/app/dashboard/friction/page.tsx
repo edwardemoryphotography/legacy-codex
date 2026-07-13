@@ -21,7 +21,7 @@ const SEVERITIES = ["low", "medium", "high", "critical"] as const;
 export default function FrictionPage() {
   const { current } = useWorkspace();
   const { toast } = useToast();
-  const requestGate = useRequestGate();
+  const requestGate = useRequestGate(current?.id ?? null);
   const [entries, setEntries] = useState<FrictionEntry[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -35,6 +35,7 @@ export default function FrictionPage() {
     if (!current) return;
     const token = requestGate.begin();
     const workspaceId = current.id;
+    if (!requestGate.isScopeCurrent(workspaceId)) return;
     setLoadError(null);
     try {
       const { data, error } = await createClient()
@@ -42,11 +43,11 @@ export default function FrictionPage() {
         .select("*")
         .eq("workspace_id", workspaceId)
         .order("created_at", { ascending: false });
-      if (!requestGate.isCurrent(token)) return;
+      if (!requestGate.isCurrent(token, workspaceId)) return;
       if (error) throw error;
       setEntries(data ?? []);
     } catch (error) {
-      if (!requestGate.isCurrent(token)) return;
+      if (!requestGate.isCurrent(token, workspaceId)) return;
       const message = getErrorMessage(error);
       setLoadError(message);
       toast(message, "error");
@@ -55,57 +56,73 @@ export default function FrictionPage() {
 
   useEffect(() => {
     setEntries(null);
-    load();
+    setBusy(false);
+    setShowForm(false);
+    setTitle("");
+    setDescription("");
+    setSeverity("medium");
+    void load();
   }, [load]);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     if (!current || !title.trim()) return;
+    const workspaceId = current.id;
     setBusy(true);
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("friction_entries")
-      .insert({
-        workspace_id: current.id,
-        title: title.trim(),
-        description: description.trim() || null,
+    try {
+      const { data, error } = await createClient()
+        .from("friction_entries")
+        .insert({
+          workspace_id: workspaceId,
+          title: title.trim(),
+          description: description.trim() || null,
+          severity,
+        })
+        .select()
+        .single();
+      if (!requestGate.isScopeCurrent(workspaceId)) return;
+      if (error) throw error;
+      if (!data) throw new Error("Supabase returned no friction row.");
+      void logEvent(workspaceId, "friction.logged", "friction_entry", data.id, {
+        title: data.title,
         severity,
-      })
-      .select()
-      .single();
-    setBusy(false);
-    if (error) {
-      toast(error.message, "error");
-      return;
+      });
+      toast("Friction logged");
+      setTitle("");
+      setDescription("");
+      setSeverity("medium");
+      setShowForm(false);
+      void load();
+    } catch (error) {
+      if (requestGate.isScopeCurrent(workspaceId)) {
+        toast(getErrorMessage(error), "error");
+      }
+    } finally {
+      if (requestGate.isScopeCurrent(workspaceId)) setBusy(false);
     }
-    logEvent(current.id, "friction.logged", "friction_entry", data.id, {
-      title: data.title,
-      severity,
-    });
-    toast("Friction logged");
-    setTitle("");
-    setDescription("");
-    setSeverity("medium");
-    setShowForm(false);
-    load();
   }
 
   async function handleResolve(entry: FrictionEntry) {
     if (!current) return;
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("friction_entries")
-      .update({ status: "resolved" })
-      .eq("id", entry.id);
-    if (error) {
-      toast(error.message, "error");
-      return;
+    const workspaceId = current.id;
+    try {
+      const { error } = await createClient()
+        .from("friction_entries")
+        .update({ status: "resolved" })
+        .eq("id", entry.id)
+        .eq("workspace_id", workspaceId);
+      if (!requestGate.isScopeCurrent(workspaceId)) return;
+      if (error) throw error;
+      void logEvent(workspaceId, "friction.resolved", "friction_entry", entry.id, {
+        title: entry.title,
+      });
+      toast("Marked resolved");
+      void load();
+    } catch (error) {
+      if (requestGate.isScopeCurrent(workspaceId)) {
+        toast(getErrorMessage(error), "error");
+      }
     }
-    logEvent(current.id, "friction.resolved", "friction_entry", entry.id, {
-      title: entry.title,
-    });
-    toast("Marked resolved");
-    load();
   }
 
   return (

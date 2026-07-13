@@ -27,7 +27,7 @@ interface OverviewData {
 export default function OverviewPage() {
   const { current } = useWorkspace();
   const { toast } = useToast();
-  const requestGate = useRequestGate();
+  const requestGate = useRequestGate(current?.id ?? null);
   const [data, setData] = useState<OverviewData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -35,6 +35,7 @@ export default function OverviewPage() {
     if (!current) return;
     const token = requestGate.begin();
     const wsId = current.id;
+    if (!requestGate.isScopeCurrent(wsId)) return;
     setData(null);
     setLoadError(null);
     try {
@@ -90,7 +91,7 @@ export default function OverviewPage() {
           .limit(6),
       ]);
 
-      if (!requestGate.isCurrent(token)) return;
+      if (!requestGate.isCurrent(token, wsId)) return;
       const queryError = firstResultError([
         sprints,
         friction,
@@ -112,7 +113,7 @@ export default function OverviewPage() {
         recentEvents: recentEvents.data ?? [],
       });
     } catch (error) {
-      if (!requestGate.isCurrent(token)) return;
+      if (!requestGate.isCurrent(token, wsId)) return;
       const message = getErrorMessage(error);
       setLoadError(message);
       toast(message, "error");

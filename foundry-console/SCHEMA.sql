@@ -1,7 +1,6 @@
--- The Foundry Console — Supabase Schema (link-access edition)
--- No user sign-in: anyone with the app link (and thus the anon key) can
--- read and write workspace data. The events table stays append-only.
--- Apply this in the Supabase SQL editor.
+-- The Foundry Console — Supabase Schema (owner-authenticated edition)
+-- Access is restricted to the authenticated owner account at the database layer.
+-- Apply this in the Supabase SQL editor after enabling email/password authentication.
 
 -- Workspaces
 create table if not exists workspaces (
@@ -82,11 +81,8 @@ create table if not exists events (
 
 -- ---------------------------------------------------------------------------
 -- Row Level Security
--- Link-access model: the anon role can select/insert/update everything
--- except events, which is select + insert only (append-only, enforced at
--- the database level — the UI also never exposes edit/delete).
--- No delete policies exist on any table, so nothing can be deleted via the
--- anon key.
+-- The public anon role receives no data policies. Only the authenticated owner
+-- email can read or write records. Events remain append-only.
 -- ---------------------------------------------------------------------------
 
 alter table workspaces enable row level security;
@@ -97,36 +93,80 @@ alter table manual enable row level security;
 alter table settings enable row level security;
 alter table events enable row level security;
 
--- Workspaces
-create policy "anon read workspaces" on workspaces for select using (true);
-create policy "anon insert workspaces" on workspaces for insert with check (true);
-create policy "anon update workspaces" on workspaces for update using (true);
+-- Defense in depth: anonymous clients cannot discover or call these tables even
+-- if a permissive policy is added accidentally later. Authenticated requests
+-- still require the owner-email RLS checks below.
+revoke all on table workspaces, sprints, friction_entries, milestones, manual, settings, events from anon;
+revoke all on table workspaces, sprints, friction_entries, milestones, manual, settings, events from authenticated;
+grant select, insert, update, delete on table workspaces, sprints, friction_entries, milestones, manual, settings to authenticated;
+grant select, insert on table events to authenticated;
 
--- Sprints
-create policy "anon read sprints" on sprints for select using (true);
-create policy "anon insert sprints" on sprints for insert with check (true);
-create policy "anon update sprints" on sprints for update using (true);
+-- Remove the former public link-access policies if this schema is reapplied.
+drop policy if exists "anon read workspaces" on workspaces;
+drop policy if exists "anon insert workspaces" on workspaces;
+drop policy if exists "anon update workspaces" on workspaces;
+drop policy if exists "anon read sprints" on sprints;
+drop policy if exists "anon insert sprints" on sprints;
+drop policy if exists "anon update sprints" on sprints;
+drop policy if exists "anon read friction" on friction_entries;
+drop policy if exists "anon insert friction" on friction_entries;
+drop policy if exists "anon update friction" on friction_entries;
+drop policy if exists "anon read milestones" on milestones;
+drop policy if exists "anon insert milestones" on milestones;
+drop policy if exists "anon update milestones" on milestones;
+drop policy if exists "anon read manual" on manual;
+drop policy if exists "anon insert manual" on manual;
+drop policy if exists "anon update manual" on manual;
+drop policy if exists "anon read settings" on settings;
+drop policy if exists "anon insert settings" on settings;
+drop policy if exists "anon update settings" on settings;
+drop policy if exists "anon read events" on events;
+drop policy if exists "anon insert events" on events;
 
--- Friction entries
-create policy "anon read friction" on friction_entries for select using (true);
-create policy "anon insert friction" on friction_entries for insert with check (true);
-create policy "anon update friction" on friction_entries for update using (true);
+-- Idempotently replace owner policies.
+drop policy if exists "owner all workspaces" on workspaces;
+drop policy if exists "owner all sprints" on sprints;
+drop policy if exists "owner all friction" on friction_entries;
+drop policy if exists "owner all milestones" on milestones;
+drop policy if exists "owner all manual" on manual;
+drop policy if exists "owner all settings" on settings;
+drop policy if exists "owner read events" on events;
+drop policy if exists "owner insert events" on events;
 
--- Milestones
-create policy "anon read milestones" on milestones for select using (true);
-create policy "anon insert milestones" on milestones for insert with check (true);
-create policy "anon update milestones" on milestones for update using (true);
+create policy "owner all workspaces" on workspaces
+  for all to authenticated
+  using (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com')
+  with check (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com');
 
--- Manual
-create policy "anon read manual" on manual for select using (true);
-create policy "anon insert manual" on manual for insert with check (true);
-create policy "anon update manual" on manual for update using (true);
+create policy "owner all sprints" on sprints
+  for all to authenticated
+  using (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com')
+  with check (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com');
 
--- Settings
-create policy "anon read settings" on settings for select using (true);
-create policy "anon insert settings" on settings for insert with check (true);
-create policy "anon update settings" on settings for update using (true);
+create policy "owner all friction" on friction_entries
+  for all to authenticated
+  using (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com')
+  with check (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com');
 
--- Events: append-only. Select + insert, no update, no delete.
-create policy "anon read events" on events for select using (true);
-create policy "anon insert events" on events for insert with check (true);
+create policy "owner all milestones" on milestones
+  for all to authenticated
+  using (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com')
+  with check (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com');
+
+create policy "owner all manual" on manual
+  for all to authenticated
+  using (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com')
+  with check (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com');
+
+create policy "owner all settings" on settings
+  for all to authenticated
+  using (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com')
+  with check (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com');
+
+create policy "owner read events" on events
+  for select to authenticated
+  using (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com');
+
+create policy "owner insert events" on events
+  for insert to authenticated
+  with check (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com');

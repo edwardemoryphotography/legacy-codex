@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -239,6 +239,7 @@ function NewWorkspaceInline({
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const submittingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!adding) {
@@ -258,7 +259,8 @@ function NewWorkspaceInline({
       className="border-t border-zinc-800 p-2"
       onSubmit={async (e) => {
         e.preventDefault();
-        if (!name.trim()) return;
+        if (!name.trim() || submittingRef.current) return;
+        submittingRef.current = true;
         setBusy(true);
         setError(null);
         try {
@@ -270,6 +272,7 @@ function NewWorkspaceInline({
             setError(result.error);
           }
         } finally {
+          submittingRef.current = false;
           setBusy(false);
         }
       }}
@@ -298,6 +301,7 @@ function FirstRun({
 }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const submittingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   return (
@@ -320,13 +324,15 @@ function FirstRun({
           className="card space-y-4 p-6"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (!name.trim()) return;
+            if (!name.trim() || submittingRef.current) return;
+            submittingRef.current = true;
             setBusy(true);
             setError(null);
             try {
               const result = await onCreate(name.trim());
               if (!result.ok) setError(result.error);
             } finally {
+              submittingRef.current = false;
               setBusy(false);
             }
           }}

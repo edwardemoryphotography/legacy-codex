@@ -21,7 +21,8 @@ export default function SprintDetailPage() {
   const router = useRouter();
   const { current } = useWorkspace();
   const { toast } = useToast();
-  const requestGate = useRequestGate();
+  const requestScope = current && id ? `${current.id}:${id}` : null;
+  const requestGate = useRequestGate(requestScope);
   const [sprint, setSprint] = useState<Sprint | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -33,6 +34,8 @@ export default function SprintDetailPage() {
     const token = requestGate.begin();
     const workspaceId = current.id;
     const sprintId = id;
+    const scope = `${workspaceId}:${sprintId}`;
+    if (!requestGate.isScopeCurrent(scope)) return;
     setSprint(null);
     setNotFound(false);
     setLoadError(null);
@@ -46,12 +49,12 @@ export default function SprintDetailPage() {
           .eq("workspace_id", workspaceId)
           .maybeSingle();
 
-        if (!requestGate.isCurrent(token)) return;
+        if (!requestGate.isCurrent(token, scope)) return;
         if (error) throw error;
         if (data) setSprint(data);
         else setNotFound(true);
       } catch (error) {
-        if (!requestGate.isCurrent(token)) return;
+        if (!requestGate.isCurrent(token, scope)) return;
         const message = getErrorMessage(error);
         setLoadError(message);
         toast(message, "error");
@@ -64,32 +67,39 @@ export default function SprintDetailPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!sprint || !current) return;
+    const workspaceId = current.id;
+    const sprintId = sprint.id;
+    const scope = `${workspaceId}:${sprintId}`;
     setSaving(true);
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("sprints")
-      .update({
+    try {
+      const { error } = await createClient()
+        .from("sprints")
+        .update({
+          title: sprint.title,
+          goal: sprint.goal || null,
+          status: sprint.status,
+          start_date: sprint.start_date || null,
+          end_date: sprint.end_date || null,
+          notes: sprint.notes || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", sprintId)
+        .eq("workspace_id", workspaceId);
+      if (!requestGate.isScopeCurrent(scope)) return;
+      if (error) throw error;
+      void logEvent(workspaceId, "sprint.updated", "sprint", sprintId, {
         title: sprint.title,
-        goal: sprint.goal || null,
         status: sprint.status,
-        start_date: sprint.start_date || null,
-        end_date: sprint.end_date || null,
-        notes: sprint.notes || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", sprint.id)
-      .eq("workspace_id", current.id);
-    setSaving(false);
-    if (error) {
-      toast(error.message, "error");
-      return;
+      });
+      toast("Sprint saved");
+      router.push("/dashboard/sprints");
+    } catch (error) {
+      if (requestGate.isScopeCurrent(scope)) {
+        toast(getErrorMessage(error), "error");
+      }
+    } finally {
+      if (requestGate.isScopeCurrent(scope)) setSaving(false);
     }
-    logEvent(current.id, "sprint.updated", "sprint", sprint.id, {
-      title: sprint.title,
-      status: sprint.status,
-    });
-    toast("Sprint saved");
-    router.push("/dashboard/sprints");
   }
 
   if (loadError) {
