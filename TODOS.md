@@ -1,17 +1,17 @@
 # TODOS.md
 
-Task queue for this workspace. See `AGENTS.md` for how this file fits with the others.
+Task queue for approved repository work. See `AGENTS.md` for how this file fits with the other coordination documents. Do not infer personal, publishing, or external-action tasks from conversation history.
 
 ---
 
 ## Now
 
-- [ ] Post the Print Drop Reel from @Freddy_v
+_(no approved items currently queued)_
 
 ## Next
 
-_(no items currently queued)_
+_(no approved items currently queued)_
 
 ## Later
 
-_(no items currently queued)_
+_(no approved items currently queued)_

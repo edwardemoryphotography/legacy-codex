@@ -1,6 +1,6 @@
 # AGENT_FEEDBACK.md
 
-Append-only log. One improvement note per session, added at the end of that session (see `AGENTS.md` § RULES). Newest entry on top.
+Append-only log for durable, repository-specific improvement notes. Add an entry only when a lesson is likely to help future work; routine sessions do not require a repository write.
 
 ---
 
