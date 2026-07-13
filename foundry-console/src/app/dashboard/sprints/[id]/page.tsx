@@ -30,6 +30,7 @@ export default function SprintDetailPage() {
   const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
+    setSaving(false);
     if (!current || !id) return;
     const token = requestGate.begin();
     const workspaceId = current.id;
