@@ -3,6 +3,7 @@
 import { WorkspaceProvider } from "@/lib/workspace-context";
 import { ToastProvider } from "@/components/toast";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { AuthGate } from "@/components/auth-gate";
 
 export default function DashboardLayout({
   children,
@@ -10,10 +11,12 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ToastProvider>
-      <WorkspaceProvider>
-        <DashboardShell>{children}</DashboardShell>
-      </WorkspaceProvider>
-    </ToastProvider>
+    <AuthGate>
+      <ToastProvider>
+        <WorkspaceProvider>
+          <DashboardShell>{children}</DashboardShell>
+        </WorkspaceProvider>
+      </ToastProvider>
+    </AuthGate>
   );
 }
