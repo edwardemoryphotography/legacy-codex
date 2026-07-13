@@ -65,8 +65,14 @@ The design uses CSS custom properties defined in `src/app/globals.css` as the si
 
 This is the single type source for the whole project. Key exports: `TabId` (union of all 7 tab IDs), `BiometricDay / BiometricSummary / BiometricMode`, `CodexEntry / CodexSection / SectionKey`, `ValidationMetric / MetricValue`. When adding a feature that spans multiple files, define its shape here first.
 
+### Supabase integration
+
+`src/lib/supabase/client.ts` creates a browser Supabase client (`@supabase/ssr`'s `createBrowserClient`) against its own project — `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY`, falling back to project `pkydkbuodikttfeawqsw` if unset (see `.env.local.example`). This is a **separate Supabase project from `codex-system-architecture`'s canonical `supabase-indigo-paddle`** — do not assume shared tables or credentials between the two repos.
+
+`CodexTab` and `ControlsTab` use it for anonymous auth (`signInAnonymously`) plus reads/writes to `nd_codex_bookmarks`, `nd_prefs`, and `nd_captures`. If the client fails to construct (e.g. due to initialization or environment issues), it falls back to a no-op stub. Note that placeholder keys do not prevent construction — `createBrowserClient` succeeds even with the placeholder fallback values — so runtime calls against a misconfigured project fail gracefully via component-level error handling instead.
+
 ### Deployment
 
-All routes are prerendered as static content (`○` in build output). The layout sets `robots: noindex, nofollow` — this is a private operational dashboard. It deploys correctly to Vercel, Netlify, or any static host without additional configuration. There is no API route, no server action, and no runtime server dependency.
+All routes are prerendered as static content (`○` in build output). The layout sets `robots: noindex, nofollow` — this is a private operational dashboard. It deploys correctly to Vercel, Netlify, or any static host without additional configuration. There is no custom API route or server action — but note the client-side Supabase dependency above; the app is not fully offline/static once real Supabase keys are configured.
 
 No Gemini API integration currently exists in the codebase. The natural integration point would be a bridge script (outside this repo) that calls the Gemini API and writes the result to `public/notes/biometric-trends.json` or a similar file consumed by a tab component.
