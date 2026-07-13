@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -19,6 +19,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace-context";
+import type { CreateWorkspaceResult } from "@/lib/workspace-context";
 import type { Workspace } from "@/lib/types";
 
 const NAV_ITEMS = [
@@ -146,8 +147,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           ))}
           <NewWorkspaceInline
             onCreate={async (name) => {
-              await createWorkspace(name);
-              setSwitcherOpen(false);
+              const result = await createWorkspace(name);
+              if (result.ok) setSwitcherOpen(false);
+              return result;
             }}
           />
         </div>
@@ -232,11 +234,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 function NewWorkspaceInline({
   onCreate,
 }: {
-  onCreate: (name: string) => Promise<void>;
+  onCreate: (name: string) => Promise<CreateWorkspaceResult>;
 }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const submittingRef = useRef(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!adding) {
     return (
@@ -252,27 +256,40 @@ function NewWorkspaceInline({
 
   return (
     <form
-      className="flex items-center gap-1.5 border-t border-zinc-800 p-2"
+      className="border-t border-zinc-800 p-2"
       onSubmit={async (e) => {
         e.preventDefault();
-        if (!name.trim()) return;
+        if (!name.trim() || submittingRef.current) return;
+        submittingRef.current = true;
         setBusy(true);
-        await onCreate(name.trim());
-        setBusy(false);
-        setName("");
-        setAdding(false);
+        setError(null);
+        try {
+          const result = await onCreate(name.trim());
+          if (result.ok) {
+            setName("");
+            setAdding(false);
+          } else {
+            setError(result.error);
+          }
+        } finally {
+          submittingRef.current = false;
+          setBusy(false);
+        }
       }}
     >
-      <input
-        autoFocus
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Workspace name"
-        className="input py-1.5 text-[13px]"
-      />
-      <button type="submit" disabled={busy || !name.trim()} className="btn-primary px-3 py-1.5 text-[13px]">
-        Add
-      </button>
+      <div className="flex items-center gap-1.5">
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Workspace name"
+          className="input py-1.5 text-[13px]"
+        />
+        <button type="submit" disabled={busy || !name.trim()} className="btn-primary px-3 py-1.5 text-[13px]">
+          {busy ? "Adding…" : "Add"}
+        </button>
+      </div>
+      {error && <p className="mt-2 text-[12px] text-red-400">{error}</p>}
     </form>
   );
 }
@@ -280,10 +297,11 @@ function NewWorkspaceInline({
 function FirstRun({
   onCreate,
 }: {
-  onCreate: (name: string) => Promise<Workspace | null>;
+  onCreate: (name: string) => Promise<CreateWorkspaceResult>;
 }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const submittingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   return (
@@ -306,14 +324,15 @@ function FirstRun({
           className="card space-y-4 p-6"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (!name.trim()) return;
+            if (!name.trim() || submittingRef.current) return;
+            submittingRef.current = true;
             setBusy(true);
             setError(null);
-            const ws = await onCreate(name.trim());
-            if (!ws) {
-              setError(
-                "Couldn't create the workspace. Make sure SCHEMA.sql has been applied to your Supabase project."
-              );
+            try {
+              const result = await onCreate(name.trim());
+              if (!result.ok) setError(result.error);
+            } finally {
+              submittingRef.current = false;
               setBusy(false);
             }
           }}

@@ -11,13 +11,18 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { ListSkeleton } from "@/components/skeleton";
+import { LoadError } from "@/components/load-error";
 import { formatDate } from "@/lib/format";
+import { getErrorMessage } from "@/lib/errors";
+import { useRequestGate } from "@/lib/use-request-gate";
 import type { Sprint } from "@/lib/types";
 
 export default function SprintsPage() {
   const { current } = useWorkspace();
   const { toast } = useToast();
+  const requestGate = useRequestGate(current?.id ?? null);
   const [sprints, setSprints] = useState<Sprint[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [goal, setGoal] = useState("");
@@ -25,47 +30,69 @@ export default function SprintsPage() {
 
   const load = useCallback(async () => {
     if (!current) return;
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("sprints")
-      .select("*")
-      .eq("workspace_id", current.id)
-      .order("created_at", { ascending: false });
-    setSprints(data ?? []);
-  }, [current]);
+    const token = requestGate.begin();
+    const workspaceId = current.id;
+    if (!requestGate.isScopeCurrent(workspaceId)) return;
+    setLoadError(null);
+    try {
+      const { data, error } = await createClient()
+        .from("sprints")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false });
+      if (!requestGate.isCurrent(token, workspaceId)) return;
+      if (error) throw error;
+      setSprints(data ?? []);
+    } catch (error) {
+      if (!requestGate.isCurrent(token, workspaceId)) return;
+      const message = getErrorMessage(error);
+      setLoadError(message);
+      toast(message, "error");
+    }
+  }, [current, requestGate, toast]);
 
   useEffect(() => {
     setSprints(null);
-    load();
+    setBusy(false);
+    setShowForm(false);
+    setTitle("");
+    setGoal("");
+    void load();
   }, [load]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!current || !title.trim()) return;
+    const workspaceId = current.id;
     setBusy(true);
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("sprints")
-      .insert({
-        workspace_id: current.id,
-        title: title.trim(),
-        goal: goal.trim() || null,
-      })
-      .select()
-      .single();
-    setBusy(false);
-    if (error) {
-      toast(error.message, "error");
-      return;
+    try {
+      const { data, error } = await createClient()
+        .from("sprints")
+        .insert({
+          workspace_id: workspaceId,
+          title: title.trim(),
+          goal: goal.trim() || null,
+        })
+        .select()
+        .single();
+      if (!requestGate.isScopeCurrent(workspaceId)) return;
+      if (error) throw error;
+      if (!data) throw new Error("Supabase returned no sprint row.");
+      void logEvent(workspaceId, "sprint.created", "sprint", data.id, {
+        title: data.title,
+      });
+      toast("Sprint created");
+      setTitle("");
+      setGoal("");
+      setShowForm(false);
+      void load();
+    } catch (error) {
+      if (requestGate.isScopeCurrent(workspaceId)) {
+        toast(getErrorMessage(error), "error");
+      }
+    } finally {
+      if (requestGate.isScopeCurrent(workspaceId)) setBusy(false);
     }
-    logEvent(current.id, "sprint.created", "sprint", data.id, {
-      title: data.title,
-    });
-    toast("Sprint created");
-    setTitle("");
-    setGoal("");
-    setShowForm(false);
-    load();
   }
 
   return (
@@ -121,7 +148,9 @@ export default function SprintsPage() {
         </form>
       )}
 
-      {sprints === null ? (
+      {loadError ? (
+        <LoadError message={loadError} onRetry={() => void load()} />
+      ) : sprints === null ? (
         <ListSkeleton />
       ) : sprints.length === 0 ? (
         <EmptyState

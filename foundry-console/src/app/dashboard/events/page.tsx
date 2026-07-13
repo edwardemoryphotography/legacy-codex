@@ -1,31 +1,56 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ScrollText, Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/lib/workspace-context";
+import { useToast } from "@/components/toast";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ListSkeleton } from "@/components/skeleton";
+import { LoadError } from "@/components/load-error";
 import { formatDateTime } from "@/lib/format";
+import { getErrorMessage } from "@/lib/errors";
+import { useRequestGate } from "@/lib/use-request-gate";
 import type { Event } from "@/lib/types";
 
 export default function EventsPage() {
   const { current } = useWorkspace();
+  const { toast } = useToast();
+  const requestGate = useRequestGate(current?.id ?? null);
   const [events, setEvents] = useState<Event[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!current) return;
+    const token = requestGate.begin();
+    const workspaceId = current.id;
+    if (!requestGate.isScopeCurrent(workspaceId)) return;
+    setEvents(null);
+    setLoadError(null);
+
+    try {
+      const { data, error } = await createClient()
+        .from("events")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false })
+        .limit(300);
+
+      if (!requestGate.isCurrent(token, workspaceId)) return;
+      if (error) throw error;
+      setEvents(data ?? []);
+    } catch (error) {
+      if (!requestGate.isCurrent(token, workspaceId)) return;
+      const message = getErrorMessage(error);
+      setLoadError(message);
+      toast(message, "error");
+    }
+  }, [current, requestGate, toast]);
 
   useEffect(() => {
-    if (!current) return;
-    setEvents(null);
-    const supabase = createClient();
-    supabase
-      .from("events")
-      .select("*")
-      .eq("workspace_id", current.id)
-      .order("created_at", { ascending: false })
-      .limit(300)
-      .then(({ data }) => setEvents(data ?? []));
-  }, [current]);
+    void load();
+  }, [load]);
 
   return (
     <>
@@ -40,7 +65,9 @@ export default function EventsPage() {
         }
       />
 
-      {events === null ? (
+      {loadError ? (
+        <LoadError message={loadError} onRetry={() => void load()} />
+      ) : events === null ? (
         <ListSkeleton rows={6} />
       ) : events.length === 0 ? (
         <EmptyState

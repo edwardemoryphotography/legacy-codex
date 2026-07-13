@@ -1,6 +1,6 @@
 -- The Foundry Console — Supabase Schema (owner-authenticated edition)
 -- Access is restricted to the authenticated owner account at the database layer.
--- Apply this in the Supabase SQL editor after enabling Email OTP authentication.
+-- Apply this in the Supabase SQL editor after enabling email/password authentication.
 
 -- Workspaces
 create table if not exists workspaces (
@@ -97,6 +97,7 @@ alter table events enable row level security;
 -- if a permissive policy is added accidentally later. Authenticated requests
 -- still require the owner-email RLS checks below.
 revoke all on table workspaces, sprints, friction_entries, milestones, manual, settings, events from anon;
+revoke all on table workspaces, sprints, friction_entries, milestones, manual, settings, events from authenticated;
 grant select, insert, update, delete on table workspaces, sprints, friction_entries, milestones, manual, settings to authenticated;
 grant select, insert on table events to authenticated;
 

@@ -1,24 +1,30 @@
 export function formatDate(value: string | null): string {
   if (!value) return "—";
-  const d = new Date(value.includes("T") ? value : `${value}T00:00:00`);
-  return d.toLocaleDateString(undefined, {
+  const d = new Date(value.includes("T") ? value : `${value}T00:00:00.000Z`);
+  return d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   });
 }
 
 export function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString(undefined, {
+  return new Date(value).toLocaleString("en-US", {
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
   });
 }
 
-export function timeAgo(value: string): string {
-  const seconds = Math.floor((Date.now() - new Date(value).getTime()) / 1000);
+export function timeAgo(value: string, now = Date.now()): string {
+  const seconds = Math.max(
+    0,
+    Math.floor((now - new Date(value).getTime()) / 1000)
+  );
   if (seconds < 60) return "just now";
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;

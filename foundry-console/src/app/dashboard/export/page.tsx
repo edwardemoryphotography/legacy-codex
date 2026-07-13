@@ -1,81 +1,93 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, FileJson } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/lib/workspace-context";
 import { useToast } from "@/components/toast";
 import { logEvent } from "@/lib/events";
 import { PageHeader } from "@/components/page-header";
+import { getErrorMessage } from "@/lib/errors";
+import {
+  buildExportPayload,
+  createExportFilename,
+  EXPORT_DATASETS,
+} from "@/lib/export";
+import { useRequestGate } from "@/lib/use-request-gate";
 
 export default function ExportPage() {
   const { current } = useWorkspace();
   const { toast } = useToast();
+  const requestGate = useRequestGate(current?.id ?? null);
+  const exportingRef = useRef<symbol | null>(null);
   const [exporting, setExporting] = useState(false);
   const [lastCounts, setLastCounts] = useState<Record<string, number> | null>(
     null
   );
 
-  async function handleExport() {
-    if (!current) return;
-    setExporting(true);
-    const supabase = createClient();
-
-    const [sprints, friction, milestones, events] = await Promise.all([
-      supabase
-        .from("sprints")
-        .select("*")
-        .eq("workspace_id", current.id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("friction_entries")
-        .select("*")
-        .eq("workspace_id", current.id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("milestones")
-        .select("*")
-        .eq("workspace_id", current.id)
-        .order("target_date", { ascending: true }),
-      supabase
-        .from("events")
-        .select("*")
-        .eq("workspace_id", current.id)
-        .order("created_at", { ascending: false }),
-    ]);
-
-    const payload = {
-      workspace: { id: current.id, name: current.name },
-      exported_at: new Date().toISOString(),
-      sprints: sprints.data ?? [],
-      friction_entries: friction.data ?? [],
-      milestones: milestones.data ?? [],
-      events: events.data ?? [],
-    };
-
-    const counts = {
-      sprints: payload.sprints.length,
-      friction: payload.friction_entries.length,
-      milestones: payload.milestones.length,
-      events: payload.events.length,
-    };
-    setLastCounts(counts);
-
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${current.name.replace(/\s+/g, "_").toLowerCase()}_export_${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    logEvent(current.id, "workspace.exported", "workspace", current.id, counts);
-    toast("Export downloaded");
+  useEffect(() => {
+    exportingRef.current = null;
     setExporting(false);
+    setLastCounts(null);
+  }, [current?.id]);
+
+  async function handleExport() {
+    if (!current || exportingRef.current) return;
+    const workspace = { id: current.id, name: current.name };
+    const token = requestGate.begin();
+    const operation = Symbol("export");
+    exportingRef.current = operation;
+    setExporting(true);
+    setLastCounts(null);
+    let objectUrl: string | null = null;
+
+    try {
+      const supabase = createClient();
+      const [sprints, friction, milestones, manual, settings, events] = await Promise.all([
+        supabase.from("sprints").select("*").eq("workspace_id", workspace.id).order("created_at", { ascending: false }),
+        supabase.from("friction_entries").select("*").eq("workspace_id", workspace.id).order("created_at", { ascending: false }),
+        supabase.from("milestones").select("*").eq("workspace_id", workspace.id).order("target_date", { ascending: true }),
+        supabase.from("manual").select("*").eq("workspace_id", workspace.id).order("title", { ascending: true }),
+        supabase.from("settings").select("*").eq("workspace_id", workspace.id),
+        supabase.from("events").select("*").eq("workspace_id", workspace.id).order("created_at", { ascending: false }),
+      ]);
+
+      if (!requestGate.isCurrent(token, workspace.id)) return;
+      const exportedAt = new Date().toISOString();
+      const results = [sprints, friction, milestones, manual, settings, events];
+      const payload = buildExportPayload(workspace, exportedAt, results);
+      const counts = Object.fromEntries(
+        EXPORT_DATASETS.map((dataset) => [
+          dataset,
+          (payload[dataset] as unknown[]).length,
+        ])
+      );
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: "application/json",
+      });
+      objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = createExportFilename(workspace.name, exportedAt);
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+
+      setLastCounts(counts);
+      void logEvent(workspace.id, "workspace.exported", "workspace", workspace.id, counts);
+      toast("Export downloaded");
+    } catch (error) {
+      if (requestGate.isScopeCurrent(workspace.id)) {
+        toast(getErrorMessage(error), "error");
+      }
+    } finally {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (exportingRef.current === operation) {
+        exportingRef.current = null;
+        setExporting(false);
+      }
+    }
   }
 
   return (
@@ -93,8 +105,8 @@ export default function ExportPage() {
           {current?.name ?? "Workspace"} — full export
         </h3>
         <p className="mt-1.5 text-[13px] leading-relaxed text-zinc-500">
-          One JSON file containing every sprint, friction entry, milestone, and
-          audit event in this workspace. Exactly what&apos;s in the database —
+          One JSON file containing every sprint, friction entry, milestone,
+          manual page, settings row, and audit event in this workspace. Exactly what&apos;s in the database —
           nothing generated, nothing added.
         </p>
         <button
@@ -107,7 +119,7 @@ export default function ExportPage() {
         </button>
 
         {lastCounts && (
-          <div className="mt-5 grid grid-cols-4 gap-2 border-t border-zinc-800/80 pt-4">
+          <div className="mt-5 grid grid-cols-2 gap-2 border-t border-zinc-800/80 pt-4 sm:grid-cols-3">
             {Object.entries(lastCounts).map(([k, v]) => (
               <div key={k} className="text-center">
                 <p className="text-lg font-bold tabular-nums">{v}</p>

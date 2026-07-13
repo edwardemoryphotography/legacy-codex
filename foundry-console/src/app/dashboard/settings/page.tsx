@@ -6,62 +6,103 @@ import { useWorkspace } from "@/lib/workspace-context";
 import { useToast } from "@/components/toast";
 import { logEvent } from "@/lib/events";
 import { PageHeader } from "@/components/page-header";
+import { LoadError } from "@/components/load-error";
+import { getErrorMessage } from "@/lib/errors";
+import { useRequestGate } from "@/lib/use-request-gate";
 import type { Settings } from "@/lib/types";
 
 export default function SettingsPage() {
   const { current } = useWorkspace();
   const { toast } = useToast();
+  const loadGate = useRequestGate(current?.id ?? null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
     if (!current) return;
-    setLoading(true);
-    const supabase = createClient();
+    const token = loadGate.begin();
     const wsId = current.id;
+    setLoading(true);
+    setSaving(false);
+    setSettings(null);
+    setLoadError(null);
 
     async function load() {
-      const { data } = await supabase
-        .from("settings")
-        .select("*")
-        .eq("workspace_id", wsId)
-        .maybeSingle();
-
-      if (data) {
-        setSettings(data);
-      } else {
-        // First visit for this workspace: initialize a settings row
-        // with safe defaults (everything off).
-        const { data: created } = await supabase
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
           .from("settings")
-          .insert({ workspace_id: wsId })
+          .select("*")
+          .eq("workspace_id", wsId)
+          .maybeSingle();
+
+        if (!loadGate.isCurrent(token, wsId)) return;
+        if (error) throw error;
+
+        if (data) {
+          setSettings(data);
+          return;
+        }
+
+        const { data: created, error: insertError } = await supabase
+          .from("settings")
+          .upsert({ workspace_id: wsId }, { onConflict: "workspace_id" })
           .select()
           .single();
-        setSettings(created ?? null);
+
+        if (!loadGate.isCurrent(token, wsId)) return;
+        if (insertError) throw insertError;
+        setSettings(created);
+      } catch (error) {
+        if (!loadGate.isCurrent(token, wsId)) return;
+        const message = getErrorMessage(error);
+        setLoadError(message);
+        toast(message, "error");
+      } finally {
+        if (loadGate.isCurrent(token, wsId)) setLoading(false);
       }
-      setLoading(false);
     }
-    load();
-  }, [current]);
+
+    void load();
+  }, [current, loadGate, reloadNonce, toast]);
 
   async function handleToggle(field: "kill_switch_ai" | "pii_warning_enabled") {
     if (!settings || !current) return;
+    const settingsId = settings.id;
+    const workspaceId = current.id;
     setSaving(true);
     const newValue = !settings[field];
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("settings")
-      .update({ [field]: newValue, updated_at: new Date().toISOString() })
-      .eq("id", settings.id);
-    setSaving(false);
-    if (error) {
-      toast(error.message, "error");
-      return;
+    try {
+      const { error } = await createClient()
+        .from("settings")
+        .update({ [field]: newValue, updated_at: new Date().toISOString() })
+        .eq("id", settingsId)
+        .eq("workspace_id", workspaceId);
+      if (!loadGate.isScopeCurrent(workspaceId)) return;
+      if (error) throw error;
+
+      setSettings((previous) =>
+        previous?.id === settingsId
+          ? { ...previous, [field]: newValue }
+          : previous
+      );
+      void logEvent(
+        workspaceId,
+        `settings.${field}.${newValue ? "on" : "off"}`,
+        "settings",
+        settingsId
+      );
+      toast(newValue ? "Enabled" : "Disabled");
+    } catch (error) {
+      if (loadGate.isScopeCurrent(workspaceId)) {
+        toast(getErrorMessage(error), "error");
+      }
+    } finally {
+      if (loadGate.isScopeCurrent(workspaceId)) setSaving(false);
     }
-    setSettings({ ...settings, [field]: newValue });
-    logEvent(current.id, `settings.${field}.${newValue ? "on" : "off"}`, "settings", settings.id);
-    toast(newValue ? "Enabled" : "Disabled");
   }
 
   return (
@@ -71,7 +112,12 @@ export default function SettingsPage() {
         description="Workspace-level safety controls."
       />
 
-      {loading ? (
+      {loadError ? (
+        <LoadError
+          message={loadError}
+          onRetry={() => setReloadNonce((value) => value + 1)}
+        />
+      ) : loading ? (
         <div className="max-w-lg space-y-3">
           {Array.from({ length: 2 }).map((_, i) => (
             <div
@@ -80,11 +126,7 @@ export default function SettingsPage() {
             />
           ))}
         </div>
-      ) : !settings ? (
-        <p className="text-sm text-zinc-500">
-          Couldn&apos;t load settings. Make sure SCHEMA.sql has been applied.
-        </p>
-      ) : (
+      ) : settings ? (
         <div className="animate-fade-up max-w-lg space-y-3">
           <ToggleRow
             label="AI kill switch"
@@ -102,7 +144,7 @@ export default function SettingsPage() {
             disabled={saving}
           />
         </div>
-      )}
+      ) : null}
     </>
   );
 }

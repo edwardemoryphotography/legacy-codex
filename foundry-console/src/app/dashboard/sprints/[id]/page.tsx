@@ -9,6 +9,9 @@ import { useWorkspace } from "@/lib/workspace-context";
 import { useToast } from "@/components/toast";
 import { logEvent } from "@/lib/events";
 import { formatDateTime } from "@/lib/format";
+import { getErrorMessage } from "@/lib/errors";
+import { useRequestGate } from "@/lib/use-request-gate";
+import { LoadError } from "@/components/load-error";
 import type { Sprint } from "@/lib/types";
 
 const STATUSES = ["planned", "active", "completed", "cancelled"] as const;
@@ -18,53 +21,95 @@ export default function SprintDetailPage() {
   const router = useRouter();
   const { current } = useWorkspace();
   const { toast } = useToast();
+  const requestScope = current && id ? `${current.id}:${id}` : null;
+  const requestGate = useRequestGate(requestScope);
   const [sprint, setSprint] = useState<Sprint | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
+    setSaving(false);
     if (!current || !id) return;
-    const supabase = createClient();
-    supabase
-      .from("sprints")
-      .select("*")
-      .eq("id", id)
-      .eq("workspace_id", current.id)
-      .maybeSingle()
-      .then(({ data }) => {
+    const token = requestGate.begin();
+    const workspaceId = current.id;
+    const sprintId = id;
+    const scope = `${workspaceId}:${sprintId}`;
+    if (!requestGate.isScopeCurrent(scope)) return;
+    setSprint(null);
+    setNotFound(false);
+    setLoadError(null);
+
+    async function load() {
+      try {
+        const { data, error } = await createClient()
+          .from("sprints")
+          .select("*")
+          .eq("id", sprintId)
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+
+        if (!requestGate.isCurrent(token, scope)) return;
+        if (error) throw error;
         if (data) setSprint(data);
         else setNotFound(true);
-      });
-  }, [current, id]);
+      } catch (error) {
+        if (!requestGate.isCurrent(token, scope)) return;
+        const message = getErrorMessage(error);
+        setLoadError(message);
+        toast(message, "error");
+      }
+    }
+
+    void load();
+  }, [current, id, reloadNonce, requestGate, toast]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!sprint || !current) return;
+    const workspaceId = current.id;
+    const sprintId = sprint.id;
+    const scope = `${workspaceId}:${sprintId}`;
     setSaving(true);
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("sprints")
-      .update({
+    try {
+      const { error } = await createClient()
+        .from("sprints")
+        .update({
+          title: sprint.title,
+          goal: sprint.goal || null,
+          status: sprint.status,
+          start_date: sprint.start_date || null,
+          end_date: sprint.end_date || null,
+          notes: sprint.notes || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", sprintId)
+        .eq("workspace_id", workspaceId);
+      if (!requestGate.isScopeCurrent(scope)) return;
+      if (error) throw error;
+      void logEvent(workspaceId, "sprint.updated", "sprint", sprintId, {
         title: sprint.title,
-        goal: sprint.goal || null,
         status: sprint.status,
-        start_date: sprint.start_date || null,
-        end_date: sprint.end_date || null,
-        notes: sprint.notes || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", sprint.id);
-    setSaving(false);
-    if (error) {
-      toast(error.message, "error");
-      return;
+      });
+      toast("Sprint saved");
+      router.push("/dashboard/sprints");
+    } catch (error) {
+      if (requestGate.isScopeCurrent(scope)) {
+        toast(getErrorMessage(error), "error");
+      }
+    } finally {
+      if (requestGate.isScopeCurrent(scope)) setSaving(false);
     }
-    logEvent(current.id, "sprint.updated", "sprint", sprint.id, {
-      title: sprint.title,
-      status: sprint.status,
-    });
-    toast("Sprint saved");
-    router.push("/dashboard/sprints");
+  }
+
+  if (loadError) {
+    return (
+      <LoadError
+        message={loadError}
+        onRetry={() => setReloadNonce((value) => value + 1)}
+      />
+    );
   }
 
   if (notFound) {
