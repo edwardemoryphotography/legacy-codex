@@ -5,15 +5,17 @@ import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 
 const ALLOWED_EMAIL = "freddyv@duck.com";
+const MIN_PASSWORD_LENGTH = 12;
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState(ALLOWED_EMAIL);
+  const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
-  const [codeSent, setCodeSent] = useState(false);
-  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -38,10 +40,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     };
   }, [supabase]);
 
-  // Send a one-time code, not a magic link: no emailRedirectTo means nothing
-  // clickable in the email, so inbox link-scanners can't consume the token
-  // before the owner types it.
-  async function requestCode(event: FormEvent<HTMLFormElement>) {
+  async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
 
@@ -51,41 +50,51 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
 
     setBusy(true);
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithPassword({
       email: ALLOWED_EMAIL,
+      password,
+    });
+    setBusy(false);
+
+    if (error) {
+      setMessage("The email or password is incorrect.");
+    } else {
+      setPassword("");
+    }
+  }
+
+  async function changePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage(null);
+
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      setMessage(`Use at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setMessage("The new passwords do not match.");
+      return;
+    }
+
+    setBusy(true);
+    const metadata = session?.user.user_metadata ?? {};
+    const { data, error } = await supabase.auth.updateUser({
+      password: newPassword,
+      data: { ...metadata, must_change_password: false },
     });
     setBusy(false);
 
     if (error) {
       setMessage(error.message);
-    } else {
-      setCodeSent(true);
-      setCode("");
-      setMessage(null);
+      return;
     }
-  }
 
-  async function verifyCode(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (code.trim().length < 6) return;
-
-    setBusy(true);
-    setMessage(null);
-    const { error } = await supabase.auth.verifyOtp({
-      email: ALLOWED_EMAIL,
-      token: code.trim(),
-      type: "email",
-    });
-    setBusy(false);
-
-    if (error) {
-      setMessage(
-        /expired|invalid|not found/i.test(error.message)
-          ? "That code is invalid or expired. Request a new one."
-          : error.message
-      );
+    if (session && data.user) {
+      setSession({ ...session, user: data.user });
     }
-    // On success onAuthStateChange updates the session and the gate opens.
+    setNewPassword("");
+    setConfirmPassword("");
   }
 
   async function signOut() {
@@ -99,87 +108,113 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   const signedInEmail = session?.user.email?.toLowerCase();
-  if (!session || signedInEmail !== ALLOWED_EMAIL) {
+  const isOwner = Boolean(session && signedInEmail === ALLOWED_EMAIL);
+  const mustChangePassword = session?.user.user_metadata?.must_change_password === true;
+
+  if (isOwner && mustChangePassword) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-neutral-950 px-6 text-neutral-100">
+        <form
+          onSubmit={changePassword}
+          className="w-full max-w-md space-y-5 rounded-2xl border border-neutral-800 bg-neutral-900 p-7 shadow-2xl"
+        >
+          <div>
+            <p className="text-sm uppercase tracking-[0.2em] text-neutral-400">Foundry Console</p>
+            <h1 className="mt-2 text-2xl font-semibold">Choose your private password</h1>
+            <p className="mt-2 text-sm text-neutral-400">
+              Replace the temporary password now. Future visits on this device will open
+              directly while your session remains active.
+            </p>
+          </div>
+          <label className="block text-sm font-medium">
+            New password
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              autoComplete="new-password"
+              minLength={MIN_PASSWORD_LENGTH}
+              required
+              disabled={busy}
+              className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 outline-none focus:border-neutral-400"
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Confirm new password
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              autoComplete="new-password"
+              minLength={MIN_PASSWORD_LENGTH}
+              required
+              disabled={busy}
+              className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 outline-none focus:border-neutral-400"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-full rounded-lg bg-neutral-100 px-4 py-2 font-medium text-neutral-950 hover:bg-white disabled:opacity-50"
+          >
+            {busy ? "Saving…" : "Save password and continue"}
+          </button>
+          {message ? <p className="text-sm text-neutral-300">{message}</p> : null}
+        </form>
+      </main>
+    );
+  }
+
+  if (!isOwner) {
     return (
       <main className="grid min-h-screen place-items-center bg-neutral-950 px-6 text-neutral-100">
         <div className="w-full max-w-md space-y-5 rounded-2xl border border-neutral-800 bg-neutral-900 p-7 shadow-2xl">
-          {codeSent ? (
-            <form onSubmit={verifyCode} className="space-y-5">
-              <div>
-                <p className="text-sm uppercase tracking-[0.2em] text-neutral-400">Foundry Console</p>
-                <h1 className="mt-2 text-2xl font-semibold">Enter your code</h1>
-                <p className="mt-2 text-sm text-neutral-400">
-                  A 6-digit code was emailed to the owner account. Type it below — the email
-                  contains no link to click.
-                </p>
-              </div>
+          <form onSubmit={signIn} className="space-y-5">
+            <div>
+              <p className="text-sm uppercase tracking-[0.2em] text-neutral-400">Foundry Console</p>
+              <h1 className="mt-2 text-2xl font-semibold">Owner sign-in</h1>
+              <p className="mt-2 text-sm text-neutral-400">
+                Sign in once. This device will keep your session so the permanent link opens
+                directly next time.
+              </p>
+            </div>
+            <label className="block text-sm font-medium">
+              Email
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                autoComplete="username"
+                required
+                disabled={busy || Boolean(session)}
+                className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 outline-none focus:border-neutral-400"
+              />
+            </label>
+            {!session ? (
               <label className="block text-sm font-medium">
-                6-digit code
+                Password
                 <input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  pattern="[0-9]*"
-                  maxLength={6}
-                  value={code}
-                  onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
-                  placeholder="000000"
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  autoComplete="current-password"
                   required
-                  className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-center font-mono text-lg tracking-[0.4em] outline-none focus:border-neutral-400"
                   disabled={busy}
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={busy || code.trim().length < 6}
-                className="w-full rounded-lg bg-neutral-100 px-4 py-2 font-medium text-neutral-950 hover:bg-white disabled:opacity-50"
-              >
-                {busy ? "Verifying…" : "Sign in"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setCodeSent(false);
-                  setMessage(null);
-                }}
-                disabled={busy}
-                className="w-full text-sm text-neutral-400 hover:text-neutral-200 disabled:opacity-50"
-              >
-                Request a new code
-              </button>
-              {message ? <p className="text-sm text-neutral-300">{message}</p> : null}
-            </form>
-          ) : (
-            <form onSubmit={requestCode} className="space-y-5">
-              <div>
-                <p className="text-sm uppercase tracking-[0.2em] text-neutral-400">Foundry Console</p>
-                <h1 className="mt-2 text-2xl font-semibold">Owner sign-in required</h1>
-                <p className="mt-2 text-sm text-neutral-400">
-                  Access is restricted at both the application and database layers.
-                </p>
-              </div>
-              <label className="block text-sm font-medium">
-                Email
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  autoComplete="email"
-                  required
                   className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 outline-none focus:border-neutral-400"
-                  disabled={busy}
                 />
               </label>
+            ) : null}
+            {!session ? (
               <button
                 type="submit"
                 disabled={busy}
                 className="w-full rounded-lg bg-neutral-100 px-4 py-2 font-medium text-neutral-950 hover:bg-white disabled:opacity-50"
               >
-                {busy ? "Sending…" : "Email me a sign-in code"}
+                {busy ? "Signing in…" : "Sign in"}
               </button>
-              {message ? <p className="text-sm text-neutral-300">{message}</p> : null}
-            </form>
-          )}
+            ) : null}
+            {message ? <p className="text-sm text-neutral-300">{message}</p> : null}
+          </form>
           {session ? (
             <div className="border-t border-neutral-800 pt-4 text-center">
               <p className="mb-2 text-xs text-neutral-500">
