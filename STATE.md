@@ -70,6 +70,14 @@ _Last updated: 2026-08-07_
 
 ---
 
+## 🧠 LESSONS
+
+Durable, repository-specific improvement notes. Add an entry only when a lesson is likely to help future sessions.
+
+_(none yet)_
+
+---
+
 ## 📝 UPDATE PROTOCOL
 
 Before starting any session: read this file.  
