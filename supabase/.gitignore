@@ -3,5 +3,6 @@
 .temp
 .env
 *.sql
+!migrations/*.sql
 *.tar
 *.zip
