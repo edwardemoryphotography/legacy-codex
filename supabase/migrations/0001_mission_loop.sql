@@ -74,16 +74,29 @@ drop policy if exists "mission_events owner select" on mission_events;
 create policy "mission_events owner select" on mission_events
   for select using (auth.uid() = user_id);
 
+-- The insert check must also confirm the target mission belongs to this
+-- user — auth.uid() = user_id alone lets an authenticated user attach an
+-- event (with their own user_id) to someone else's mission_id, polluting
+-- another user's audit trail. This closes that hole.
 drop policy if exists "mission_events owner insert" on mission_events;
 create policy "mission_events owner insert" on mission_events
-  for insert with check (auth.uid() = user_id);
+  for insert with check (
+    auth.uid() = user_id and
+    exists (
+      select 1 from missions
+      where missions.id = mission_id
+      and missions.user_id = auth.uid()
+    )
+  );
 
 -- Deliberately no update or delete policy — append-only under RLS.
 
 -- ─── evidence_snapshots ────────────────────────────────────────────────
 -- Populated by the scheduled evidence-bridge GitHub Action
 -- (.github/workflows/evidence-bridge.yml) using the service-role key, which
--- bypasses RLS. The client only ever reads this table.
+-- bypasses RLS. The client reads this table and, to link a snapshot to a
+-- mission it belongs to, updates mission_id — insert/delete stay
+-- service-role only.
 create table if not exists evidence_snapshots (
   id uuid primary key default gen_random_uuid(),
   mission_id uuid references missions(id) on delete set null,
@@ -102,6 +115,25 @@ alter table evidence_snapshots enable row level security;
 drop policy if exists "evidence_snapshots authenticated read" on evidence_snapshots;
 create policy "evidence_snapshots authenticated read" on evidence_snapshots
   for select using (auth.role() = 'authenticated');
+
+-- A client may only link an unlinked snapshot (mission_id is null) or one
+-- already linked to a mission it owns, and may only ever set mission_id to
+-- null or to a mission it owns — never to someone else's mission.
+drop policy if exists "evidence_snapshots owner update" on evidence_snapshots;
+create policy "evidence_snapshots owner update" on evidence_snapshots
+  for update using (
+    mission_id is null or exists (
+      select 1 from missions
+      where missions.id = evidence_snapshots.mission_id
+      and missions.user_id = auth.uid()
+    )
+  ) with check (
+    mission_id is null or exists (
+      select 1 from missions
+      where missions.id = mission_id
+      and missions.user_id = auth.uid()
+    )
+  );
 
 -- ─── nd_captures: link a capture to the mission it was promoted into ───
 -- Null promoted_mission_id is the default Parked state for a captured idea

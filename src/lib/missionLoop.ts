@@ -134,6 +134,9 @@ export function promoteToSecondary(
   if (!primary) {
     return fail(board, 'Secondary cannot become actionable without an active Primary to be secondary to.')
   }
+  if (primary.id === missionId) {
+    return fail(board, 'The active Primary mission cannot be promoted to Secondary.')
+  }
   if (reason === 'primary_blocked' && !primary.blocker) {
     return fail(board, 'Primary is not Blocked — Secondary is not actionable yet.')
   }
@@ -261,7 +264,13 @@ export function applyPriorityChallenge(
   }
 
   const displacedRole = displaced.state
-  let next: MissionBoard = putMission(board, { ...displaced, state: displacedNextState, updatedAt: now })
+  // A displaced mission moving to 'parked' while still carrying a blocker
+  // must land in the literal 'blocked' state — Parked missions with a
+  // blocker set is exactly the inconsistency reportBlocker/unblock guard
+  // against elsewhere (see the comment above reportBlocker).
+  const nextDisplacedState: MissionState =
+    displacedNextState === 'parked' && displaced.blocker ? 'blocked' : displacedNextState
+  let next: MissionBoard = putMission(board, { ...displaced, state: nextDisplacedState, updatedAt: now })
   next = putMission(next, { ...candidate, state: displacedRole, updatedAt: now })
 
   return {
