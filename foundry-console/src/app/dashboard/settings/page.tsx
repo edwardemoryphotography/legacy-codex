@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/lib/workspace-context";
 import { useToast } from "@/components/toast";
@@ -20,6 +20,14 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
+
+  // Tracks the active workspace independently of `loadGate`. Each call to
+  // `handleToggle` reads this at completion time so one toggle's in-flight
+  // save can never be discarded (or have its save/error state clobbered) by
+  // a second, independent toggle starting or finishing first — the two
+  // toggles no longer share a single request gate/token.
+  const activeWorkspaceIdRef = useRef<string | null>(current?.id ?? null);
+  activeWorkspaceIdRef.current = current?.id ?? null;
 
   useEffect(() => {
     if (!current) return;
@@ -81,7 +89,7 @@ export default function SettingsPage() {
         .update({ [field]: newValue, updated_at: new Date().toISOString() })
         .eq("id", settingsId)
         .eq("workspace_id", workspaceId);
-      if (!loadGate.isScopeCurrent(workspaceId)) return;
+      if (!activeWorkspaceIdRef.current || activeWorkspaceIdRef.current !== workspaceId) return;
       if (error) throw error;
 
       setSettings((previous) =>
@@ -97,11 +105,11 @@ export default function SettingsPage() {
       );
       toast(newValue ? "Enabled" : "Disabled");
     } catch (error) {
-      if (loadGate.isScopeCurrent(workspaceId)) {
+      if (activeWorkspaceIdRef.current === workspaceId) {
         toast(getErrorMessage(error), "error");
       }
     } finally {
-      if (loadGate.isScopeCurrent(workspaceId)) setSaving(false);
+      if (activeWorkspaceIdRef.current === workspaceId) setSaving(false);
     }
   }
 
