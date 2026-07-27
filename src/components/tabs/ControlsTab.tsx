@@ -409,7 +409,7 @@ export default function ControlsTab() {
         ) : supabaseConnected ? (
           <Badge tone="teal">Keys ready</Badge>
         ) : (
-          <Badge tone="muted">Local only (add keys + run migration for sync)</Badge>
+          <Badge tone="muted">Local only</Badge>
         )}
         {isSyncing && <Badge tone="teal">syncing…</Badge>}
         <ActionChip onClick={forceSync} disabled={isSyncing}>
