@@ -1,22 +1,22 @@
-const COLORS: Record<string, string> = {
-  planned: "bg-zinc-700 text-zinc-300",
-  active: "bg-indigo-600/20 text-indigo-300",
-  completed: "bg-emerald-600/20 text-emerald-300",
-  cancelled: "bg-red-600/20 text-red-300",
-  open: "bg-amber-600/20 text-amber-300",
-  resolved: "bg-emerald-600/20 text-emerald-300",
-  wontfix: "bg-zinc-700 text-zinc-400",
-  low: "bg-zinc-700 text-zinc-300",
-  medium: "bg-amber-600/20 text-amber-300",
-  high: "bg-orange-600/20 text-orange-300",
-  critical: "bg-red-600/20 text-red-300",
+const STYLES: Record<string, string> = {
+  planned: "bg-zinc-500/10 text-zinc-400 ring-zinc-500/20",
+  active: "bg-indigo-500/10 text-indigo-300 ring-indigo-500/25",
+  completed: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/25",
+  cancelled: "bg-red-500/10 text-red-300 ring-red-500/25",
+  open: "bg-amber-500/10 text-amber-300 ring-amber-500/25",
+  resolved: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/25",
+  wontfix: "bg-zinc-500/10 text-zinc-500 ring-zinc-500/20",
+  low: "bg-sky-500/10 text-sky-300 ring-sky-500/25",
+  medium: "bg-amber-500/10 text-amber-300 ring-amber-500/25",
+  high: "bg-orange-500/10 text-orange-300 ring-orange-500/25",
+  critical: "bg-red-500/10 text-red-300 ring-red-500/25",
 };
 
 export function StatusBadge({ value }: { value: string }) {
-  const cls = COLORS[value] ?? "bg-zinc-700 text-zinc-300";
+  const cls = STYLES[value] ?? "bg-zinc-500/10 text-zinc-400 ring-zinc-500/20";
   return (
     <span
-      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ring-1 ring-inset ${cls}`}
     >
       {value}
     </span>

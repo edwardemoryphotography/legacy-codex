@@ -1,110 +1,99 @@
 # The Foundry Console
 
-Minimal Next.js web console for **Case Study Zero**.  
-Connects to an existing Supabase backend — no mock data, no synthetic examples.
+Minimal, fast web console for **Case Study Zero**.  
+**No sign-in.** Open the link and you're in — the URL is the key.
+
+Connects to a Supabase backend and shows only real database data. No mock data, no synthetic examples, no analytics.
+
+## How access works (read this)
+
+There is no login, no magic link, no email loop. The app talks to Supabase
+with the **anon key** and open row-level-security policies:
+
+- **Anyone who has the deployed URL can read and write workspace data.**
+  Treat the URL like a password — share it only with people you trust.
+- The **events** table is append-only *at the database level*: the anon key
+  has no update or delete permission on it, and no table has a delete policy
+  at all. Nothing can be destroyed through the app.
+- The service role key is never used in the frontend.
+
+If you later want real access control, add Supabase auth back and tighten
+the RLS policies — the schema supports it.
 
 ## Stack
 
 - **Next.js 15** (App Router) + TypeScript
 - **Tailwind CSS v4**
-- **Supabase JS** (@supabase/ssr)
+- **Supabase JS** (anon key only)
 - **Hosting**: Vercel
 
 ## Features
 
 | Feature | Route |
 |---------|-------|
-| Magic-link auth | `/login` |
-| Workspace selector | Sidebar (auto-loads from `workspace_members`) |
-| Sprints list + edit | `/dashboard/sprints`, `/dashboard/sprints/[id]` |
-| Friction log + add | `/dashboard/friction` |
-| Milestones timeline + add | `/dashboard/milestones` |
-| Manual pages (admin edit) | `/dashboard/manual` |
-| Settings (admin) | `/dashboard/settings` |
-| Audit log (read-only) | `/dashboard/events` |
-| JSON export | `/dashboard/export` |
+| Overview: live counts, active sprint, next milestone, recent activity | `/dashboard` |
+| Workspace switcher + create workspaces in-app | Sidebar |
+| Sprints: create, list, full-field edit | `/dashboard/sprints` |
+| Friction: log, resolve | `/dashboard/friction` |
+| Milestones: timeline, add, complete/reopen | `/dashboard/milestones` |
+| Manual: create + edit pages, auto version bump | `/dashboard/manual` |
+| Settings: AI kill switch, PII warning toggle | `/dashboard/settings` |
+| Audit log: read-only, append-only | `/dashboard/events` |
+| Export: full workspace JSON download | `/dashboard/export` |
 
-## Prerequisites
+Every create/update action writes an entry to the audit log automatically.
 
-- Node.js 18+
-- A Supabase project with the schema from `SCHEMA.sql` applied
-- Auth → Email → "Enable Magic Link" turned on in Supabase dashboard
+## Setup
 
-## Local Development
+### 1. Database
+
+1. Create a Supabase project (or reuse one)
+2. Open **SQL Editor**, paste the contents of `SCHEMA.sql`, run it
+
+### 2. Local development
 
 ```bash
 cd foundry-console
-
-# 1. Install dependencies
+cp .env.local.example .env.local   # fill in URL + anon key
 npm install
-
-# 2. Create env file
-cp .env.local.example .env.local
-# Edit .env.local with your Supabase project URL and anon key
-
-# 3. Run dev server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000). First visit shows a
+one-field "create workspace" screen; after that you land straight on the
+Overview.
 
-## Environment Variables
+## Environment variables
 
 | Variable | Description |
 |----------|-------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL (e.g. `https://abc123.supabase.co`) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your Supabase anon/public key |
-
-**Security**: Only the anon key is used in the frontend. RLS policies on the database enforce access control. No service role key is ever exposed to the client.
-
-## Database Setup
-
-1. Open your Supabase project → SQL Editor
-2. Paste and run the contents of `SCHEMA.sql`
-3. This creates all tables with RLS policies
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (`https://xyz.supabase.co`) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
 
 ## Deploy to Vercel
 
-### 1. Connect GitHub
+### Connect GitHub
 
-1. Go to [vercel.com](https://vercel.com) and sign in
-2. Click **"Add New…" → Project**
-3. Import this repository from GitHub
-4. Vercel auto-detects it as a Next.js project
+1. [vercel.com](https://vercel.com) → **Add New… → Project**
+2. Import this repository
+3. Set **Root Directory** to `foundry-console`
+4. Framework preset: Next.js (auto-detected)
 
-### 2. Set Environment Variables
+### Set env vars
 
-In the Vercel project settings (**Settings → Environment Variables**):
+**Settings → Environment Variables**, for Production, Preview, and Development:
 
 | Key | Value |
 |-----|-------|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://your-project.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `your-anon-key` |
+| `NEXT_PUBLIC_SUPABASE_URL` | your project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your anon key |
 
-Set these for **Production**, **Preview**, and **Development** environments.
+### Deploy & verify
 
-### 3. Deploy
+1. Click **Deploy**
+2. Open the Vercel URL — you should immediately see either the
+   "create workspace" screen (fresh database) or the Overview (existing data)
+3. Create a sprint; confirm it appears in the Supabase table editor and in
+   the audit log — that proves the live connection end to end
 
-Click **Deploy**. Vercel will build and deploy automatically.
-
-### 4. Configure Supabase Redirect
-
-After deploying, add your Vercel URL to Supabase:
-
-1. Supabase Dashboard → Authentication → URL Configuration
-2. Add `https://your-app.vercel.app/auth/callback` to **Redirect URLs**
-
-### 5. Verify It's Live
-
-1. Visit your Vercel URL (e.g. `https://foundry-console.vercel.app`)
-2. You should see the login page
-3. Enter your email → receive a magic link → sign in
-4. If you're a member of a workspace, you'll see the dashboard
-
-## Security Notes
-
-- Uses only the Supabase **anon key** (never the service role key)
-- All data access is governed by Supabase RLS policies
-- Admin-only UI (Settings, Manual edit) checks `workspace_members.role`
-- Events table is append-only: the UI cannot edit or delete events
-- No analytics, no tracking, no cookies beyond auth session
+No auth redirect configuration is needed. There is nothing else to set up.

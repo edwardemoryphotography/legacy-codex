@@ -2,196 +2,89 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Personal operating system for converting captures (voice notes, thoughts, tasks) into clear, executable next steps. Reduces cognitive overhead and prevents fragmentation across local files, GitHub, and Vercel production.
-
-**Production truth**: `https://legacy-codex.vercel.app`
-
-> For agent behavioral rules, specialist agent definitions, and operating protocols, see **`AGENTS.md`**.
-> This file covers the technical codebase: structure, commands, conventions, and constraints for AI assistants.
-
----
-
-## Critical Anchors (V37 — Never Drift)
-
-Refer to `AGENTS.md` for the authoritative list of V37 anchors (Production truth, FREEZE SPEC, Shipping blocker, and Delegation routing). AI assistants must resolve all ambiguity toward the definitions in that file, not toward memory or other branches.
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Runtime | Node.js (ES modules, `--experimental-strip-types`) |
-| Language | TypeScript 6 (strict: `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`) |
-| AI | Google Generative AI SDK (`@google/generative-ai`) |
-| Automation | Puppeteer (headless browser for Vercel screenshots) |
-| Foundry Console | Next.js 15 + Supabase + Tailwind CSS (in `foundry-console/`) |
-
----
-
-## Environment Variables
-
-Copy `.env.example` to `.env` and fill in values.
-
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `GEMINI_API_KEY` | ✅ Yes | Google AI — used by all agent scripts |
-| `VERCEL_TOKEN` | Optional | `vercelBridge.ts` — checks deployment state |
-| `VERCEL_PROJECT_ID` | Optional | Identifies which Vercel project to query |
-| `BIOMETRICS_STATE_FILE` | Optional | Path to live biometric state JSON (WHOOP/Muse) |
-| `BIOMETRICS_TREND_FILE` | Optional | Path to biometric trends JSON |
-
----
-
 ## Commands
 
-### Root agents
-
 ```bash
-npm run route "[VOICE-SYNC] <capture text>"   # Dispatch capture to correct lane via Gemini
-npm run triage         # Scan notes/, write TRIAGE_QUEUE.md
-npm run distill        # Compress session logs to resume nuggets
-npm run rank           # Re-prioritize tasks using biometric data
-npm run vercel-bridge  # Verify production deployment state
-npm run sync-hook      # Puppeteer screenshot of live app + Gemini vision diff
+npm run dev      # Next.js dev server (http://localhost:3000)
+npm run build    # Production build — runs tsc + ESLint before emitting
+npm run start    # Serve the production build locally
+npm run lint     # ESLint via next lint
+npm test         # Run the vitest suite
 ```
 
-Run a single agent directly (no npm script needed):
-```bash
-node --no-warnings --experimental-strip-types src/agents/triage.ts
+Type-checking happens during `npm run build`. To check types in isolation without a full build, run `npx tsc --noEmit`.
+
+**Config file note:** Next.js 14.2.5 does not support `next.config.ts`. The project uses `next.config.mjs`. Do not create a `next.config.ts`.
+
+## Architecture
+
+### Entry point and tab system
+
+`src/app/page.tsx` is a server component that simply renders `<CodexApp />`. All real logic lives in `src/components/CodexApp.tsx`, a `'use client'` component.
+
+`CodexApp` owns a single piece of state: `activeTab: TabId`. It renders a fixed/sticky `<nav role="tablist">` with 8 tab buttons (added Controls for neuro UX) and conditionally mounts the matching tab component. Tabs are fully independent — they share no state with each other or with `CodexApp`. Adding a tab requires: (1) adding a `TabId` (now includes controls) in `src/types/index.ts`, (2) adding an entry to the `TABS` array in `CodexApp.tsx`, and (3) creating the tab component and wiring it in the conditional render block.
+
+### State persistence via `useLocalStorage`
+
+`src/hooks/useLocalStorage.ts` exports `useLocalStorage<T>(key, defaultValue)` → `[value, set, mounted]`.
+
+The hook is SSR-safe: it initialises from `defaultValue` synchronously, then reads `localStorage` in a `useEffect` and resolves to the stored value. The third return value `mounted: boolean` flips to `true` after that effect runs — use it to suppress hydration-sensitive UI (e.g. hide a metric that differs server/client until `mounted`). The `set` function accepts either a value or an updater `(prev: T) => T`, matching the React `setState` signature.
+
+Currently used by: `OverviewTab` (`codex_v27_metrics`), and `ConstraintValidatorTab`.
+
+### Codex data shape (`src/data/codex.ts`)
+
+`CODEX_SECTIONS: CodexSection[]` is the root export — 9 sections (`root`, `council`, `territory`, `artistic`, `neuro`, `automation`, `business`, `personalos`, `convergence`). Each section contains an `entries: CodexEntry[]` array where entries may nest arbitrarily deep via `children?: CodexEntry[]`.
+
+`CodexEntry.content` is a Markdown string. `CodexTab` renders it with `ReactMarkdown` + `remark-gfm`. All helper functions (`flattenEntries`, `getAllEntries`, `findEntryById`, `findSectionByEntryId`, `getSectionEntries`) work recursively on this tree — always use them rather than `.flatMap` directly, since `.flatMap` does not recurse into `children`.
+
+To add a new section: add a `SectionKey` union member in `src/types/index.ts`, build a `CodexSection` object in `codex.ts`, and append it to `CODEX_SECTIONS`. The sidebar and search in `CodexTab` are data-driven and will pick it up automatically.
+
+### Biometrics data contract
+
+`BiometricsTab` fetches `GET /notes/biometric-trends.json` (file must live in `public/notes/`) on mount via an auto-load `useEffect`. It accepts two JSON shapes:
+
+```jsonc
+// Shape A — bare array
+[{ "date": "2025-01-01", "sleepHours": 7.5, "recoveryScore": 74, "focusScore": 68 }, ...]
+
+// Shape B — object wrapper
+{ "source": "whoop-bridge", "days": [ ...same objects... ] }
 ```
 
-There is no build step — TypeScript is run directly via `--experimental-strip-types`, which strips type annotations and executes the file as plain JavaScript. Type errors are **silently ignored** at runtime; use `npx tsc --noEmit` for static type checking.
+The component takes the last 30 valid records, validates each row with `isValidDay` (requires `date: string`, finite `sleepHours`, `recoveryScore`, `focusScore`), and refuses to render numeric values if the file is absent or yields zero valid rows. **There are no mock values, fixtures, or fallbacks anywhere in this component** — an unavailable file produces an explicit "data required" UI state.
 
-```bash
-npx tsc --noEmit    # Type-check without emitting files
-```
+Readiness is computed as: `recovery × 0.48 + focus × 0.32 + min(100, sleep × 12) × 0.20`, clamped 0–100. Execution mode thresholds: `recovery` (readiness < 42 or sleep < 6 h), `admin_light` (readiness 42–58), `creative_edit` (focus > recovery + 12), `deep_build` (otherwise). All thresholds and weights are named constants at the top of `BiometricsTab.tsx`.
 
-### Foundry Console (`foundry-console/`)
+A live bridge is expected to write this file externally (WHOOP API, Apple Health export, Muse, etc.). The dashboard has no opinion about how the file is produced — it only reads it.
 
-```bash
-cd foundry-console
-npm install
-npm run dev     # Next.js dev server
-npm run build   # Production build
-npm run lint    # ESLint via next lint
-```
+### Styling system
 
----
+The design uses CSS custom properties defined in `src/app/globals.css` as the single source of truth for colour, surface, and radius tokens. These are mirrored into the Tailwind theme in `tailwind.config.ts` under shortened aliases (`bg`, `surface`, `tx`, `teal`, `amber`, `error`, `success`, `line`, `codex`/`codex-sm`/`codex-lg` border-radius). Inline `style` props use `var(--*)` directly for values that would be verbose as utility classes. The app is dark-only — there is no light-mode variant.
 
-## Project Structure
+### Types (`src/types/index.ts`)
 
-```
-src/
-  agents/
-    routeOmega.ts       # Capture dispatcher: reads input, calls Gemini, routes to lane
-    triage.ts           # Scans notes/ for unclassified captures → TRIAGE_QUEUE.md
-    distiller.ts        # Compresses verbose session logs into restart nuggets
-    taskRanker.ts       # Re-orders tasks using WHOOP/Muse biometric scores
-  hooks/
-    vercelBridge.ts     # Checks Vercel production state; optionally clears SHIPPING_BLOCKER.txt
-    syncHook.ts         # Puppeteer screenshot of live app → Gemini vision diff
-  lib/
-    gemini.ts           # Google Generative AI SDK wrapper (defaults to gemini-2.5-pro)
-    biometrics.ts       # Strict real-data-only biometric reader (no mocks allowed)
-    biometricTrends.ts  # 7-day trend aggregator; summarizeTrend() computes projectMode
-    withRetry.ts        # Exponential backoff for Gemini/Vercel rate-limited calls
-    fs.ts               # Protected file system — blocks writes to anchored files
+This is the single type source for the whole project. Key exports: `TabId` (union of all 7 tab IDs), `BiometricDay / BiometricSummary / BiometricMode`, `CodexEntry / CodexSection / SectionKey`, `ValidationMetric / MetricValue`. When adding a feature that spans multiple files, define its shape here first.
 
-foundry-console/        # Next.js 15 + Supabase dashboard (sprints, milestones, friction logs)
-notes/                  # Session logs, decisions, resumption points (source of truth for session state)
-logs/                   # Execution traces, audits, deployment notes
+### Supabase integration
 
-index.html              # ⛔ FREEZE SPEC — do not modify without explicit command
-AGENTS.md               # Agent behavioral rules — do not auto-modify
-DELEGATION_RULES_v1.md  # Routing logic — source of truth for capture-to-lane
-SHIPPING_BLOCKER.txt    # Current blocker (one sentence max)
-GEMINI.md               # Gemini-specific agent instructions
-```
+`src/lib/supabase/client.ts` creates a browser Supabase client (`@supabase/ssr`'s `createBrowserClient`) against its own project — `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY`, falling back to project `pkydkbuodikttfeawqsw` if unset (see `.env.local.example`). This is a **separate Supabase project from `codex-system-architecture`'s canonical `supabase-indigo-paddle`** — do not assume shared tables or credentials between the two repos.
 
----
+`CodexTab` and `ControlsTab` use it for anonymous auth (`signInAnonymously`) plus reads/writes to `nd_codex_bookmarks`, `nd_prefs`, and `nd_captures`. If the client fails to construct (e.g. due to initialization or environment issues), it falls back to a no-op stub. Note that placeholder keys do not prevent construction — `createBrowserClient` succeeds even with the placeholder fallback values — so runtime calls against a misconfigured project fail gracefully via component-level error handling instead.
 
-## Protected Files
+### Test Coverage
 
-`src/lib/fs.ts` blocks agent writes to the following files at runtime. Do **not** attempt to overwrite them without explicit user instruction:
+The `vitest` test runner is configured (`npm test`, config in `vitest.config.ts`, `environment: 'jsdom'`). Current and candidate coverage:
 
-- `AGENTS.md`
-- `DELEGATION_RULES_v1.md`
-- `GEMINI.md`
-- `index.html` (FREEZE SPEC)
+| Module | Testable surface | Status |
+|--------|-----------------|--------|
+| `src/lib/biometrics.ts` | `isValidDay()`, `parseTrendPayload()`, `summarize()`, `clamp()`, `avg()` | Covered — see `src/lib/biometrics.test.ts` |
+| `src/lib/codexSearch.ts` | `rankEntries()` | Exported, pure, no test file yet — good next candidate (search-ranking spike for feature #2) |
 
----
+Only list functions here that are actually `export`ed from their module — an AI assistant generating tests against an unexported symbol will fail on the import before it ever reaches the assertion.
 
-## Key Agents (src/agents/)
+### Deployment
 
-| Agent | Script | What it does |
-|-------|--------|--------------|
-| **routeOmega** | `routeOmega.ts` | Reads a raw capture, calls Gemini to classify it per `DELEGATION_RULES_v1.md`, outputs the routed lane + next action |
-| **triage** | `triage.ts` | Scans `notes/` for unclassified files, summarizes into `TRIAGE_QUEUE.md` |
-| **distiller** | `distiller.ts` | Reads session logs and compresses to a minimal "resume point" knowledge nugget |
-| **taskRanker** | `taskRanker.ts` | Reads biometric state (WHOOP recovery + Muse focus scores) and reorders the active task list accordingly |
+All routes are prerendered as static content (`○` in build output). The layout sets `robots: noindex, nofollow` — this is a private operational dashboard. It deploys correctly to Vercel, Netlify, or any static host without additional configuration. There is no custom API route or server action — but note the client-side Supabase dependency above; the app is not fully offline/static once real Supabase keys are configured.
 
-See `AGENTS.md` for behavioral rules, trigger phrases, and output formats for each agent.
-
----
-
-## Biometrics Rules
-
-`src/lib/biometrics.ts` and `src/lib/biometricTrends.ts` enforce **real-data-only**:
-- Never simulate or mock biometric data in the actual state/trend files
-- `taskRanker.ts` refuses to rank and exits if biometric data is unavailable or stale
-- `biometricTrends.ts` exposes `summarizeTrend(days)` — a pure function that computes `projectMode` (`deep_build`, `creative_edit`, `admin_light`, `recovery`) and `readinessScore` from the last 7 days of data
-
----
-
-## Test Coverage
-
-No test runner is configured (`npm test` exits 1). The following modules contain pure functions that are fully testable without network or file I/O and are the highest-priority candidates if tests are added:
-
-| Module | Testable surface | Why |
-|--------|-----------------|-----|
-| `src/lib/biometricTrends.ts` | `summarizeTrend()` | Pure function with complex branching logic; determines `projectMode` thresholds that affect task routing |
-| `src/lib/withRetry.ts` | `withRetry()` retry count/backoff | Retry sequencing and backoff logic for API calls; handles multiple transient error conditions |
-| `src/lib/fs.ts` | `safeWriteFile()` / `safeAppendFile()` protection | Protected-file enforcement is a safety invariant — a regression here would allow overwriting `AGENTS.md` |
-
-Recommended runner: `node:test` (built-in, no extra deps) or `vitest` (ESM-native, compatible with this project's `"type": "module"` setup). Tests for biometric pure functions **may** use synthetic fixture values — the real-data-only rule applies only to the live state/trend JSON files, not to unit test inputs.
-
----
-
-## Coding Rules
-
-1. **Small diffs only** — extend the current system; never introduce parallel systems.
-2. **Decisions land in files** — if a decision matters, write it to `notes/`, `SHIPPING_BLOCKER.txt`, or a spec file. Never rely on conversation memory.
-3. **Retry via `withRetry`** — all Gemini and Vercel API calls must use `src/lib/withRetry.ts` for exponential backoff.
-4. **Explicit status markers** — use concrete language (`BLOCKED`, `DONE`, `IN PROGRESS`); never assume completion.
-5. **One blocker at a time** — `SHIPPING_BLOCKER.txt` holds exactly one sentence. Update it; do not append.
-6. **No branch archaeology during execution** — treat live deployment and current local files as reality unless doing explicit repo cleanup.
-7. **TypeScript strict** — `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` are enabled. Index access returns `T | undefined`; handle it.
-
----
-
-## Session State
-
-- Active session notes go in `notes/` with a dated filename (e.g., `notes/2025-05-18-session.md`).
-- Use `npm run distill` at session end to compress the log into a minimal resume point.
-- The `distiller` output is the starting context for the next session — keep it terse.
-
----
-
-## When Stuck
-
-1. Stop expanding scope.
-2. Summarize the blocker in 2–4 lines.
-3. Update `SHIPPING_BLOCKER.txt` with one sentence.
-4. Offer exactly 2 options.
-5. Recommend the lower-cognitive-load option first.
-
----
-
-## Related Repos
-
-| Repo | Role |
-|------|------|
-| [`codex-system-architecture`](https://github.com/edwardemoryphotography/codex-system-architecture) | Visual architecture/design layer for the Codex platform |
-| `neurocreative-platform` | EEG + WHOOP biometric backend |
-| `mem-layer` | AI memory/conversation aggregation |
+No Gemini API integration currently exists in the codebase. The natural integration point would be a bridge script (outside this repo) that calls the Gemini API and writes the result to `public/notes/biometric-trends.json` or a similar file consumed by a tab component.

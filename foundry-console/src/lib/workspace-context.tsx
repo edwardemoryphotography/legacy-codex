@@ -5,27 +5,29 @@ import {
   useContext,
   useState,
   useEffect,
+  useCallback,
   type ReactNode,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Workspace, WorkspaceMember } from "@/lib/types";
+import { logEvent } from "@/lib/events";
+import type { Workspace } from "@/lib/types";
 
 interface WorkspaceContextValue {
   workspaces: Workspace[];
-  memberships: WorkspaceMember[];
   current: Workspace | null;
-  currentRole: "admin" | "member" | null;
   setCurrent: (ws: Workspace) => void;
+  createWorkspace: (name: string) => Promise<Workspace | null>;
   loading: boolean;
+  connectionError: string | null;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue>({
   workspaces: [],
-  memberships: [],
   current: null,
-  currentRole: null,
   setCurrent: () => {},
+  createWorkspace: async () => null,
   loading: true,
+  connectionError: null,
 });
 
 export function useWorkspace() {
@@ -34,66 +36,70 @@ export function useWorkspace() {
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [memberships, setMemberships] = useState<WorkspaceMember[]>([]);
-  const [current, setCurrent] = useState<Workspace | null>(null);
+  const [current, setCurrentState] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+      const { data, error } = await supabase
+        .from("workspaces")
+        .select("*")
+        .order("name");
+
+      if (error) {
+        setConnectionError(error.message);
         setLoading(false);
         return;
       }
 
-      const { data: members } = await supabase
-        .from("workspace_members")
-        .select("*")
-        .eq("user_id", user.id);
-
-      if (members && members.length > 0) {
-        setMemberships(members);
-        const wsIds = members.map((m: WorkspaceMember) => m.workspace_id);
-        const { data: ws } = await supabase
-          .from("workspaces")
-          .select("*")
-          .in("id", wsIds)
-          .order("name");
-
-        if (ws) {
-          setWorkspaces(ws);
-          const saved = localStorage.getItem("foundry_workspace_id");
-          const match = ws.find((w: Workspace) => w.id === saved);
-          setCurrent(match || ws[0] || null);
-        }
-      }
+      const ws = data ?? [];
+      setWorkspaces(ws);
+      const saved =
+        typeof window !== "undefined"
+          ? localStorage.getItem("foundry_workspace_id")
+          : null;
+      const match = ws.find((w: Workspace) => w.id === saved);
+      setCurrentState(match || ws[0] || null);
       setLoading(false);
     }
     load();
   }, []);
 
-  const currentRole =
-    current && memberships.length > 0
-      ? memberships.find((m) => m.workspace_id === current.id)?.role ?? null
-      : null;
-
-  function handleSetCurrent(ws: Workspace) {
-    setCurrent(ws);
+  const setCurrent = useCallback((ws: Workspace) => {
+    setCurrentState(ws);
     localStorage.setItem("foundry_workspace_id", ws.id);
-  }
+  }, []);
+
+  const createWorkspace = useCallback(
+    async (name: string): Promise<Workspace | null> => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("workspaces")
+        .insert({ name })
+        .select()
+        .single();
+      if (error || !data) return null;
+      logEvent(data.id, "workspace.created", "workspace", data.id, { name });
+      setWorkspaces((prev) =>
+        [...prev, data].sort((a, b) => a.name.localeCompare(b.name))
+      );
+      setCurrent(data);
+      return data;
+    },
+    [setCurrent]
+  );
 
   return (
     <WorkspaceContext.Provider
       value={{
         workspaces,
-        memberships,
         current,
-        currentRole,
-        setCurrent: handleSetCurrent,
+        setCurrent,
+        createWorkspace,
         loading,
+        connectionError,
       }}
     >
       {children}
