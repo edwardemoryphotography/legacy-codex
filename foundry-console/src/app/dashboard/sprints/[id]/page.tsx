@@ -2,9 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/lib/workspace-context";
-import { PageHeader } from "@/components/page-header";
+import { useToast } from "@/components/toast";
+import { logEvent } from "@/lib/events";
+import { formatDateTime } from "@/lib/format";
 import type { Sprint } from "@/lib/types";
 
 const STATUSES = ["planned", "active", "completed", "cancelled"] as const;
@@ -13,9 +17,10 @@ export default function SprintDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { current } = useWorkspace();
+  const { toast } = useToast();
   const [sprint, setSprint] = useState<Sprint | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!current || !id) return;
@@ -25,133 +30,171 @@ export default function SprintDetailPage() {
       .select("*")
       .eq("id", id)
       .eq("workspace_id", current.id)
-      .single()
+      .maybeSingle()
       .then(({ data }) => {
-        setSprint(data);
-        setLoading(false);
+        if (data) setSprint(data);
+        else setNotFound(true);
       });
   }, [current, id]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!sprint) return;
+    if (!sprint || !current) return;
     setSaving(true);
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("sprints")
       .update({
         title: sprint.title,
-        goal: sprint.goal,
+        goal: sprint.goal || null,
         status: sprint.status,
         start_date: sprint.start_date || null,
         end_date: sprint.end_date || null,
-        notes: sprint.notes,
+        notes: sprint.notes || null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", sprint.id);
     setSaving(false);
+    if (error) {
+      toast(error.message, "error");
+      return;
+    }
+    logEvent(current.id, "sprint.updated", "sprint", sprint.id, {
+      title: sprint.title,
+      status: sprint.status,
+    });
+    toast("Sprint saved");
     router.push("/dashboard/sprints");
   }
 
-  if (loading) return <p className="text-sm text-zinc-500">Loading…</p>;
-  if (!sprint) return <p className="text-sm text-red-400">Sprint not found.</p>;
+  if (notFound) {
+    return (
+      <div className="py-16 text-center">
+        <p className="text-sm text-zinc-500">Sprint not found in this workspace.</p>
+        <Link
+          href="/dashboard/sprints"
+          className="mt-3 inline-block text-sm font-medium text-indigo-400 hover:text-indigo-300"
+        >
+          Back to sprints
+        </Link>
+      </div>
+    );
+  }
+
+  if (!sprint) {
+    return (
+      <div className="max-w-xl space-y-4">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-16 animate-pulse rounded-xl border border-zinc-800/60 bg-zinc-900/40"
+          />
+        ))}
+      </div>
+    );
+  }
 
   function update(field: keyof Sprint, value: string) {
     setSprint((prev) => (prev ? { ...prev, [field]: value } : prev));
   }
 
   return (
-    <>
-      <PageHeader title="Edit Sprint" />
-      <form onSubmit={handleSave} className="max-w-lg space-y-4">
-        <Field label="Title">
+    <div className="animate-fade-up">
+      <Link
+        href="/dashboard/sprints"
+        className="mb-5 inline-flex items-center gap-1.5 text-[13px] font-medium text-zinc-500 transition-colors hover:text-zinc-300"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Sprints
+      </Link>
+
+      <h2 className="mb-1 text-[22px] font-bold tracking-tight">{sprint.title}</h2>
+      <p className="mb-6 text-[12px] text-zinc-600">
+        Last updated {formatDateTime(sprint.updated_at)}
+      </p>
+
+      <form onSubmit={handleSave} className="max-w-xl space-y-5">
+        <div>
+          <label className="label">Title</label>
           <input
             required
             value={sprint.title}
             onChange={(e) => update("title", e.target.value)}
             className="input"
           />
-        </Field>
-        <Field label="Goal">
+        </div>
+
+        <div>
+          <label className="label">Goal</label>
           <input
             value={sprint.goal ?? ""}
             onChange={(e) => update("goal", e.target.value)}
+            placeholder="What does done look like?"
             className="input"
           />
-        </Field>
-        <Field label="Status">
-          <select
-            value={sprint.status}
-            onChange={(e) => update("status", e.target.value)}
-            className="input"
-          >
+        </div>
+
+        <div>
+          <label className="label">Status</label>
+          <div className="grid grid-cols-4 gap-1.5">
             {STATUSES.map((s) => (
-              <option key={s} value={s}>
+              <button
+                key={s}
+                type="button"
+                onClick={() => update("status", s)}
+                className={`rounded-lg border px-2 py-2 text-[12.5px] font-medium capitalize transition-all ${
+                  sprint.status === s
+                    ? "border-indigo-500/50 bg-indigo-500/10 text-indigo-300"
+                    : "border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
+                }`}
+              >
                 {s}
-              </option>
+              </button>
             ))}
-          </select>
-        </Field>
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Start Date">
+          <div>
+            <label className="label">Start date</label>
             <input
               type="date"
               value={sprint.start_date ?? ""}
               onChange={(e) => update("start_date", e.target.value)}
-              className="input"
+              className="input [color-scheme:dark]"
             />
-          </Field>
-          <Field label="End Date">
+          </div>
+          <div>
+            <label className="label">End date</label>
             <input
               type="date"
               value={sprint.end_date ?? ""}
               onChange={(e) => update("end_date", e.target.value)}
-              className="input"
+              className="input [color-scheme:dark]"
             />
-          </Field>
+          </div>
         </div>
-        <Field label="Notes">
+
+        <div>
+          <label className="label">Notes</label>
           <textarea
-            rows={4}
+            rows={5}
             value={sprint.notes ?? ""}
             onChange={(e) => update("notes", e.target.value)}
+            placeholder="Anything worth remembering about this sprint…"
             className="input resize-y"
           />
-        </Field>
-        <div className="flex gap-3 pt-2">
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-          >
-            {saving ? "Saving…" : "Save"}
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <button type="submit" disabled={saving} className="btn-primary">
+            {saving ? "Saving…" : "Save changes"}
           </button>
-          <button
-            type="button"
-            onClick={() => router.push("/dashboard/sprints")}
-            className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
-          >
+          <Link href="/dashboard/sprints" className="btn-ghost">
             Cancel
-          </button>
+          </Link>
         </div>
       </form>
-    </>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-zinc-300 mb-1">
-        {label}
-      </label>
-      {children}
     </div>
   );
 }

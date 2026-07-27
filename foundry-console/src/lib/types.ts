@@ -4,14 +4,6 @@ export interface Workspace {
   created_at: string;
 }
 
-export interface WorkspaceMember {
-  id: string;
-  workspace_id: string;
-  user_id: string;
-  role: "admin" | "member";
-  created_at: string;
-}
-
 export interface Sprint {
   id: string;
   workspace_id: string;
