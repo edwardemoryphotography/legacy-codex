@@ -1,126 +1,111 @@
-// Biometric state for task ranking. REAL DATA ONLY.
-// The only supported source is a local JSON file written by a live bridge
-// (WHOOP / Muse / Apple Health). If the file is missing, malformed, or empty,
-// this module returns an explicit "unavailable" state with no numeric values
-// and no derived readiness score. No mock, fixture, synthetic, or fallback
-// biometric values are ever produced.
+// Pure functions extracted for testability from BiometricsTab
+// Readiness formula weights
+export const READINESS_RECOVERY_WEIGHT = 0.48
+export const READINESS_FOCUS_WEIGHT = 0.32
+export const READINESS_SLEEP_WEIGHT = 0.2
+export const SLEEP_SCORE_MULTIPLIER = 12
 
-import * as dotenv from "dotenv";
-import { safeReadFile } from "./fs.js";
+// Thresholds
+export const TARGET_SLEEP_HOURS = 7.7
+export const RECOVERY_THRESHOLD = 42
+export const ADMIN_THRESHOLD = 58
+export const FOCUS_DELTA_THRESHOLD = 12
+export const MIN_SLEEP_HOURS = 6
 
-dotenv.config();
+import type { BiometricDay, BiometricSummary, BiometricMode } from '@/types'
 
-export type ProjectMode = "deep_build" | "creative_edit" | "admin_light" | "recovery";
-
-export interface BiometricStateAvailable {
-    available: true;
-    recoveryScore: number; // 0-100%
-    focusScore: number;    // 0-100%
-    readinessScore?: number; // 0-100%, only if supplied by the live source
-    projectMode?: ProjectMode;
-    sleepDebtHours?: number;
-    recommendation?: string;
-    source: string;
-    updatedAt?: string;
+export function clamp(v: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(v)))
 }
 
-export interface BiometricStateUnavailable {
-    available: false;
-    reason: "missing_file" | "read_error" | "parse_error" | "invalid_schema" | "empty";
-    detail: string;
-    path: string;
+export function avg(values: number[]): number {
+  if (!values.length) return 0
+  return values.reduce((a, b) => a + b, 0) / values.length
 }
 
-export type BiometricState = BiometricStateAvailable | BiometricStateUnavailable;
-
-const STATE_FILE = process.env.BIOMETRICS_STATE_FILE ?? "notes/biometric-state.json";
-
-function clampScore(n: unknown): number | null {
-    const x = typeof n === "number" ? n : Number(n);
-    if (!Number.isFinite(x)) return null;
-    return Math.min(100, Math.max(0, Math.round(x)));
+export function isValidDay(row: unknown): row is BiometricDay {
+  if (!row || typeof row !== 'object') return false
+  const r = row as Record<string, unknown>
+  return (
+    typeof r.date === 'string' &&
+    isFinite(Number(r.sleepHours)) &&
+    isFinite(Number(r.recoveryScore)) &&
+    isFinite(Number(r.focusScore))
+  )
 }
 
-export async function getCurrentBiometrics(): Promise<BiometricState> {
-    let raw: string;
-    try {
-        raw = await safeReadFile(STATE_FILE);
-    } catch (e) {
-        const err = e as NodeJS.ErrnoException;
-        if (err.code === "ENOENT") {
-            return {
-                available: false,
-                reason: "missing_file",
-                detail: `Biometric state file not found. Connect a live bridge (WHOOP / Muse / Apple Health) that writes to ${STATE_FILE}.`,
-                path: STATE_FILE
-            };
-        }
-        return {
-            available: false,
-            reason: "read_error",
-            detail: `Failed to read ${STATE_FILE}: ${err.message}`,
-            path: STATE_FILE
-        };
+export function parseTrendPayload(raw: string): { source: string; days: BiometricDay[] } | { error: string } {
+  let parsed: unknown
+
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return { error: '/notes/biometric-trends.json is not valid JSON.' }
+  }
+
+  let source = 'live bridge'
+  let candidate: unknown[] = []
+
+  if (Array.isArray(parsed)) {
+    candidate = parsed
+    source = 'bare array payload'
+  } else if (parsed && typeof parsed === 'object') {
+    const record = parsed as Record<string, unknown>
+    source = typeof record.source === 'string' ? record.source : 'object wrapper'
+    candidate = Array.isArray(record.days) ? record.days : []
+  } else {
+    return { error: '/notes/biometric-trends.json must be an array or a { source, days } object.' }
+  }
+
+  const days = candidate.filter(isValidDay).slice(-30)
+  if (!days.length) {
+    if (candidate.length) {
+      return {
+        error: '/notes/biometric-trends.json has rows, but none match { date, sleepHours, recoveryScore, focusScore }.',
+      }
     }
+    return { error: '/notes/biometric-trends.json contains no day records.' }
+  }
 
-    if (!raw || raw.trim() === "") {
-        return {
-            available: false,
-            reason: "empty",
-            detail: `${STATE_FILE} is empty. Live biometric data required.`,
-            path: STATE_FILE
-        };
-    }
+  return { source, days }
+}
 
-    let parsed: Record<string, unknown>;
-    try {
-        parsed = JSON.parse(raw) as Record<string, unknown>;
-    } catch (e) {
-        return {
-            available: false,
-            reason: "parse_error",
-            detail: `Could not parse ${STATE_FILE}: ${(e as Error).message}`,
-            path: STATE_FILE
-        };
-    }
+export function summarize(days: BiometricDay[], source: string): BiometricSummary {
+  const recent = days.slice(-7)
+  const recovery = avg(recent.map(d => Number(d.recoveryScore)))
+  const focus = avg(recent.map(d => Number(d.focusScore)))
+  const sleep = avg(recent.map(d => Number(d.sleepHours)))
+  const readiness = clamp(
+    recovery * READINESS_RECOVERY_WEIGHT +
+      focus * READINESS_FOCUS_WEIGHT +
+      Math.min(100, sleep * SLEEP_SCORE_MULTIPLIER) * READINESS_SLEEP_WEIGHT,
+    0,
+    100,
+  )
 
-    const recoveryScore = clampScore(parsed.recoveryScore);
-    const focusScore = clampScore(parsed.focusScore);
+  const sleepDebt = Math.max(0, TARGET_SLEEP_HOURS - sleep)
+  let mode: BiometricMode = 'deep_build'
+  let recommendation = 'Good recovery. Focus on deep work.'
 
-    if (recoveryScore === null || focusScore === null) {
-        return {
-            available: false,
-            reason: "invalid_schema",
-            detail: `${STATE_FILE} is missing required numeric fields recoveryScore and/or focusScore.`,
-            path: STATE_FILE
-        };
-    }
+  if (recovery < RECOVERY_THRESHOLD || sleep < MIN_SLEEP_HOURS) {
+    mode = 'recovery'
+    recommendation = 'Low recovery or sleep. Prioritize rest.'
+  } else if (readiness < ADMIN_THRESHOLD) {
+    mode = 'admin_light'
+    recommendation = 'Moderate readiness. Handle admin and light tasks.'
+  } else if (focus > recovery + FOCUS_DELTA_THRESHOLD) {
+    mode = 'creative_edit'
+    recommendation = 'High focus. Good for creative editing.'
+  }
 
-    const readinessScoreRaw = parsed.readinessScore;
-    const readinessScore = readinessScoreRaw === undefined || readinessScoreRaw === null
-        ? undefined
-        : clampScore(readinessScoreRaw) ?? undefined;
-
-    const state: BiometricStateAvailable = {
-        available: true,
-        recoveryScore,
-        focusScore,
-        source: typeof parsed.source === "string" ? parsed.source : "local-file",
-        ...(readinessScore !== undefined ? { readinessScore } : {}),
-        ...(typeof parsed.projectMode === "string"
-            ? { projectMode: parsed.projectMode as ProjectMode }
-            : {}),
-        ...(typeof parsed.sleepDebtHours === "number" && Number.isFinite(parsed.sleepDebtHours)
-            ? { sleepDebtHours: parsed.sleepDebtHours }
-            : {}),
-        ...(typeof parsed.recommendation === "string"
-            ? { recommendation: parsed.recommendation }
-            : {}),
-        ...(typeof parsed.updatedAt === "string" ? { updatedAt: parsed.updatedAt } : {})
-    };
-
-    console.log(
-        `[Biometric Governor] Live state loaded from ${STATE_FILE} -> Recovery: ${state.recoveryScore}%, Focus: ${state.focusScore}%`
-    );
-    return state;
+  return {
+    readiness,
+    recovery,
+    focus,
+    sleepDebt,
+    mode,
+    recommendation,
+    source,
+    days,
+  }
 }
