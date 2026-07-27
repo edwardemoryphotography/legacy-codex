@@ -189,12 +189,14 @@ function ToggleBtn({
     <button
       type="button"
       onClick={onClick}
+      className="interactive-control"
       style={{
         border: active ? `1px solid ${colors.active}` : '1px solid var(--line-strong)',
         background: active ? colors.activeBg : 'var(--surface-soft)',
         color: active ? colors.active : 'var(--text-soft)',
         borderRadius: 12,
-        padding: '8px 12px',
+        padding: '10px 12px',
+        minHeight: 44,
         minWidth: 84,
         fontSize: '0.82rem',
         fontWeight: 700,

@@ -250,6 +250,7 @@ export function ActionBtn({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      className="interactive-control"
       style={{
         ...styles,
         borderRadius: 12,
@@ -309,15 +310,16 @@ export function ActionChip({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      className="interactive-control"
       style={{
         ...styles,
         borderRadius: 999,
         fontWeight: 700,
         cursor: disabled ? 'not-allowed' : 'pointer',
-        minHeight: 34,
-        padding: '7px 11px',
+        minHeight: 44,
+        padding: '9px 12px',
         opacity: disabled ? 0.5 : 1,
-        fontSize: '0.78rem',
+        fontSize: '0.8rem',
         letterSpacing: '0.02em',
         transition: 'transform 150ms ease, border-color 150ms ease, background 150ms ease, color 150ms ease, opacity 150ms ease',
       }}

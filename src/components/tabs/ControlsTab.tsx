@@ -438,46 +438,50 @@ export default function ControlsTab() {
         <SectionTitle>Sensory & Density</SectionTitle>
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: 4 }}>Density</label>
+            <label htmlFor="control-density" style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: 4 }}>Density</label>
             <select
+              id="control-density"
               value={prefs.density}
               onChange={e => updatePref('density', e.target.value as any)}
-              style={{ width: '100%', padding: '8px', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)' }}
+              style={{ width: '100%', minHeight: 44, padding: '8px', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', font: 'inherit' }}
             >
               <option value="comfortable">Comfortable (more space)</option>
               <option value="compact">Compact (focus mode)</option>
             </select>
           </div>
           <div>
-            <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: 4 }}>
+            <label htmlFor="control-font-scale" style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: 4 }}>
               Font scale: {prefs.fontScale.toFixed(2)}
             </label>
             <input
+              id="control-font-scale"
               type="range"
               min={0.85}
               max={1.3}
               step={0.05}
               value={prefs.fontScale}
               onChange={e => updatePref('fontScale', parseFloat(e.target.value))}
-              style={{ width: '100%' }}
+              style={{ width: '100%', minHeight: 44, accentColor: 'var(--teal)' }}
             />
           </div>
-          <div className="flex items-center gap-3">
-            <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>High contrast</label>
+          <label className="flex min-h-11 items-center gap-3 cursor-pointer" style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
             <input
               type="checkbox"
               checked={prefs.highContrast}
               onChange={e => updatePref('highContrast', e.target.checked)}
+              style={{ width: 20, height: 20, accentColor: 'var(--teal)' }}
             />
-          </div>
-          <div className="flex items-center gap-3">
-            <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Reduced motion</label>
+            High contrast
+          </label>
+          <label className="flex min-h-11 items-center gap-3 cursor-pointer" style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
             <input
               type="checkbox"
               checked={prefs.reducedMotion}
               onChange={e => updatePref('reducedMotion', e.target.checked)}
+              style={{ width: 20, height: 20, accentColor: 'var(--teal)' }}
             />
-          </div>
+            Reduced motion
+          </label>
         </div>
         {/* Live preview card that reacts to prefs */}
         <div style={{ marginTop: 16 }}>
@@ -508,15 +512,16 @@ export default function ControlsTab() {
           )}
         </div>
         <div className="mb-3">
-          <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: 4 }}>Effective mode</label>
+          <label htmlFor="control-effective-mode" style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: 4 }}>Effective mode</label>
           <select
+            id="control-effective-mode"
             value={effectiveMode}
             onChange={e => {
               const m = e.target.value as BiometricMode
               setManualMode(m)
               // If bio present, manual still overrides display here
             }}
-            style={{ width: '100%', padding: '8px', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)' }}
+            style={{ width: '100%', minHeight: 44, padding: '8px', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', font: 'inherit' }}
           >
             {MODES.map(m => (
               <option key={m} value={m}>{MODE_LABELS[m]}</option>
