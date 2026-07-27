@@ -1,7 +1,28 @@
-export function EmptyState({ message }: { message: string }) {
+export function EmptyState({
+  icon,
+  title,
+  message,
+  action,
+}: {
+  icon?: React.ReactNode;
+  title: string;
+  message?: string;
+  action?: React.ReactNode;
+}) {
   return (
-    <div className="rounded-lg border border-dashed border-zinc-700 p-12 text-center">
-      <p className="text-sm text-zinc-500">{message}</p>
+    <div className="animate-fade-up flex flex-col items-center rounded-xl border border-dashed border-zinc-800 px-6 py-16 text-center">
+      {icon && (
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-900 text-zinc-600 ring-1 ring-zinc-800">
+          {icon}
+        </div>
+      )}
+      <p className="text-sm font-semibold text-zinc-300">{title}</p>
+      {message && (
+        <p className="mt-1 max-w-sm text-[13px] leading-relaxed text-zinc-600">
+          {message}
+        </p>
+      )}
+      {action && <div className="mt-5">{action}</div>}
     </div>
   );
 }

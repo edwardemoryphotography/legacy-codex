@@ -1,21 +1,12 @@
--- The Foundry Console — Supabase Schema Reference
--- This file documents the expected schema. Apply via Supabase SQL editor.
+-- The Foundry Console — Supabase Schema (owner-authenticated edition)
+-- Access is restricted to the authenticated owner account at the database layer.
+-- Apply this in the Supabase SQL editor after enabling Email OTP authentication.
 
 -- Workspaces
 create table if not exists workspaces (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   created_at timestamptz not null default now()
-);
-
--- Workspace members (links auth.users to workspaces with role)
-create table if not exists workspace_members (
-  id uuid primary key default gen_random_uuid(),
-  workspace_id uuid not null references workspaces(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
-  role text not null default 'member' check (role in ('admin', 'member')),
-  created_at timestamptz not null default now(),
-  unique(workspace_id, user_id)
 );
 
 -- Sprints
@@ -40,7 +31,7 @@ create table if not exists friction_entries (
   description text,
   severity text not null default 'medium' check (severity in ('low', 'medium', 'high', 'critical')),
   status text not null default 'open' check (status in ('open', 'resolved', 'wontfix')),
-  created_by uuid references auth.users(id),
+  created_by uuid,
   created_at timestamptz not null default now()
 );
 
@@ -55,14 +46,14 @@ create table if not exists milestones (
   created_at timestamptz not null default now()
 );
 
--- Manual pages (admin-editable documentation)
+-- Manual pages (editable documentation with version counter)
 create table if not exists manual (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references workspaces(id) on delete cascade,
   title text not null,
   content text,
   version integer not null default 1,
-  updated_by uuid references auth.users(id),
+  updated_by uuid,
   updated_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
@@ -76,11 +67,11 @@ create table if not exists settings (
   updated_at timestamptz not null default now()
 );
 
--- Events (audit log — append-only)
+-- Events (audit log — append-only, never updated or deleted)
 create table if not exists events (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references workspaces(id) on delete cascade,
-  actor_id uuid references auth.users(id),
+  actor_id uuid,
   action text not null,
   target_type text,
   target_id uuid,
@@ -88,9 +79,13 @@ create table if not exists events (
   created_at timestamptz not null default now()
 );
 
--- RLS policies (examples — adjust to your needs)
+-- ---------------------------------------------------------------------------
+-- Row Level Security
+-- The public anon role receives no data policies. Only the authenticated owner
+-- email can read or write records. Events remain append-only.
+-- ---------------------------------------------------------------------------
+
 alter table workspaces enable row level security;
-alter table workspace_members enable row level security;
 alter table sprints enable row level security;
 alter table friction_entries enable row level security;
 alter table milestones enable row level security;
@@ -98,102 +93,79 @@ alter table manual enable row level security;
 alter table settings enable row level security;
 alter table events enable row level security;
 
--- workspace_members: users can see their own memberships
-create policy "Users see own memberships" on workspace_members
-  for select using (auth.uid() = user_id);
+-- Defense in depth: anonymous clients cannot discover or call these tables even
+-- if a permissive policy is added accidentally later. Authenticated requests
+-- still require the owner-email RLS checks below.
+revoke all on table workspaces, sprints, friction_entries, milestones, manual, settings, events from anon;
+grant select, insert, update, delete on table workspaces, sprints, friction_entries, milestones, manual, settings to authenticated;
+grant select, insert on table events to authenticated;
 
--- workspaces: users can see workspaces they belong to
-create policy "Members see workspace" on workspaces
-  for select using (
-    exists (
-      select 1 from workspace_members
-      where workspace_members.workspace_id = workspaces.id
-        and workspace_members.user_id = auth.uid()
-    )
-  );
+-- Remove the former public link-access policies if this schema is reapplied.
+drop policy if exists "anon read workspaces" on workspaces;
+drop policy if exists "anon insert workspaces" on workspaces;
+drop policy if exists "anon update workspaces" on workspaces;
+drop policy if exists "anon read sprints" on sprints;
+drop policy if exists "anon insert sprints" on sprints;
+drop policy if exists "anon update sprints" on sprints;
+drop policy if exists "anon read friction" on friction_entries;
+drop policy if exists "anon insert friction" on friction_entries;
+drop policy if exists "anon update friction" on friction_entries;
+drop policy if exists "anon read milestones" on milestones;
+drop policy if exists "anon insert milestones" on milestones;
+drop policy if exists "anon update milestones" on milestones;
+drop policy if exists "anon read manual" on manual;
+drop policy if exists "anon insert manual" on manual;
+drop policy if exists "anon update manual" on manual;
+drop policy if exists "anon read settings" on settings;
+drop policy if exists "anon insert settings" on settings;
+drop policy if exists "anon update settings" on settings;
+drop policy if exists "anon read events" on events;
+drop policy if exists "anon insert events" on events;
 
--- sprints: workspace members can CRUD
-create policy "Members manage sprints" on sprints
-  for all using (
-    exists (
-      select 1 from workspace_members
-      where workspace_members.workspace_id = sprints.workspace_id
-        and workspace_members.user_id = auth.uid()
-    )
-  );
+-- Idempotently replace owner policies.
+drop policy if exists "owner all workspaces" on workspaces;
+drop policy if exists "owner all sprints" on sprints;
+drop policy if exists "owner all friction" on friction_entries;
+drop policy if exists "owner all milestones" on milestones;
+drop policy if exists "owner all manual" on manual;
+drop policy if exists "owner all settings" on settings;
+drop policy if exists "owner read events" on events;
+drop policy if exists "owner insert events" on events;
 
--- friction_entries: workspace members can CRUD
-create policy "Members manage friction" on friction_entries
-  for all using (
-    exists (
-      select 1 from workspace_members
-      where workspace_members.workspace_id = friction_entries.workspace_id
-        and workspace_members.user_id = auth.uid()
-    )
-  );
+create policy "owner all workspaces" on workspaces
+  for all to authenticated
+  using (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com')
+  with check (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com');
 
--- milestones: workspace members can CRUD
-create policy "Members manage milestones" on milestones
-  for all using (
-    exists (
-      select 1 from workspace_members
-      where workspace_members.workspace_id = milestones.workspace_id
-        and workspace_members.user_id = auth.uid()
-    )
-  );
+create policy "owner all sprints" on sprints
+  for all to authenticated
+  using (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com')
+  with check (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com');
 
--- manual: admins can update, members can read
-create policy "Members read manual" on manual
-  for select using (
-    exists (
-      select 1 from workspace_members
-      where workspace_members.workspace_id = manual.workspace_id
-        and workspace_members.user_id = auth.uid()
-    )
-  );
-create policy "Admins write manual" on manual
-  for all using (
-    exists (
-      select 1 from workspace_members
-      where workspace_members.workspace_id = manual.workspace_id
-        and workspace_members.user_id = auth.uid()
-        and workspace_members.role = 'admin'
-    )
-  );
+create policy "owner all friction" on friction_entries
+  for all to authenticated
+  using (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com')
+  with check (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com');
 
--- settings: admins can manage, members can read
-create policy "Members read settings" on settings
-  for select using (
-    exists (
-      select 1 from workspace_members
-      where workspace_members.workspace_id = settings.workspace_id
-        and workspace_members.user_id = auth.uid()
-    )
-  );
-create policy "Admins write settings" on settings
-  for all using (
-    exists (
-      select 1 from workspace_members
-      where workspace_members.workspace_id = settings.workspace_id
-        and workspace_members.user_id = auth.uid()
-        and workspace_members.role = 'admin'
-    )
-  );
+create policy "owner all milestones" on milestones
+  for all to authenticated
+  using (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com')
+  with check (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com');
 
--- events: members can read, anyone can insert (via function), no update/delete
-create policy "Members read events" on events
-  for select using (
-    exists (
-      select 1 from workspace_members
-      where workspace_members.workspace_id = events.workspace_id
-        and workspace_members.user_id = auth.uid()
-    )
-  );
-create policy "Members insert events" on events
-  for insert with check (
-    exists (
-      select 1 from workspace_members
-      where workspace_members.workspace_id = events.workspace_id
-        and workspace_members.user_id = auth.uid()
-    )
-  );
+create policy "owner all manual" on manual
+  for all to authenticated
+  using (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com')
+  with check (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com');
+
+create policy "owner all settings" on settings
+  for all to authenticated
+  using (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com')
+  with check (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com');
+
+create policy "owner read events" on events
+  for select to authenticated
+  using (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com');
+
+create policy "owner insert events" on events
+  for insert to authenticated
+  with check (lower(coalesce(auth.jwt() ->> 'email', '')) = 'freddyv@duck.com');

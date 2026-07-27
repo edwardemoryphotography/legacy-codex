@@ -1,6 +1,6 @@
 import * as fs from "fs/promises";
 import * as path from "path";
-import { getCurrentBiometrics } from "../lib/biometrics.ts";
+import { getCurrentBiometrics } from "../lib/biometricState.ts";
 import { getModel } from "../lib/gemini.ts";
 import { safeReadFile, safeWriteFile } from "../lib/fs.ts";
 import { withRetry } from "../lib/withRetry.ts";

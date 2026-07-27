@@ -1,0 +1,9 @@
+[
+  {"date": "2026-06-10", "sleepHours": 6.2, "recoveryScore": 38, "focusScore": 52},
+  {"date": "2026-06-11", "sleepHours": 7.8, "recoveryScore": 72, "focusScore": 81},
+  {"date": "2026-06-12", "sleepHours": 5.5, "recoveryScore": 29, "focusScore": 41},
+  {"date": "2026-06-13", "sleepHours": 8.1, "recoveryScore": 85, "focusScore": 68},
+  {"date": "2026-06-14", "sleepHours": 7.1, "recoveryScore": 61, "focusScore": 79},
+  {"date": "2026-06-15", "sleepHours": 6.8, "recoveryScore": 55, "focusScore": 73},
+  {"date": "2026-06-16", "sleepHours": 7.5, "recoveryScore": 68, "focusScore": 84}
+]
