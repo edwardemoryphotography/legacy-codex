@@ -73,6 +73,13 @@ This is the single type source for the whole project. Key exports: `TabId` (unio
 
 ### Deployment
 
-All routes are prerendered as static content (`○` in build output). The layout sets `robots: noindex, nofollow` — this is a private operational dashboard. It deploys correctly to Vercel, Netlify, or any static host without additional configuration. There is no custom API route or server action — but note the client-side Supabase dependency above; the app is not fully offline/static once real Supabase keys are configured.
+The layout sets `robots: noindex, nofollow` — this is a private operational dashboard. Most routes are prerendered as static content (`○` in build output), but the app is **not** a pure static export: `next.config.mjs` no longer sets `output: 'export'`, because `/api/analyze` (see below) is a real server-side Route Handler that must run as a Vercel Function. Deploying to a static host (Netlify, GitHub Pages, etc.) would silently drop that route — Vercel (or another Next.js-aware host that provisions serverless functions) is required. This is in addition to the client-side Supabase dependency noted above.
 
-No Gemini API integration currently exists in the codebase. The natural integration point would be a bridge script (outside this repo) that calls the Gemini API and writes the result to `public/notes/biometric-trends.json` or a similar file consumed by a tab component.
+### Claude integration (`/api/analyze`)
+
+`src/app/api/analyze/route.ts` is a Next.js Route Handler that proxies artifact analysis requests to the Claude API using `@anthropic-ai/sdk`. `ANTHROPIC_API_KEY` is read server-side only (`process.env.ANTHROPIC_API_KEY`, no `NEXT_PUBLIC_` prefix) and is never sent to the browser — this is deliberate: unlike some other providers, Anthropic's API refuses direct browser calls by default because a client-exposed key lets anyone burn arbitrary spend on the account, and this app has no login (only `noindex`).
+
+- `GET /api/analyze` returns `{ configured: boolean }` so the client can show/hide the analysis UI without ever seeing the key itself.
+- `POST /api/analyze` accepts `multipart/form-data` (`instruction` + one or more `files`), converts each file to an Anthropic content block (PDF → `document`, images → `image`, text/md/csv/json → inline `text`), and calls `client.messages.create` with `model: "claude-opus-5"`. Unsupported file types (e.g. `.docx`, video) are rejected with a 400 — Claude's Messages API doesn't accept them the way Gemini's `inlineData` did, so `ConstraintValidatorTab`'s accepted-file list was narrowed accordingly.
+
+`ConstraintValidatorTab.tsx` is the only consumer: it checks `/api/analyze` (GET) on mount to enable/disable the Analyze button, then POSTs the selected files as `FormData` on submit.
