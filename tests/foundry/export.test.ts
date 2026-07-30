@@ -5,10 +5,11 @@ import {
   EXPORT_DATASETS,
 } from "../../foundry-console/src/lib/export";
 
-const emptySuccessfulResults = EXPORT_DATASETS.map(() => ({
-  data: [],
-  error: null,
-}));
+const emptySuccessfulResults: Parameters<typeof buildExportPayload>[2] =
+  EXPORT_DATASETS.map(() => ({
+    data: [],
+    error: null,
+  }));
 
 describe("Foundry export integrity", () => {
   it("includes every workspace dataset in a valid JSON payload", () => {
