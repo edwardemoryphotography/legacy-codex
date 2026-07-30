@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
 
@@ -15,6 +16,14 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const token = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!token || !url || !anonKey) {
+    return NextResponse.json({ error: 'Sign in to use artifact analysis.' }, { status: 401 })
+  }
+  const { data: { user } } = await createClient(url, anonKey, { auth: { persistSession: false } }).auth.getUser(token)
+  if (!user) return NextResponse.json({ error: 'Sign in to use artifact analysis.' }, { status: 401 })
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
       { error: 'Set ANTHROPIC_API_KEY on the server to enable artifact analysis.' },
