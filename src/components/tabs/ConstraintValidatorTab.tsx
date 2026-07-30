@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { CONSTRAINT_TERMS, CANONICAL_PRINCIPLES } from '@/data/principles'
+import { supabase } from '@/lib/supabase/client'
 import {
   SectionTitle,
   SectionSubtitle,
@@ -165,7 +166,8 @@ export default function ConstraintValidatorTab() {
       for (const file of files) {
         formData.append('files', file)
       }
-      const res = await fetch('/api/analyze', { method: 'POST', body: formData })
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/analyze', { method: 'POST', body: formData, headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} })
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data?.error ?? `HTTP ${res.status}`)
       setAnalysisOutput(data.text || 'No analysis text returned.')
