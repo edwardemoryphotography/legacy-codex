@@ -9,13 +9,18 @@ import { logEvent } from "@/lib/events";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ListSkeleton } from "@/components/skeleton";
+import { LoadError } from "@/components/load-error";
 import { formatDate } from "@/lib/format";
+import { getErrorMessage } from "@/lib/errors";
+import { useRequestGate } from "@/lib/use-request-gate";
 import type { Milestone } from "@/lib/types";
 
 export default function MilestonesPage() {
   const { current } = useWorkspace();
   const { toast } = useToast();
+  const requestGate = useRequestGate(current?.id ?? null);
   const [milestones, setMilestones] = useState<Milestone[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -24,72 +29,100 @@ export default function MilestonesPage() {
 
   const load = useCallback(async () => {
     if (!current) return;
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("milestones")
-      .select("*")
-      .eq("workspace_id", current.id)
-      .order("target_date", { ascending: true, nullsFirst: false });
-    setMilestones(data ?? []);
-  }, [current]);
+    const token = requestGate.begin();
+    const workspaceId = current.id;
+    if (!requestGate.isScopeCurrent(workspaceId)) return;
+    setLoadError(null);
+    try {
+      const { data, error } = await createClient()
+        .from("milestones")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("target_date", { ascending: true, nullsFirst: false });
+      if (!requestGate.isCurrent(token, workspaceId)) return;
+      if (error) throw error;
+      setMilestones(data ?? []);
+    } catch (error) {
+      if (!requestGate.isCurrent(token, workspaceId)) return;
+      const message = getErrorMessage(error);
+      setLoadError(message);
+      toast(message, "error");
+    }
+  }, [current, requestGate, toast]);
 
   useEffect(() => {
     setMilestones(null);
-    load();
+    setBusy(false);
+    setShowForm(false);
+    setTitle("");
+    setDescription("");
+    setTargetDate("");
+    void load();
   }, [load]);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     if (!current || !title.trim()) return;
+    const workspaceId = current.id;
     setBusy(true);
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("milestones")
-      .insert({
-        workspace_id: current.id,
-        title: title.trim(),
-        description: description.trim() || null,
-        target_date: targetDate || null,
-      })
-      .select()
-      .single();
-    setBusy(false);
-    if (error) {
-      toast(error.message, "error");
-      return;
+    try {
+      const { data, error } = await createClient()
+        .from("milestones")
+        .insert({
+          workspace_id: workspaceId,
+          title: title.trim(),
+          description: description.trim() || null,
+          target_date: targetDate || null,
+        })
+        .select()
+        .single();
+      if (!requestGate.isScopeCurrent(workspaceId)) return;
+      if (error) throw error;
+      if (!data) throw new Error("Supabase returned no milestone row.");
+      void logEvent(workspaceId, "milestone.created", "milestone", data.id, {
+        title: data.title,
+      });
+      toast("Milestone added");
+      setTitle("");
+      setDescription("");
+      setTargetDate("");
+      setShowForm(false);
+      void load();
+    } catch (error) {
+      if (requestGate.isScopeCurrent(workspaceId)) {
+        toast(getErrorMessage(error), "error");
+      }
+    } finally {
+      if (requestGate.isScopeCurrent(workspaceId)) setBusy(false);
     }
-    logEvent(current.id, "milestone.created", "milestone", data.id, {
-      title: data.title,
-    });
-    toast("Milestone added");
-    setTitle("");
-    setDescription("");
-    setTargetDate("");
-    setShowForm(false);
-    load();
   }
 
   async function toggleComplete(m: Milestone) {
     if (!current) return;
-    const supabase = createClient();
+    const workspaceId = current.id;
     const completed = !m.completed_at;
-    const { error } = await supabase
-      .from("milestones")
-      .update({ completed_at: completed ? new Date().toISOString() : null })
-      .eq("id", m.id);
-    if (error) {
-      toast(error.message, "error");
-      return;
+    try {
+      const { error } = await createClient()
+        .from("milestones")
+        .update({ completed_at: completed ? new Date().toISOString() : null })
+        .eq("id", m.id)
+        .eq("workspace_id", workspaceId);
+      if (!requestGate.isScopeCurrent(workspaceId)) return;
+      if (error) throw error;
+      void logEvent(
+        workspaceId,
+        completed ? "milestone.completed" : "milestone.reopened",
+        "milestone",
+        m.id,
+        { title: m.title }
+      );
+      toast(completed ? "Milestone completed" : "Milestone reopened");
+      void load();
+    } catch (error) {
+      if (requestGate.isScopeCurrent(workspaceId)) {
+        toast(getErrorMessage(error), "error");
+      }
     }
-    logEvent(
-      current.id,
-      completed ? "milestone.completed" : "milestone.reopened",
-      "milestone",
-      m.id,
-      { title: m.title }
-    );
-    toast(completed ? "Milestone completed" : "Milestone reopened");
-    load();
   }
 
   return (
@@ -159,7 +192,9 @@ export default function MilestonesPage() {
         </form>
       )}
 
-      {milestones === null ? (
+      {loadError ? (
+        <LoadError message={loadError} onRetry={() => void load()} />
+      ) : milestones === null ? (
         <ListSkeleton />
       ) : milestones.length === 0 ? (
         <EmptyState
