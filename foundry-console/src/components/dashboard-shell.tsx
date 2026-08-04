@@ -17,6 +17,7 @@ import {
   ChevronsUpDown,
   Plus,
   AlertTriangle,
+  GitBranch,
 } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace-context";
 import type { CreateWorkspaceResult } from "@/lib/workspace-context";
@@ -24,6 +25,7 @@ import type { Workspace } from "@/lib/types";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
+  { href: "/dashboard/routing", label: "Routing", icon: GitBranch },
   { href: "/dashboard/sprints", label: "Sprints", icon: Rocket },
   { href: "/dashboard/friction", label: "Friction", icon: Flame },
   { href: "/dashboard/milestones", label: "Milestones", icon: Flag },

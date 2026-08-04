@@ -10,6 +10,13 @@ const STYLES: Record<string, string> = {
   medium: "bg-amber-500/10 text-amber-300 ring-amber-500/25",
   high: "bg-orange-500/10 text-orange-300 ring-orange-500/25",
   critical: "bg-red-500/10 text-red-300 ring-red-500/25",
+  // Routing control plane
+  proposed: "bg-sky-500/10 text-sky-300 ring-sky-500/25",
+  confirmed: "bg-indigo-500/10 text-indigo-300 ring-indigo-500/25",
+  corrected: "bg-violet-500/10 text-violet-300 ring-violet-500/25",
+  superseded: "bg-zinc-500/10 text-zinc-400 ring-zinc-500/20",
+  rejected: "bg-red-500/10 text-red-300 ring-red-500/25",
+  blocked_policy: "bg-amber-500/10 text-amber-200 ring-amber-500/30",
 };
 
 export function StatusBadge({ value }: { value: string }) {
