@@ -1,5 +1,5 @@
--- Verification queries for supabase/migrations/20260804010000_routing_control_plane.sql
--- Run in the foundry-console SQL editor AFTER applying the migration.
+-- Verification queries for the routing-control-plane foundation and hardening
+-- migrations. Run in the foundry-console SQL editor AFTER applying both.
 -- Status of these checks in Lane A: PENDING — live database access was not
 -- available to the implementing session, so none of these results are
 -- claimed as verified. Each query states its expected result.
@@ -43,3 +43,79 @@ select privilege_type
 from information_schema.role_table_grants
 where grantee = 'authenticated' and table_name = 'events'
 order by privilege_type;
+
+-- 8. Delete guards cover all canonical history, including parent cascades
+--    and service-role statements (expect: three enabled BEFORE DELETE triggers).
+select event_object_table, trigger_name, action_timing, event_manipulation
+from information_schema.triggers
+where trigger_name in (
+  'events_prevent_delete',
+  'routed_requests_prevent_delete',
+  'evidence_items_prevent_delete'
+)
+order by event_object_table;
+
+-- 9. No existing correction crosses a workspace or self-references
+--    (expect: zero rows).
+select child.id, child.workspace_id, child.supersedes_request_id,
+       parent.workspace_id as parent_workspace_id
+from routed_requests child
+join routed_requests parent on parent.id = child.supersedes_request_id
+where child.workspace_id <> parent.workspace_id or child.id = parent.id;
+
+-- 10. No correction target has multiple children (expect: zero rows).
+select supersedes_request_id, count(*)
+from routed_requests
+where supersedes_request_id is not null
+group by supersedes_request_id
+having count(*) > 1;
+
+-- 11. No evidence link crosses a workspace (expect: zero rows).
+select evidence_items.id, evidence_items.workspace_id,
+       routed_requests.workspace_id as route_workspace_id
+from evidence_items
+join routed_requests on routed_requests.id = evidence_items.routed_request_id
+where evidence_items.workspace_id <> routed_requests.workspace_id;
+
+-- 12. Existing evidence satisfies strengthened reality rules (expect: zero rows).
+select id, status, source, observed_at, provenance,
+       routed_request_id, action_id
+from evidence_items
+where nullif(btrim(claim), '') is null
+   or (source is not null and nullif(btrim(source), '') is null)
+   or observed_at > now() + interval '5 minutes'
+   or (
+     status = 'verified' and (
+       nullif(btrim(source), '') is null
+       or observed_at is null
+       or provenance not in (
+         'verified', 'repository_evidence', 'runtime_evidence', 'user_confirmed'
+       )
+       or (routed_request_id is null and action_id is null)
+     )
+   );
+
+-- 13. Idempotency keys are complete and unique (expect: zero rows).
+select idempotency_key, count(*)
+from routed_requests
+group by idempotency_key
+having idempotency_key is null or count(*) > 1;
+
+-- 14. Only service_role can execute the atomic intake RPC (expect: one row,
+--     grantee service_role, privilege EXECUTE).
+select grantee, privilege_type
+from information_schema.routine_privileges
+where routine_schema = 'public'
+  and routine_name = 'persist_route_atomic'
+order by grantee;
+
+-- 15. Run these in a transaction and ROLLBACK after substituting real IDs:
+--     a) deleting an event, route, or evidence row must fail;
+--     b) deleting a workspace with history must fail through the cascade;
+--     c) a second correction of the same target must fail;
+--     d) a correction in a different workspace must fail;
+--     e) changing route provenance/action/linkage must fail;
+--     f) changing a verified evidence source/claim/link must fail;
+--     g) pending -> verified with blank/future/unlinked evidence must fail;
+--     h) the same persist_route_atomic idempotency key must return replayed=true
+--        without adding a second route, event, or evidence row.
