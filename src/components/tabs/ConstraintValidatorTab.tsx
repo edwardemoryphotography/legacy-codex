@@ -85,7 +85,9 @@ function evaluate(task: string): EvalResult[] {
   ]
 }
 
-const MAX_FILE_BYTES = 20 * 1024 * 1024
+// Must stay in sync with MAX_TOTAL_BYTES in src/app/api/analyze/route.ts, which
+// is bounded by Vercel's 4.5 MB serverless request body limit.
+const MAX_TOTAL_BYTES = 4 * 1024 * 1024
 const ACCEPTED_FILE_TYPES = '.pdf,.txt,.md,.csv,.json,image/*'
 
 export default function ConstraintValidatorTab() {
@@ -151,9 +153,10 @@ export default function ConstraintValidatorTab() {
       setAnalyzeStatus('error')
       return
     }
-    const oversized = files.find(f => f.size > MAX_FILE_BYTES)
-    if (oversized) {
-      setAnalysisOutput(`File too large: ${oversized.name}. Max 20 MB per file.`)
+    const totalBytes = files.reduce((sum, f) => sum + f.size, 0)
+    if (totalBytes > MAX_TOTAL_BYTES) {
+      const asMb = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+      setAnalysisOutput(`Attachments too large: ${asMb(totalBytes)} total. Max ${asMb(MAX_TOTAL_BYTES)} per request.`)
       setAnalyzeStatus('error')
       return
     }
@@ -286,7 +289,7 @@ export default function ConstraintValidatorTab() {
           <ul className="grid gap-1.5 text-sm" style={{ color: 'var(--text-soft)', lineHeight: 1.55 }}>
             <li>{analysisEnabled ? 'Live Claude analysis is enabled.' : 'Live analysis is disabled until ANTHROPIC_API_KEY is set on the server.'}</li>
             <li>Accepted inputs: pdf, txt, md, csv, json, and images.</li>
-            <li>Max file size: 20 MB per file.</li>
+            <li>Max attachment size: 4.0 MB total per request.</li>
             <li>Validation stays local; analysis only runs when files and an API key are present.</li>
           </ul>
         </div>

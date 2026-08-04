@@ -5,7 +5,12 @@ import { createClient } from '@supabase/supabase-js'
 export const runtime = 'nodejs'
 
 const MODEL = 'claude-opus-5'
-const MAX_FILE_BYTES = 20 * 1024 * 1024
+// Vercel Serverless Functions reject request bodies over 4.5 MB with an opaque
+// 413 before this handler runs, so the ceiling is a platform limit, not a
+// preference. Budget under it to leave room for multipart framing and the
+// instruction field, and measure the whole upload — the limit applies to the
+// combined body, not to each file individually.
+const MAX_TOTAL_BYTES = 4 * 1024 * 1024
 const DEFAULT_INSTRUCTION =
   'Analyze the attached artifacts and return: 1) concise summary, 2) key signals, 3) risks, 4) action checklist, 5) next single step.'
 
@@ -42,11 +47,11 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const oversized = files.find(f => f.size > MAX_FILE_BYTES)
-  if (oversized) {
+  const totalBytes = files.reduce((sum, f) => sum + f.size, 0)
+  if (totalBytes > MAX_TOTAL_BYTES) {
     return NextResponse.json(
-      { error: `File too large: ${oversized.name}. Max 20 MB per file.` },
-      { status: 400 },
+      { error: `Attachments too large: ${formatMb(totalBytes)} total. Max ${formatMb(MAX_TOTAL_BYTES)} per request.` },
+      { status: 413 },
     )
   }
 
@@ -82,6 +87,10 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : String(err)
     return NextResponse.json({ error: `Analysis failed.\n\n${message}` }, { status: 500 })
   }
+}
+
+function formatMb(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 async function fileToBlock(file: File): Promise<Anthropic.ContentBlockParam | null> {
