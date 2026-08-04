@@ -19,7 +19,13 @@ export interface DerivedFoundryState {
   nextAction: string | null;
   /** Provenance of nextAction — 'inference' until evidence verifies it. */
   nextActionProvenance: Provenance;
-  evidenceState: "none" | "pending" | "verified" | "conflict";
+  evidenceState:
+    | "none"
+    | "pending"
+    | "verified"
+    | "unverified"
+    | "conflict"
+    | "stale";
   /** ISO timestamp of the newest event row, or null when no events exist. */
   lastTrustworthyUpdate: string | null;
   /** Provenance of the summary as a whole. */
@@ -57,8 +63,11 @@ export function correctionChain(
 ): RoutedRequest[] {
   const byId = new Map(requests.map((r) => [r.id, r]));
   const chain: RoutedRequest[] = [];
+  const visited = new Set<string>();
   let current = byId.get(requestId) ?? null;
   while (current) {
+    if (visited.has(current.id)) break;
+    visited.add(current.id);
     chain.unshift(current);
     current = current.supersedes_request_id
       ? byId.get(current.supersedes_request_id) ?? null
@@ -72,6 +81,9 @@ function summarizeEvidence(
 ): DerivedFoundryState["evidenceState"] {
   if (items.length === 0) return "none";
   if (items.some((item) => item.status === "conflict")) return "conflict";
+  if (items.some((item) => item.status === "unverified")) return "unverified";
+  if (items.some((item) => item.status === "stale")) return "stale";
+  if (items.some((item) => item.status === "pending")) return "pending";
   if (items.some((item) => item.status === "verified")) return "verified";
   return "pending";
 }
@@ -100,7 +112,7 @@ export function deriveFoundryState(
     (item) => item.routed_request_id === route.id
   );
   const evidenceState = summarizeEvidence(routeEvidence);
-  const verified = routeEvidence.find((item) => item.status === "verified");
+  const fullyVerified = evidenceState === "verified";
 
   return {
     whatMattersNow: route.intent,
@@ -111,10 +123,10 @@ export function deriveFoundryState(
         : null,
     // Until evidence verifies completion, the next action is verifying the
     // declared evidence requirement — labeled as inference, never as fact.
-    nextAction: verified
+    nextAction: fullyVerified
       ? null
       : `Verify: ${route.required_evidence}`,
-    nextActionProvenance: verified ? "verified" : "inference",
+    nextActionProvenance: fullyVerified ? "verified" : "inference",
     evidenceState,
     lastTrustworthyUpdate: latestEvent?.created_at ?? null,
     provenance: "runtime_evidence",

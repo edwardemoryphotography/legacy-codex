@@ -129,6 +129,22 @@ describe("deriveFoundryState — pending evidence gates the next action", () => 
       []
     );
     expect(state.evidenceState).toBe("conflict");
+    expect(state.nextAction).toMatch(/^Verify:/);
+    expect(state.nextActionProvenance).toBe("inference");
+  });
+
+  it("keeps stale and unverified evidence semantically distinct", () => {
+    expect(
+      deriveFoundryState([request({})], [evidenceItem({ status: "stale" })], [])
+        .evidenceState,
+    ).toBe("stale");
+    expect(
+      deriveFoundryState(
+        [request({})],
+        [evidenceItem({ status: "unverified" })],
+        [],
+      ).evidenceState,
+    ).toBe("unverified");
   });
 });
 
@@ -163,6 +179,14 @@ describe("route corrections append history", () => {
 
   it("a superseded route never becomes the active route", () => {
     expect(activeRoute([original])).toBeNull();
+  });
+
+  it("bounds malformed correction cycles instead of hanging render", () => {
+    const a = request({ id: "a", supersedes_request_id: "b" });
+    const b = request({ id: "b", supersedes_request_id: "a" });
+    const chain = correctionChain([a, b], "a");
+    expect(chain).toHaveLength(2);
+    expect(new Set(chain.map((item) => item.id)).size).toBe(2);
   });
 });
 

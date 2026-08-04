@@ -42,6 +42,7 @@ export default function OverviewPage() {
   const requestGate = useRequestGate(current?.id ?? null);
   const [data, setData] = useState<OverviewData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadedWorkspaceId, setLoadedWorkspaceId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!current) return;
@@ -49,6 +50,7 @@ export default function OverviewPage() {
     const wsId = current.id;
     if (!requestGate.isScopeCurrent(wsId)) return;
     setData(null);
+    setLoadedWorkspaceId(null);
     setLoadError(null);
     try {
       const supabase = createClient();
@@ -153,8 +155,10 @@ export default function OverviewPage() {
         routingSummary,
         routingMessage,
       });
+      setLoadedWorkspaceId(wsId);
     } catch (error) {
       if (!requestGate.isCurrent(token, wsId)) return;
+      setLoadedWorkspaceId(wsId);
       const message = getErrorMessage(error);
       setLoadError(message);
       toast(message, "error");
@@ -166,6 +170,7 @@ export default function OverviewPage() {
   }, [load]);
 
   if (!current) return null;
+  const loadedForCurrentWorkspace = loadedWorkspaceId === current.id;
 
   return (
     <>
@@ -174,7 +179,16 @@ export default function OverviewPage() {
         description={`Live snapshot of ${current.name}.`}
       />
 
-      {loadError ? (
+      {!loadedForCurrentWorkspace ? (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-[92px] animate-pulse rounded-xl border border-zinc-800/60 bg-zinc-900/40"
+            />
+          ))}
+        </div>
+      ) : loadError ? (
         <LoadError message={loadError} onRetry={() => void load()} />
       ) : !data ? (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

@@ -42,7 +42,7 @@ export default function RoutingPage() {
   const [requests, setRequests] = useState<RoutedRequest[] | null>(null);
   const [evidence, setEvidence] = useState<EvidenceItem[] | null>(null);
   const [events, setEvents] = useState<Event[] | null>(null);
-  const [actions, setActions] = useState<ActionLite[]>([]);
+  const [loadedWorkspaceId, setLoadedWorkspaceId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tablesMissing, setTablesMissing] = useState(false);
 
@@ -54,7 +54,7 @@ export default function RoutingPage() {
     setRequests(null);
     setEvidence(null);
     setEvents(null);
-    setActions([]);
+    setLoadedWorkspaceId(null);
     setLoadError(null);
     setTablesMissing(false);
 
@@ -90,28 +90,13 @@ export default function RoutingPage() {
       setRequests(loadedRequests);
       setEvidence(loadedEvidence);
       setEvents((eventRes.data ?? []) as Event[]);
-
-      // Optional actions table — do not invent fields if absent.
-      const actionIds = Array.from(
-        new Set(
-          [
-            ...loadedRequests.map((r) => r.action_id),
-            ...loadedEvidence.map((e) => e.action_id),
-          ].filter((id): id is string => Boolean(id)),
-        ),
-      );
-      if (actionIds.length > 0) {
-        const actionRes = await supabase
-          .from("actions")
-          .select("*")
-          .in("id", actionIds);
-        if (!requestGate.isCurrent(token, workspaceId)) return;
-        if (!actionRes.error && actionRes.data) {
-          setActions(actionRes.data as ActionLite[]);
-        }
-      }
+      // Action linking is intentionally not loaded while the global actions
+      // table remains public and lacks a workspace relationship. Existing ids
+      // are shown as ids only; no unrelated global action is treated as fact.
+      setLoadedWorkspaceId(workspaceId);
     } catch (error) {
       if (!requestGate.isCurrent(token, workspaceId)) return;
+      setLoadedWorkspaceId(workspaceId);
       const classified = classifyRoutingLoadError(error);
       if (classified.kind === "tables_missing") {
         setTablesMissing(true);
@@ -142,6 +127,7 @@ export default function RoutingPage() {
   );
 
   if (!current) return null;
+  const loadedForCurrentWorkspace = loadedWorkspaceId === current.id;
 
   return (
     <>
@@ -150,7 +136,9 @@ export default function RoutingPage() {
         description="Routed requests, linked work, evidence, and correction history for this workspace."
       />
 
-      {loadError ? (
+      {!loadedForCurrentWorkspace ? (
+        <ListSkeleton rows={6} />
+      ) : loadError ? (
         <div className="space-y-4">
           <LoadError message={loadError} onRetry={() => void load()} />
           {tablesMissing && (
@@ -186,9 +174,7 @@ export default function RoutingPage() {
                 evidence={evidence.filter(
                   (item) => item.routed_request_id === live.id,
                 )}
-                action={
-                  actions.find((action) => action.id === live.action_id) ?? null
-                }
+                action={null}
                 summaryNext={summary?.nextAction ?? null}
                 summaryBlocker={summary?.currentBlocker ?? null}
                 evidenceState={summary?.evidenceState ?? "none"}

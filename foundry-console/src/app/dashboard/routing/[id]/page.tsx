@@ -29,6 +29,7 @@ export default function RoutingDetailPage() {
   const [requests, setRequests] = useState<RoutedRequest[] | null>(null);
   const [evidence, setEvidence] = useState<EvidenceItem[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadedScope, setLoadedScope] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!current) return;
@@ -37,6 +38,7 @@ export default function RoutingDetailPage() {
     if (!requestGate.isScopeCurrent(workspaceId)) return;
     setRequests(null);
     setEvidence(null);
+    setLoadedScope(null);
     setLoadError(null);
 
     try {
@@ -59,8 +61,10 @@ export default function RoutingDetailPage() {
       if (evRes.error) throw evRes.error;
       setRequests((reqRes.data ?? []) as RoutedRequest[]);
       setEvidence((evRes.data ?? []) as EvidenceItem[]);
+      setLoadedScope(`${workspaceId}:${routeId}`);
     } catch (error) {
       if (!requestGate.isCurrent(token, workspaceId)) return;
+      setLoadedScope(`${workspaceId}:${routeId}`);
       const classified = classifyRoutingLoadError(error);
       const message =
         classified.kind === "unknown"
@@ -85,6 +89,7 @@ export default function RoutingDetailPage() {
   );
 
   if (!current) return null;
+  const loadedForCurrentRoute = loadedScope === `${current.id}:${routeId}`;
 
   return (
     <>
@@ -102,7 +107,9 @@ export default function RoutingDetailPage() {
         }
       />
 
-      {loadError ? (
+      {!loadedForCurrentRoute ? (
+        <ListSkeleton rows={5} />
+      ) : loadError ? (
         <LoadError message={loadError} onRetry={() => void load()} />
       ) : requests === null || evidence === null ? (
         <ListSkeleton rows={5} />

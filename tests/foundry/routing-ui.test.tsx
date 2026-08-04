@@ -176,9 +176,7 @@ describe("Foundry routing UI contracts", () => {
       [],
     );
     expect(conflictState.evidenceState).toBe("conflict");
-    // Stale collapses to pending at the derived-summary layer (Lane A contract),
-    // while the Evidence UI still labels stale distinctly via EvidenceStatusBadge.
-    expect(staleOnly.evidenceState).toBe("pending");
+    expect(staleOnly.evidenceState).toBe("stale");
     expect(conflictState.evidenceState).not.toBe(staleOnly.evidenceState);
   });
 });
