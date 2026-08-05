@@ -168,6 +168,10 @@ begin
   if old.status is distinct from new.status and not (
     (old.status in ('proposed', 'confirmed', 'corrected') and new.status in
       ('confirmed', 'superseded', 'rejected', 'blocked_policy'))
+    -- A blocked or rejected route can still be corrected: persist_route_atomic
+    -- only forbids correcting an already-superseded target, so blocked_policy
+    -- and rejected must be able to reach superseded too.
+    or (old.status in ('blocked_policy', 'rejected') and new.status = 'superseded')
   ) then
     raise exception 'illegal routed_requests status transition: % -> %', old.status, new.status;
   end if;
@@ -204,7 +208,11 @@ begin
     or (old.status = 'verified' and new.status in ('conflict', 'stale'))
     or (old.status = 'unverified' and new.status in ('pending', 'verified', 'conflict', 'stale'))
     or (old.status = 'conflict' and new.status in ('verified', 'unverified', 'stale'))
-    or (old.status = 'stale' and new.status in ('pending', 'verified', 'unverified', 'conflict'))
+    -- 'verified' is deliberately excluded here: source/observed_at are frozen
+    -- once set, so stale -> verified would relabel the same expired
+    -- observation as fresh. Re-verification must insert a new evidence_items
+    -- row carrying a real, current observation.
+    or (old.status = 'stale' and new.status in ('pending', 'unverified', 'conflict'))
   ) then
     raise exception 'illegal evidence_items status transition: % -> %', old.status, new.status;
   end if;

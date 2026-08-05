@@ -1,5 +1,6 @@
--- Verification queries for the routing-control-plane foundation and hardening
--- migrations. Run in the foundry-console SQL editor AFTER applying both.
+-- Verification queries for the Foundry baseline, routing-control-plane
+-- foundation, and hardening migrations. Run in the foundry-console SQL
+-- editor AFTER applying all three, in migration order.
 -- Status of these checks in Lane A: PENDING — live database access was not
 -- available to the implementing session, so none of these results are
 -- claimed as verified. Each query states its expected result.
