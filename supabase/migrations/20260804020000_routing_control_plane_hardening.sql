@@ -49,6 +49,7 @@ alter table routed_requests
   add constraint routed_requests_nonblank_facts
   check (
     nullif(btrim(intent), '') is not null
+    and nullif(btrim(task_type), '') is not null
     and nullif(btrim(repository), '') is not null
     and nullif(btrim(selected_agent), '') is not null
     and nullif(btrim(required_evidence), '') is not null
