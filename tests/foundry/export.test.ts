@@ -52,6 +52,37 @@ describe("Foundry export integrity", () => {
     ).toThrow("Manual query denied");
   });
 
+  it("tolerates missing routed_requests/evidence_items on installs that only ran SCHEMA.sql", () => {
+    const results = [...emptySuccessfulResults];
+    results[6] = { data: null, error: { message: "relation \"public.routed_requests\" does not exist", code: "42P01" } };
+    results[7] = { data: null, error: { message: "relation \"public.evidence_items\" does not exist", code: "42P01" } };
+
+    const payload = buildExportPayload(
+      { id: "workspace-id", name: "Owner Workspace" },
+      "2026-07-13T08:00:00.000Z",
+      results
+    ) as Record<string, unknown>;
+
+    expect(payload.routed_requests).toEqual([]);
+    expect(payload.evidence_items).toEqual([]);
+  });
+
+  it("still fails closed on an undefined-table error for a required (non-optional) dataset", () => {
+    const failedResults = [...emptySuccessfulResults];
+    failedResults[3] = {
+      data: null,
+      error: { message: "relation \"public.manual\" does not exist", code: "42P01" },
+    };
+
+    expect(() =>
+      buildExportPayload(
+        { id: "workspace-id", name: "Owner Workspace" },
+        "2026-07-13T08:00:00.000Z",
+        failedResults
+      )
+    ).toThrow("public.manual");
+  });
+
   it("creates a deterministic filename without path or control characters", () => {
     expect(
       createExportFilename(" ../Owner / Workspace\u0000 ", "2026-07-13T08:00:00.000Z")

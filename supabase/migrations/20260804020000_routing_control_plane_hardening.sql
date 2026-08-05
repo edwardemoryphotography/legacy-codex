@@ -300,6 +300,8 @@ declare
   v_route routed_requests%rowtype;
   v_evidence evidence_items%rowtype;
   v_workspace_name text;
+  v_requested_status text := p_proposal ->> 'status';
+  v_status text;
 begin
   if v_idempotency_key is null then
     raise exception 'idempotency_key is required';
@@ -360,6 +362,23 @@ begin
     end if;
   end if;
 
+  -- The default lifecycle status is deterministic (confirmed for a fresh
+  -- route, corrected for a correction), but a policy-blocked route must
+  -- also be persistable through this, the only write path left after
+  -- direct-write revocation above -- otherwise blocked_policy could never
+  -- reach the database and deriveFoundryState would never see the
+  -- owner-confirmation blocker. Only that one override is accepted; any
+  -- other caller-supplied status is rejected rather than silently ignored.
+  v_status := case
+    when v_requested_status = 'blocked_policy' then 'blocked_policy'
+    when v_requested_status is null then
+      case when v_supersedes_id is null then 'confirmed' else 'corrected' end
+    else null
+  end;
+  if v_status is null then
+    raise exception 'invalid_status:%', v_requested_status;
+  end if;
+
   insert into routed_requests (
     workspace_id, action_id, supersedes_request_id, correction_reason,
     idempotency_key, intent, task_type, execution_lane, selected_agent,
@@ -375,7 +394,7 @@ begin
     p_proposal ->> 'risk', p_proposal ->> 'sensitivity',
     p_proposal ->> 'required_evidence', p_proposal ->> 'rationale',
     (p_proposal ->> 'confidence')::numeric,
-    case when v_supersedes_id is null then 'confirmed' else 'corrected' end,
+    v_status,
     p_proposal ->> 'route_source', 'user_confirmed',
     coalesce((p_proposal #>> '{confirmations,destructive}')::boolean, false),
     coalesce((p_proposal #>> '{confirmations,protectedOperation}')::boolean, false),
