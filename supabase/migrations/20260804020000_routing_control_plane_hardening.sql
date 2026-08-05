@@ -242,9 +242,15 @@ begin
   -- observed_at can never change once set (see the immutability check
   -- above). The real invariant is about the observation, not the status
   -- label: a row can only enter 'verified' the first time it is given a
-  -- real observation (old.source is null). Once source is set, re-entering
-  -- 'verified' by any path requires a new evidence_items row instead.
-  if new.status = 'verified' and old.status <> 'verified' and old.source is not null then
+  -- real observation. source and observed_at are checked independently by
+  -- the immutability rule above, so either one alone can already be
+  -- populated from an earlier partial update -- checking old.source alone
+  -- would let a row with a pre-existing observed_at (and source still
+  -- null) fill in source and flip to verified while observed_at stays
+  -- frozen at its old, unrelated value. Once either field is set,
+  -- re-entering 'verified' by any path requires a new evidence_items row.
+  if new.status = 'verified' and old.status <> 'verified'
+    and (old.source is not null or old.observed_at is not null) then
     raise exception 'evidence_items cannot re-enter verified while retaining a previously recorded observation; append a new evidence row with a fresh observation instead';
   end if;
 
