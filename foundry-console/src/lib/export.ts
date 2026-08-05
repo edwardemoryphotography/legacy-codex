@@ -7,6 +7,8 @@ export const EXPORT_DATASETS = [
   "manual",
   "settings",
   "events",
+  "routed_requests",
+  "evidence_items",
 ] as const;
 
 interface ExportWorkspace {

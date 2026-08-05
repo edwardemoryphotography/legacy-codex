@@ -16,14 +16,19 @@ from information_schema.role_table_grants
 where grantee = 'anon'
   and table_name in ('routed_requests', 'evidence_items');
 
--- 3. authenticated has select/insert/update but NOT delete (expect: no DELETE row).
+-- 3. authenticated has SELECT only after the hardening migration -- INSERT
+--    and UPDATE were revoked so every write must go through
+--    persist_route_atomic (expect: one SELECT row per table, nothing else).
 select table_name, privilege_type
 from information_schema.role_table_grants
 where grantee = 'authenticated'
   and table_name in ('routed_requests', 'evidence_items')
 order by table_name, privilege_type;
 
--- 4. Owner-only policies exist (expect: six policies, all owner-email based).
+-- 4. Owner-only policies exist. After the hardening migration revoked
+--    direct INSERT/UPDATE, only the two SELECT policies remain -- the
+--    four insert/update policies were dropped as dead weight (expect:
+--    two policies, both cmd = SELECT, both owner-email based).
 select tablename, policyname, cmd
 from pg_policies
 where tablename in ('routed_requests', 'evidence_items')
@@ -31,10 +36,16 @@ order by tablename, policyname;
 
 -- 5. History immutability: this UPDATE must FAIL with
 --    'routed_requests history is immutable…' (run against a real row id).
+--    Run as service_role/postgres in the SQL editor -- as of the hardening
+--    migration, authenticated can no longer reach this statement at all
+--    (blocked earlier, at the grant level, by check 3 above). This trigger
+--    is the last line of defense for direct SQL and service-role access.
 -- update routed_requests set intent = 'tampered' where id = '<some-id>';
 
 -- 6. Evidence reality gate: this INSERT must FAIL the
---    evidence_verified_requires_reality constraint.
+--    evidence_verified_requires_reality constraint. Same as (5): run as
+--    service_role/postgres, since authenticated has no INSERT grant here
+--    either.
 -- insert into evidence_items (workspace_id, kind, status, claim)
 -- values ('<workspace-id>', 'custom', 'verified', 'no observation attached');
 

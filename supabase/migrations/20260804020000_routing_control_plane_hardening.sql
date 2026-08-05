@@ -259,6 +259,21 @@ create trigger evidence_items_protect_history_trigger
   before update on evidence_items
   for each row execute function evidence_items_protect_history();
 
+-- The foundation migration granted an authenticated owner session direct
+-- INSERT/UPDATE on these tables. That path bypasses persist_route_atomic
+-- entirely -- no idempotency lock, no correction-target locking, no atomic
+-- route/event/evidence co-insert -- so route history could be created
+-- without the guarantees this migration exists to enforce. Now that the
+-- atomic RPC is the intended single write path, direct writes are revoked;
+-- authenticated keeps read access, and the four insert/update policies
+-- that grant would have relied on are dropped as dead weight.
+revoke insert, update on table routed_requests, evidence_items from authenticated;
+
+drop policy if exists "owner insert routed_requests" on routed_requests;
+drop policy if exists "owner update routed_requests" on routed_requests;
+drop policy if exists "owner insert evidence_items" on evidence_items;
+drop policy if exists "owner update evidence_items" on evidence_items;
+
 -- One atomic intake boundary.  The service-role caller is trusted only for
 -- transport; table constraints and this function enforce workspace/correction
 -- integrity.  Action linking remains disabled until actions has an owner-only,

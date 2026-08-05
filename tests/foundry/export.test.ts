@@ -26,6 +26,8 @@ describe("Foundry export integrity", () => {
       "manual",
       "settings",
       "events",
+      "routed_requests",
+      "evidence_items",
     ]);
     expect(Object.keys(JSON.parse(JSON.stringify(payload)))).toEqual([
       "workspace",
