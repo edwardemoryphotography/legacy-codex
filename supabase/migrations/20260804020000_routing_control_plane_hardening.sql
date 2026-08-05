@@ -208,13 +208,23 @@ begin
     or (old.status = 'verified' and new.status in ('conflict', 'stale'))
     or (old.status = 'unverified' and new.status in ('pending', 'verified', 'conflict', 'stale'))
     or (old.status = 'conflict' and new.status in ('verified', 'unverified', 'stale'))
-    -- 'verified' is deliberately excluded here: source/observed_at are frozen
-    -- once set, so stale -> verified would relabel the same expired
-    -- observation as fresh. Re-verification must insert a new evidence_items
-    -- row carrying a real, current observation.
-    or (old.status = 'stale' and new.status in ('pending', 'unverified', 'conflict'))
+    or (old.status = 'stale' and new.status in ('pending', 'verified', 'unverified', 'conflict'))
   ) then
     raise exception 'illegal evidence_items status transition: % -> %', old.status, new.status;
+  end if;
+
+  -- Closing the transition graph above is not enough on its own: pending,
+  -- unverified, and conflict all have a direct edge to verified, so a row
+  -- that went stale could still be walked back to verified in one more hop
+  -- (stale -> pending -> verified, stale -> unverified -> verified, ...)
+  -- while retaining the same frozen, expired observation -- source and
+  -- observed_at can never change once set (see the immutability check
+  -- above). The real invariant is about the observation, not the status
+  -- label: a row can only enter 'verified' the first time it is given a
+  -- real observation (old.source is null). Once source is set, re-entering
+  -- 'verified' by any path requires a new evidence_items row instead.
+  if new.status = 'verified' and old.status <> 'verified' and old.source is not null then
+    raise exception 'evidence_items cannot re-enter verified while retaining a previously recorded observation; append a new evidence row with a fresh observation instead';
   end if;
 
   new.updated_at := now();
@@ -252,6 +262,14 @@ begin
   if v_idempotency_key is null then
     raise exception 'idempotency_key is required';
   end if;
+
+  -- Serialize concurrent calls carrying the same idempotency key. Without
+  -- this, two racing calls can both miss the row below, race the insert,
+  -- and the loser hits the unique index instead of replaying -- defeating
+  -- the whole point of the key for concurrent retries/double submissions.
+  -- Transaction-scoped: released automatically on commit or rollback, and
+  -- calls with a different key never contend.
+  perform pg_advisory_xact_lock(hashtextextended(v_idempotency_key::text, 0));
 
   select * into v_existing
   from routed_requests
