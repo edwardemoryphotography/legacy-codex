@@ -100,7 +100,12 @@ export function deriveFoundryState(
     (item) => item.routed_request_id === route.id
   );
   const evidenceState = summarizeEvidence(routeEvidence);
-  const verified = routeEvidence.find((item) => item.status === "verified");
+  // Gate on the summarized state, not the presence of any verified row: a
+  // route with both a verified item and a conflict item reports
+  // evidenceState 'conflict' (conflict wins), and nextAction must agree —
+  // clearing it here would tell the cognitive layer "conflict" and
+  // "verified, nothing to do" at the same time.
+  const verified = evidenceState === "verified";
 
   return {
     whatMattersNow: route.intent,

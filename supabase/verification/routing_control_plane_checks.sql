@@ -47,14 +47,17 @@ order by privilege_type;
 
 -- 8. Delete guards cover all canonical history, including parent cascades
 --    and service-role statements (expect: three enabled BEFORE DELETE triggers).
+-- 8b. events also has a BEFORE UPDATE guard, since it has no legitimate
+--     update path at all (expect: one enabled BEFORE UPDATE trigger).
 select event_object_table, trigger_name, action_timing, event_manipulation
 from information_schema.triggers
 where trigger_name in (
   'events_prevent_delete',
+  'events_prevent_update',
   'routed_requests_prevent_delete',
   'evidence_items_prevent_delete'
 )
-order by event_object_table;
+order by event_object_table, event_manipulation;
 
 -- 9. No existing correction crosses a workspace or self-references
 --    (expect: zero rows).

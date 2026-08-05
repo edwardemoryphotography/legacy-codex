@@ -119,7 +119,7 @@ describe("deriveFoundryState — pending evidence gates the next action", () => 
     expect(state.nextActionProvenance).toBe("verified");
   });
 
-  it("surfaces conflicts over any other evidence state", () => {
+  it("surfaces conflicts over any other evidence state and does not clear the next action", () => {
     const state = deriveFoundryState(
       [request({})],
       [
@@ -129,6 +129,10 @@ describe("deriveFoundryState — pending evidence gates the next action", () => 
       []
     );
     expect(state.evidenceState).toBe("conflict");
+    // A conflicting item alongside a verified one must not tell the
+    // cognitive layer "conflict" and "verified, nothing left to do" at once.
+    expect(state.nextAction).not.toBeNull();
+    expect(state.nextActionProvenance).toBe("inference");
   });
 });
 

@@ -121,6 +121,27 @@ create trigger events_prevent_delete
   before delete on events
   for each row execute function prevent_canonical_history_delete();
 
+-- events has no legitimate update path at all (unlike routed_requests and
+-- evidence_items, which have their own protect_history triggers permitting
+-- a small set of field changes): every row is insert-once. Without this,
+-- a service-role or direct-SQL statement could rewrite an audit row's
+-- action, metadata, or timestamp, contradicting the append-only guarantee
+-- this table's own comment promises.
+create or replace function prevent_events_update()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  raise exception 'events is append-only; update is not permitted';
+end;
+$$;
+
+drop trigger if exists events_prevent_update on events;
+create trigger events_prevent_update
+  before update on events
+  for each row execute function prevent_events_update();
+
 drop trigger if exists routed_requests_prevent_delete on routed_requests;
 create trigger routed_requests_prevent_delete
   before delete on routed_requests
