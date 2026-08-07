@@ -63,6 +63,7 @@ struct WorkspaceView: View {
                 case .preview:
                     PreviewTab(
                         project: model.project,
+                        files: model.files,
                         reloadToken: reloadToken,
                         statusMessages: model.messages.filter(\.isStatus)
                     )
@@ -77,7 +78,10 @@ struct WorkspaceView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    if let project = model.project {
+                        StatusPill(project: project)
+                    }
                     if let label = model.project?.providerLabel {
                         Text(label)
                             .font(.system(.caption2, design: .rounded).weight(.semibold))
@@ -202,6 +206,33 @@ struct WorkspaceView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
+        } else if let project = model.project, project.isReady || project.isPreviewOffline {
+            HStack(spacing: 10) {
+                Image(systemName: "iphone")
+                    .foregroundStyle(Theme.accent)
+                Text(
+                    hasLocalPreview
+                        ? "Ready on this iPhone · cloud sandbox offline"
+                        : (project.statusDetail ?? "Code ready · cloud preview offline")
+                )
+                    .font(.system(.subheadline, design: .rounded).weight(.medium))
+                    .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(2)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Theme.accentSoft)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+        }
+    }
+
+    private var hasLocalPreview: Bool {
+        model.files.contains { file in
+            let path = file.path.lowercased()
+            return path == "index.html" || path.hasSuffix("/index.html")
         }
     }
 }
@@ -210,12 +241,25 @@ struct WorkspaceView: View {
 
 private struct PreviewTab: View {
     let project: Project?
+    let files: [ProjectFile]
     let reloadToken: Int
     let statusMessages: [Message]
 
+    private var hasLocalEntry: Bool {
+        files.contains { file in
+            let path = file.path.lowercased()
+            return path == "index.html" || path.hasSuffix("/index.html")
+        }
+    }
+
     var body: some View {
         Group {
-            if let raw = project?.previewUrl, let url = URL(string: raw), project?.isBuilding != true {
+            if project?.isBuilding == true {
+                BuildProgressView(
+                    detail: project?.statusDetail,
+                    statusMessages: statusMessages
+                )
+            } else if let raw = project?.previewUrl, let url = URL(string: raw) {
                 WebView(url: url)
                     .id("\(raw)-\(reloadToken)")
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -225,13 +269,25 @@ private struct PreviewTab: View {
                     )
                     .padding(.horizontal, 12)
                     .padding(.bottom, 12)
-            } else if project?.isBuilding == true {
-                BuildProgressView(
-                    detail: project?.statusDetail,
-                    statusMessages: statusMessages
-                )
+            } else if hasLocalEntry {
+                LocalFileWebView(files: files, reloadToken: reloadToken)
+                    .id("local-\(reloadToken)-\(files.count)")
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .strokeBorder(Theme.border, lineWidth: 1)
+                    )
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 12)
             } else if project?.isError == true {
                 BuildErrorView(detail: project?.statusDetail)
+            } else if project?.isReady == true || project?.isPreviewOffline == true {
+                placeholder(
+                    symbol: "iphone.gen3",
+                    title: "Code is ready",
+                    detail: project?.statusDetail
+                        ?? "Cloud sandbox is offline. Open the Code tab, or wait a moment while files load for on-device preview."
+                )
             } else {
                 placeholder(
                     symbol: "iphone.gen3",

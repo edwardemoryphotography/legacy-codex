@@ -233,20 +233,18 @@ struct StatusPill: View {
     }
 
     private var color: Color {
-        switch project.status {
-        case "live": return Theme.success
-        case "building": return Theme.accent
-        case "error": return Theme.danger
-        default: return Theme.textSecondary
-        }
+        if project.isLive { return Theme.success }
+        if project.isBuilding { return Theme.accent }
+        if project.isError { return Theme.danger }
+        if project.isReady || project.isPreviewOffline { return Theme.accent }
+        return Theme.textSecondary
     }
 
     private var label: String {
-        switch project.status {
-        case "live": return "Live"
-        case "building": return "Building"
-        case "error": return "Error"
-        default: return "Draft"
-        }
+        if project.isLive { return "Live" }
+        if project.isBuilding { return "Building" }
+        if project.isError { return "Error" }
+        if project.isReady || project.isPreviewOffline { return "Ready" }
+        return "Draft"
     }
 }
