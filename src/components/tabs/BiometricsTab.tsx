@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { SectionTitle, SectionSubtitle, ActionBtn } from '@/components/ui'
 import type { BiometricDay, BiometricSummary, BiometricMode } from '@/types'
+import {
+  parseTrendPayload,
+  summarize,
+} from '@/lib/biometrics'
 
 // REAL DATA ONLY. This governor never invents, fabricates, simulates,
 // or interpolates biometric values. If a live bridge has not written
@@ -11,120 +15,11 @@ import type { BiometricDay, BiometricSummary, BiometricMode } from '@/types'
 
 const TREND_URL = '/notes/biometric-trends.json'
 
-// Readiness formula weights
-const READINESS_RECOVERY_WEIGHT = 0.48
-const READINESS_FOCUS_WEIGHT = 0.32
-const READINESS_SLEEP_WEIGHT = 0.2
-const SLEEP_SCORE_MULTIPLIER = 12
-
-// Thresholds
-const TARGET_SLEEP_HOURS = 7.7
-const RECOVERY_THRESHOLD = 42
-const ADMIN_THRESHOLD = 58
-const FOCUS_DELTA_THRESHOLD = 12
-const MIN_SLEEP_HOURS = 6
-
-function clamp(v: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, Math.round(v)))
-}
-
-function avg(values: number[]): number {
-  if (!values.length) return 0
-  return values.reduce((a, b) => a + b, 0) / values.length
-}
-
-function isValidDay(row: unknown): row is BiometricDay {
-  if (!row || typeof row !== 'object') return false
-  const r = row as Record<string, unknown>
-  return (
-    typeof r.date === 'string' &&
-    isFinite(Number(r.sleepHours)) &&
-    isFinite(Number(r.recoveryScore)) &&
-    isFinite(Number(r.focusScore))
-  )
-}
-
 function formatTimestamp(date: Date): string {
   return date.toLocaleString(undefined, {
     dateStyle: 'medium',
     timeStyle: 'short',
   })
-}
-
-function parseTrendPayload(raw: string): { source: string; days: BiometricDay[] } | { error: string } {
-  let parsed: unknown
-
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    return { error: `${TREND_URL} is not valid JSON.` }
-  }
-
-  let source = 'live bridge'
-  let candidate: unknown[] = []
-
-  if (Array.isArray(parsed)) {
-    candidate = parsed
-    source = 'bare array payload'
-  } else if (parsed && typeof parsed === 'object') {
-    const record = parsed as Record<string, unknown>
-    source = typeof record.source === 'string' ? record.source : 'object wrapper'
-    candidate = Array.isArray(record.days) ? record.days : []
-  } else {
-    return { error: `${TREND_URL} must be an array or a { source, days } object.` }
-  }
-
-  const days = candidate.filter(isValidDay).slice(-30)
-  if (!days.length) {
-    if (candidate.length) {
-      return {
-        error: `${TREND_URL} has rows, but none match { date, sleepHours, recoveryScore, focusScore }.`,
-      }
-    }
-    return { error: `${TREND_URL} contains no day records.` }
-  }
-
-  return { source, days }
-}
-
-function summarize(days: BiometricDay[], source: string): BiometricSummary {
-  const recent = days.slice(-7)
-  const recovery = avg(recent.map(d => Number(d.recoveryScore)))
-  const focus = avg(recent.map(d => Number(d.focusScore)))
-  const sleep = avg(recent.map(d => Number(d.sleepHours)))
-  const readiness = clamp(
-    recovery * READINESS_RECOVERY_WEIGHT +
-      focus * READINESS_FOCUS_WEIGHT +
-      Math.min(100, sleep * SLEEP_SCORE_MULTIPLIER) * READINESS_SLEEP_WEIGHT,
-    0,
-    100,
-  )
-  const sleepDebt = Math.round(Math.max(0, TARGET_SLEEP_HOURS - sleep) * 70) / 10
-
-  let mode: BiometricMode = 'deep_build'
-  let recommendation = 'Deep-build lane: architecture, implementation, and launch work are appropriate.'
-
-  if (readiness < RECOVERY_THRESHOLD || sleep < MIN_SLEEP_HOURS) {
-    mode = 'recovery'
-    recommendation = 'Recovery lane: capture ideas, avoid irreversible architecture, and protect sleep.'
-  } else if (readiness < ADMIN_THRESHOLD) {
-    mode = 'admin_light'
-    recommendation = 'Admin-light lane: triage, docs, small deploy checks, and no scope expansion.'
-  } else if (focus > recovery + FOCUS_DELTA_THRESHOLD) {
-    mode = 'creative_edit'
-    recommendation = 'Creative edit lane: shape assets and workshop material while avoiding heavy refactors.'
-  }
-
-  return {
-    readiness,
-    recovery: clamp(recovery, 0, 100),
-    focus: clamp(focus, 0, 100),
-    sleepDebt,
-    mode,
-    recommendation,
-    source,
-    days,
-  }
 }
 
 export default function BiometricsTab() {
@@ -151,7 +46,7 @@ export default function BiometricsTab() {
       const parsed = parseTrendPayload(raw)
       if ('error' in parsed) throw new Error(parsed.error)
 
-      setSummary(summarize(parsed.days, parsed.source))
+      try { setSummary(summarize(parsed.days, parsed.source)) } catch(e) { console.error(e); setReason("Data processing error"); setStatus("unavailable"); return; }
       setLastLoadedAt(refreshedAt)
       setReason('')
       setStatus('available')

@@ -4,6 +4,7 @@ import { CANONICAL_PRINCIPLES, VALIDATION_METRICS } from '@/data/principles'
 import { useLocalStorage } from '@/hooks/useLocalStorage'
 import type { MetricValue } from '@/types'
 import { Badge, Card, SectionSubtitle, SectionTitle } from '@/components/ui'
+import FoundryOperationalReadout from '@/components/FoundryOperationalReadout'
 
 type MetricsState = Record<string, MetricValue>
 
@@ -48,6 +49,8 @@ export default function OverviewTab() {
           Canonical principles, local validation state, and the current posture of the Codex.
         </SectionSubtitle>
       </div>
+
+      <FoundryOperationalReadout />
 
       <Card highlight="teal" style={{ padding: '18px' }}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">

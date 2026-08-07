@@ -182,7 +182,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-lg bg-neutral-100 px-4 py-2 font-medium text-neutral-950 hover:bg-white disabled:opacity-50"
+            className="min-h-11 w-full rounded-lg bg-neutral-100 px-4 py-2.5 font-medium text-neutral-950 hover:bg-white disabled:opacity-50"
           >
             {busy ? "Saving…" : "Save password and continue"}
           </button>
@@ -214,7 +214,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                 autoComplete="username"
                 required
                 disabled={busy || Boolean(session)}
-                className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 outline-none focus:border-neutral-400"
+                className="mt-2 min-h-11 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2.5 outline-none focus:border-neutral-400"
               />
             </label>
             {!session ? (
@@ -227,7 +227,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                   autoComplete="current-password"
                   required
                   disabled={busy}
-                  className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 outline-none focus:border-neutral-400"
+                  className="mt-2 min-h-11 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2.5 outline-none focus:border-neutral-400"
                 />
               </label>
             ) : null}
@@ -235,7 +235,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
               <button
                 type="submit"
                 disabled={busy}
-                className="w-full rounded-lg bg-neutral-100 px-4 py-2 font-medium text-neutral-950 hover:bg-white disabled:opacity-50"
+                className="min-h-11 w-full rounded-lg bg-neutral-100 px-4 py-2.5 font-medium text-neutral-950 hover:bg-white disabled:opacity-50"
               >
                 {busy ? "Signing in…" : "Sign in"}
               </button>

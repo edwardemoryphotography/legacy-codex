@@ -28,7 +28,9 @@ password, and Supabase persists and refreshes the browser session:
 
 | Feature | Route |
 |---------|-------|
-| Overview: live counts, active sprint, next milestone, recent activity | `/dashboard` |
+| Overview: live counts, routing cognitive summary, active sprint, next milestone, recent activity | `/dashboard` |
+| Routing: inbox, active work, evidence, correction history, deriveFoundryState summary | `/dashboard/routing` |
+| Route detail: full routed request + append-only correction chain | `/dashboard/routing/[id]` |
 | Workspace switcher + create workspaces in-app | Sidebar |
 | Sprints: create, list, full-field edit | `/dashboard/sprints` |
 | Friction: log, resolve | `/dashboard/friction` |
