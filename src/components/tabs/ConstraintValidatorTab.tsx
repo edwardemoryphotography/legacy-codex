@@ -23,6 +23,14 @@ function containsAny(text: string, terms: string[]): boolean {
   return terms.some(t => text.includes(t))
 }
 
+function matchedTerms(text: string, terms: string[]): string[] {
+  return terms.filter(term => text.includes(term))
+}
+
+function describeTerms(terms: string[]): string {
+  return terms.length ? terms.join(', ') : 'none'
+}
+
 function evaluate(task: string): EvalResult[] {
   const t = task.toLowerCase()
   const mentionsArtifact = containsAny(t, CONSTRAINT_TERMS.artifact)

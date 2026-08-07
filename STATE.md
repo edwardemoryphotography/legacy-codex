@@ -1,6 +1,6 @@
 # STATE.md — Edward Emory Photography / Artful Intelligence
 
-_Last updated: 2026-08-04_
+_Last updated: 2026-06-15_
 
 ---
 
@@ -11,7 +11,6 @@ _Last updated: 2026-08-04_
 - **Starforge** → working prompt → Claude API → live HTML preview loop
 - **MacBook file system** → dead Downloads symlink replaced; automated file organizer scripts verified
 - **Legacy Codex** → live at `legacy-codex.vercel.app`
-- **Legacy Codex hygiene pass (2026-08-04)** → lint warnings 32 → 0, dead code removed, Supabase client and tab components fully typed; lint + 24 tests + production build all green
 
 ---
 
