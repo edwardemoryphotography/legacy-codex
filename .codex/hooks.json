@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/edwardfrye/legacy-codex/.codex/hooks/session-start.sh'"
+          }
+        ]
+      }
+    ]
+  }
+}
