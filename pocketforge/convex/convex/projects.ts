@@ -63,6 +63,32 @@ export const patch = internalMutation({
   },
 });
 
+/// One-shot repair: projects marked "live" without a previewUrl were a soft-fail
+/// lie. Demote them to "ready" so the UI stops showing a green Live badge.
+export const repairFalseLive = mutation({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    const projects = await ctx.db.query("projects").collect();
+    let fixed = 0;
+    for (const project of projects) {
+      const hasPreview =
+        typeof project.previewUrl === "string" && project.previewUrl.length > 0;
+      if (project.status === "live" && !hasPreview) {
+        await ctx.db.patch(project._id, {
+          status: "ready",
+          statusDetail:
+            project.statusDetail ??
+            "Code ready · preview offline (cloud sandbox unavailable)",
+          updatedAt: Date.now(),
+        });
+        fixed += 1;
+      }
+    }
+    return fixed;
+  },
+});
+
 // Removes the project row and all of its messages/files. The Daytona
 // sandbox itself is torn down by the `agent:destroy` action, which calls
 // this afterwards.

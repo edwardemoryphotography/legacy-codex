@@ -38,6 +38,11 @@ Generated apps are deliberately **static-site + CDN** (no npm/build step in
 the sandbox): builds are fast, never flaky, and previews load instantly on a
 phone. `localStorage` gives them real persistence.
 
+When a forged app needs **AI captions / copy**, it must call the live Convex
+HTTP endpoint `POST https://<deployment>.convex.site/ai/generate` (same model
+keys as the builder). The agent is instructed never to ship hardcoded demo
+captions or stock Unsplash photos as fake "AI" output.
+
 ## Repo layout
 
 ```

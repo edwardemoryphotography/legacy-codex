@@ -9,9 +9,12 @@
  */
 
 import type * as agent from "../agent.js";
+import type * as ai from "../ai.js";
 import type * as files from "../files.js";
+import type * as http from "../http.js";
 import type * as messages from "../messages.js";
 import type * as projects from "../projects.js";
+import type * as providers from "../providers.js";
 
 import type {
   ApiFromModules,
@@ -21,9 +24,12 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   agent: typeof agent;
+  ai: typeof ai;
   files: typeof files;
+  http: typeof http;
   messages: typeof messages;
   projects: typeof projects;
+  providers: typeof providers;
 }>;
 
 /**
