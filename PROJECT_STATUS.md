@@ -27,11 +27,11 @@ Turn Legacy Codex from a polished local dashboard into an **operational private 
 
 | PR | Lane | Branch | Author | Status | Mergeable | Dependencies |
 |---|---|---|---|---|---|---|
-| **#49** | B — Foundry UI | `cursor/autonomous-project-hygiene-foundry-ui-4e59` | Cursor/Codex | 🟡 OPEN | **CLEAN** (needs branch update) | #47 ✅ |
+| **#49** | B — Foundry UI | `cursor/autonomous-project-hygiene-foundry-ui-4e59` | Cursor/Codex | 🟡 OPEN | **CLEAN** | #47 ✅ |
 | **#37** | Mission Loop | `claude/superpowers-mission-loop-iuuozw` | Claude Code | 🟡 OPEN | UNSTABLE | None |
 
 ### PR #47 — ✅ MERGED (2026-08-07)
-- ~~Adds~~ **Added** `routed_requests` + `evidence_items` tables
+- **Added** `routed_requests` + `evidence_items` tables
 - Append-only correction chain (`supersedes_request_id`)
 - RLS: owner-email-only, `anon` fully revoked
 - Migration **applied to production** (`pkydkbuodikttfeawqsw`)
@@ -42,28 +42,7 @@ Turn Legacy Codex from a polished local dashboard into an **operational private 
 - `/dashboard/routing` inbox + detail views
 - `deriveFoundryState()` cognitive summary (never stored)
 - Evidence states: pending / verified / unverified / conflict / stale
-- **Merge status:** Local merge with main succeeded cleanly — no conflicts
-- **Action needed:** Update branch head on GitHub (rebase or merge main into PR branch)
-
-| PR | Lane | Branch | Author | Status | Mergeable | Dependencies |
-|---|---|---|---|---|---|---|
-| **#47** | A — Foundation | `claude/autonomous-project-hygiene-foundation` | Claude Code | 🟡 OPEN | UNSTABLE | None |
-| **#49** | B — Foundry UI | `cursor/autonomous-project-hygiene-foundry-ui-4e59` | Cursor/Codex | 🟠 DRAFT | CLEAN | #47 |
-| **#37** | Mission Loop | `claude/superpowers-mission-loop-iuuozw` | Claude Code | 🟡 OPEN | UNSTABLE | None |
-
-### PR #47 — Routing Control Plane Foundation
-- Adds `routed_requests` + `evidence_items` tables
-- Append-only correction chain (`supersedes_request_id`)
-- RLS: owner-email-only, `anon` fully revoked
-- Migration forward-only, **not yet applied to production**
-- Verification: 33/33 tests passing, tsc clean, build clean
-- **Live DB checks: PENDING** (needs owner session)
-
-### PR #49 — Foundry Routing UI
-- `/dashboard/routing` inbox + detail views
-- `deriveFoundryState()` cognitive summary (never stored)
-- Evidence states: pending / verified / unverified / conflict / stale
-- **Draft — do not merge until #47 lands**
+- **Merge status:** Branch updated with main, pushed to GitHub — no conflicts
 
 ### PR #37 — Mission Loop
 - Data model, lifecycle logic, evidence bridge
@@ -116,16 +95,24 @@ File: `~/legacy-codex/.hermes/plans/legacy-codex-rescue.md`
 - **Target:** Reconcile back to `~/legacy-codex` branches
 - **Action:** Switch to `~/legacy-codex`, work on PR #49 (now unblocked since #47 merged)
 - **Focus:** Complete PR #49 — update branch with main, final verification, ready for merge
-- **Current:** Idle (home directory, recently ran `/doctor`, `/login`)
-- **Target:** `~/legacy-codex`
-- **Action:** `claude ~/legacy-codex` or within session: `/cwd ~/legacy-codex`
-- **Focus:** PR #47 completion — apply migration, run live DB checks, resolve contradictions
 
-### Codex
-- **Current:** Deep in Lane C verification (`~/Documents/Codex/...` worktrees)
-- **Target:** Reconcile back to `~/legacy-codex` branches
-- **Action:** Switch to `~/legacy-codex`, use `lane-c/recovery-task1-legacy-pr47` and `lane-c/recovery-task1-legacy-pr49`
-- **Focus:** Complete PR #49 once #47 merges
+---
+
+## 🗄️ Database Schema
+
+Project: `pkydkbuodikttfeawqsw`
+
+| Table | Purpose | Added By |
+|---|---|---|
+| `routed_requests` | Validated route persistence with correction chain | PR #47 |
+| `evidence_items` | Evidence for routes/work items | PR #47 |
+| `nd_prefs` | User preferences (JSONB) | 2026-06-16 migration |
+| `nd_captures` | Quick capture / inbox | 2026-06-16 migration |
+| `nd_biometric_trends` | Biometrics sync (BiometricsTab) | 2026-06-16 migration |
+| `nd_codex_bookmarks` | Saved codex entries / pins | 2026-06-16 migration |
+| `actions` | Work items (existing) | Legacy |
+| `events` | Append-only audit log (existing) | Legacy |
+| `workspaces` | Project registry (existing) | Legacy |
 
 ---
 
@@ -156,15 +143,9 @@ Last verified: **2026-08-06** — Build passing with ConsolidationTab + Biometri
 
 ## 🚧 Blockers
 
-1. ~~**PR #47** needs owner session to apply migration + verify RLS~~ ✅ **RESOLVED** — migration applied, RLS verified
+1. ~~**PR #47** needs owner session to apply migration + verify RLS~~ ✅ **RESOLVED**
 2. **PR #37** needs rework — conflicts with existing `actions`/`events` tables
-3. **PR #49** needs branch updated on GitHub (merge main into PR branch — clean locally, just out of date)
-4. **Hermes** needs to be pointed at `~/legacy-codex` (currently in home dir)
-5. **Claude Code** needs to be pointed at `~/legacy-codex` (currently in home dir)
-
-1. **PR #47** needs owner session to apply migration + verify RLS against non-owner
-2. **PR #37** needs rework — conflicts with existing `actions`/`events` tables
-3. **PR #49** is draft until #47 merges
+3. ~~**PR #49** needs branch updated on GitHub~~ ✅ **RESOLVED** — merged main, pushed
 4. **Hermes** needs to be pointed at `~/legacy-codex` (currently in home dir)
 5. **Claude Code** needs to be pointed at `~/legacy-codex` (currently in home dir)
 
@@ -174,13 +155,10 @@ Last verified: **2026-08-06** — Build passing with ConsolidationTab + Biometri
 
 | Date | Change |
 |---|---|
+| 2026-08-07 | Neuro UX migration applied: `nd_prefs`, `nd_captures`, `nd_biometric_trends`, `nd_codex_bookmarks` |
 | 2026-08-07 | PR #47 **MERGED** — routing control plane foundation live on main |
-| 2026-08-07 | PR #49 verified: merges cleanly with main (no conflicts) |
+| 2026-08-07 | PR #49 branch updated with main, pushed to GitHub — no conflicts |
 | 2026-08-07 | Supabase migration applied + RLS verified on production DB |
-| 2026-08-06 | Ported ConsolidationTab from `~/workspace/legacy-codex` to canonical repo |
-| 2026-08-06 | Ported BiometricsTab refactor (extracted `@/lib/biometrics`) |
-| 2026-08-05 | Codex completed Lane C Task 2A verification (builds, tests, SQL, security matrix) |
-|---|---|
 | 2026-08-06 | Ported ConsolidationTab from `~/workspace/legacy-codex` to canonical repo |
 | 2026-08-06 | Ported BiometricsTab refactor (extracted `@/lib/biometrics`) |
 | 2026-08-05 | Codex completed Lane C Task 2A verification (builds, tests, SQL, security matrix) |
