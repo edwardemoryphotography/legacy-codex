@@ -364,9 +364,11 @@ export function Tag({
 /* ─── Badge ──────────────────────────────────────────────────── */
 export function Badge({
   tone = 'muted',
+  wrap = false,
   children,
 }: {
   tone?: keyof typeof TONE_STYLES
+  wrap?: boolean
   children: ReactNode
 }) {
   const c = TONE_STYLES[tone]
@@ -382,7 +384,10 @@ export function Badge({
         color: c.color,
         background: c.bg,
         textTransform: 'uppercase',
-        whiteSpace: 'nowrap',
+        whiteSpace: wrap ? 'normal' : 'nowrap',
+        maxWidth: wrap ? '100%' : undefined,
+        overflowWrap: wrap ? 'anywhere' : undefined,
+        textAlign: wrap ? 'center' : undefined,
       }}
     >
       {children}
