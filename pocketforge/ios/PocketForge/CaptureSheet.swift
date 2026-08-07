@@ -82,9 +82,16 @@ struct CaptureSheet: View {
             let outcome = await store.capture(text: capturedText, intention: intention)
             isSaving = false
             guard outcome != nil else { return }
-            if intention == .rek, outcome == .synced {
-                router.sheet = .rek(capturedText)
-            } else {
+            switch intention {
+            case .rek:
+                router.sheet = .rek(text: capturedText, captureID: nil)
+            case .lar:
+                dismiss()
+                router.selectedTab = .lar
+            case .csf:
+                dismiss()
+                router.selectedTab = .csf
+            case .inbox:
                 dismiss()
             }
         }

@@ -7,9 +7,20 @@ struct LARView: View {
     @State private var tinySteps: [UUID: String] = [:]
     @State private var loadingTinyStep: UUID?
 
+    private var promotedActions: [CaptureRecord] {
+        store.promotedCaptures.filter { $0.route == .action || $0.route == .project }
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 18) {
+                if !store.hasRemoteSession {
+                    LocalModeBanner(
+                        title: "LAR on this iPhone",
+                        detail: "Promote Inbox items to Action to fill NOW / NEXT. Tiny Step works offline."
+                    )
+                }
+
                 LARSectionLabel(title: "NOW", color: Theme.accent)
                 if let route = store.lar.now {
                     ExecutableRouteCard(
@@ -17,18 +28,33 @@ struct LARView: View {
                         tinyStep: tinySteps[route.id],
                         isLoading: loadingTinyStep == route.id,
                         requestTinyStep: { requestTinyStep(route) },
-                        challenge: { router.sheet = .rek(route.intent) }
+                        challenge: { router.sheet = .rek(text: route.intent, captureID: route.id) },
+                        done: {
+                            Task {
+                                if let capture = store.captures.first(where: { $0.id == route.id }) {
+                                    await store.dismiss(capture)
+                                }
+                            }
+                        }
                     )
                 } else {
-                    HonestEmptyState(text: "No executable action is recorded.")
+                    EmptyActionCard(
+                        text: "Nothing executable yet.",
+                        primary: "Capture for LAR",
+                        secondary: "Open Inbox"
+                    ) {
+                        router.sheet = .capture(.lar)
+                    } secondaryAction: {
+                        router.selectedTab = .inbox
+                    }
                 }
 
                 LARSectionLabel(title: "NEXT", color: Theme.purple)
                 if store.lar.next.isEmpty {
-                    HonestEmptyState(text: "No queued executable routes.")
+                    HonestEmptyState(text: "No queued actions. Promote more Inbox items to LAR.")
                 } else {
                     ForEach(store.lar.next) { route in
-                        CompactRouteRow(route: route) { router.sheet = .rek(route.intent) }
+                        CompactRouteRow(route: route) { router.sheet = .rek(text: route.intent, captureID: route.id) }
                     }
                 }
 
@@ -37,7 +63,32 @@ struct LARView: View {
                     HonestEmptyState(text: "No blocked routes.")
                 } else {
                     ForEach(store.lar.blocked) { route in
-                        CompactRouteRow(route: route) { router.sheet = .rek(route.intent) }
+                        CompactRouteRow(route: route) { router.sheet = .rek(text: route.intent, captureID: route.id) }
+                    }
+                }
+
+                if !promotedActions.isEmpty {
+                    LARSectionLabel(title: "PROMOTED ON THIS IPHONE", color: Theme.textSecondary)
+                    ForEach(promotedActions) { capture in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(capture.route?.label.uppercased() ?? "ACTION")
+                                .technicalType(.caption2, weight: .bold)
+                                .foregroundStyle(Theme.accent)
+                            Text(capture.text).font(.subheadline)
+                            HStack {
+                                Button("REK") {
+                                    router.sheet = .rek(text: capture.text, captureID: capture.id)
+                                }
+                                .buttonStyle(.bordered)
+                                Button("Done") {
+                                    Task { await store.dismiss(capture) }
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                            .technicalType(.caption, weight: .bold)
+                        }
+                        .padding(14)
+                        .cardStyle()
                     }
                 }
             }
@@ -46,6 +97,16 @@ struct LARView: View {
         .background(Theme.background)
         .navigationTitle("LAR")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    router.sheet = .capture(.lar)
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("Capture for LAR")
+            }
+        }
         .refreshable { await store.refresh() }
     }
 
@@ -72,6 +133,7 @@ private struct ExecutableRouteCard: View {
     let isLoading: Bool
     let requestTinyStep: () -> Void
     let challenge: () -> Void
+    let done: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -94,6 +156,7 @@ private struct ExecutableRouteCard: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(isLoading)
                 Button("REK", action: challenge).buttonStyle(.bordered)
+                Button("Done", action: done).buttonStyle(.bordered)
             }
             .technicalType(.caption, weight: .bold)
         }
@@ -128,5 +191,50 @@ private struct HonestEmptyState: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .cardStyle()
+    }
+}
+
+private struct EmptyActionCard: View {
+    let text: String
+    let primary: String
+    let secondary: String
+    let primaryAction: () -> Void
+    let secondaryAction: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(Theme.textSecondary)
+            HStack {
+                Button(primary, action: primaryAction)
+                    .buttonStyle(.borderedProminent)
+                Button(secondary, action: secondaryAction)
+                    .buttonStyle(.bordered)
+            }
+            .technicalType(.caption, weight: .bold)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardStyle()
+    }
+}
+
+struct LocalModeBanner: View {
+    let title: String
+    let detail: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(title, systemImage: "iphone")
+                .technicalType(.caption, weight: .bold)
+                .foregroundStyle(Theme.accent)
+            Text(detail)
+                .font(.footnote)
+                .foregroundStyle(Theme.textSecondary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }

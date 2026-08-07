@@ -4,30 +4,25 @@ struct InboxView: View {
     let store: PocketForgeStore
     let router: AppRouter
 
-    private var inbox: [CaptureRecord] { store.captures.filter { $0.state == .inbox } }
+    private var inbox: [CaptureRecord] { store.openInboxCaptures }
 
     var body: some View {
         List {
-            if !store.pendingCaptures.isEmpty {
-                Section("WAITING ON THIS IPHONE") {
-                    ForEach(store.pendingCaptures) { capture in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(capture.text)
-                            Label("Not yet in Codex", systemImage: "iphone.and.arrow.forward")
-                                .font(.caption)
-                                .foregroundStyle(Theme.warning)
-                        }
-                        .accessibilityElement(children: .combine)
-                    }
+            Section {
+                if !store.hasRemoteSession {
+                    Label("Working on this iPhone — promote, forge, or dismiss below.", systemImage: "iphone")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                        .listRowBackground(Theme.surface.opacity(0.5))
                 }
             }
 
-            Section("UNPROCESSED COGNITION") {
+            Section("OPEN") {
                 if inbox.isEmpty {
                     ContentUnavailableView(
-                        "No inbox records",
+                        "Inbox clear",
                         systemImage: "tray",
-                        description: Text("Capture a thought without classifying it first.")
+                        description: Text("Capture a thought, then promote it to LAR, CSF, Forge, or dismiss it.")
                     )
                 } else {
                     ForEach(inbox) { capture in
@@ -46,6 +41,14 @@ struct InboxView: View {
                     .technicalType(.caption2, weight: .bold)
                     .foregroundStyle(Theme.textSecondary)
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    router.sheet = .capture(.inbox)
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("Capture")
+            }
         }
         .refreshable { await store.refresh() }
     }
@@ -55,6 +58,7 @@ private struct CaptureRow: View {
     let capture: CaptureRecord
     let store: PocketForgeStore
     let router: AppRouter
+    @State private var isWorking = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -67,20 +71,76 @@ private struct CaptureRow: View {
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(1)
                 Spacer()
-                Menu {
-                    ForEach(CaptureRoute.allCases.filter { $0 != .foundryRequest }) { route in
-                        Button(route.label) { Task { _ = await store.promote(capture, to: route) } }
-                    }
-                    Divider()
-                    Button("Challenge with REK") { router.sheet = .rek(capture.text) }
-                    Button("Send to Foundry") { router.sheet = .foundry(capture) }
-                } label: {
-                    Label("Route", systemImage: "arrow.triangle.branch")
-                        .frame(minHeight: 44)
+                if isWorking {
+                    ProgressView().controlSize(.small)
                 }
-                .accessibilityHint("Classify, challenge, archive, or send this capture to Foundry")
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    actionButton("LAR", systemImage: "bolt.fill") {
+                        let ok = await store.promote(capture, to: .action)
+                        if ok { router.selectedTab = .lar }
+                    }
+                    actionButton("CSF", systemImage: "brain.head.profile") {
+                        let ok = await store.promote(capture, to: .context)
+                        if ok { router.selectedTab = .csf }
+                    }
+                    actionButton("Forge", systemImage: "flame.fill") {
+                        if await store.forge(from: capture) != nil {
+                            router.selectedTab = .status
+                        }
+                    }
+                    actionButton("REK", systemImage: "shield.lefthalf.filled") {
+                        router.sheet = .rek(text: capture.text, captureID: capture.id)
+                    }
+                    Menu {
+                        ForEach(CaptureRoute.allCases.filter { ![.foundryRequest, .action, .context, .archive].contains($0) }) { route in
+                            Button(route.label) {
+                                Task { _ = await store.promote(capture, to: route) }
+                            }
+                        }
+                        if store.hasRemoteSession {
+                            Button("Send to Foundry") { router.sheet = .foundry(capture) }
+                        }
+                        Divider()
+                        Button("Dismiss", role: .destructive) {
+                            Task { await store.dismiss(capture) }
+                        }
+                        Button("Delete", role: .destructive) {
+                            Task { await store.deleteLocal(capture) }
+                        }
+                    } label: {
+                        Label("More", systemImage: "ellipsis.circle")
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(Theme.surface)
+                            .clipShape(Capsule())
+                    }
+                }
             }
         }
         .padding(.vertical, 6)
+    }
+
+    private func actionButton(_ title: String, systemImage: String, action: @escaping () async -> Void) -> some View {
+        Button {
+            isWorking = true
+            Task {
+                await action()
+                isWorking = false
+            }
+        } label: {
+            Label(title, systemImage: systemImage)
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(Theme.accentSoft)
+                .foregroundStyle(Theme.accent)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(isWorking)
     }
 }

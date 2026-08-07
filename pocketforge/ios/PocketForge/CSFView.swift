@@ -6,28 +6,45 @@ struct CSFView: View {
 
     @State private var query = ""
 
-    private var promoted: [CaptureRecord] {
-        store.captures.filter { $0.state == .promoted }
-    }
+    private var promoted: [CaptureRecord] { store.promotedCaptures }
 
     var body: some View {
         List {
-            Section("CANONICAL CODEX") {
-                if !store.hasRemoteSession {
-                    ContentUnavailableView(
-                        "Local mode",
-                        systemImage: "iphone",
-                        description: Text("Canonical search runs when a remote Codex session is linked. Face ID unlock is enough for capture and Legacy Builder.")
+            if !store.hasRemoteSession {
+                Section {
+                    LocalModeBanner(
+                        title: "CSF on this iPhone",
+                        detail: "Promoted context, decisions, and evidence live here until remote Codex is linked."
                     )
-                } else if store.contextResults.isEmpty {
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowBackground(Color.clear)
+                }
+            }
+
+            Section("CANONICAL / LOCAL CONTEXT") {
+                if store.contextResults.isEmpty {
                     ContentUnavailableView(
-                        query.isEmpty ? "No context records" : "No matching records",
+                        query.isEmpty ? "No context yet" : "No matching records",
                         systemImage: "brain.head.profile",
-                        description: Text(store.contextSearchAvailable ? "No canonical record matched this search." : "Search didn’t return results.")
+                        description: Text(
+                            query.isEmpty
+                                ? "Promote Inbox items to Context, Decision, or Evidence — or capture with CSF intention."
+                                : "Nothing matched “\(query)”."
+                        )
                     )
+                    Button("Capture for CSF") {
+                        router.sheet = .capture(.csf)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    Button("Open Inbox") {
+                        router.selectedTab = .inbox
+                    }
+                    .buttonStyle(.bordered)
                 } else {
                     ForEach(store.contextResults) { record in
-                        ContextRow(record: record) { router.sheet = .rek(record.excerpt) }
+                        ContextRow(record: record) {
+                            router.sheet = .rek(text: record.excerpt, captureID: UUID(uuidString: record.id))
+                        }
                     }
                 }
             }
@@ -35,15 +52,22 @@ struct CSFView: View {
             if !promoted.isEmpty {
                 Section("PROMOTED CAPTURES") {
                     ForEach(promoted) { capture in
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 8) {
                             Text(capture.route?.label.uppercased() ?? "CONTEXT")
                                 .technicalType(.caption2, weight: .bold)
                                 .foregroundStyle(Theme.purple)
                             Text(capture.text)
-                            Button("CHALLENGE WITH REK") { router.sheet = .rek(capture.text) }
-                                .technicalType(.caption, weight: .bold)
+                            HStack {
+                                Button("REK") { router.sheet = .rek(text: capture.text, captureID: capture.id) }
+                                    .buttonStyle(.bordered)
+                                Button("Dismiss", role: .destructive) {
+                                    Task { await store.dismiss(capture) }
+                                }
                                 .buttonStyle(.bordered)
+                            }
+                            .technicalType(.caption, weight: .bold)
                         }
+                        .padding(.vertical, 4)
                     }
                 }
             }
@@ -68,20 +92,27 @@ struct CSFView: View {
         .background(Theme.background)
         .navigationTitle("CSF")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $query, prompt: "Search canonical context")
-        .disabled(!store.hasRemoteSession)
+        .searchable(text: $query, prompt: "Search local or canonical context")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    router.sheet = .capture(.csf)
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("Capture for CSF")
+            }
+        }
         .task {
-            guard store.hasRemoteSession else { return }
             await store.searchContext("")
         }
         .task(id: query) {
-            guard store.hasRemoteSession else { return }
             try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
             await store.searchContext(query)
         }
         .refreshable {
-            guard store.hasRemoteSession else { return }
+            await store.refresh()
             await store.searchContext(query)
         }
     }
@@ -107,7 +138,9 @@ private struct ContextRow: View {
                     .technicalType(.caption2, weight: .bold)
                     .foregroundStyle(Theme.accent)
                 Spacer()
-                Text("CANONICAL").technicalType(.caption2, weight: .bold).foregroundStyle(Theme.success)
+                Text(record.provenance == "local" ? "LOCAL" : "CANONICAL")
+                    .technicalType(.caption2, weight: .bold)
+                    .foregroundStyle(record.provenance == "local" ? Theme.accent : Theme.success)
             }
             Text(record.title).font(.headline)
             Text(record.excerpt).font(.subheadline).foregroundStyle(Theme.textSecondary).lineLimit(5)
