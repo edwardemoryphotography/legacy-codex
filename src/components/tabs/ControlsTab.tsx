@@ -1,7 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import type { User } from '@supabase/supabase-js'
+import { useEffect, useState } from 'react'
 import { useLocalStorage } from '@/hooks/useLocalStorage'
 import type { UIPrefs, CaptureItem, BiometricMode } from '@/types'
 import { supabase } from '@/lib/supabase/client'
@@ -55,7 +54,7 @@ export default function ControlsTab() {
   // Supabase hybrid sync state (augments localStorage when keys + migration + auth are present)
   const [supabaseConnected, setSupabaseConnected] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<any>(null)
   const [authStatus, setAuthStatus] = useState('')
   const [syncedCaptureIds, setSyncedCaptureIds] = useState<Set<string>>(new Set())
 
@@ -76,13 +75,11 @@ export default function ControlsTab() {
   // Load lightweight bio summary (mirrors BiometricsTab contract, real data only)
   useEffect(() => {
     let cancelled = false
-    type RawBioDay = { sleepHours?: number; recoveryScore?: number; focusScore?: number }
     fetch('/notes/biometric-trends.json')
       .then(r => r.ok ? r.json() : Promise.reject('no data'))
-      .then((raw: unknown) => {
+      .then((raw: any) => {
         if (cancelled) return
-        const wrapper = raw as { source?: string; days?: RawBioDay[] } | null
-        const days: RawBioDay[] = Array.isArray(raw) ? (raw as RawBioDay[]) : (wrapper?.days || [])
+        const days = Array.isArray(raw) ? raw : (raw?.days || [])
         if (!days.length) {
           setBioSummary(null)
           return
@@ -98,7 +95,7 @@ export default function ControlsTab() {
         if (readiness < 42 || (Number(last.sleepHours) || 0) < 6) mode = 'recovery'
         else if (readiness < 58) mode = 'admin_light'
         else if ((Number(last.focusScore) || 0) > (Number(last.recoveryScore) || 0) + 12) mode = 'creative_edit'
-        setBioSummary({ readiness: Math.min(100, Math.max(0, readiness)), mode, source: wrapper?.source || 'local' })
+        setBioSummary({ readiness: Math.min(100, Math.max(0, readiness)), mode, source: raw?.source || 'local' })
       })
       .catch(() => {
         if (!cancelled) setBioSummary(null)
@@ -106,7 +103,42 @@ export default function ControlsTab() {
     return () => { cancelled = true }
   }, [])
 
-  const loadFromSupabase = useCallback(async (userId: string) => {
+  // Auth + Supabase load on mount (hybrid: Supabase source of truth when available, LS fallback)
+  useEffect(() => {
+    let cancelled = false
+    async function initAuthAndLoad() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const currentUser = session?.user || null
+        if (currentUser) {
+          setUser(currentUser)
+          setSupabaseConnected(true)
+          setAuthStatus('Signed in')
+          await loadFromSupabase(currentUser.id)
+        } else {
+          // Check if keys look real (fix: check anon key, not url which is always the project)
+          const anonKey = (supabase as any)?.supabaseKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+          const url = (supabase as any)?.supabaseUrl || ''
+          if (anonKey && !anonKey.includes('your-anon') && url && !url.includes('your-project')) {
+            setSupabaseConnected(false) // connected means signed-in for RLS
+            setAuthStatus('Keys present — sign in to enable cloud sync (RLS requires auth)')
+          } else {
+            setSupabaseConnected(false)
+            setAuthStatus('Local only (configure real Supabase keys in .env.local)')
+          }
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setSupabaseConnected(false)
+          setAuthStatus('Auth check failed')
+        }
+      }
+    }
+    initAuthAndLoad()
+    return () => { cancelled = true }
+  }, [])
+
+  async function loadFromSupabase(userId: string) {
     if (!userId) return
     try {
       // Load prefs
@@ -127,7 +159,7 @@ export default function ControlsTab() {
         .order('created_at', { ascending: false })
         .limit(12)
       if (capData && capData.length > 0) {
-        const items: CaptureItem[] = capData.map((d: { id: string; text: string; created_at: string; tags?: string[] }) => ({
+        const items: CaptureItem[] = capData.map((d: any) => ({
           id: d.id,
           text: d.text,
           timestamp: d.created_at,
@@ -139,47 +171,11 @@ export default function ControlsTab() {
       }
       setStatus('Loaded from Supabase')
       setTimeout(() => setStatus(''), 800)
-    } catch {
+    } catch (e) {
       setStatus('Supabase load failed (check RLS / user row)')
       setTimeout(() => setStatus(''), 1400)
     }
-  }, [setPrefs, setInbox])
-
-  // Auth + Supabase load on mount (hybrid: Supabase source of truth when available, LS fallback)
-  useEffect(() => {
-    let cancelled = false
-    async function initAuthAndLoad() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        const currentUser = session?.user || null
-        if (currentUser) {
-          setUser(currentUser)
-          setSupabaseConnected(true)
-          setAuthStatus('Signed in')
-          await loadFromSupabase(currentUser.id)
-        } else {
-          // Check if keys look real (fix: check anon key, not url which is always the project)
-          const client = supabase as unknown as { supabaseKey?: string; supabaseUrl?: string }
-          const anonKey = client?.supabaseKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-          const url = client?.supabaseUrl || ''
-          if (anonKey && !anonKey.includes('your-anon') && url && !url.includes('your-project')) {
-            setSupabaseConnected(false) // connected means signed-in for RLS
-            setAuthStatus('Keys present — sign in to enable cloud sync (RLS requires auth)')
-          } else {
-            setSupabaseConnected(false)
-            setAuthStatus('Local only (configure real Supabase keys in .env.local)')
-          }
-        }
-      } catch {
-        if (!cancelled) {
-          setSupabaseConnected(false)
-          setAuthStatus('Auth check failed')
-        }
-      }
-    }
-    initAuthAndLoad()
-    return () => { cancelled = true }
-  }, [loadFromSupabase])
+  }
 
   async function signInForSync() {
     setAuthStatus('Signing in...')
@@ -195,7 +191,7 @@ export default function ControlsTab() {
         setStatus('Cloud sync enabled')
         setTimeout(() => setStatus(''), 1200)
       }
-    } catch {
+    } catch (e: any) {
       setAuthStatus('Sign in failed — enable Anonymous provider in Supabase dashboard or use email')
       setTimeout(() => setAuthStatus(''), 3000)
     }
@@ -212,7 +208,7 @@ export default function ControlsTab() {
       await supabase.from('nd_prefs').upsert({ user_id: user.id, data: next })
       setStatus('Prefs synced to Supabase')
       setTimeout(() => setStatus(''), 800)
-    } catch {
+    } catch (e: any) {
       setStatus('Supabase sync failed — using local only')
       setTimeout(() => setStatus(''), 1400)
     } finally {
@@ -237,7 +233,7 @@ export default function ControlsTab() {
       })
       setStatus('Saved to Supabase')
       setTimeout(() => setStatus(''), 600)
-    } catch {
+    } catch (e) {
       // silent fallback
       setStatus('Capture sync failed (RLS?)')
       setTimeout(() => setStatus(''), 1200)
@@ -253,7 +249,7 @@ export default function ControlsTab() {
         next.delete(id)
         return next
       })
-    } catch {}
+    } catch (e) {}
   }
 
   // Force full sync: pull from Supabase then push local state (last-write wins for prefs, union for inbox)
@@ -289,7 +285,7 @@ export default function ControlsTab() {
         })
       }
       setStatus('Force sync complete')
-    } catch {
+    } catch (e) {
       setStatus('Force sync error (see console / RLS policies)')
     } finally {
       setIsSyncing(false)
@@ -445,7 +441,7 @@ export default function ControlsTab() {
             <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: 4 }}>Density</label>
             <select
               value={prefs.density}
-              onChange={e => updatePref('density', e.target.value as UIPrefs['density'])}
+              onChange={e => updatePref('density', e.target.value as any)}
               style={{ width: '100%', padding: '8px', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)' }}
             >
               <option value="comfortable">Comfortable (more space)</option>
