@@ -21,12 +21,16 @@ export const create = mutation({
     name: v.string(),
     prompt: v.string(),
     icon: v.optional(v.string()),
+    provider: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const provider = (args.provider ?? "auto").toLowerCase();
+    const allowed = new Set(["auto", "anthropic", "openai", "gemini"]);
     return await ctx.db.insert("projects", {
       name: args.name,
       prompt: args.prompt,
       icon: args.icon,
+      provider: allowed.has(provider) ? provider : "auto",
       status: "draft",
       updatedAt: Date.now(),
     });
@@ -47,6 +51,7 @@ export const patch = internalMutation({
     statusDetail: v.optional(v.string()),
     sandboxId: v.optional(v.string()),
     previewUrl: v.optional(v.string()),
+    provider: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { projectId, ...fields } = args;

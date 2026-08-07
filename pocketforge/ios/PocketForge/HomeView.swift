@@ -9,7 +9,7 @@ struct HomeView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ZStack {
-                Theme.background.ignoresSafeArea()
+                ForgeStageBackground(intensity: 0.55)
 
                 if service.projects.isEmpty {
                     emptyState

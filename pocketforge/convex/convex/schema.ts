@@ -15,6 +15,8 @@ export default defineSchema({
     previewUrl: v.optional(v.string()),
     // SF Symbol name picked client-side for a bit of personality.
     icon: v.optional(v.string()),
+    // Preferred model provider for this project: anthropic | openai | gemini | auto
+    provider: v.optional(v.string()),
     updatedAt: v.number(),
   }),
 
