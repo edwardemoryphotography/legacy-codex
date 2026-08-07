@@ -14,7 +14,7 @@ export interface FoundryReadoutState {
   currentBlocker: string | null
   nextAction: string | null
   nextActionProvenance: string
-  evidenceState: 'none' | 'pending' | 'verified' | 'conflict'
+  evidenceState: 'none' | 'pending' | 'verified' | 'conflict' | 'stale' | 'unverified'
   lastTrustworthyUpdate: string | null
   provenance: string
 }
