@@ -92,6 +92,15 @@ export type TabId =
   | 'constraint-validator'
   | 'codex'
   | 'controls'
+  | 'consolidation'
+  | 'overview'
+  | 'protocols'
+  | 'sprint-linker'
+  | 'resumption-log'
+  | 'biometrics'
+  | 'constraint-validator'
+  | 'codex'
+  | 'controls'
 
 export interface UIPrefs {
   density: 'compact' | 'comfortable'
