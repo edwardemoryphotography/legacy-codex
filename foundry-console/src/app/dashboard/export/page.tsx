@@ -43,18 +43,20 @@ export default function ExportPage() {
 
     try {
       const supabase = createClient();
-      const [sprints, friction, milestones, manual, settings, events] = await Promise.all([
+      const [sprints, friction, milestones, manual, settings, events, routedRequests, evidenceItems] = await Promise.all([
         supabase.from("sprints").select("*").eq("workspace_id", workspace.id).order("created_at", { ascending: false }),
         supabase.from("friction_entries").select("*").eq("workspace_id", workspace.id).order("created_at", { ascending: false }),
         supabase.from("milestones").select("*").eq("workspace_id", workspace.id).order("target_date", { ascending: true }),
         supabase.from("manual").select("*").eq("workspace_id", workspace.id).order("title", { ascending: true }),
         supabase.from("settings").select("*").eq("workspace_id", workspace.id),
         supabase.from("events").select("*").eq("workspace_id", workspace.id).order("created_at", { ascending: false }),
+        supabase.from("routed_requests").select("*").eq("workspace_id", workspace.id).order("created_at", { ascending: false }),
+        supabase.from("evidence_items").select("*").eq("workspace_id", workspace.id).order("created_at", { ascending: false }),
       ]);
 
       if (!requestGate.isCurrent(token, workspace.id)) return;
       const exportedAt = new Date().toISOString();
-      const results = [sprints, friction, milestones, manual, settings, events];
+      const results = [sprints, friction, milestones, manual, settings, events, routedRequests, evidenceItems];
       const payload = buildExportPayload(workspace, exportedAt, results);
       const counts = Object.fromEntries(
         EXPORT_DATASETS.map((dataset) => [
@@ -106,8 +108,9 @@ export default function ExportPage() {
         </h3>
         <p className="mt-1.5 text-[13px] leading-relaxed text-zinc-500">
           One JSON file containing every sprint, friction entry, milestone,
-          manual page, settings row, and audit event in this workspace. Exactly what&apos;s in the database —
-          nothing generated, nothing added.
+          manual page, settings row, audit event, routed request, and
+          evidence item in this workspace. Exactly what&apos;s in the
+          database — nothing generated, nothing added.
         </p>
         <button
           onClick={handleExport}

@@ -5,3 +5,7 @@
 *.sql
 *.tar
 *.zip
+
+# Versioned schema files are source, not local state
+!migrations/*.sql
+!verification/*.sql
