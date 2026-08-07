@@ -19,7 +19,13 @@ export interface DerivedFoundryState {
   nextAction: string | null;
   /** Provenance of nextAction — 'inference' until evidence verifies it. */
   nextActionProvenance: Provenance;
-  evidenceState: "none" | "pending" | "verified" | "conflict";
+  evidenceState:
+    | "none"
+    | "pending"
+    | "verified"
+    | "conflict"
+    | "stale"
+    | "unverified";
   /** ISO timestamp of the newest event row, or null when no events exist. */
   lastTrustworthyUpdate: string | null;
   /** Provenance of the summary as a whole. */
@@ -73,6 +79,12 @@ function summarizeEvidence(
   if (items.length === 0) return "none";
   if (items.some((item) => item.status === "conflict")) return "conflict";
   if (items.some((item) => item.status === "verified")) return "verified";
+  // Both are checked-and-resolved outcomes, distinct from a never-observed
+  // 'pending' row: 'stale' means evidence existed and expired, 'unverified'
+  // means it was checked and did not confirm the claim. Collapsing either
+  // into 'pending' would tell consumers nothing was ever observed.
+  if (items.some((item) => item.status === "stale")) return "stale";
+  if (items.some((item) => item.status === "unverified")) return "unverified";
   return "pending";
 }
 
@@ -100,21 +112,41 @@ export function deriveFoundryState(
     (item) => item.routed_request_id === route.id
   );
   const evidenceState = summarizeEvidence(routeEvidence);
-  const verified = routeEvidence.find((item) => item.status === "verified");
+  // Gate on the summarized state, not the presence of any verified row: a
+  // route with both a verified item and a conflict item reports
+  // evidenceState 'conflict' (conflict wins), and nextAction must agree —
+  // clearing it here would tell the cognitive layer "conflict" and
+  // "verified, nothing to do" at the same time.
+  const verified = evidenceState === "verified";
+  const blockedByPolicy = route.status === "blocked_policy";
+
+  // Policy block is a prior gate to evidence verification, not a peer step:
+  // if the route itself is on hold pending owner confirmation, nextAction
+  // must say so instead of pointing consumers at the (irrelevant, until the
+  // block clears) evidence-verification path.
+  let nextAction: string | null;
+  if (blockedByPolicy) {
+    nextAction = `Resolve policy block before verification: owner confirmation required (${route.risk} risk, ${route.sensitivity} sensitivity)`;
+  } else if (verified) {
+    nextAction = null;
+  } else if (evidenceState === "stale") {
+    nextAction = `Re-verify (evidence expired): ${route.required_evidence}`;
+  } else if (evidenceState === "unverified") {
+    nextAction = `Re-check (evidence did not confirm): ${route.required_evidence}`;
+  } else {
+    nextAction = `Verify: ${route.required_evidence}`;
+  }
 
   return {
     whatMattersNow: route.intent,
     why: route.rationale,
-    currentBlocker:
-      route.status === "blocked_policy"
-        ? `Route blocked by policy (${route.risk} risk, ${route.sensitivity} sensitivity) — owner confirmation required`
-        : null,
-    // Until evidence verifies completion, the next action is verifying the
-    // declared evidence requirement — labeled as inference, never as fact.
-    nextAction: verified
-      ? null
-      : `Verify: ${route.required_evidence}`,
-    nextActionProvenance: verified ? "verified" : "inference",
+    currentBlocker: blockedByPolicy
+      ? `Route blocked by policy (${route.risk} risk, ${route.sensitivity} sensitivity) — owner confirmation required`
+      : null,
+    nextAction,
+    // Never a fact until evidence actually verifies the route, and a
+    // policy block is inherently an inferred next step too.
+    nextActionProvenance: verified && !blockedByPolicy ? "verified" : "inference",
     evidenceState,
     lastTrustworthyUpdate: latestEvent?.created_at ?? null,
     provenance: "runtime_evidence",

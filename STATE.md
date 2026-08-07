@@ -1,6 +1,6 @@
 # STATE.md — Edward Emory Photography / Artful Intelligence
 
-_Last updated: 2026-06-15_
+_Last updated: 2026-08-07_
 
 ---
 
@@ -11,6 +11,8 @@ _Last updated: 2026-06-15_
 - **Starforge** → working prompt → Claude API → live HTML preview loop
 - **MacBook file system** → dead Downloads symlink replaced; automated file organizer scripts verified
 - **Legacy Codex** → live at `legacy-codex.vercel.app`
+- **Legacy Codex hygiene pass (2026-08-04)** → lint warnings 32 → 0, dead code removed, Supabase client and tab components fully typed; lint + 24 tests + production build all green
+- **PR #47 (routing control plane) live-DB verification (2026-08-07)** → ran all 14 read-only checks from `supabase/verification/routing_control_plane_checks.sql` against `foundry-console` (`pkydkbuodikttfeawqsw`): RLS, anon-zero-privilege, delete guards, correction-chain integrity, idempotency-key uniqueness, and `persist_route_atomic` grants all verified as PR #47 intended. Found and fixed a real gap: the hardening migration's final `revoke insert/update on routed_requests, evidence_items from authenticated` + drop-dead-policies + `events_prevent_update` trigger had never taken effect, even though the rest of that migration had. Confirmed via app code (`foundry-console/src`) that nothing does a direct client insert/update on those tables, then applied a follow-up migration (`routing_control_plane_close_hardening_gap`) closing it. Re-ran checks 3/4/8 — all now match expected results exactly.
 
 ---
 

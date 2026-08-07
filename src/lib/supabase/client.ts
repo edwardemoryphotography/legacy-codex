@@ -6,7 +6,9 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'your-anon-
 // Safe client creation. If keys are placeholder or package has issues in static export,
 // we fall back to a no-op client so the rest of the app (Overview, Codex, Controls UI) still renders.
 // Real sync features only activate when real keys + auth are present.
-let supabase: any
+type BrowserClient = ReturnType<typeof createBrowserClient>
+
+let supabase: BrowserClient
 
 try {
   supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
@@ -25,7 +27,7 @@ try {
       upsert: async () => ({ error: null }),
       delete: () => ({ eq: () => ({ eq: async () => ({ error: null }) }) }),
     }),
-  }
+  } as unknown as BrowserClient
 }
 
 export { supabase }

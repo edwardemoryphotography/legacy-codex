@@ -7,6 +7,8 @@ export const EXPORT_DATASETS = [
   "manual",
   "settings",
   "events",
+  "routed_requests",
+  "evidence_items",
 ] as const;
 
 interface ExportWorkspace {
@@ -16,8 +18,19 @@ interface ExportWorkspace {
 
 interface ExportQueryResult {
   data: unknown[] | null;
-  error: { message: string } | null;
+  error: { message: string; code?: string } | null;
 }
+
+// Postgres/PostgREST code for "relation does not exist". Installs that
+// only ran SCHEMA.sql (README.md's documented setup) and never applied
+// the routing-control-plane migrations don't have these two tables yet --
+// treat that specific, identifiable error as "no rows" instead of failing
+// the whole export closed, the way any real query error still must.
+const UNDEFINED_TABLE = "42P01";
+const OPTIONAL_DATASETS: ReadonlySet<string> = new Set([
+  "routed_requests",
+  "evidence_items",
+]);
 
 export function buildExportPayload(
   workspace: ExportWorkspace,
@@ -28,12 +41,19 @@ export function buildExportPayload(
     throw new Error("Export did not fetch every required dataset.");
   }
 
-  const queryError = firstResultError(results);
+  const normalized = results.map((result, index) =>
+    result.error?.code === UNDEFINED_TABLE &&
+    OPTIONAL_DATASETS.has(EXPORT_DATASETS[index])
+      ? { data: [], error: null }
+      : result
+  );
+
+  const queryError = firstResultError(normalized);
   if (queryError) throw new Error(queryError.message);
 
   return EXPORT_DATASETS.reduce<Record<string, unknown>>(
     (payload, dataset, index) => {
-      payload[dataset] = results[index].data ?? [];
+      payload[dataset] = normalized[index].data ?? [];
       return payload;
     },
     { workspace, exported_at: exportedAt }

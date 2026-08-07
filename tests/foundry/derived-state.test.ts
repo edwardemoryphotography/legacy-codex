@@ -119,7 +119,7 @@ describe("deriveFoundryState — pending evidence gates the next action", () => 
     expect(state.nextActionProvenance).toBe("verified");
   });
 
-  it("surfaces conflicts over any other evidence state", () => {
+  it("surfaces conflicts over any other evidence state and does not clear the next action", () => {
     const state = deriveFoundryState(
       [request({})],
       [
@@ -129,6 +129,46 @@ describe("deriveFoundryState — pending evidence gates the next action", () => 
       []
     );
     expect(state.evidenceState).toBe("conflict");
+    // A conflicting item alongside a verified one must not tell the
+    // cognitive layer "conflict" and "verified, nothing left to do" at once.
+    expect(state.nextAction).not.toBeNull();
+    expect(state.nextActionProvenance).toBe("inference");
+  });
+
+  it("preserves 'stale' as distinct from never-observed 'pending'", () => {
+    const state = deriveFoundryState(
+      [request({})],
+      [
+        evidenceItem({
+          status: "stale",
+          source: "https://github.com/edwardemoryphotography/legacy-codex/pull/1",
+          observed_at: "2026-08-01T00:00:00.000Z",
+          provenance: "repository_evidence",
+        }),
+      ],
+      []
+    );
+    expect(state.evidenceState).toBe("stale");
+    expect(state.nextAction).toContain("Re-verify");
+    expect(state.nextActionProvenance).toBe("inference");
+  });
+
+  it("preserves 'unverified' as distinct from never-observed 'pending'", () => {
+    const state = deriveFoundryState(
+      [request({})],
+      [
+        evidenceItem({
+          status: "unverified",
+          source: "https://github.com/edwardemoryphotography/legacy-codex/pull/2",
+          observed_at: "2026-08-01T00:00:00.000Z",
+          provenance: "repository_evidence",
+        }),
+      ],
+      []
+    );
+    expect(state.evidenceState).toBe("unverified");
+    expect(state.nextAction).toContain("did not confirm");
+    expect(state.nextActionProvenance).toBe("inference");
   });
 });
 
@@ -175,5 +215,18 @@ describe("policy-blocked routes surface as the current blocker", () => {
     );
     expect(state.currentBlocker).toContain("high risk");
     expect(state.currentBlocker).toContain("private sensitivity");
+  });
+
+  it("does not tell consumers to verify evidence while the policy block is unresolved", () => {
+    const state = deriveFoundryState(
+      [request({ status: "blocked_policy", risk: "high", sensitivity: "private" })],
+      [evidenceItem({ status: "pending" })],
+      []
+    );
+    // A blocked route is a prior gate: nextAction must point at resolving
+    // the block, never at the (irrelevant until then) verification path.
+    expect(state.currentBlocker).not.toBeNull();
+    expect(state.nextAction).not.toContain("Verify:");
+    expect(state.nextAction).toContain("policy block");
   });
 });
