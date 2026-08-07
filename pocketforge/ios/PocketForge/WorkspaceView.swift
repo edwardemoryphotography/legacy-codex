@@ -77,6 +77,17 @@ struct WorkspaceView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                HStack(spacing: 10) {
+                    if let label = model.project?.providerLabel {
+                        Text(label)
+                            .font(.system(.caption2, design: .rounded).weight(.semibold))
+                            .foregroundStyle(Theme.accent)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Theme.accentSoft)
+                            .clipShape(Capsule())
+                            .accessibilityLabel("Model provider \(label)")
+                    }
                 Menu {
                     if let url = previewURL {
                         Link(destination: url) {
@@ -99,6 +110,7 @@ struct WorkspaceView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .foregroundStyle(Theme.accent)
+                }
                 }
             }
         }

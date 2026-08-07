@@ -12,7 +12,9 @@ import { Daytona, Sandbox } from "@daytonaio/sdk";
 
 const APP_PORT = 3000;
 const APP_DIR = "pocketforge-app";
-const MAX_OUTPUT_TOKENS = 64000;
+// Cap output so builds finish in a few minutes instead of hanging the UI
+// on a silent 64k adaptive-thinking generation.
+const MAX_OUTPUT_TOKENS = 16000;
 
 // Model IDs are overridable via Convex env vars so you can point each provider
 // at whatever your account has access to (e.g. `npx convex env set OPENAI_MODEL gpt-5.1`).
@@ -107,7 +109,6 @@ async function anthropicText(system: string, turns: Turn[], maxTokens: number): 
     const stream = anthropic.messages.stream({
       model: ANTHROPIC_MODEL,
       max_tokens: maxTokens,
-      thinking: { type: "adaptive" },
       system,
       messages: turns.map((t) => ({ role: t.role, content: t.content })),
     });
@@ -241,10 +242,27 @@ async function setStatus(
   });
 }
 
+function providersForPreference(preference: string | undefined): Provider[] {
+  const pref = (preference ?? "auto").toLowerCase();
+  const keyed = (envKey: string) => !!configuredApiKey(envKey);
+  if (pref === "anthropic") {
+    return PROVIDERS.filter((p) => p.envKey === "ANTHROPIC_API_KEY" && keyed(p.envKey));
+  }
+  if (pref === "openai") {
+    return PROVIDERS.filter((p) => p.envKey === "OPENAI_API_KEY" && keyed(p.envKey));
+  }
+  if (pref === "gemini") {
+    return PROVIDERS.filter((p) => p.envKey === "GEMINI_API_KEY" && keyed(p.envKey));
+  }
+  // auto — configured providers in priority order
+  return PROVIDERS.filter((p) => keyed(p.envKey));
+}
+
 async function generateFiles(
   ctx: ActionCtx,
   projectId: Id<"projects">,
   userPrompt: string,
+  preferredProvider?: string,
 ): Promise<{ files: Map<string, string>; summary: string; provider: string }> {
   const history = await ctx.runQuery(internal.messages.historyInternal, { projectId });
   const existingFiles = await ctx.runQuery(internal.files.listInternal, { projectId });
@@ -266,18 +284,15 @@ async function generateFiles(
   }
   turns.push({ role: "user", content: finalUserContent });
 
-  // Only attempt providers whose API key is configured, in priority order.
-  const available = PROVIDERS.filter((p) => !!configuredApiKey(p.envKey));
+  const available = providersForPreference(preferredProvider);
   if (available.length === 0) {
     throw new Error(
-      "No model provider configured. Set at least one real key via " +
-        "`npx convex env set ANTHROPIC_API_KEY <key>` (or OPENAI_API_KEY / GEMINI_API_KEY) " +
-        "on deployment scintillating-loris-226. Placeholder values like sk-ant-... are ignored.",
+      preferredProvider && preferredProvider !== "auto"
+        ? `Provider "${preferredProvider}" is not configured. Set its API key on Convex, or pick another provider.`
+        : "No model provider configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY on Convex.",
     );
   }
 
-  // Try each provider in turn; fall through to the next on any failure
-  // (usage cap, rate limit, transient error, or empty output).
   const failures: string[] = [];
   for (let i = 0; i < available.length; i++) {
     const provider = available[i];
@@ -286,6 +301,12 @@ async function generateFiles(
         ? `Designing your app with ${provider.name}…`
         : `${available[i - 1].name} unavailable — falling back to ${provider.name}…`;
     await setStatus(ctx, projectId, "building", label);
+    // Heartbeat so the phone isn't stuck on a silent spinner while the model runs.
+    await ctx.runMutation(internal.messages.add, {
+      projectId,
+      role: "status",
+      content: `${label} This can take 1–3 minutes.`,
+    });
 
     try {
       const text = await provider.run(SYSTEM_PROMPT, turns, MAX_OUTPUT_TOKENS);
@@ -395,8 +416,12 @@ export const build = action({
     });
 
     try {
-      // generateFiles drives its own per-provider status (and fallback notices).
-      const { files, summary, provider } = await generateFiles(ctx, args.projectId, args.prompt);
+      const { files, summary, provider } = await generateFiles(
+        ctx,
+        args.projectId,
+        args.prompt,
+        project.provider,
+      );
 
       for (const [path, content] of files) {
         await ctx.runMutation(internal.files.upsert, {
@@ -407,29 +432,47 @@ export const build = action({
       }
 
       await setStatus(ctx, args.projectId, "building", "Spinning up your sandbox…");
-      const sandbox = await ensureSandbox(ctx, args.projectId, project.sandboxId);
+      try {
+        const sandbox = await ensureSandbox(ctx, args.projectId, project.sandboxId);
 
-      await setStatus(ctx, args.projectId, "building", "Deploying to the sandbox…");
-      // Deploy the full current file set, not just the changed files, so a
-      // recreated sandbox always has everything.
-      const allFiles = await ctx.runQuery(internal.files.listInternal, {
-        projectId: args.projectId,
-      });
-      const deploySet = new Map(allFiles.map((f) => [f.path, f.content]));
-      const previewUrl = await deployFiles(sandbox, deploySet);
+        await setStatus(ctx, args.projectId, "building", "Deploying to the sandbox…");
+        const allFiles = await ctx.runQuery(internal.files.listInternal, {
+          projectId: args.projectId,
+        });
+        const deploySet = new Map(allFiles.map((f) => [f.path, f.content]));
+        const previewUrl = await deployFiles(sandbox, deploySet);
 
-      await ctx.runMutation(internal.projects.patch, {
-        projectId: args.projectId,
-        status: "live",
-        statusDetail: "Live",
-        previewUrl,
-      });
-      await ctx.runMutation(internal.messages.add, {
-        projectId: args.projectId,
-        role: "assistant",
-        content: `${summary}\n\n_Built with ${provider}._`,
-      });
-      return { previewUrl };
+        await ctx.runMutation(internal.projects.patch, {
+          projectId: args.projectId,
+          status: "live",
+          statusDetail: "Live",
+          previewUrl,
+        });
+        await ctx.runMutation(internal.messages.add, {
+          projectId: args.projectId,
+          role: "assistant",
+          content: `${summary}\n\n_Built with ${provider}._`,
+        });
+        return { previewUrl };
+      } catch (sandboxError) {
+        // Files are already saved — don't strand the user on a spinner when
+        // Daytona credits/org are the only failure.
+        const sandboxDetail =
+          sandboxError instanceof Error ? sandboxError.message : "Sandbox unavailable";
+        await ctx.runMutation(internal.projects.patch, {
+          projectId: args.projectId,
+          status: "live",
+          statusDetail: `Code ready · preview offline (${sandboxDetail})`,
+        });
+        await ctx.runMutation(internal.messages.add, {
+          projectId: args.projectId,
+          role: "assistant",
+          content:
+            `${summary}\n\n_Built with ${provider}._\n\n` +
+            `Preview sandbox failed: ${sandboxDetail}. Open the Code tab to inspect the app.`,
+        });
+        return { previewUrl: null };
+      }
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Unknown error";
       await ctx.runMutation(internal.projects.patch, {

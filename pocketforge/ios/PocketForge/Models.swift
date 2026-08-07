@@ -10,12 +10,13 @@ struct Project: Decodable, Identifiable, Equatable, Hashable {
     let sandboxId: String?
     let previewUrl: String?
     let icon: String?
+    let provider: String?
     let updatedAt: Double
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case creationTime = "_creationTime"
-        case name, prompt, status, statusDetail, sandboxId, previewUrl, icon, updatedAt
+        case name, prompt, status, statusDetail, sandboxId, previewUrl, icon, provider, updatedAt
     }
 
     var isBuilding: Bool { status == "building" }
@@ -23,6 +24,33 @@ struct Project: Decodable, Identifiable, Equatable, Hashable {
     var isError: Bool { status == "error" }
 
     var symbolName: String { icon ?? "sparkles" }
+
+    var providerLabel: String {
+        switch (provider ?? "auto").lowercased() {
+        case "anthropic": return "Claude"
+        case "openai": return "GPT"
+        case "gemini": return "Gemini"
+        default: return "Auto"
+        }
+    }
+}
+
+enum ModelProvider: String, CaseIterable, Identifiable {
+    case auto
+    case anthropic
+    case openai
+    case gemini
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .auto: "Auto"
+        case .anthropic: "Claude"
+        case .openai: "GPT"
+        case .gemini: "Gemini"
+        }
+    }
 }
 
 struct Message: Decodable, Identifiable, Equatable {

@@ -7,13 +7,21 @@ enum AppTab: String, CaseIterable, Identifiable, Codable {
     case csf
 
     var id: String { rawValue }
-    var title: String { rawValue.uppercased() }
+
+    var title: String {
+        switch self {
+        case .status: "Forge"
+        case .inbox: "Inbox"
+        case .lar: "LAR"
+        case .csf: "CSF"
+        }
+    }
 
     var symbol: String {
         switch self {
-        case .status: "scope"
+        case .status: "flame.fill"
         case .inbox: "tray"
-        case .lar: "bolt"
+        case .lar: "bolt.fill"
         case .csf: "brain.head.profile"
         }
     }

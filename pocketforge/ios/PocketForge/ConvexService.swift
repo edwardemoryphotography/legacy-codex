@@ -65,10 +65,15 @@ final class ConvexService: ObservableObject {
 
     /// Creates the project row and returns its id. The build itself is
     /// kicked off separately so the UI can navigate immediately.
-    func createProject(name: String, prompt: String, icon: String) async throws -> String {
+    func createProject(name: String, prompt: String, icon: String, provider: String = "auto") async throws -> String {
         try await client.mutation(
             "projects:create",
-            with: ["name": name, "prompt": prompt, "icon": icon]
+            with: [
+                "name": name,
+                "prompt": prompt,
+                "icon": icon,
+                "provider": provider,
+            ]
         )
     }
 

@@ -17,10 +17,14 @@ struct PocketForgeRootView: View {
                     tab(.lar) { LARView(store: store, router: router) }
                     tab(.csf) { CSFView(store: store, router: router) }
                 }
+                .toolbarBackground(Theme.surface.opacity(0.92), for: .tabBar)
+                .toolbarBackground(.visible, for: .tabBar)
                 .overlay(alignment: .bottomTrailing) {
-                    GlobalCaptureButton { router.sheet = .capture(.inbox) }
-                        .padding(.trailing, 18)
-                        .padding(.bottom, 70)
+                    if router.selectedTab != .status {
+                        GlobalCaptureButton { router.sheet = .capture(.inbox) }
+                            .padding(.trailing, 18)
+                            .padding(.bottom, 70)
+                    }
                 }
             } else {
                 OwnerSignInView(store: store)
@@ -67,8 +71,8 @@ private struct GlobalCaptureButton: View {
                 .font(.system(size: 20, weight: .bold))
                 .frame(width: 54, height: 54)
                 .foregroundStyle(Theme.background)
-                .background(Theme.accent, in: Circle())
-                .shadow(color: Theme.accent.opacity(0.28), radius: 18, y: 8)
+                .background(Theme.heroGradient, in: Circle())
+                .shadow(color: Theme.accent.opacity(0.4), radius: 18, y: 8)
         }
         .accessibilityLabel("Capture a thought")
         .accessibilityHint("Opens PocketForge capture from any tab")
