@@ -36,8 +36,10 @@ struct PocketForgeRootView: View {
                 CaptureSheet(store: store, router: router, initialIntention: intention)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
-            case .rek(let text):
-                REKSheet(store: store, input: text)
+            case .rek(let text, let captureID):
+                REKSheet(store: store, input: text, captureID: captureID) {
+                    router.selectedTab = .csf
+                }
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             case .foundry(let capture):
@@ -115,7 +117,7 @@ struct ServiceStateView: View {
                 Label("READY", systemImage: "checkmark.shield")
                     .technicalType(.caption, weight: .bold)
                     .foregroundStyle(Theme.success)
-                Text("Unlocked on this iPhone. Captures stay local until you link remote Codex.")
+                Text("Unlocked on this iPhone. Inbox, LAR, and CSF work locally — remote Codex is optional.")
                     .font(.footnote)
                     .foregroundStyle(Theme.textSecondary)
             }

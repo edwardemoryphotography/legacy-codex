@@ -4,13 +4,14 @@ import SwiftUI
 
 enum AppSheet: Identifiable, Hashable {
     case capture(CaptureIntention)
-    case rek(String)
+    /// `captureID` lets REK save/promote the challenged Inbox item as CSF evidence.
+    case rek(text: String, captureID: UUID? = nil)
     case foundry(CaptureRecord)
 
     var id: String {
         switch self {
         case .capture: "capture"
-        case .rek(let text): "rek:\(text.hashValue)"
+        case .rek(let text, let captureID): "rek:\(text.hashValue):\(captureID?.uuidString ?? "none")"
         case .foundry(let capture): "foundry:\(capture.id)"
         }
     }
