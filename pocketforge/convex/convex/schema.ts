@@ -40,4 +40,12 @@ export default defineSchema({
   })
     .index("by_project", ["projectId"])
     .index("by_project_path", ["projectId", "path"]),
+
+  // Best-effort abuse control for the public /ai/generate HTTP endpoint.
+  // One row per client key (usually IP) for a sliding fixed window.
+  rateLimits: defineTable({
+    key: v.string(),
+    windowStart: v.number(),
+    count: v.number(),
+  }).index("by_key", ["key"]),
 });
