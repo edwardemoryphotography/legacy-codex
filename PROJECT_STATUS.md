@@ -27,25 +27,23 @@ Turn Legacy Codex from a polished local dashboard into an **operational private 
 
 | PR | Lane | Branch | Author | Status | Mergeable | Dependencies |
 |---|---|---|---|---|---|---|
-| **#49** | B — Foundry UI | `cursor/autonomous-project-hygiene-foundry-ui-4e59` | Cursor/Codex | 🟡 OPEN | **CLEAN** | #47 ✅ |
-| **#37** | Mission Loop | `claude/superpowers-mission-loop-iuuozw` | Claude Code | 🟡 OPEN | UNSTABLE | None |
+| **#37** | Mission Loop | `claude/superpowers-mission-loop-iuuozw` | Claude Code | 🟡 DRAFT | UNSTABLE | Rework required |
 
-### PR #47 — ✅ MERGED (2026-08-07)
-- **Added** `routed_requests` + `evidence_items` tables
-- Append-only correction chain (`supersedes_request_id`)
-- RLS: owner-email-only, `anon` fully revoked
-- Migration **applied to production** (`pkydkbuodikttfeawqsw`)
-- Verification: 33/33 tests passing, tsc clean, build clean
-- **Live DB checks: DONE** — RLS verified working
+### PR #47 — ✅ MERGED + LIVE DB VERIFIED (2026-08-07)
+- `routed_requests` + `evidence_items`; append-only correction chain
+- Live checks + hardening gap closed on `pkydkbuodikttfeawqsw`
 
-### PR #49 — Foundry Routing UI (Ready to merge)
-- `/dashboard/routing` inbox + detail views
-- `deriveFoundryState()` cognitive summary (never stored)
-- Evidence states: pending / verified / unverified / conflict / stale
-- **Merge status:** Branch updated with main, pushed to GitHub — no conflicts
+### PR #49 — ✅ MERGED (2026-08-07)
+- `/dashboard/routing` Foundry UI on main
+
+### PR #55 — ✅ MERGED (2026-08-08)
+- Live `POST /ai/generate` for forged apps + provider extract
+- Soft-fail → `ready` (not fake Live); **per-IP rate limit** (30/10m)
+
+### PR #56 — ✅ MERGED (2026-08-08)
+- iOS Ready vs Live honesty + on-device `LocalFileWebView` preview
 
 ### PR #37 — Mission Loop
-- Data model, lifecycle logic, evidence bridge
 - **Blocked:** needs rework — tables would parallel `actions`/`events`/`evidence_items`
 
 ---
