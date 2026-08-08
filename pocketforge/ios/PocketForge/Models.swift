@@ -20,8 +20,26 @@ struct Project: Decodable, Identifiable, Equatable, Hashable {
     }
 
     var isBuilding: Bool { status == "building" }
-    var isLive: Bool { status == "live" }
+    /// Truly hosted — never treat code-only soft-fail as Live.
+    var isLive: Bool {
+        status == "live" && !(previewUrl?.isEmpty ?? true)
+    }
+    /// Files exist; cloud sandbox may be offline (on-device preview).
+    var isReady: Bool {
+        status == "ready" || (status == "live" && (previewUrl?.isEmpty ?? true))
+    }
     var isError: Bool { status == "error" }
+
+    /// Soft-fail path: model finished and files are saved, but Daytona
+    /// couldn't host a public preview (credits, org suspension, etc.).
+    var isPreviewOffline: Bool {
+        guard previewUrl == nil || previewUrl?.isEmpty == true else { return false }
+        if status == "ready" { return true }
+        let detail = (statusDetail ?? "").lowercased()
+        return detail.contains("preview offline")
+            || detail.contains("code ready")
+            || detail.contains("depleted")
+    }
 
     var symbolName: String { icon ?? "sparkles" }
 
