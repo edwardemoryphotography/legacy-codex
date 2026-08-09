@@ -49,19 +49,24 @@ async function pullRequestEvidence(repo) {
     let checksStatus = 'unverified'
     let checksClaim = 'No check-run data available.'
 
-    try {
-      const checks = await githubJSON(`https://api.github.com/repos/${repo}/commits/${pr.head.sha}/check-runs`)
-      const runs = checks.check_runs || []
-      if (runs.length) {
-        const allPassed = runs.every(r => ['success', 'neutral', 'skipped'].includes(r.conclusion))
-        checksStatus = allPassed ? 'verified' : 'conflict'
-        checksClaim = `${runs.length} check run(s), ${runs.filter(r => r.conclusion === 'success').length} passing.`
+    // checksStatus/checksClaim are only ever used below when merged is true
+    // — skip the extra API call entirely for open PRs to avoid burning
+    // rate limit on data that gets thrown away.
+    if (merged) {
+      try {
+        const checks = await githubJSON(`https://api.github.com/repos/${repo}/commits/${pr.head.sha}/check-runs`)
+        const runs = checks.check_runs || []
+        if (runs.length) {
+          const allPassed = runs.every(r => ['success', 'neutral', 'skipped'].includes(r.conclusion))
+          checksStatus = allPassed ? 'verified' : 'conflict'
+          checksClaim = `${runs.length} check run(s), ${runs.filter(r => r.conclusion === 'success').length} passing.`
+        }
+      } catch {
+        // A failed check-run lookup must not erase the PR's own merged
+        // status — fall back to 'stale' for the checks claim only.
+        checksStatus = 'stale'
+        checksClaim = 'Check-run data unavailable.'
       }
-    } catch {
-      // A failed check-run lookup must not erase the PR's own merged/open
-      // status — fall back to 'stale' for the checks claim only.
-      checksStatus = 'stale'
-      checksClaim = 'Check-run data unavailable.'
     }
 
     records.push({

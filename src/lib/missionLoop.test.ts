@@ -112,6 +112,14 @@ describe('mission capacity enforcement — one Primary, one Secondary', () => {
     const { error } = promoteToSecondary(board, 'm3', 'capacity_mismatch', T2)
     expect(error).toMatch(/already active/i)
   })
+
+  it('rejects promoting the active Primary to Secondary, which would leave the board with no Primary', () => {
+    let board = boardWithPrimary()
+    board = reportBlocker(board, 'm1', 'Waiting on API access', T1).board
+    const { error } = promoteToSecondary(board, 'm1', 'primary_blocked', T2)
+    expect(error).toMatch(/cannot be promoted to Secondary/i)
+    expect(findByState(board, 'primary')?.id).toBe('m1')
+  })
 })
 
 describe('blocked missions keep their role; unblock clears the flag', () => {
@@ -198,6 +206,21 @@ describe('priority challenge does not silently switch the Primary', () => {
     expect(next.missions.m2.state).toBe('primary')
     expect(next.missions.m1.state).toBe('parked')
     expect(event?.detail).toContain('Client deadline moved up')
+  })
+
+  it('lands a displaced, still-Blocked mission in the literal Blocked state, not Parked-with-a-dangling-blocker', () => {
+    let board = boardWithPrimaryAndCandidate()
+    board = reportBlocker(board, 'm1', 'Waiting on vendor', T1).board
+    const { challenge } = requestPriorityChallenge(board, {
+      candidateMissionId: 'm2',
+      displacedMissionId: 'm1',
+      what: 'Swap Primary to m2',
+      why: 'm1 has been stuck for a week',
+    })
+    const { board: next, error } = applyPriorityChallenge(board, challenge!, 'parked', T2)
+    expect(error).toBeNull()
+    expect(next.missions.m1.state).toBe('blocked')
+    expect(next.missions.m1.blocker).toBe('Waiting on vendor')
   })
 })
 
