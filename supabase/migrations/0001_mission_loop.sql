@@ -112,16 +112,39 @@ create table if not exists evidence_snapshots (
 
 alter table evidence_snapshots enable row level security;
 
+-- Least privilege: the bridge writes with service_role. The public anon role
+-- gets no table access. Signed-in clients can read eligible snapshots and can
+-- update only mission_id; evidence truth fields remain service-role owned.
+revoke all on table evidence_snapshots from anon, authenticated;
+grant select on table evidence_snapshots to authenticated;
+grant update (mission_id) on table evidence_snapshots to authenticated;
+
+-- Scoped to snapshots that are either unlinked (mission_id is null) or
+-- linked to a mission the caller owns. Anonymous Supabase sign-ins still use
+-- the authenticated database role and receive a real auth.uid(), so ownership
+-- remains user-scoped without exposing the table to the public anon role.
 drop policy if exists "evidence_snapshots authenticated read" on evidence_snapshots;
 create policy "evidence_snapshots authenticated read" on evidence_snapshots
-  for select using (auth.role() = 'authenticated');
+  for select
+  to authenticated
+  using (
+    mission_id is null or exists (
+      select 1 from missions
+      where missions.id = evidence_snapshots.mission_id
+      and missions.user_id = auth.uid()
+    )
+  );
 
 -- A client may only link an unlinked snapshot (mission_id is null) or one
 -- already linked to a mission it owns, and may only ever set mission_id to
--- null or to a mission it owns — never to someone else's mission.
+-- null or to a mission it owns — never to someone else's mission. Column-level
+-- UPDATE privilege above prevents the client from changing source/kind/status/
+-- claim/observation fields while performing that link.
 drop policy if exists "evidence_snapshots owner update" on evidence_snapshots;
 create policy "evidence_snapshots owner update" on evidence_snapshots
-  for update using (
+  for update
+  to authenticated
+  using (
     mission_id is null or exists (
       select 1 from missions
       where missions.id = evidence_snapshots.mission_id
