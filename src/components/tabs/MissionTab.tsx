@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
+import { useCapture } from '@/hooks/useCapture'
 import type { CapacityLevel, EvidenceRecord, Mission, MissionState } from '@/types'
 import {
   EMPTY_BOARD,
@@ -121,7 +122,9 @@ export default function MissionTab() {
   const [newTitle, setNewTitle] = useState('')
   const [newWhy, setNewWhy] = useState('')
 
-  // Capture Idea
+  // Capture Idea — shared pipeline with ControlsTab; Mission Screen never
+  // renders capture.inbox, only writes through it (spec: no full backlog here)
+  const capture = useCapture(user)
   const [captureText, setCaptureText] = useState('')
 
   // Blocker / finish-line / complete inline drafts, keyed by mission id
@@ -277,22 +280,12 @@ export default function MissionTab() {
     }
   }
 
-  async function handleCaptureIdea() {
+  function handleCaptureIdea() {
     const text = captureText.trim()
     if (!text || !user) return
-    try {
-      await supabase.from('nd_captures').insert({
-        id: newId(),
-        user_id: user.id,
-        text,
-        tags: ['mission-loop'],
-        created_at: new Date().toISOString(),
-      })
-      setCaptureText('')
-      flash('Captured — Parked in your inbox')
-    } catch {
-      setError('Capture failed to save. Nothing was lost locally, but it did not sync.')
-    }
+    capture.capture(text)
+    setCaptureText('')
+    flash('Captured — Parked in your inbox')
   }
 
   function requestChallenge() {

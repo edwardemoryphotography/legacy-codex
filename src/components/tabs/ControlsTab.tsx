@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { useLocalStorage } from '@/hooks/useLocalStorage'
+import { useCapture } from '@/hooks/useCapture'
 import type { UIPrefs, CaptureItem, BiometricMode } from '@/types'
 import { supabase } from '@/lib/supabase/client'
 import {
@@ -16,7 +17,6 @@ import {
 } from '@/components/ui'
 
 const PREFS_KEY = 'nd_ux_prefs_v1'
-const INBOX_KEY = 'nd_inbox_v1'
 const MODE_KEY = 'nd_manual_mode_v1'
 
 const DEFAULT_PREFS: UIPrefs = {
@@ -25,8 +25,6 @@ const DEFAULT_PREFS: UIPrefs = {
   highContrast: false,
   reducedMotion: false,
 }
-
-const DEFAULT_INBOX: CaptureItem[] = []
 
 const MODES: BiometricMode[] = ['deep_build', 'creative_edit', 'admin_light', 'recovery']
 
@@ -46,7 +44,6 @@ const MODE_RECS: Record<BiometricMode, string> = {
 
 export default function ControlsTab() {
   const [prefs, setPrefs] = useLocalStorage<UIPrefs>(PREFS_KEY, DEFAULT_PREFS)
-  const [inbox, setInbox] = useLocalStorage<CaptureItem[]>(INBOX_KEY, DEFAULT_INBOX)
   const [manualMode, setManualMode] = useLocalStorage<BiometricMode>(MODE_KEY, 'deep_build')
   const [captureText, setCaptureText] = useState('')
   const [bioSummary, setBioSummary] = useState<{ readiness: number; mode: BiometricMode; source: string } | null>(null)
@@ -57,7 +54,18 @@ export default function ControlsTab() {
   const [isSyncing, setIsSyncing] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [authStatus, setAuthStatus] = useState('')
-  const [syncedCaptureIds, setSyncedCaptureIds] = useState<Set<string>>(new Set())
+
+  // Shared capture pipeline (also used by MissionTab's write-only capture)
+  const {
+    inbox,
+    syncedCaptureIds,
+    loadCaptures,
+    capture: captureIdea,
+    removeItem: removeCaptureItem,
+    forceSyncItem: forceSyncCaptureItem,
+    exportInbox: exportCaptureInbox,
+    clearInbox: clearCaptureInbox,
+  } = useCapture(user)
 
   // Apply global CSS vars + data attrs for future tab integration (demo effect)
   useEffect(() => {
@@ -119,31 +127,16 @@ export default function ControlsTab() {
         setPrefs(prefsData.data as UIPrefs)
       }
 
-      // Load recent captures as inbox
-      const { data: capData } = await supabase
-        .from('nd_captures')
-        .select('id, text, created_at, tags')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(12)
-      if (capData && capData.length > 0) {
-        const items: CaptureItem[] = capData.map((d: { id: string; text: string; created_at: string; tags?: string[] }) => ({
-          id: d.id,
-          text: d.text,
-          timestamp: d.created_at,
-          suggested: (d.tags && d.tags[0]) || 'general',
-        }))
-        setInbox(items)
-        // mark all loaded as synced
-        setSyncedCaptureIds(new Set(items.map(i => i.id)))
-      }
+      // Load recent captures as inbox (shared pipeline)
+      await loadCaptures(userId)
+
       setStatus('Loaded from Supabase')
       setTimeout(() => setStatus(''), 800)
     } catch {
       setStatus('Supabase load failed (check RLS / user row)')
       setTimeout(() => setStatus(''), 1400)
     }
-  }, [setPrefs, setInbox])
+  }, [setPrefs, loadCaptures])
 
   // Auth + Supabase load on mount (hybrid: Supabase source of truth when available, LS fallback)
   useEffect(() => {
@@ -220,42 +213,6 @@ export default function ControlsTab() {
     }
   }
 
-  async function saveCaptureToSupabase(item: CaptureItem) {
-    if (!user?.id) return
-    try {
-      await supabase.from('nd_captures').insert({
-        id: item.id,
-        user_id: user.id,
-        text: item.text,
-        tags: [item.suggested || 'general'],
-        created_at: item.timestamp,
-      })
-      setSyncedCaptureIds(prev => {
-        const next = new Set(prev)
-        next.add(item.id)
-        return next
-      })
-      setStatus('Saved to Supabase')
-      setTimeout(() => setStatus(''), 600)
-    } catch {
-      // silent fallback
-      setStatus('Capture sync failed (RLS?)')
-      setTimeout(() => setStatus(''), 1200)
-    }
-  }
-
-  async function removeCaptureFromSupabase(id: string) {
-    if (!user?.id) return
-    try {
-      await supabase.from('nd_captures').delete().eq('id', id).eq('user_id', user.id)
-      setSyncedCaptureIds(prev => {
-        const next = new Set(prev)
-        next.delete(id)
-        return next
-      })
-    } catch {}
-  }
-
   // Force full sync: pull from Supabase then push local state (last-write wins for prefs, union for inbox)
   async function forceSync() {
     if (!user?.id) {
@@ -273,21 +230,8 @@ export default function ControlsTab() {
 
       // push any local-only captures (those not yet in synced set)
       const localOnly = inbox.filter(item => !syncedCaptureIds.has(item.id))
-      if (localOnly.length > 0) {
-        const rows = localOnly.map(item => ({
-          id: item.id,
-          user_id: user.id,
-          text: item.text,
-          tags: [item.suggested || 'general'],
-          created_at: item.timestamp,
-        }))
-        await supabase.from('nd_captures').upsert(rows, { onConflict: 'id' })
-        setSyncedCaptureIds(prev => {
-          const next = new Set(prev)
-          localOnly.forEach(i => next.add(i.id))
-          return next
-        })
-      }
+      localOnly.forEach(item => forceSyncCaptureItem(item))
+
       setStatus('Force sync complete')
     } catch {
       setStatus('Force sync error (see console / RLS policies)')
@@ -325,17 +269,9 @@ export default function ControlsTab() {
   function handleCapture() {
     const text = captureText.trim()
     if (!text) return
-    const item: CaptureItem = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2),
-      text,
-      timestamp: new Date().toISOString(),
-      suggested: text.toLowerCase().includes('client') || text.toLowerCase().includes('shoot') ? 'artistic' :
-                 text.toLowerCase().includes('code') || text.toLowerCase().includes('sprint') ? 'automation' : 'personalos',
-    }
-    setInbox(prev => [item, ...prev].slice(0, 12))
+    captureIdea(text)
     setCaptureText('')
     setStatus('Captured to inbox')
-    saveCaptureToSupabase(item)
     setTimeout(() => setStatus(''), 1200)
   }
 
@@ -347,9 +283,7 @@ export default function ControlsTab() {
   }
 
   function removeItem(id: string) {
-    setInbox(prev => prev.filter(i => i.id !== id))
-    setSyncedCaptureIds(prev => { const n = new Set(prev); n.delete(id); return n })
-    removeCaptureFromSupabase(id)
+    removeCaptureItem(id)
   }
 
   function logToResumptionStub(item: CaptureItem) {
@@ -361,21 +295,13 @@ export default function ControlsTab() {
   }
 
   function exportInbox() {
-    const data = JSON.stringify(inbox, null, 2)
-    const blob = new Blob([data], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `legacy-codex-inbox-${new Date().toISOString().slice(0,10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
+    exportCaptureInbox()
     setStatus('Inbox exported')
     setTimeout(() => setStatus(''), 1200)
   }
 
   function clearInbox() {
-    setInbox([])
-    setSyncedCaptureIds(new Set())
+    clearCaptureInbox()
     setStatus('Inbox cleared')
     setTimeout(() => setStatus(''), 900)
   }
@@ -386,7 +312,7 @@ export default function ControlsTab() {
       signInForSync()
       return
     }
-    saveCaptureToSupabase(item)
+    forceSyncCaptureItem(item)
   }
 
   return (
