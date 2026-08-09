@@ -1,0 +1,47 @@
+name: Evidence bridge
+
+# Mission Loop's evidence source. Polls GitHub PR/check state on a schedule
+# and commits public/notes/evidence-snapshot.json — the same
+# external-script-writes-a-JSON-file contract already used by the
+# biometrics bridge (see CLAUDE.md). Keeps Legacy Codex a static export:
+# no server route, no token exposed to the client.
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  update-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Pull evidence and write snapshot
+        env:
+          # Default GITHUB_TOKEN only reaches this repo. Set the
+          # EVIDENCE_BRIDGE_TOKEN secret to a PAT if EVIDENCE_REPOS should
+          # include other repos in the Codex ecosystem.
+          EVIDENCE_BRIDGE_TOKEN: ${{ secrets.EVIDENCE_BRIDGE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          EVIDENCE_REPOS: edwardemoryphotography/legacy-codex
+        run: node scripts/evidence-bridge.mjs
+
+      - name: Commit snapshot if changed
+        run: |
+          if git diff --quiet -- public/notes/evidence-snapshot.json; then
+            echo "No evidence changes."
+            exit 0
+          fi
+          git config user.name "evidence-bridge[bot]"
+          git config user.email "evidence-bridge@users.noreply.github.com"
+          git add public/notes/evidence-snapshot.json
+          git commit -m "chore: update evidence snapshot"
+          git push
