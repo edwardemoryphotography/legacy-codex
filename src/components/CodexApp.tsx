@@ -2,6 +2,7 @@
 
 import { useState, type KeyboardEvent } from 'react'
 import type { TabId } from '@/types'
+import MissionTab from './tabs/MissionTab'
 import OverviewTab from './tabs/OverviewTab'
 import ProtocolsTab from './tabs/ProtocolsTab'
 import SprintLinkerTab from './tabs/SprintLinkerTab'
@@ -18,6 +19,7 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
+  { id: 'mission',                label: 'Mission' },
   { id: 'overview',              label: 'Overview' },
   { id: 'protocols',             label: 'Protocols' },
   { id: 'sprint-linker',         label: 'Sprint Linker' },
@@ -30,7 +32,7 @@ const TABS: Tab[] = [
 ]
 
 export default function CodexApp() {
-  const [activeTab, setActiveTab] = useState<TabId>('overview')
+  const [activeTab, setActiveTab] = useState<TabId>('mission')
 
   const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     let nextIndex: number | null = null
@@ -135,6 +137,7 @@ export default function CodexApp() {
           aria-labelledby={`tab-${activeTab}`}
           tabIndex={0}
         >
+          {activeTab === 'mission'               && <MissionTab />}
           {activeTab === 'overview'             && <OverviewTab />}
           {activeTab === 'protocols'            && <ProtocolsTab />}
           {activeTab === 'sprint-linker'        && <SprintLinkerTab />}

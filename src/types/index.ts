@@ -84,6 +84,7 @@ export interface CodexSection {
 
 // ─── Tab IDs ──────────────────────────────────────────────────
 export type TabId =
+  | 'mission'
   | 'overview'
   | 'protocols'
   | 'sprint-linker'
@@ -93,14 +94,6 @@ export type TabId =
   | 'codex'
   | 'controls'
   | 'consolidation'
-  | 'overview'
-  | 'protocols'
-  | 'sprint-linker'
-  | 'resumption-log'
-  | 'biometrics'
-  | 'constraint-validator'
-  | 'codex'
-  | 'controls'
 
 export interface UIPrefs {
   density: 'compact' | 'comfortable'
