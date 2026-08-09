@@ -43,7 +43,7 @@ describe('captureIdea', () => {
 
 describe('promotion requires a finish line', () => {
   it('rejects promotion to Primary without a finish line', () => {
-    let board = captured(EMPTY_BOARD, 'm1', 'Ship the thing')
+    const board = captured(EMPTY_BOARD, 'm1', 'Ship the thing')
     const { error } = promoteToPrimary(board, 'm1', T1)
     expect(error).toMatch(/finish line/i)
   })
@@ -147,7 +147,7 @@ describe('blocked missions keep their role; unblock clears the flag', () => {
   })
 
   it('a blocked Candidate/Parked mission moves to the literal Blocked state, and unblocks to Parked', () => {
-    let board = captured(EMPTY_BOARD, 'm1', 'Idle idea')
+    const board = captured(EMPTY_BOARD, 'm1', 'Idle idea')
     const blocked = reportBlocker(board, 'm1', 'Needs a decision from Edward first', T1)
     expect(blocked.error).toBeNull()
     expect(blocked.board.missions.m1.state).toBe('blocked')
