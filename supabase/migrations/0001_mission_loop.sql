@@ -112,9 +112,20 @@ create table if not exists evidence_snapshots (
 
 alter table evidence_snapshots enable row level security;
 
+-- Scoped to snapshots that are either unlinked (mission_id is null) or
+-- linked to a mission the caller owns — matching the ownership scoping the
+-- update policy below already uses. A bare auth.role() = 'authenticated'
+-- check would let any signed-in session (including this app's anonymous
+-- sign-ins) read every user's evidence, not just their own.
 drop policy if exists "evidence_snapshots authenticated read" on evidence_snapshots;
 create policy "evidence_snapshots authenticated read" on evidence_snapshots
-  for select using (auth.role() = 'authenticated');
+  for select using (
+    mission_id is null or exists (
+      select 1 from missions
+      where missions.id = evidence_snapshots.mission_id
+      and missions.user_id = auth.uid()
+    )
+  );
 
 -- A client may only link an unlinked snapshot (mission_id is null) or one
 -- already linked to a mission it owns, and may only ever set mission_id to
