@@ -1,6 +1,33 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file provides guidance to Codex (Codex.ai/code), Claude Code, Cursor, Grok Build, and any other AI coding agent working with this repository.
+
+## Mandatory cognitive doctrine
+
+Before interpreting system-level intent, read the canonical Goose Cookbook:
+
+`EdwardEmoryPhotography/codex-system-architecture/notion-wiki/docs/GOOSE-COOKBOOK.md`
+
+Core rules even if the canonical file is temporarily unavailable:
+
+- **Don't preserve every experience. Preserve what the experience taught the system.**
+- **CATCH THE FUCKING BOOMERANG.** When different analogies, artifacts, corrections, implementations, or verified evidence keep returning to the same latent structure, infer the shared architecture instead of treating them as unrelated local topics.
+- **The build can become the explanation.** New implementation evidence may make a pre-existing end-state newly legible; do not automatically narrate that as a newly expanded vision.
+- **Make the idea representable across different kinds of minds.** Preserve meaning across human narrative, machine-readable structure, and executable software.
+- Before closing a task ask: **What did this interaction teach the system that the next instance should not have to rediscover?** If it matters, encode it durably.
+
+## Deployment / environment sanity gate
+
+Repeated Supabase/Vercel configuration rediscovery is a system failure. Before changing deployment code or secrets:
+
+1. Identify the exact target: local, preview, or production.
+2. Identify the exact repository, Vercel project, Supabase project, and expected environment-variable names.
+3. Compare expected names with what the code actually reads. **Never invent, casually rename, rotate, or paste secrets into code/chat.**
+4. Treat public client variables and server-only secrets as different trust boundaries.
+5. Verify that the deployment is pointing at the intended Supabase project before diagnosing schema/RLS failures.
+6. Distinguish **missing secret**, **wrong environment scope**, **wrong project target**, **stale deployment**, and **application bug** before changing anything.
+7. After any environment change, run a fresh deployment and verify the live/preview behavior directly. "Configured" is not "Verified" and "Verified" is not automatically "Live".
+8. Record any recurrent failure pattern as durable documentation or a test so the next agent does not rediscover it.
 
 ## Commands
 
