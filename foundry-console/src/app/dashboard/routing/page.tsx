@@ -27,6 +27,7 @@ import type { EvidenceItem, Event, RoutedRequest } from "@/lib/types";
 interface ActionLite {
   id: string;
   title?: string | null;
+  action_title?: string | null;
   finish_line?: string | null;
   status?: string | null;
   owner?: string | null;
@@ -278,6 +279,7 @@ function ActiveWorkCard({
   const title =
     action?.finish_line ??
     action?.title ??
+    action?.action_title ??
     (route.action_id ? `Linked action ${route.action_id}` : "No linked action");
 
   return (
