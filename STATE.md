@@ -6,7 +6,7 @@ This file used to keep its own independent copy of that same content. It drifted
 
 ## Repo-local notes
 
-- **FREEZE SPEC**: this repo's application source is frozen — no rewrite unless Eddie explicitly says "REWRITE THE APP CODE". Every existing copy of this rule (including this file's own prior version) cited the path `app/index.html`, which **does not exist** in this repo — it's a Next.js App Router app; the real entry point is `src/app/page.tsx` / `src/components/CodexApp.tsx`. Flagged during the 2026-08-10 standards audit rather than silently propagated. Until Eddie confirms the current frozen scope, treat the freeze as covering everything under `src/`.
+- **FREEZE SPEC**: don't rewrite `src/app/` (`page.tsx`, `layout.tsx`, `globals.css`, `api/`), `src/components/`, `src/lib/`, or `src/hooks/` unless Eddie explicitly says "REWRITE THE APP CODE". Docs, config, and coordination files (including this one) are not frozen. **Corrected 2026-08-10, Eddie-approved:** this rule previously cited `app/index.html`, which does not exist in this repo (Next.js App Router; real entry is `src/app/page.tsx`) — the freeze was guarding a phantom path while the actual app code sat unprotected. **Do not restore the old `app/index.html` wording.**
 - **LESSONS** — durable, *repo-specific* improvement notes (not cross-project — those go in the hub's `STATE.md`). Add an entry only when a lesson is likely to help a future session working in this repo specifically.
   _(none yet)_
 
