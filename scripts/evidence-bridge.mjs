@@ -1,40 +1,28 @@
 #!/usr/bin/env node
 // Evidence bridge: polls GitHub (PR + check-run state) for the configured
-// repos and upserts rows into the `evidence_snapshots` Supabase table (see
-// supabase/migrations/0001_mission_loop.sql) using the service-role key,
-// which bypasses RLS — this script is the table's only writer, matching the
-// migration's own "Populated by the scheduled evidence-bridge GitHub Action
-// ... using the service-role key" comment. MissionTab reads the table
-// directly; there is no intermediate JSON file.
+// repos and writes public/notes/evidence-snapshot.json in the shape defined
+// by src/lib/evidence.ts (EvidenceRecord). Mirrors the existing biometrics
+// bridge contract — this script has no opinion about which mission a record
+// belongs to; linking happens in the app, not here.
 //
 // Notion support is intentionally a no-op until NOTION_TOKEN is set as a
 // repo secret. No fabricated Notion evidence is ever written — this repo's
 // standing rule is real data or an explicit missing state, never a guess.
 
-import { createClient } from '@supabase/supabase-js'
+import { writeFile, mkdir } from 'node:fs/promises'
+import path from 'node:path'
 
 const GITHUB_TOKEN = process.env.EVIDENCE_BRIDGE_TOKEN || process.env.GITHUB_TOKEN
 const REPOS = (process.env.EVIDENCE_REPOS || 'edwardemoryphotography/legacy-codex')
   .split(',')
   .map(r => r.trim())
   .filter(Boolean)
-
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+const OUTPUT_PATH = path.join(process.cwd(), 'public', 'notes', 'evidence-snapshot.json')
 
 if (!GITHUB_TOKEN) {
-  console.error('No GitHub token available (EVIDENCE_BRIDGE_TOKEN or GITHUB_TOKEN). Refusing to write evidence with no data.')
+  console.error('No GitHub token available (EVIDENCE_BRIDGE_TOKEN or GITHUB_TOKEN). Refusing to write a snapshot with no data.')
   process.exit(1)
 }
-
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required (service-role key bypasses RLS to write evidence_snapshots).')
-  process.exit(1)
-}
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { persistSession: false },
-})
 
 async function githubJSON(url) {
   const res = await fetch(url, {
@@ -82,16 +70,16 @@ async function pullRequestEvidence(repo) {
     }
 
     records.push({
-      // Natural key: one row per PR, upserted in place on every run rather
-      // than accumulating a new row each schedule tick.
+      id: `github-pr-${repo}-${pr.number}`,
+      missionId: null,
       source: `github:${repo}#${pr.number}`,
       kind: merged ? 'merged_pr' : 'custom',
       status: merged ? checksStatus : 'unverified',
       claim: merged
         ? `PR #${pr.number} "${pr.title}" merged. ${checksClaim}`
         : `PR #${pr.number} "${pr.title}" open, not yet merged.`,
-      observed_at: pr.updated_at,
-      fetched_at: new Date().toISOString(),
+      observedAt: pr.updated_at,
+      fetchedAt: new Date().toISOString(),
     })
   }
 
@@ -115,20 +103,11 @@ async function main() {
     console.log('NOTION_TOKEN is set, but the Notion pull is not implemented yet — add it here, do not fake records.')
   }
 
-  if (!allRecords.length) {
-    console.log('No evidence records pulled this run — leaving evidence_snapshots untouched.')
-    return
-  }
+  const snapshot = { generatedAt: new Date().toISOString(), records: allRecords }
 
-  const { error } = await supabase
-    .from('evidence_snapshots')
-    .upsert(allRecords, { onConflict: 'source' })
-
-  if (error) {
-    throw error
-  }
-
-  console.log(`Upserted ${allRecords.length} evidence record(s) into evidence_snapshots.`)
+  await mkdir(path.dirname(OUTPUT_PATH), { recursive: true })
+  await writeFile(OUTPUT_PATH, `${JSON.stringify(snapshot, null, 2)}\n`)
+  console.log(`Wrote ${allRecords.length} evidence record(s) to ${OUTPUT_PATH}`)
 }
 
 main().catch(err => {

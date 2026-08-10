@@ -1,14 +1,17 @@
 name: Evidence bridge
 
 # Mission Loop's evidence source. Polls GitHub PR/check state on a schedule
-# and upserts rows directly into the `evidence_snapshots` Supabase table
-# using the service-role key (bypasses RLS — see
-# supabase/migrations/0001_mission_loop.sql). MissionTab reads that table
-# directly, so there is no intermediate file for this workflow to commit.
+# and commits public/notes/evidence-snapshot.json — the same
+# external-script-writes-a-JSON-file contract already used by the
+# biometrics bridge (see CLAUDE.md). Keeps Legacy Codex a static export:
+# no server route, no token exposed to the client.
 on:
   schedule:
     - cron: '0 */4 * * *'
   workflow_dispatch: {}
+
+permissions:
+  contents: write
 
 jobs:
   update-snapshot:
@@ -20,10 +23,7 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Pull evidence and upsert into Supabase
+      - name: Pull evidence and write snapshot
         env:
           # Default GITHUB_TOKEN only reaches this repo. Set the
           # EVIDENCE_BRIDGE_TOKEN secret to a PAT if EVIDENCE_REPOS should
@@ -32,6 +32,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           EVIDENCE_REPOS: edwardemoryphotography/legacy-codex
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node scripts/evidence-bridge.mjs
+
+      - name: Commit snapshot if changed
+        run: |
+          if git diff --quiet -- public/notes/evidence-snapshot.json; then
+            echo "No evidence changes."
+            exit 0
+          fi
+          git config user.name "evidence-bridge[bot]"
+          git config user.email "evidence-bridge@users.noreply.github.com"
+          git add public/notes/evidence-snapshot.json
+          git commit -m "chore: update evidence snapshot"
+          git push

@@ -63,6 +63,7 @@ export default function ControlsTab() {
     capture: captureIdea,
     removeItem: removeCaptureItem,
     forceSyncItem: forceSyncCaptureItem,
+    forceSyncItems: forceSyncCaptureItems,
     exportInbox: exportCaptureInbox,
     clearInbox: clearCaptureInbox,
   } = useCapture(user)
@@ -226,11 +227,14 @@ export default function ControlsTab() {
       await loadFromSupabase(user.id)
 
       // push current local prefs
-      await supabase.from('nd_prefs').upsert({ user_id: user.id, data: prefs })
+      const { error: prefsError } = await supabase
+        .from('nd_prefs')
+        .upsert({ user_id: user.id, data: prefs })
+      if (prefsError) throw prefsError
 
       // push any local-only captures (those not yet in synced set)
       const localOnly = inbox.filter(item => !syncedCaptureIds.has(item.id))
-      localOnly.forEach(item => forceSyncCaptureItem(item))
+      await forceSyncCaptureItems(localOnly)
 
       setStatus('Force sync complete')
     } catch {
@@ -307,12 +311,21 @@ export default function ControlsTab() {
   }
 
   // Per-item force sync helper
-  function forceSyncItem(item: CaptureItem) {
+  async function forceSyncItem(item: CaptureItem) {
     if (!user?.id) {
-      signInForSync()
+      await signInForSync()
       return
     }
-    forceSyncCaptureItem(item)
+    setIsSyncing(true)
+    try {
+      await forceSyncCaptureItem(item)
+      setStatus('Saved to Supabase')
+    } catch {
+      setStatus('Capture sync failed (RLS?)')
+    } finally {
+      setIsSyncing(false)
+      setTimeout(() => setStatus(''), 1200)
+    }
   }
 
   return (

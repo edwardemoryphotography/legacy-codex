@@ -66,26 +66,28 @@ export function useCapture(user: User | null) {
     }
   }, [setInbox])
 
-  const saveToSupabase = useCallback(async (item: CaptureItem) => {
-    if (!user?.id) return
-    try {
-      await supabase.from('nd_captures').insert({
-        id: item.id,
-        user_id: user.id,
-        text: item.text,
-        tags: [item.suggested || 'general'],
-        created_at: item.timestamp,
-      })
-      setSyncedCaptureIds(prev => {
-        const next = new Set(prev)
-        next.add(item.id)
-        return next
-      })
-      flash('Saved to Supabase')
-    } catch {
-      flash('Capture sync failed (RLS?)')
-    }
-  }, [user, flash])
+  const syncToSupabase = useCallback(async (items: CaptureItem[]) => {
+    if (!user?.id || items.length === 0) return
+
+    const rows = items.map(item => ({
+      id: item.id,
+      user_id: user.id,
+      text: item.text,
+      tags: [item.suggested || 'general'],
+      created_at: item.timestamp,
+    }))
+    const { error } = await supabase
+      .from('nd_captures')
+      .upsert(rows, { onConflict: 'id' })
+
+    if (error) throw error
+
+    setSyncedCaptureIds(prev => {
+      const next = new Set(prev)
+      items.forEach(item => next.add(item.id))
+      return next
+    })
+  }, [user])
 
   // A new idea always enters Parked by default (spec §6) — nd_captures'
   // own default state column already encodes that; this just writes text.
@@ -100,9 +102,13 @@ export function useCapture(user: User | null) {
     }
     setInbox(prev => [item, ...prev].slice(0, 12))
     flash('Captured to inbox')
-    saveToSupabase(item)
+    void syncToSupabase([item])
+      .then(() => {
+        if (user?.id) flash('Saved to Supabase')
+      })
+      .catch(() => flash('Capture sync failed (RLS?)'))
     return item
-  }, [setInbox, saveToSupabase, flash])
+  }, [setInbox, syncToSupabase, user, flash])
 
   const removeItem = useCallback(async (id: string) => {
     setInbox(prev => prev.filter(i => i.id !== id))
@@ -119,9 +125,13 @@ export function useCapture(user: User | null) {
     }
   }, [user, setInbox])
 
-  const forceSyncItem = useCallback((item: CaptureItem) => {
-    saveToSupabase(item)
-  }, [saveToSupabase])
+  const forceSyncItem = useCallback(async (item: CaptureItem) => {
+    await syncToSupabase([item])
+  }, [syncToSupabase])
+
+  const forceSyncItems = useCallback(async (items: CaptureItem[]) => {
+    await syncToSupabase(items)
+  }, [syncToSupabase])
 
   const exportInbox = useCallback(() => {
     const data = JSON.stringify(inbox, null, 2)
@@ -147,6 +157,7 @@ export function useCapture(user: User | null) {
     capture,
     removeItem,
     forceSyncItem,
+    forceSyncItems,
     exportInbox,
     clearInbox,
   }
