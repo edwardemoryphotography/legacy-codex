@@ -2,6 +2,10 @@
 
 This file provides guidance to Codex (Codex.ai/code), Claude Code, Cursor, Grok Build, and any other AI coding agent working with this repository.
 
+## Cross-repo engineering standards
+
+The Legacy Codex Standards Kit (product definition, task lifecycle, design tokens, intelligence governance, SHIPPED ladder) is governed from `codex-control-panel/standards/` (Standards Kit 2.1.0) — this repo is named in Master Charter §1 but does not implement most of it: no Liquid Intelligence design system (this app is dark-only, its own established design) and no AI task-routing/lifecycle surface (the one real AI integration is `/api/analyze`, already following §5.4's server-only-key rule). What does apply: §9 discovery-before-modification, and `standards/AGENT-BEHAVIOR.md`'s baseline conduct (think-before-coding, simplicity, surgical changes, verification) underneath the doctrine below — the doctrine and sanity gate here are repo-specific and take precedence over generic guidance where they overlap.
+
 ## Mandatory cognitive doctrine
 
 Before interpreting system-level intent, read the canonical Goose Cookbook:
@@ -28,6 +32,19 @@ Repeated Supabase/Vercel configuration rediscovery is a system failure. Before c
 6. Distinguish **missing secret**, **wrong environment scope**, **wrong project target**, **stale deployment**, and **application bug** before changing anything.
 7. After any environment change, run a fresh deployment and verify the live/preview behavior directly. "Configured" is not "Verified" and "Verified" is not automatically "Live".
 8. Record any recurrent failure pattern as durable documentation or a test so the next agent does not rediscover it.
+
+## Workspace coordination
+
+Read this file first, then `STATE.md` for the latest project status, then `TODOS.md` for the approved task queue. Coordination docs are docs/coordination only — they do not authorize application, external-system, or production-data changes.
+
+**Never touch legacy-codex application source without an explicit go-ahead.** See `STATE.md` § FROZEN.
+
+### RULES
+
+1. **Verify before claiming done.** Run or otherwise check your work; don't report success on an unverified change.
+2. **Keep `STATE.md` current.** Update its shipped / blocked / next lines after any session that changes them, per its own Update Protocol.
+3. **Record only durable lessons.** Append to `STATE.md` § LESSONS only when a repository-specific improvement is worth preserving.
+4. **Smallest safe patch, always.** Prefer the minimal change that satisfies the request over a broader rewrite.
 
 ## Commands
 
