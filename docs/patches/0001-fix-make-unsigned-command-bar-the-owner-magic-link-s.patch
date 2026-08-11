@@ -1,0 +1,360 @@
+From 823075f77b78fd26f7497547a1123d728b36d74e Mon Sep 17 00:00:00 2001
+From: Cursor Agent <cursoragent@cursor.com>
+Date: Tue, 11 Aug 2026 07:05:01 +0000
+Subject: [PATCH] fix: make unsigned command bar the owner magic-link sign-in
+
+Visitors were typing the owner email into the ask field and hitting a
+dead-end "Sign in as the owner" banner because sign-in was hidden behind
+the E avatar. The hero bar is now email + Send link when unsigned, and
+only becomes Ask once a session exists.
+
+Also replace the unregistered sb_publishable fallback with the working
+JWT anon key, and surface flock-ask's live NOT_FOUND as an honest
+undeployed-backend message.
+---
+ README.md                 |   5 +-
+ docs/FLOCK-HUB-RUNBOOK.md |  32 ++++++++
+ src/lib/flockAsk.ts       |   7 ++
+ src/lib/supabase.ts       |   7 +-
+ src/pages/Home.tsx        | 167 +++++++++++++++++++++++---------------
+ 5 files changed, 151 insertions(+), 67 deletions(-)
+
+diff --git a/README.md b/README.md
+index 80fc5ce..91ed107 100644
+--- a/README.md
++++ b/README.md
+@@ -19,10 +19,11 @@ Gemini-inspired, reading the live foundry-console routing control plane.
+ |---|---|---|
+ | `constellation_status()` | **Live** | Applied to foundry-console and returning real data (verified 2026-08-10, before this branch) |
+ | Hub UI, theme, ladder rendering | **Live** | Deployed and in use |
++| Owner magic-link sign-in (UI) | **Live** | Command bar is the unsigned sign-in surface; OTP accepted for the owner email (2026-08-11) |
+ | `ladder_rules` / `ladder_territories` | **Merged** | Migration authored; **not applied** to any project |
+ | `constellation_ladder()` | **Merged** | Migration authored; **not applied**. The client falls back to the v1 mirror and says so on screen |
+-| `flock-ask` Edge Function | **Merged** | Written; **not deployed**, no secrets set |
+-| Owner magic-link sign-in | **Merged** | Written; **not exercised** against real auth |
++| `flock-ask` Edge Function | **Merged** | Written; **not deployed** (live probe returns function NOT_FOUND), no secrets set |
++| Owner magic-link end-to-end | **Verified (partial)** | OTP endpoint accepts the owner email; redirect/session completion still needs a human click |
+ | Realtime subscriptions | **Merged** | Written; **never observed delivering a row** |
+ | typecheck / lint / test / build | **Verified** | All four green — see below |
+ 
+diff --git a/docs/FLOCK-HUB-RUNBOOK.md b/docs/FLOCK-HUB-RUNBOOK.md
+index f631e15..b210c68 100644
+--- a/docs/FLOCK-HUB-RUNBOOK.md
++++ b/docs/FLOCK-HUB-RUNBOOK.md
+@@ -135,6 +135,38 @@ can reach the project (see the checklist below).
+ 
+ ---
+ 
++## 8. The command bar *is* the sign-in surface when unsigned
++
++Unsigned visitors type their email into the hero command bar and hit Send —
++that is the natural affordance on mobile. Hiding magic-link sign-in behind a
++cryptic "E" avatar produced the exact failure mode: email in the ask field,
++then the red "Sign in as the owner to use the command bar." banner.
++
++Unsigned: the bar is `type="email"` + **Send link**. Signed-in: it becomes the
++ask field. Chips nudge toward sign-in instead of stuffing a question into a
++disabled ask path.
++
++## 9. The sb_publishable_* fallback was unregistered
++
++`sb_publishable_obr-7Y0u02p5c5pD-5f3Sw_zda5lWTa` returns HTTP 401
++"Unregistered API key" against `pkydkbuodikttfeawqsw` for both Auth and
++PostgREST. The working publishable credential is the project's legacy JWT anon
++key (already shipped in the Vercel bundle via `VITE_SUPABASE_PUBLISHABLE_KEY`).
++Do not reinstate the unregistered sb_publishable string as a source fallback.
++
++## 10. flock-ask is Merged, not Deployed
++
++```
++$ curl -sS -X POST "$SUPABASE_URL/functions/v1/flock-ask" ...
++{"code":"NOT_FOUND","message":"Requested function was not found"}
++```
++
++Even a perfect owner session cannot ask the flock until the Edge Function is
++deployed and its secrets are set (checklist step 4). The client now surfaces
++that 404 as an honest message instead of a generic failure.
++
++---
++
+ ## Deployment checklist (run from a machine that can reach Supabase)
+ 
+ Nothing below has been executed. Each step ends with the evidence that would
+diff --git a/src/lib/flockAsk.ts b/src/lib/flockAsk.ts
+index a5f7640..30470d4 100644
+--- a/src/lib/flockAsk.ts
++++ b/src/lib/flockAsk.ts
+@@ -72,6 +72,13 @@ export async function askFlock(question: string): Promise<FlockAskResult> {
+     return { ok: false, message: `flock-ask returned a non-JSON response (HTTP ${res.status}).` }
+   }
+   if (!res.ok) {
++    if (res.status === 404) {
++      return {
++        ok: false,
++        message:
++          'The command bar backend (flock-ask) is not deployed on this Supabase project yet. Ask still requires the Edge Function — see docs/FLOCK-HUB-RUNBOOK.md § deployment checklist.',
++      }
++    }
+     return { ok: false, message: String(payload.error ?? `flock-ask failed (HTTP ${res.status}).`) }
+   }
+   return { ok: true, data: payload as unknown as FlockAnswer }
+diff --git a/src/lib/supabase.ts b/src/lib/supabase.ts
+index cdc8685..82a2a49 100644
+--- a/src/lib/supabase.ts
++++ b/src/lib/supabase.ts
+@@ -18,7 +18,12 @@
+ import { createClient } from '@supabase/supabase-js'
+ 
+ const FALLBACK_URL = 'https://pkydkbuodikttfeawqsw.supabase.co'
+-const FALLBACK_PUBLISHABLE_KEY = 'sb_publishable_obr-7Y0u02p5c5pD-5f3Sw_zda5lWTa'
++// Legacy JWT anon key for foundry-console. The newer sb_publishable_* form
++ // checked into earlier drafts is not registered on this project and returns
++ // "Unregistered API key" for both Auth and PostgREST — do not reinstate it.
++ // Prefer VITE_SUPABASE_PUBLISHABLE_KEY in Vercel when rotating.
++const FALLBACK_PUBLISHABLE_KEY =
++  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBreWRrYnVvZGlrdHRmZWF3cXN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5NzE2NzUsImV4cCI6MjA4NzU0NzY3NX0.-80dVPQmGPRr8srvajxyaZRlcE6olLyyKZoKnMkecwU'
+ 
+ export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? FALLBACK_URL
+ export const SUPABASE_PUBLISHABLE_KEY =
+diff --git a/src/pages/Home.tsx b/src/pages/Home.tsx
+index ab561b2..cabd93a 100644
+--- a/src/pages/Home.tsx
++++ b/src/pages/Home.tsx
+@@ -133,10 +133,12 @@ export default function Home() {
+   const [routeState, setRouteState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+   const [routeError, setRouteError] = useState<string | null>(null)
+   const [email, setEmail] = useState('')
+-  const [showSignIn, setShowSignIn] = useState(false)
++  const [chipNudge, setChipNudge] = useState<string | null>(null)
+ 
+   const owner = useOwnerSession()
+   const constellation = useConstellation(Boolean(owner.session))
++  const signedIn = Boolean(owner.session)
++  const visibleNudge = signedIn ? null : chipNudge
+ 
+   useEffect(() => {
+     document.documentElement.dataset.theme = theme
+@@ -147,7 +149,7 @@ export default function Home() {
+ 
+   async function handleAsk() {
+     const question = query.trim()
+-    if (!question || asking) return
++    if (!question || asking || !signedIn) return
+     setAsking(true)
+     setAskError(null)
+     setAnswer(null)
+@@ -159,6 +161,21 @@ export default function Home() {
+     setAsking(false)
+   }
+ 
++  async function handleSignIn() {
++    setChipNudge(null)
++    setAskError(null)
++    await owner.sendMagicLink(email)
++  }
++
++  function handleChip(chip: string) {
++    if (!signedIn) {
++      setChipNudge('Sign in with the owner email above, then ask that.')
++      return
++    }
++    setQuery(chip)
++    setAskError(null)
++  }
++
+   async function handleConfirmRoute() {
+     if (!answer?.proposed_route) return
+     setRouteState('saving')
+@@ -244,66 +261,30 @@ export default function Home() {
+           </button>
+ 
+           <button
+-            onClick={() => (owner.session ? void owner.signOut() : setShowSignIn((v) => !v))}
+-            className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-white"
++            onClick={() => {
++              if (owner.session) void owner.signOut()
++              else {
++                // Focus the command-bar email field — that is the sign-in surface.
++                document.getElementById('flock-command-input')?.focus()
++                setChipNudge('Enter the owner email in the command bar to get a magic link.')
++              }
++            }}
++            className="flex h-9 items-center justify-center rounded-full px-3 text-sm font-semibold"
+             style={{
+               background: owner.session
+                 ? 'linear-gradient(135deg,#4796e3,#9177c7)'
+                 : 'var(--surface-2)',
+               color: owner.session ? '#fff' : 'var(--text-2)',
++              border: owner.session ? 'none' : '1px solid var(--line)',
+             }}
+             title={owner.session ? 'Signed in as owner — click to sign out' : 'Owner sign-in'}
+             aria-label={owner.session ? 'Sign out' : 'Owner sign in'}
+           >
+-            E
++            {owner.session ? 'E' : 'Sign in'}
+           </button>
+         </div>
+       </header>
+ 
+-      {/* Owner sign-in */}
+-      {showSignIn && !owner.session && (
+-        <div className="relative z-10 mx-auto mt-4 max-w-md px-6">
+-          <div
+-            className="rounded-3xl p-5"
+-            style={{ background: 'var(--surface)', boxShadow: 'var(--card-shadow)' }}
+-          >
+-            <p className="text-sm font-semibold tracking-tight">Owner sign-in</p>
+-            <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-2)' }}>
+-              A magic link unlocks the command bar and realtime updates. Read-only
+-              aggregates are public and need no session.
+-            </p>
+-            <div className="mt-3 flex gap-2">
+-              <input
+-                type="email"
+-                value={email}
+-                onChange={(e) => setEmail(e.target.value)}
+-                placeholder="owner@example.com"
+-                className="w-full rounded-full px-4 py-2 text-sm outline-none"
+-                style={{ background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--line)' }}
+-              />
+-              <button
+-                onClick={() => void owner.sendMagicLink(email)}
+-                disabled={owner.signInState.phase === 'sending'}
+-                className="shrink-0 rounded-full px-4 py-2 text-sm font-medium text-white"
+-                style={{ background: 'linear-gradient(90deg,#4796e3,#9177c7)' }}
+-              >
+-                {owner.signInState.phase === 'sending' ? 'Sending…' : 'Send link'}
+-              </button>
+-            </div>
+-            {owner.signInState.phase === 'sent' && (
+-              <p className="mt-2 text-xs" style={{ color: '#34a853' }}>
+-                Link sent to {owner.signInState.email}. Check your inbox.
+-              </p>
+-            )}
+-            {owner.signInState.phase === 'error' && (
+-              <p className="mt-2 text-xs" style={{ color: '#d96570' }}>
+-                {owner.signInState.message}
+-              </p>
+-            )}
+-          </div>
+-        </div>
+-      )}
+-
+       {/* Hero */}
+       <section className="relative z-10 mx-auto max-w-3xl px-6 pt-20 text-center sm:pt-24">
+         <div className="mb-6 flex justify-center">
+@@ -319,38 +300,96 @@ export default function Home() {
+           reading the live control plane as it moves.
+         </p>
+ 
+-        {/* Command bar */}
++        {/* Command bar — ask when signed in; magic-link sign-in when not.
++            Unsigned visitors were typing their email here and hitting Send,
++            then seeing "Sign in as the owner…" — so this IS the sign-in surface. */}
+         <div
+           className="command-bar mx-auto mt-10 flex items-center gap-3 rounded-[2rem] px-5 py-4"
+           style={{ background: 'var(--surface)', boxShadow: 'var(--card-shadow)' }}
+         >
+           <Sparkle size={20} className="shrink-0" />
+-          <input
+-            value={query}
+-            onChange={(e) => setQuery(e.target.value)}
+-            onKeyDown={(e) => {
+-              if (e.key === 'Enter') void handleAsk()
+-            }}
+-            placeholder={owner.session ? 'Ask the flock anything…' : 'Sign in as owner to ask the flock…'}
+-            className="w-full bg-transparent text-base outline-none"
+-            style={{ color: 'var(--text)' }}
+-          />
++          {signedIn ? (
++            <input
++              id="flock-command-input"
++              value={query}
++              onChange={(e) => setQuery(e.target.value)}
++              onKeyDown={(e) => {
++                if (e.key === 'Enter') void handleAsk()
++              }}
++              placeholder="Ask the flock anything…"
++              className="w-full bg-transparent text-base outline-none"
++              style={{ color: 'var(--text)' }}
++              autoComplete="off"
++            />
++          ) : (
++            <input
++              id="flock-command-input"
++              type="email"
++              inputMode="email"
++              autoComplete="email"
++              value={email}
++              onChange={(e) => {
++                setEmail(e.target.value)
++                if (owner.signInState.phase !== 'idle') owner.resetSignInState()
++              }}
++              onKeyDown={(e) => {
++                if (e.key === 'Enter') void handleSignIn()
++              }}
++              placeholder="Owner email — send a magic link to unlock the bar"
++              className="w-full bg-transparent text-base outline-none"
++              style={{ color: 'var(--text)' }}
++              aria-label="Owner email for magic-link sign-in"
++            />
++          )}
+           <button
+-            onClick={() => void handleAsk()}
+-            disabled={asking || !owner.session || !query.trim()}
++            onClick={() => void (signedIn ? handleAsk() : handleSignIn())}
++            disabled={
++              signedIn
++                ? asking || !query.trim()
++                : owner.signInState.phase === 'sending' || !email.trim()
++            }
+             className="shrink-0 rounded-full px-4 py-2 text-sm font-medium text-white transition-transform hover:scale-[1.03] disabled:opacity-50"
+             style={{ background: 'linear-gradient(90deg,#4796e3,#9177c7,#d96570)', backgroundSize: '200% auto' }}
+           >
+-            {asking ? 'Thinking…' : 'Send'}
++            {signedIn
++              ? asking
++                ? 'Thinking…'
++                : 'Send'
++              : owner.signInState.phase === 'sending'
++                ? 'Sending…'
++                : 'Send link'}
+           </button>
+         </div>
+ 
++        {!signedIn && (
++          <p className="mx-auto mt-3 max-w-md text-xs leading-relaxed" style={{ color: 'var(--text-3)' }}>
++            Read-only constellation data is public. The command bar needs an owner session —
++            enter the owner email above and open the magic link we send.
++          </p>
++        )}
++
++        {owner.signInState.phase === 'sent' && (
++          <p className="mx-auto mt-3 max-w-md text-sm" style={{ color: '#34a853' }}>
++            Magic link sent to {owner.signInState.email}. Open it on this device to unlock the command bar.
++          </p>
++        )}
++        {owner.signInState.phase === 'error' && (
++          <p className="mx-auto mt-3 max-w-md text-sm" style={{ color: '#d96570' }}>
++            {owner.signInState.message}
++          </p>
++        )}
++        {visibleNudge && (
++          <p className="mx-auto mt-3 max-w-md text-sm" style={{ color: 'var(--text-2)' }}>
++            {visibleNudge}
++          </p>
++        )}
++
+         {/* Chips — real prompt starters */}
+         <div className="mt-5 flex flex-wrap justify-center gap-2">
+           {CHIPS.map((chip) => (
+             <button
+               key={chip}
+-              onClick={() => setQuery(chip)}
++              onClick={() => handleChip(chip)}
+               className="chip rounded-full border px-3.5 py-1.5 text-xs font-medium"
+               style={{ borderColor: 'var(--line)', color: 'var(--text-2)', background: 'var(--surface-2)' }}
+             >
+-- 
+2.43.0
+
