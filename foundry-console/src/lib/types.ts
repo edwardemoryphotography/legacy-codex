@@ -67,3 +67,90 @@ export interface Event {
   metadata: Record<string, unknown> | null;
   created_at: string;
 }
+
+// ─── Routing control plane (supabase/migrations/20260804010000) ────────────
+
+export type ExecutionLane =
+  | "execution"
+  | "research"
+  | "architecture"
+  | "deployment"
+  | "documentation"
+  | "system_state"
+  | "override";
+
+export type RouteStatus =
+  | "proposed"
+  | "confirmed"
+  | "corrected"
+  | "superseded"
+  | "rejected"
+  | "blocked_policy";
+
+export type RouteSource = "model" | "doctrine_fallback" | "user";
+
+export type Provenance =
+  | "verified"
+  | "repository_evidence"
+  | "runtime_evidence"
+  | "user_confirmed"
+  | "inference"
+  | "concept"
+  | "unknown";
+
+export type RiskLevel = "low" | "medium" | "high" | "critical";
+
+export type Sensitivity = "public" | "internal" | "private" | "restricted";
+
+export interface RoutedRequest {
+  id: string;
+  workspace_id: string;
+  action_id: string | null;
+  supersedes_request_id: string | null;
+  intent: string;
+  task_type: string;
+  execution_lane: ExecutionLane;
+  selected_agent: string;
+  repository: string;
+  repository_path: string | null;
+  risk: RiskLevel;
+  sensitivity: Sensitivity;
+  required_evidence: string;
+  rationale: string;
+  confidence: number;
+  status: RouteStatus;
+  route_source: RouteSource;
+  provenance: Provenance;
+  created_at: string;
+  updated_at: string;
+}
+
+export type EvidenceKind =
+  | "merged_pr"
+  | "live_deployment"
+  | "published_artifact"
+  | "confirmed_action"
+  | "test_run"
+  | "custom";
+
+export type EvidenceStatus =
+  | "pending"
+  | "verified"
+  | "unverified"
+  | "conflict"
+  | "stale";
+
+export interface EvidenceItem {
+  id: string;
+  workspace_id: string;
+  routed_request_id: string | null;
+  action_id: string | null;
+  kind: EvidenceKind;
+  status: EvidenceStatus;
+  claim: string;
+  source: string | null;
+  observed_at: string | null;
+  provenance: Provenance;
+  created_at: string;
+  updated_at: string;
+}

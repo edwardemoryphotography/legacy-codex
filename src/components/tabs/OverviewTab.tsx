@@ -4,6 +4,7 @@ import { CANONICAL_PRINCIPLES, VALIDATION_METRICS } from '@/data/principles'
 import { useLocalStorage } from '@/hooks/useLocalStorage'
 import type { MetricValue } from '@/types'
 import { Badge, Card, SectionSubtitle, SectionTitle } from '@/components/ui'
+import FoundryOperationalReadout from '@/components/FoundryOperationalReadout'
 
 type MetricsState = Record<string, MetricValue>
 
@@ -48,6 +49,8 @@ export default function OverviewTab() {
           Canonical principles, local validation state, and the current posture of the Codex.
         </SectionSubtitle>
       </div>
+
+      <FoundryOperationalReadout />
 
       <Card highlight="teal" style={{ padding: '18px' }}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -189,12 +192,14 @@ function ToggleBtn({
     <button
       type="button"
       onClick={onClick}
+      className="interactive-control"
       style={{
         border: active ? `1px solid ${colors.active}` : '1px solid var(--line-strong)',
         background: active ? colors.activeBg : 'var(--surface-soft)',
         color: active ? colors.active : 'var(--text-soft)',
         borderRadius: 12,
-        padding: '8px 12px',
+        padding: '10px 12px',
+        minHeight: 44,
         minWidth: 84,
         fontSize: '0.82rem',
         fontWeight: 700,

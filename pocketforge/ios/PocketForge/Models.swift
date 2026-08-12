@@ -7,22 +7,68 @@ struct Project: Decodable, Identifiable, Equatable, Hashable {
     let prompt: String
     let status: String
     let statusDetail: String?
-    let sandboxId: String?
     let previewUrl: String?
     let icon: String?
+    let provider: String?
     let updatedAt: Double
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case creationTime = "_creationTime"
-        case name, prompt, status, statusDetail, sandboxId, previewUrl, icon, updatedAt
+        case name, prompt, status, statusDetail, previewUrl, icon, updatedAt
+        case name, prompt, status, statusDetail, sandboxId, previewUrl, icon, provider, updatedAt
     }
 
     var isBuilding: Bool { status == "building" }
-    var isLive: Bool { status == "live" }
+    /// Truly hosted — never treat code-only soft-fail as Live.
+    var isLive: Bool {
+        status == "live" && !(previewUrl?.isEmpty ?? true)
+    }
+    /// Files exist; cloud sandbox may be offline (on-device preview).
+    var isReady: Bool {
+        status == "ready" || (status == "live" && (previewUrl?.isEmpty ?? true))
+    }
     var isError: Bool { status == "error" }
 
+    /// Soft-fail path: model finished and files are saved, but Daytona
+    /// couldn't host a public preview (credits, org suspension, etc.).
+    var isPreviewOffline: Bool {
+        guard previewUrl == nil || previewUrl?.isEmpty == true else { return false }
+        if status == "ready" { return true }
+        let detail = (statusDetail ?? "").lowercased()
+        return detail.contains("preview offline")
+            || detail.contains("code ready")
+            || detail.contains("depleted")
+    }
+
     var symbolName: String { icon ?? "sparkles" }
+
+    var providerLabel: String {
+        switch (provider ?? "auto").lowercased() {
+        case "anthropic": return "Claude"
+        case "openai": return "GPT"
+        case "gemini": return "Gemini"
+        default: return "Auto"
+        }
+    }
+}
+
+enum ModelProvider: String, CaseIterable, Identifiable {
+    case auto
+    case anthropic
+    case openai
+    case gemini
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .auto: "Auto"
+        case .anthropic: "Claude"
+        case .openai: "GPT"
+        case .gemini: "Gemini"
+        }
+    }
 }
 
 struct Message: Decodable, Identifiable, Equatable {
@@ -40,14 +86,6 @@ struct Message: Decodable, Identifiable, Equatable {
 
     var isUser: Bool { role == "user" }
     var isStatus: Bool { role == "status" }
-}
-
-/// A dice-rolled app suggestion from the backend idea generator.
-struct AppIdea: Decodable, Identifiable, Equatable {
-    var id: String { title }
-    let title: String
-    let prompt: String
-    let icon: String
 }
 
 struct ProjectFile: Decodable, Identifiable, Equatable {

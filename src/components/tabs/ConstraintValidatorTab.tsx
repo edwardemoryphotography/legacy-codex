@@ -1,7 +1,8 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CONSTRAINT_TERMS, CANONICAL_PRINCIPLES } from '@/data/principles'
+import { supabase } from '@/lib/supabase/client'
 import {
   SectionTitle,
   SectionSubtitle,
@@ -20,14 +21,6 @@ interface EvalResult {
 
 function containsAny(text: string, terms: string[]): boolean {
   return terms.some(t => text.includes(t))
-}
-
-function matchedTerms(text: string, terms: string[]): string[] {
-  return terms.filter(term => text.includes(term))
-}
-
-function describeTerms(terms: string[]): string {
-  return terms.length ? terms.join(', ') : 'none'
 }
 
 function evaluate(task: string): EvalResult[] {
@@ -84,13 +77,10 @@ function evaluate(task: string): EvalResult[] {
   ]
 }
 
-const GEMINI_ENDPOINT =
-  process.env.NEXT_PUBLIC_GEMINI_API_KEY
-    ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_API_KEY}`
-    : null
-
-const MAX_FILE_BYTES = 20 * 1024 * 1024
-const ACCEPTED_FILE_TYPES = '.pdf,.doc,.docx,.txt,.md,.csv,.json,image/*,video/*'
+// Must stay in sync with MAX_TOTAL_BYTES in src/app/api/analyze/route.ts, which
+// is bounded by Vercel's 4.5 MB serverless request body limit.
+const MAX_TOTAL_BYTES = 4 * 1024 * 1024
+const ACCEPTED_FILE_TYPES = '.pdf,.txt,.md,.csv,.json,image/*'
 
 export default function ConstraintValidatorTab() {
   const [input, setInput] = useState('')
@@ -101,7 +91,15 @@ export default function ConstraintValidatorTab() {
   const [files, setFiles] = useState<File[]>([])
   const [analysisOutput, setAnalysisOutput] = useState('')
   const [analyzeStatus, setAnalyzeStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
+  const [analysisEnabled, setAnalysisEnabled] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    fetch('/api/analyze')
+      .then(res => res.json())
+      .then(data => setAnalysisEnabled(Boolean(data.configured)))
+      .catch(() => setAnalysisEnabled(false))
+  }, [])
 
   const validate = () => {
     const t = input.trim()
@@ -128,9 +126,8 @@ export default function ConstraintValidatorTab() {
   }
 
   const totalBytes = files.reduce((sum, file) => sum + file.size, 0)
-  const analysisEnabled = Boolean(GEMINI_ENDPOINT)
   const analysisHelperText = !analysisEnabled
-    ? 'Artifact analysis is disabled until NEXT_PUBLIC_GEMINI_API_KEY is set. Validation still works locally.'
+    ? 'Artifact analysis is disabled until ANTHROPIC_API_KEY is set on the server. Validation still works locally.'
     : files.length === 0
     ? 'No files selected yet. Upload one or more real artifacts to enable analysis.'
     : analyzeStatus === 'running'
@@ -143,14 +140,15 @@ export default function ConstraintValidatorTab() {
       setAnalyzeStatus('error')
       return
     }
-    if (!GEMINI_ENDPOINT) {
-      setAnalysisOutput('Set NEXT_PUBLIC_GEMINI_API_KEY to enable artifact analysis.')
+    if (!analysisEnabled) {
+      setAnalysisOutput('Set ANTHROPIC_API_KEY on the server to enable artifact analysis.')
       setAnalyzeStatus('error')
       return
     }
-    const oversized = files.find(f => f.size > MAX_FILE_BYTES)
-    if (oversized) {
-      setAnalysisOutput(`File too large: ${oversized.name}. Max 20 MB per file.`)
+    const totalBytes = files.reduce((sum, f) => sum + f.size, 0)
+    if (totalBytes > MAX_TOTAL_BYTES) {
+      const asMb = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+      setAnalysisOutput(`Attachments too large: ${asMb(totalBytes)} total. Max ${asMb(MAX_TOTAL_BYTES)} per request.`)
       setAnalyzeStatus('error')
       return
     }
@@ -158,28 +156,16 @@ export default function ConstraintValidatorTab() {
     setAnalysisOutput('Running analysis…')
 
     try {
-      const parts: unknown[] = [
-        {
-          text:
-            instruction.trim() ||
-            'Analyze the attached artifacts and return: 1) concise summary, 2) key signals, 3) risks, 4) action checklist, 5) next single step.',
-        },
-      ]
+      const formData = new FormData()
+      formData.set('instruction', instruction.trim())
       for (const file of files) {
-        parts.push(await fileToPart(file))
+        formData.append('files', file)
       }
-      const res = await fetch(GEMINI_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
-      })
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/analyze', { method: 'POST', body: formData, headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} })
       const data = await res.json()
-      if (!res.ok || data.error) throw new Error(data?.error?.message ?? `HTTP ${res.status}`)
-      const text = (data?.candidates?.[0]?.content?.parts ?? [])
-        .map((p: { text?: string }) => p.text ?? '')
-        .join('\n')
-        .trim()
-      setAnalysisOutput(text || 'No analysis text returned.')
+      if (!res.ok || data.error) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      setAnalysisOutput(data.text || 'No analysis text returned.')
       setAnalyzeStatus('done')
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -282,7 +268,7 @@ export default function ConstraintValidatorTab() {
           Artifact Analyzer
         </h3>
         <p className="text-sm mb-3" style={{ color: 'var(--text-soft)' }}>
-          Upload real files and generate a structured analysis via Gemini. The directive field is optional and becomes the prompt.
+          Upload real files and generate a structured analysis via Claude. The directive field is optional and becomes the prompt.
         </p>
 
         <div
@@ -293,9 +279,9 @@ export default function ConstraintValidatorTab() {
             Analysis guidance
           </div>
           <ul className="grid gap-1.5 text-sm" style={{ color: 'var(--text-soft)', lineHeight: 1.55 }}>
-            <li>{analysisEnabled ? 'Live Gemini analysis is enabled.' : 'Live analysis is disabled until NEXT_PUBLIC_GEMINI_API_KEY is set.'}</li>
-            <li>Accepted inputs: pdf, doc, docx, txt, md, csv, json, images, and video.</li>
-            <li>Max file size: 20 MB per file.</li>
+            <li>{analysisEnabled ? 'Live Claude analysis is enabled.' : 'Live analysis is disabled until ANTHROPIC_API_KEY is set on the server.'}</li>
+            <li>Accepted inputs: pdf, txt, md, csv, json, and images.</li>
+            <li>Max attachment size: 4.0 MB total per request.</li>
             <li>Validation stays local; analysis only runs when files and an API key are present.</li>
           </ul>
         </div>
@@ -395,43 +381,4 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-async function fileToPart(file: File): Promise<unknown> {
-  const mime = file.type || guessMime(file.name)
-  if (isTextLike(mime, file.name)) {
-    const text = await file.text()
-    return { text: `[FILE: ${file.name} | MIME: ${mime}]\n${text}` }
-  }
-  const base64 = await toBase64(file)
-  return { inlineData: { mimeType: mime, data: base64 } }
-}
-
-function guessMime(name: string): string {
-  const n = name.toLowerCase()
-  if (n.endsWith('.pdf')) return 'application/pdf'
-  if (n.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  if (n.endsWith('.txt')) return 'text/plain'
-  if (n.endsWith('.md')) return 'text/markdown'
-  if (n.endsWith('.csv')) return 'text/csv'
-  if (n.endsWith('.json')) return 'application/json'
-  return 'application/octet-stream'
-}
-
-function isTextLike(mime: string, name: string): boolean {
-  const n = name.toLowerCase()
-  return mime.startsWith('text/') || n.endsWith('.txt') || n.endsWith('.md') || n.endsWith('.csv') || n.endsWith('.json')
-}
-
-function toBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = e => {
-      const res = (e.target?.result as string) ?? ''
-      const comma = res.indexOf(',')
-      resolve(comma === -1 ? '' : res.slice(comma + 1))
-    }
-    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`))
-    reader.readAsDataURL(file)
-  })
 }

@@ -11,7 +11,3 @@ xcuserdata/
 *.xcuserstate
 DerivedData/
 .DS_Store
-
-# Xcode build output (derivedDataPath)
-ios/build/
-build/

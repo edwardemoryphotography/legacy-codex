@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import { getErrorMessage } from "@/lib/errors";
 
 const ALLOWED_EMAIL = "freddyv@duck.com";
 const MIN_PASSWORD_LENGTH = 12;
@@ -21,11 +22,24 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setSession(data.session);
-      setLoading(false);
-    });
+    void supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (!mounted) return;
+        if (error) {
+          setMessage("Unable to verify the saved session. Please sign in again.");
+          setSession(null);
+        } else {
+          setSession(data.session);
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setMessage("Unable to verify the saved session. Please try again.");
+        setSession(null);
+        setLoading(false);
+      });
 
     const {
       data: { subscription },
@@ -50,16 +64,21 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
 
     setBusy(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: ALLOWED_EMAIL,
-      password,
-    });
-    setBusy(false);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: ALLOWED_EMAIL,
+        password,
+      });
 
-    if (error) {
-      setMessage("The email or password is incorrect.");
-    } else {
-      setPassword("");
+      if (error) {
+        setMessage("The email or password is incorrect.");
+      } else {
+        setPassword("");
+      }
+    } catch {
+      setMessage("Unable to sign in right now. Please try again.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -78,29 +97,37 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
 
     setBusy(true);
-    const metadata = session?.user.user_metadata ?? {};
-    const { data, error } = await supabase.auth.updateUser({
-      password: newPassword,
-      data: { ...metadata, must_change_password: false },
-    });
-    setBusy(false);
+    try {
+      const metadata = session?.user.user_metadata ?? {};
+      const { data, error } = await supabase.auth.updateUser({
+        password: newPassword,
+        data: { ...metadata, must_change_password: false },
+      });
 
-    if (error) {
-      setMessage(error.message);
-      return;
+      if (error) throw error;
+      if (session && data.user) {
+        setSession({ ...session, user: data.user });
+      }
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setBusy(false);
     }
-
-    if (session && data.user) {
-      setSession({ ...session, user: data.user });
-    }
-    setNewPassword("");
-    setConfirmPassword("");
   }
 
   async function signOut() {
     setMessage(null);
-    const { error } = await supabase.auth.signOut();
-    if (error) setMessage(error.message);
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (loading) {
@@ -155,7 +182,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-lg bg-neutral-100 px-4 py-2 font-medium text-neutral-950 hover:bg-white disabled:opacity-50"
+            className="min-h-11 w-full rounded-lg bg-neutral-100 px-4 py-2.5 font-medium text-neutral-950 hover:bg-white disabled:opacity-50"
           >
             {busy ? "Saving…" : "Save password and continue"}
           </button>
@@ -187,7 +214,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                 autoComplete="username"
                 required
                 disabled={busy || Boolean(session)}
-                className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 outline-none focus:border-neutral-400"
+                className="mt-2 min-h-11 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2.5 outline-none focus:border-neutral-400"
               />
             </label>
             {!session ? (
@@ -200,7 +227,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                   autoComplete="current-password"
                   required
                   disabled={busy}
-                  className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 outline-none focus:border-neutral-400"
+                  className="mt-2 min-h-11 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2.5 outline-none focus:border-neutral-400"
                 />
               </label>
             ) : null}
@@ -208,7 +235,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
               <button
                 type="submit"
                 disabled={busy}
-                className="w-full rounded-lg bg-neutral-100 px-4 py-2 font-medium text-neutral-950 hover:bg-white disabled:opacity-50"
+                className="min-h-11 w-full rounded-lg bg-neutral-100 px-4 py-2.5 font-medium text-neutral-950 hover:bg-white disabled:opacity-50"
               >
                 {busy ? "Signing in…" : "Sign in"}
               </button>
@@ -223,6 +250,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
               <button
                 type="button"
                 onClick={signOut}
+                disabled={busy}
                 className="text-sm text-red-400 underline hover:text-red-300"
               >
                 Sign out

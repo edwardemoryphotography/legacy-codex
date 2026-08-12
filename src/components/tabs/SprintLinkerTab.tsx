@@ -17,10 +17,6 @@ type Result = {
   markdownPlan: string
 } | null
 
-function containsAny(text: string, terms: string[]): boolean {
-  return terms.some(term => text.includes(term))
-}
-
 function matchedTerms(text: string, terms: string[]): string[] {
   return terms.filter(term => text.includes(term))
 }

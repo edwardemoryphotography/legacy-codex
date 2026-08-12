@@ -1,14 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Rocket, Flame, Flag, ScrollText, ArrowRight } from "lucide-react";
+import { Rocket, Flame, Flag, ScrollText, ArrowRight, GitBranch } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/lib/workspace-context";
+import { useToast } from "@/components/toast";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { LoadError } from "@/components/load-error";
+import { CognitiveSummary } from "@/components/cognitive-summary";
 import { timeAgo, formatDate } from "@/lib/format";
-import type { Sprint, Milestone, Event } from "@/lib/types";
+import { firstResultError, getErrorMessage } from "@/lib/errors";
+import { useRequestGate } from "@/lib/use-request-gate";
+import { deriveFoundryState } from "@/lib/derived-state";
+import { classifyRoutingLoadError } from "@/lib/routing-load";
+import type {
+  Sprint,
+  Milestone,
+  Event,
+  RoutedRequest,
+  EvidenceItem,
+} from "@/lib/types";
+import type { DerivedFoundryState } from "@/lib/derived-state";
 
 interface OverviewData {
   sprintCount: number;
@@ -18,19 +32,26 @@ interface OverviewData {
   activeSprint: Sprint | null;
   nextMilestone: Milestone | null;
   recentEvents: Event[];
+  routingSummary: DerivedFoundryState | null;
+  routingMessage: string | null;
 }
 
 export default function OverviewPage() {
   const { current } = useWorkspace();
+  const { toast } = useToast();
+  const requestGate = useRequestGate(current?.id ?? null);
   const [data, setData] = useState<OverviewData | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!current) return;
-    setData(null);
-    const supabase = createClient();
+    const token = requestGate.begin();
     const wsId = current.id;
-
-    async function load() {
+    if (!requestGate.isScopeCurrent(wsId)) return;
+    setData(null);
+    setLoadError(null);
+    try {
+      const supabase = createClient();
       const [
         sprints,
         friction,
@@ -39,6 +60,8 @@ export default function OverviewPage() {
         activeSprint,
         nextMilestone,
         recentEvents,
+        routedRequests,
+        evidenceItems,
       ] = await Promise.all([
         supabase
           .from("sprints")
@@ -80,7 +103,44 @@ export default function OverviewPage() {
           .eq("workspace_id", wsId)
           .order("created_at", { ascending: false })
           .limit(6),
+        supabase
+          .from("routed_requests")
+          .select("*")
+          .eq("workspace_id", wsId)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("evidence_items")
+          .select("*")
+          .eq("workspace_id", wsId)
+          .order("created_at", { ascending: false }),
       ]);
+
+      if (!requestGate.isCurrent(token, wsId)) return;
+      const queryError = firstResultError([
+        sprints,
+        friction,
+        milestones,
+        events,
+        activeSprint,
+        nextMilestone,
+        recentEvents,
+      ]);
+      if (queryError) throw queryError;
+
+      let routingSummary: DerivedFoundryState | null = null;
+      let routingMessage: string | null = null;
+      if (routedRequests.error || evidenceItems.error) {
+        const classified = classifyRoutingLoadError(
+          routedRequests.error ?? evidenceItems.error,
+        );
+        routingMessage = classified.message;
+      } else {
+        routingSummary = deriveFoundryState(
+          (routedRequests.data ?? []) as RoutedRequest[],
+          (evidenceItems.data ?? []) as EvidenceItem[],
+          (recentEvents.data ?? []) as Event[],
+        );
+      }
 
       setData({
         sprintCount: sprints.count ?? 0,
@@ -90,10 +150,20 @@ export default function OverviewPage() {
         activeSprint: activeSprint.data,
         nextMilestone: nextMilestone.data,
         recentEvents: recentEvents.data ?? [],
+        routingSummary,
+        routingMessage,
       });
+    } catch (error) {
+      if (!requestGate.isCurrent(token, wsId)) return;
+      const message = getErrorMessage(error);
+      setLoadError(message);
+      toast(message, "error");
     }
-    load();
-  }, [current]);
+  }, [current, requestGate, toast]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   if (!current) return null;
 
@@ -104,7 +174,9 @@ export default function OverviewPage() {
         description={`Live snapshot of ${current.name}.`}
       />
 
-      {!data ? (
+      {loadError ? (
+        <LoadError message={loadError} onRetry={() => void load()} />
+      ) : !data ? (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div
@@ -115,6 +187,29 @@ export default function OverviewPage() {
         </div>
       ) : (
         <div className="animate-fade-up space-y-6">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wider text-zinc-500">
+                <GitBranch className="h-3.5 w-3.5" />
+                Routing control plane
+              </h3>
+              <Link
+                href="/dashboard/routing"
+                className="flex min-h-11 items-center gap-1 text-[12px] font-medium text-indigo-400 hover:text-indigo-300"
+              >
+                Open routing <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+            {data.routingSummary ? (
+              <CognitiveSummary state={data.routingSummary} />
+            ) : (
+              <div className="card p-4 text-[13px] text-zinc-400">
+                {data.routingMessage ??
+                  "Routing summary unavailable. No synthetic routes are shown."}
+              </div>
+            )}
+          </div>
+
           {/* Stat cards */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard

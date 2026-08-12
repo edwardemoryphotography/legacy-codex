@@ -7,14 +7,19 @@ export default defineSchema({
   projects: defineTable({
     name: v.string(),
     prompt: v.string(),
-    // draft | building | live | error
+    // draft | building | ready | live | error
+    // ready = files saved, no cloud previewUrl yet (on-device preview)
+    // live  = hosted previewUrl is available
     status: v.string(),
     // Short human-readable line shown under the status pill while building.
     statusDetail: v.optional(v.string()),
-    sandboxId: v.optional(v.string()),
+    // Name of the Vercel project that hosts this app's deployments.
+    hostProjectName: v.optional(v.string()),
     previewUrl: v.optional(v.string()),
     // SF Symbol name picked client-side for a bit of personality.
     icon: v.optional(v.string()),
+    // Preferred model provider for this project: anthropic | openai | gemini | auto
+    provider: v.optional(v.string()),
     updatedAt: v.number(),
   }),
 
@@ -36,4 +41,12 @@ export default defineSchema({
   })
     .index("by_project", ["projectId"])
     .index("by_project_path", ["projectId", "path"]),
+
+  // Best-effort abuse control for the public /ai/generate HTTP endpoint.
+  // One row per client key (usually IP) for a sliding fixed window.
+  rateLimits: defineTable({
+    key: v.string(),
+    windowStart: v.number(),
+    count: v.number(),
+  }).index("by_key", ["key"]),
 });

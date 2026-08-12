@@ -84,6 +84,7 @@ export interface CodexSection {
 
 // ─── Tab IDs ──────────────────────────────────────────────────
 export type TabId =
+  | 'mission'
   | 'overview'
   | 'protocols'
   | 'sprint-linker'
@@ -92,6 +93,7 @@ export type TabId =
   | 'constraint-validator'
   | 'codex'
   | 'controls'
+  | 'consolidation'
 
 export interface UIPrefs {
   density: 'compact' | 'comfortable'
@@ -105,4 +107,76 @@ export interface CaptureItem {
   text: string
   timestamp: string
   suggested?: string
+}
+
+// ─── Mission Loop ─────────────────────────────────────────────
+export type MissionState =
+  | 'candidate'
+  | 'parked'
+  | 'primary'
+  | 'secondary'
+  | 'blocked'
+  | 'completed'
+  | 'paused'
+  | 'abandoned'
+
+// Self-reported only — never inferred from biometrics or behavior (spec §5).
+export type CapacityLevel = 'low' | 'medium' | 'high'
+
+export interface Mission {
+  id: string
+  title: string
+  why: string
+  finishLine: string | null
+  evidenceRequirement: string | null
+  state: MissionState
+  blocker: string | null
+  // True once Edward has explicitly reported the Primary doesn't fit his
+  // current capacity — the only non-blocked path that makes Secondary
+  // actionable (spec §5).
+  capacityMismatch: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type MissionEventType =
+  | 'captured'
+  | 'finish_line_set'
+  | 'promoted_primary'
+  | 'promoted_secondary'
+  | 'blocked'
+  | 'unblocked'
+  | 'capacity_mismatch_reported'
+  | 'priority_challenge_requested'
+  | 'priority_challenge_applied'
+  | 'completed'
+  | 'paused'
+  | 'abandoned'
+
+export interface MissionEvent {
+  id: string
+  missionId: string
+  type: MissionEventType
+  detail: string
+  createdAt: string
+}
+
+export type EvidenceKind =
+  | 'merged_pr'
+  | 'live_deployment'
+  | 'published_artifact'
+  | 'confirmed_action'
+  | 'custom'
+
+export type EvidenceStatus = 'verified' | 'unverified' | 'conflict' | 'stale'
+
+export interface EvidenceRecord {
+  id: string
+  missionId: string | null
+  source: string
+  kind: EvidenceKind
+  status: EvidenceStatus
+  claim: string
+  observedAt: string
+  fetchedAt: string
 }
