@@ -2,7 +2,7 @@
 // Lightweight ranking without external deps or embeddings
 // Scores: title exact > title partial > content word overlap
 
-import type { CodexEntry, CodexSection, SectionKey } from '@/types'
+import type { CodexEntry, CodexSection } from '@/types'
 import { flattenEntries } from '@/data/codex'
 
 export interface ScoredEntry {
@@ -67,11 +67,3 @@ export function rankEntries(
   })
 }
 
-export function groupBySection(scored: ScoredEntry[]): Array<{ section: CodexSection; entries: ScoredEntry[] }> {
-  const map = new Map<SectionKey, ScoredEntry[]>()
-  // Note: SectionKey not imported here to keep POC minimal; in real use import from types
-  for (const item of scored) {
-    // For POC, we just return flat; real impl would group
-  }
-  return []
-}

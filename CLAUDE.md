@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -71,8 +73,17 @@ This is the single type source for the whole project. Key exports: `TabId` (unio
 
 `CodexTab` and `ControlsTab` use it for anonymous auth (`signInAnonymously`) plus reads/writes to `nd_codex_bookmarks`, `nd_prefs`, and `nd_captures`. If the client fails to construct (e.g. due to initialization or environment issues), it falls back to a no-op stub. Note that placeholder keys do not prevent construction — `createBrowserClient` succeeds even with the placeholder fallback values — so runtime calls against a misconfigured project fail gracefully via component-level error handling instead.
 
+Server-side, `/api/analyze` verifies the caller's JWT with `@supabase/server/core`'s `verifyAuth(req, { auth: 'user' })` — cryptographic verification against the project's JWKS instead of a round-trip to the Auth API. This reads `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_JWKS_URL` (all non-secret; see `.env.local.example`) — the same `pkydkbuodikttfeawqsw` project as the browser client above, just server-only env var names (no `NEXT_PUBLIC_` prefix) so `@supabase/server`'s auto-detected env resolution picks them up. No route currently needs `createAdminClient`/`auth: 'secret'`, so `SUPABASE_SECRET_KEY` is intentionally unset — add it only when a route needs to bypass RLS.
+
 ### Deployment
 
-All routes are prerendered as static content (`○` in build output). The layout sets `robots: noindex, nofollow` — this is a private operational dashboard. It deploys correctly to Vercel, Netlify, or any static host without additional configuration. There is no custom API route or server action — but note the client-side Supabase dependency above; the app is not fully offline/static once real Supabase keys are configured.
+The layout sets `robots: noindex, nofollow` — this is a private operational dashboard. Most routes are prerendered as static content (`○` in build output), but the app is **not** a pure static export: `next.config.mjs` no longer sets `output: 'export'`, because `/api/analyze` (see below) is a real server-side Route Handler that must run as a Vercel Function. Deploying to a static host (Netlify, GitHub Pages, etc.) would silently drop that route — Vercel (or another Next.js-aware host that provisions serverless functions) is required. This is in addition to the client-side Supabase dependency noted above.
 
-No Gemini API integration currently exists in the codebase. The natural integration point would be a bridge script (outside this repo) that calls the Gemini API and writes the result to `public/notes/biometric-trends.json` or a similar file consumed by a tab component.
+### Claude integration (`/api/analyze`)
+
+`src/app/api/analyze/route.ts` is a Next.js Route Handler that proxies artifact analysis requests to the Claude API using `@anthropic-ai/sdk`. `ANTHROPIC_API_KEY` is read server-side only (`process.env.ANTHROPIC_API_KEY`, no `NEXT_PUBLIC_` prefix) and is never sent to the browser — this is deliberate: unlike some other providers, Anthropic's API refuses direct browser calls by default because a client-exposed key lets anyone burn arbitrary spend on the account, and this app has no login (only `noindex`).
+
+- `GET /api/analyze` returns `{ configured: boolean }` so the client can show/hide the analysis UI without ever seeing the key itself.
+- `POST /api/analyze` accepts `multipart/form-data` (`instruction` + one or more `files`), converts each file to an Anthropic content block (PDF → `document`, images → `image`, text/md/csv/json → inline `text`), and calls `client.messages.create` with `model: "claude-opus-5"`. Unsupported file types (e.g. `.docx`, video) are rejected with a 400 — Claude's Messages API doesn't accept them the way Gemini's `inlineData` did, so `ConstraintValidatorTab`'s accepted-file list was narrowed accordingly.
+
+`ConstraintValidatorTab.tsx` is the only consumer: it checks `/api/analyze` (GET) on mount to enable/disable the Analyze button, then POSTs the selected files as `FormData` on submit.

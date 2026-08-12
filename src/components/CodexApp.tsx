@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type KeyboardEvent } from 'react'
 import type { TabId } from '@/types'
+import MissionTab from './tabs/MissionTab'
 import OverviewTab from './tabs/OverviewTab'
 import ProtocolsTab from './tabs/ProtocolsTab'
 import SprintLinkerTab from './tabs/SprintLinkerTab'
@@ -10,6 +11,7 @@ import BiometricsTab from './tabs/BiometricsTab'
 import ConstraintValidatorTab from './tabs/ConstraintValidatorTab'
 import CodexTab from './tabs/CodexTab'
 import ControlsTab from './tabs/ControlsTab'
+import ConsolidationTab from './tabs/ConsolidationTab'
 
 interface Tab {
   id: TabId
@@ -17,6 +19,7 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
+  { id: 'mission',                label: 'Mission' },
   { id: 'overview',              label: 'Overview' },
   { id: 'protocols',             label: 'Protocols' },
   { id: 'sprint-linker',         label: 'Sprint Linker' },
@@ -25,23 +28,38 @@ const TABS: Tab[] = [
   { id: 'constraint-validator',  label: 'Constraint Validator' },
   { id: 'codex',                 label: 'Codex' },
   { id: 'controls',             label: 'Controls' },
+  { id: 'consolidation',        label: 'Consolidation' },
 ]
 
 export default function CodexApp() {
-  const [activeTab, setActiveTab] = useState<TabId>('overview')
+  const [activeTab, setActiveTab] = useState<TabId>('mission')
+
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let nextIndex: number | null = null
+
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      nextIndex = (index + 1) % TABS.length
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      nextIndex = (index - 1 + TABS.length) % TABS.length
+    } else if (event.key === 'Home') {
+      nextIndex = 0
+    } else if (event.key === 'End') {
+      nextIndex = TABS.length - 1
+    }
+
+    if (nextIndex === null) return
+
+    event.preventDefault()
+    const nextTab = TABS[nextIndex]
+    setActiveTab(nextTab.id)
+    document.getElementById(`tab-${nextTab.id}`)?.focus()
+  }
 
   return (
-    <div
-      style={{
-        width: 'min(1120px, 100%)',
-        margin: '0 auto',
-        padding: '16px',
-        paddingBottom: 'calc(98px + var(--safe-bottom))',
-      }}
-    >
+    <div className="codex-shell">
       {/* Desktop label */}
       <p className="hidden lg:block mb-4 text-tx-soft text-sm">
-        Legacy Codex operational dashboard. Single-file mode active.
+        Personal cognitive operating system.
       </p>
 
       {/* Header */}
@@ -57,7 +75,7 @@ export default function CodexApp() {
             color: 'var(--teal)',
           }}
         >
-          v27 — OPERATIONAL
+          v38 — OPERATIONAL
         </span>
       </div>
 
@@ -80,31 +98,23 @@ export default function CodexApp() {
 
       {/* Tab bar */}
       <nav
-        className="fixed lg:sticky bottom-0 lg:top-0 left-0 right-0 z-50 grid gap-1 mb-4"
-        style={{
-          gridTemplateColumns: `repeat(${TABS.length}, minmax(0, 1fr))`,
-          background: 'rgba(10, 10, 15, 0.96)',
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
-          borderTop: '1px solid var(--line-strong)',
-          padding: '8px',
-          paddingBottom: 'calc(8px + var(--safe-bottom))',
-        }}
+        className="codex-tablist"
         role="tablist"
         aria-label="Legacy Codex navigation"
       >
-        {TABS.map(tab => (
+        {TABS.map((tab, index) => (
           <button
             key={tab.id}
+            id={`tab-${tab.id}`}
             type="button"
             role="tab"
             aria-selected={activeTab === tab.id}
+            aria-controls={`panel-${tab.id}`}
+            tabIndex={activeTab === tab.id ? 0 : -1}
             onClick={() => setActiveTab(tab.id)}
-            className="rounded-lg text-xs font-semibold leading-tight transition-all duration-150"
+            onKeyDown={event => handleTabKeyDown(event, index)}
+            className="codex-tab interactive-control"
             style={{
-              minHeight: '52px',
-              padding: '8px 6px',
-              cursor: 'pointer',
               border: activeTab === tab.id
                 ? '1px solid var(--teal)'
                 : '1px solid transparent',
@@ -119,7 +129,15 @@ export default function CodexApp() {
 
       {/* Tab panels */}
       <main>
-        <div className="panel-enter" key={activeTab}>
+        <div
+          className="panel-enter"
+          key={activeTab}
+          id={`panel-${activeTab}`}
+          role="tabpanel"
+          aria-labelledby={`tab-${activeTab}`}
+          tabIndex={0}
+        >
+          {activeTab === 'mission'               && <MissionTab />}
           {activeTab === 'overview'             && <OverviewTab />}
           {activeTab === 'protocols'            && <ProtocolsTab />}
           {activeTab === 'sprint-linker'        && <SprintLinkerTab />}
@@ -128,11 +146,12 @@ export default function CodexApp() {
           {activeTab === 'constraint-validator' && <ConstraintValidatorTab />}
           {activeTab === 'codex'                && <CodexTab />}
           {activeTab === 'controls'             && <ControlsTab />}
+          {activeTab === 'consolidation'        && <ConsolidationTab />}
         </div>
       </main>
 
       <footer className="mt-10 pt-3 text-tx-dim text-xs" style={{ borderTop: '1px solid var(--line)' }}>
-        Legacy Codex v27 | Reality Filter Active | No mock data.
+        Legacy Codex v38 | Reality Filter Active | No mock data.
       </footer>
     </div>
   )

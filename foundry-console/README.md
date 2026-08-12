@@ -1,37 +1,36 @@
 # The Foundry Console
 
-Minimal, fast web console for **Case Study Zero**.  
-**No sign-in.** Open the link and you're in — the URL is the key.
+Minimal, fast web console for **Case Study Zero**.
+Access is restricted to the owner account with email/password authentication.
 
 Connects to a Supabase backend and shows only real database data. No mock data, no synthetic examples, no analytics.
 
 ## How access works (read this)
 
-There is no login, no magic link, no email loop. The app talks to Supabase
-with the **anon key** and open row-level-security policies:
+There are no magic links or emailed OTP codes. The owner signs in with a
+password, and Supabase persists and refreshes the browser session:
 
-- **Anyone who has the deployed URL can read and write workspace data.**
-  Treat the URL like a password — share it only with people you trust.
-- The **events** table is append-only *at the database level*: the anon key
-  has no update or delete permission on it, and no table has a delete policy
-  at all. Nothing can be destroyed through the app.
+- The app-level gate permits only `freddyv@duck.com`.
+- Supabase RLS independently enforces the same owner email on all seven tables.
+- The anonymous database role has no table privileges.
+- The **events** table is append-only at the database level: authenticated
+  clients have only `SELECT` and `INSERT` privileges and policies.
 - The service role key is never used in the frontend.
-
-If you later want real access control, add Supabase auth back and tighten
-the RLS policies — the schema supports it.
 
 ## Stack
 
 - **Next.js 15** (App Router) + TypeScript
 - **Tailwind CSS v4**
-- **Supabase JS** (anon key only)
+- **Supabase JS** (public client key + authenticated owner session)
 - **Hosting**: Vercel
 
 ## Features
 
 | Feature | Route |
 |---------|-------|
-| Overview: live counts, active sprint, next milestone, recent activity | `/dashboard` |
+| Overview: live counts, routing cognitive summary, active sprint, next milestone, recent activity | `/dashboard` |
+| Routing: inbox, active work, evidence, correction history, deriveFoundryState summary | `/dashboard/routing` |
+| Route detail: full routed request + append-only correction chain | `/dashboard/routing/[id]` |
 | Workspace switcher + create workspaces in-app | Sidebar |
 | Sprints: create, list, full-field edit | `/dashboard/sprints` |
 | Friction: log, resolve | `/dashboard/friction` |
@@ -48,7 +47,8 @@ Every create/update action writes an entry to the audit log automatically.
 ### 1. Database
 
 1. Create a Supabase project (or reuse one)
-2. Open **SQL Editor**, paste the contents of `SCHEMA.sql`, run it
+2. Enable email/password authentication and create the confirmed owner user
+3. Open **SQL Editor**, paste the contents of `SCHEMA.sql`, run it
 
 ### 2. Local development
 
@@ -59,16 +59,16 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). First visit shows a
-one-field "create workspace" screen; after that you land straight on the
-Overview.
+Open [http://localhost:3000](http://localhost:3000). Sign in with the owner
+password. A valid session persists across reloads; signing out returns to the
+password screen.
 
 ## Environment variables
 
 | Variable | Description |
 |----------|-------------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (`https://xyz.supabase.co`) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase public client key; anonymous table privileges remain revoked |
 
 ## Deploy to Vercel
 
@@ -91,9 +91,7 @@ Overview.
 ### Deploy & verify
 
 1. Click **Deploy**
-2. Open the Vercel URL — you should immediately see either the
-   "create workspace" screen (fresh database) or the Overview (existing data)
-3. Create a sprint; confirm it appears in the Supabase table editor and in
+2. Open the Vercel URL and verify the owner password screen appears
+3. Sign in, reload, and confirm the session persists
+4. Create a sprint; confirm it appears in the Supabase table editor and in
    the audit log — that proves the live connection end to end
-
-No auth redirect configuration is needed. There is nothing else to set up.

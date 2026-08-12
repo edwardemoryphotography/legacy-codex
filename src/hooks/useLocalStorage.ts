@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 export function useLocalStorage<T>(key: string, defaultValue: T) {
   const [value, setValue] = useState<T>(defaultValue)
@@ -18,7 +18,7 @@ export function useLocalStorage<T>(key: string, defaultValue: T) {
     }
   }, [key])
 
-  const set = (nextValue: T | ((prev: T) => T)) => {
+  const set = useCallback((nextValue: T | ((prev: T) => T)) => {
     setValue(prev => {
       const resolved = typeof nextValue === 'function'
         ? (nextValue as (prev: T) => T)(prev)
@@ -30,7 +30,7 @@ export function useLocalStorage<T>(key: string, defaultValue: T) {
       }
       return resolved
     })
-  }
+  }, [key])
 
   return [value, set, mounted] as const
 }

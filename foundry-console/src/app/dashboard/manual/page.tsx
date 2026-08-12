@@ -9,86 +9,117 @@ import { logEvent } from "@/lib/events";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ListSkeleton } from "@/components/skeleton";
+import { LoadError } from "@/components/load-error";
 import { formatDateTime } from "@/lib/format";
+import { getErrorMessage } from "@/lib/errors";
+import { useRequestGate } from "@/lib/use-request-gate";
 import type { ManualPage } from "@/lib/types";
 
 export default function ManualPageView() {
   const { current } = useWorkspace();
   const { toast } = useToast();
+  const requestGate = useRequestGate(current?.id ?? null);
   const [pages, setPages] = useState<ManualPage[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ManualPage | null>(null);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     if (!current) return;
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("manual")
-      .select("*")
-      .eq("workspace_id", current.id)
-      .order("title");
-    setPages(data ?? []);
-  }, [current]);
+    const token = requestGate.begin();
+    const workspaceId = current.id;
+    if (!requestGate.isScopeCurrent(workspaceId)) return;
+    setLoadError(null);
+    try {
+      const { data, error } = await createClient()
+        .from("manual")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("title");
+      if (!requestGate.isCurrent(token, workspaceId)) return;
+      if (error) throw error;
+      setPages(data ?? []);
+    } catch (error) {
+      if (!requestGate.isCurrent(token, workspaceId)) return;
+      const message = getErrorMessage(error);
+      setLoadError(message);
+      toast(message, "error");
+    }
+  }, [current, requestGate, toast]);
 
   useEffect(() => {
     setPages(null);
     setEditing(null);
     setCreating(false);
-    load();
+    setSaving(false);
+    void load();
   }, [load]);
 
   async function handleSaveEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!editing || !current) return;
+    const workspaceId = current.id;
+    const pageId = editing.id;
     setSaving(true);
-    const supabase = createClient();
     const newVersion = editing.version + 1;
-    const { error } = await supabase
-      .from("manual")
-      .update({
+    try {
+      const { error } = await createClient()
+        .from("manual")
+        .update({
+          title: editing.title,
+          content: editing.content,
+          version: newVersion,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", pageId)
+        .eq("workspace_id", workspaceId);
+      if (!requestGate.isScopeCurrent(workspaceId)) return;
+      if (error) throw error;
+      void logEvent(workspaceId, "manual.updated", "manual", pageId, {
         title: editing.title,
-        content: editing.content,
         version: newVersion,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", editing.id);
-    setSaving(false);
-    if (error) {
-      toast(error.message, "error");
-      return;
+      });
+      toast(`Saved as v${newVersion}`);
+      setEditing(null);
+      void load();
+    } catch (error) {
+      if (requestGate.isScopeCurrent(workspaceId)) {
+        toast(getErrorMessage(error), "error");
+      }
+    } finally {
+      if (requestGate.isScopeCurrent(workspaceId)) setSaving(false);
     }
-    logEvent(current.id, "manual.updated", "manual", editing.id, {
-      title: editing.title,
-      version: newVersion,
-    });
-    toast(`Saved as v${newVersion}`);
-    setEditing(null);
-    load();
   }
 
   async function handleCreate(title: string, content: string) {
     if (!current) return;
+    const workspaceId = current.id;
     setSaving(true);
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("manual")
-      .insert({
-        workspace_id: current.id,
-        title,
-        content: content || null,
-      })
-      .select()
-      .single();
-    setSaving(false);
-    if (error) {
-      toast(error.message, "error");
-      return;
+    try {
+      const { data, error } = await createClient()
+        .from("manual")
+        .insert({
+          workspace_id: workspaceId,
+          title,
+          content: content || null,
+        })
+        .select()
+        .single();
+      if (!requestGate.isScopeCurrent(workspaceId)) return;
+      if (error) throw error;
+      if (!data) throw new Error("Supabase returned no manual row.");
+      void logEvent(workspaceId, "manual.created", "manual", data.id, { title });
+      toast("Page created");
+      setCreating(false);
+      void load();
+    } catch (error) {
+      if (requestGate.isScopeCurrent(workspaceId)) {
+        toast(getErrorMessage(error), "error");
+      }
+    } finally {
+      if (requestGate.isScopeCurrent(workspaceId)) setSaving(false);
     }
-    logEvent(current.id, "manual.created", "manual", data.id, { title });
-    toast("Page created");
-    setCreating(false);
-    load();
   }
 
   if (editing) {
@@ -159,7 +190,9 @@ export default function ManualPageView() {
         }
       />
 
-      {pages === null ? (
+      {loadError ? (
+        <LoadError message={loadError} onRetry={() => void load()} />
+      ) : pages === null ? (
         <ListSkeleton />
       ) : pages.length === 0 ? (
         <EmptyState

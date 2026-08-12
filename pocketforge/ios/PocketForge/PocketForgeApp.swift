@@ -2,20 +2,34 @@ import SwiftUI
 
 @main
 struct PocketForgeApp: App {
-    @AppStorage("hasEnteredApp") private var hasEnteredApp = false
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var store = PocketForgeStore()
+    @State private var router = AppRouter()
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if hasEnteredApp {
-                    HomeView()
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                } else {
-                    WelcomeView()
-                        .transition(.opacity)
+            PocketForgeRootView(store: store, router: router)
+                .task { await store.start() }
+                .onOpenURL { url in
+                    router.handle(url)
                 }
-            }
-            .animation(.spring(duration: 0.5), value: hasEnteredApp)
+                .onChange(of: scenePhase) { _, phase in
+                    switch phase {
+                    case .active:
+                        router.consumeIntentHandoff()
+                        Task {
+                            if store.isOwnerEnrolled && !store.isAuthenticated {
+                                await store.unlockWithFaceID()
+                            } else {
+                                await store.refresh()
+                            }
+                        }
+                    case .background:
+                        Task { await store.lock() }
+                    default:
+                        break
+                    }
+                }
             .preferredColorScheme(.dark)
             .tint(Theme.accent)
         }

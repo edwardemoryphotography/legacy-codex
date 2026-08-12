@@ -250,6 +250,7 @@ export function ActionBtn({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      className="interactive-control"
       style={{
         ...styles,
         borderRadius: 12,
@@ -309,15 +310,16 @@ export function ActionChip({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      className="interactive-control"
       style={{
         ...styles,
         borderRadius: 999,
         fontWeight: 700,
         cursor: disabled ? 'not-allowed' : 'pointer',
-        minHeight: 34,
-        padding: '7px 11px',
+        minHeight: 44,
+        padding: '9px 12px',
         opacity: disabled ? 0.5 : 1,
-        fontSize: '0.78rem',
+        fontSize: '0.8rem',
         letterSpacing: '0.02em',
         transition: 'transform 150ms ease, border-color 150ms ease, background 150ms ease, color 150ms ease, opacity 150ms ease',
       }}
@@ -364,9 +366,11 @@ export function Tag({
 /* ─── Badge ──────────────────────────────────────────────────── */
 export function Badge({
   tone = 'muted',
+  wrap = false,
   children,
 }: {
   tone?: keyof typeof TONE_STYLES
+  wrap?: boolean
   children: ReactNode
 }) {
   const c = TONE_STYLES[tone]
@@ -382,7 +386,10 @@ export function Badge({
         color: c.color,
         background: c.bg,
         textTransform: 'uppercase',
-        whiteSpace: 'nowrap',
+        whiteSpace: wrap ? 'normal' : 'nowrap',
+        maxWidth: wrap ? '100%' : undefined,
+        overflowWrap: wrap ? 'anywhere' : undefined,
+        textAlign: wrap ? 'center' : undefined,
       }}
     >
       {children}

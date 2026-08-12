@@ -1,7 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import type { User } from '@supabase/supabase-js'
 import { useLocalStorage } from '@/hooks/useLocalStorage'
+import { useCapture } from '@/hooks/useCapture'
 import type { UIPrefs, CaptureItem, BiometricMode } from '@/types'
 import { supabase } from '@/lib/supabase/client'
 import {
@@ -15,7 +17,6 @@ import {
 } from '@/components/ui'
 
 const PREFS_KEY = 'nd_ux_prefs_v1'
-const INBOX_KEY = 'nd_inbox_v1'
 const MODE_KEY = 'nd_manual_mode_v1'
 
 const DEFAULT_PREFS: UIPrefs = {
@@ -24,8 +25,6 @@ const DEFAULT_PREFS: UIPrefs = {
   highContrast: false,
   reducedMotion: false,
 }
-
-const DEFAULT_INBOX: CaptureItem[] = []
 
 const MODES: BiometricMode[] = ['deep_build', 'creative_edit', 'admin_light', 'recovery']
 
@@ -45,7 +44,6 @@ const MODE_RECS: Record<BiometricMode, string> = {
 
 export default function ControlsTab() {
   const [prefs, setPrefs] = useLocalStorage<UIPrefs>(PREFS_KEY, DEFAULT_PREFS)
-  const [inbox, setInbox] = useLocalStorage<CaptureItem[]>(INBOX_KEY, DEFAULT_INBOX)
   const [manualMode, setManualMode] = useLocalStorage<BiometricMode>(MODE_KEY, 'deep_build')
   const [captureText, setCaptureText] = useState('')
   const [bioSummary, setBioSummary] = useState<{ readiness: number; mode: BiometricMode; source: string } | null>(null)
@@ -54,9 +52,21 @@ export default function ControlsTab() {
   // Supabase hybrid sync state (augments localStorage when keys + migration + auth are present)
   const [supabaseConnected, setSupabaseConnected] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [authStatus, setAuthStatus] = useState('')
-  const [syncedCaptureIds, setSyncedCaptureIds] = useState<Set<string>>(new Set())
+
+  // Shared capture pipeline (also used by MissionTab's write-only capture)
+  const {
+    inbox,
+    syncedCaptureIds,
+    loadCaptures,
+    capture: captureIdea,
+    removeItem: removeCaptureItem,
+    forceSyncItem: forceSyncCaptureItem,
+    forceSyncItems: forceSyncCaptureItems,
+    exportInbox: exportCaptureInbox,
+    clearInbox: clearCaptureInbox,
+  } = useCapture(user)
 
   // Apply global CSS vars + data attrs for future tab integration (demo effect)
   useEffect(() => {
@@ -75,11 +85,13 @@ export default function ControlsTab() {
   // Load lightweight bio summary (mirrors BiometricsTab contract, real data only)
   useEffect(() => {
     let cancelled = false
+    type RawBioDay = { sleepHours?: number; recoveryScore?: number; focusScore?: number }
     fetch('/notes/biometric-trends.json')
       .then(r => r.ok ? r.json() : Promise.reject('no data'))
-      .then((raw: any) => {
+      .then((raw: unknown) => {
         if (cancelled) return
-        const days = Array.isArray(raw) ? raw : (raw?.days || [])
+        const wrapper = raw as { source?: string; days?: RawBioDay[] } | null
+        const days: RawBioDay[] = Array.isArray(raw) ? (raw as RawBioDay[]) : (wrapper?.days || [])
         if (!days.length) {
           setBioSummary(null)
           return
@@ -95,13 +107,37 @@ export default function ControlsTab() {
         if (readiness < 42 || (Number(last.sleepHours) || 0) < 6) mode = 'recovery'
         else if (readiness < 58) mode = 'admin_light'
         else if ((Number(last.focusScore) || 0) > (Number(last.recoveryScore) || 0) + 12) mode = 'creative_edit'
-        setBioSummary({ readiness: Math.min(100, Math.max(0, readiness)), mode, source: raw?.source || 'local' })
+        setBioSummary({ readiness: Math.min(100, Math.max(0, readiness)), mode, source: wrapper?.source || 'local' })
       })
       .catch(() => {
         if (!cancelled) setBioSummary(null)
       })
     return () => { cancelled = true }
   }, [])
+
+  const loadFromSupabase = useCallback(async (userId: string) => {
+    if (!userId) return
+    try {
+      // Load prefs
+      const { data: prefsData } = await supabase
+        .from('nd_prefs')
+        .select('data')
+        .eq('user_id', userId)
+        .single()
+      if (prefsData?.data) {
+        setPrefs(prefsData.data as UIPrefs)
+      }
+
+      // Load recent captures as inbox (shared pipeline)
+      await loadCaptures(userId)
+
+      setStatus('Loaded from Supabase')
+      setTimeout(() => setStatus(''), 800)
+    } catch {
+      setStatus('Supabase load failed (check RLS / user row)')
+      setTimeout(() => setStatus(''), 1400)
+    }
+  }, [setPrefs, loadCaptures])
 
   // Auth + Supabase load on mount (hybrid: Supabase source of truth when available, LS fallback)
   useEffect(() => {
@@ -117,8 +153,9 @@ export default function ControlsTab() {
           await loadFromSupabase(currentUser.id)
         } else {
           // Check if keys look real (fix: check anon key, not url which is always the project)
-          const anonKey = (supabase as any)?.supabaseKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-          const url = (supabase as any)?.supabaseUrl || ''
+          const client = supabase as unknown as { supabaseKey?: string; supabaseUrl?: string }
+          const anonKey = client?.supabaseKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+          const url = client?.supabaseUrl || ''
           if (anonKey && !anonKey.includes('your-anon') && url && !url.includes('your-project')) {
             setSupabaseConnected(false) // connected means signed-in for RLS
             setAuthStatus('Keys present — sign in to enable cloud sync (RLS requires auth)')
@@ -127,7 +164,7 @@ export default function ControlsTab() {
             setAuthStatus('Local only (configure real Supabase keys in .env.local)')
           }
         }
-      } catch (e) {
+      } catch {
         if (!cancelled) {
           setSupabaseConnected(false)
           setAuthStatus('Auth check failed')
@@ -136,46 +173,7 @@ export default function ControlsTab() {
     }
     initAuthAndLoad()
     return () => { cancelled = true }
-  }, [])
-
-  async function loadFromSupabase(userId: string) {
-    if (!userId) return
-    try {
-      // Load prefs
-      const { data: prefsData } = await supabase
-        .from('nd_prefs')
-        .select('data')
-        .eq('user_id', userId)
-        .single()
-      if (prefsData?.data) {
-        setPrefs(prefsData.data as UIPrefs)
-      }
-
-      // Load recent captures as inbox
-      const { data: capData } = await supabase
-        .from('nd_captures')
-        .select('id, text, created_at, tags')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(12)
-      if (capData && capData.length > 0) {
-        const items: CaptureItem[] = capData.map((d: any) => ({
-          id: d.id,
-          text: d.text,
-          timestamp: d.created_at,
-          suggested: (d.tags && d.tags[0]) || 'general',
-        }))
-        setInbox(items)
-        // mark all loaded as synced
-        setSyncedCaptureIds(new Set(items.map(i => i.id)))
-      }
-      setStatus('Loaded from Supabase')
-      setTimeout(() => setStatus(''), 800)
-    } catch (e) {
-      setStatus('Supabase load failed (check RLS / user row)')
-      setTimeout(() => setStatus(''), 1400)
-    }
-  }
+  }, [loadFromSupabase])
 
   async function signInForSync() {
     setAuthStatus('Signing in...')
@@ -191,7 +189,7 @@ export default function ControlsTab() {
         setStatus('Cloud sync enabled')
         setTimeout(() => setStatus(''), 1200)
       }
-    } catch (e: any) {
+    } catch {
       setAuthStatus('Sign in failed — enable Anonymous provider in Supabase dashboard or use email')
       setTimeout(() => setAuthStatus(''), 3000)
     }
@@ -208,48 +206,12 @@ export default function ControlsTab() {
       await supabase.from('nd_prefs').upsert({ user_id: user.id, data: next })
       setStatus('Prefs synced to Supabase')
       setTimeout(() => setStatus(''), 800)
-    } catch (e: any) {
+    } catch {
       setStatus('Supabase sync failed — using local only')
       setTimeout(() => setStatus(''), 1400)
     } finally {
       setIsSyncing(false)
     }
-  }
-
-  async function saveCaptureToSupabase(item: CaptureItem) {
-    if (!user?.id) return
-    try {
-      await supabase.from('nd_captures').insert({
-        id: item.id,
-        user_id: user.id,
-        text: item.text,
-        tags: [item.suggested || 'general'],
-        created_at: item.timestamp,
-      })
-      setSyncedCaptureIds(prev => {
-        const next = new Set(prev)
-        next.add(item.id)
-        return next
-      })
-      setStatus('Saved to Supabase')
-      setTimeout(() => setStatus(''), 600)
-    } catch (e) {
-      // silent fallback
-      setStatus('Capture sync failed (RLS?)')
-      setTimeout(() => setStatus(''), 1200)
-    }
-  }
-
-  async function removeCaptureFromSupabase(id: string) {
-    if (!user?.id) return
-    try {
-      await supabase.from('nd_captures').delete().eq('id', id).eq('user_id', user.id)
-      setSyncedCaptureIds(prev => {
-        const next = new Set(prev)
-        next.delete(id)
-        return next
-      })
-    } catch (e) {}
   }
 
   // Force full sync: pull from Supabase then push local state (last-write wins for prefs, union for inbox)
@@ -265,27 +227,17 @@ export default function ControlsTab() {
       await loadFromSupabase(user.id)
 
       // push current local prefs
-      await supabase.from('nd_prefs').upsert({ user_id: user.id, data: prefs })
+      const { error: prefsError } = await supabase
+        .from('nd_prefs')
+        .upsert({ user_id: user.id, data: prefs })
+      if (prefsError) throw prefsError
 
       // push any local-only captures (those not yet in synced set)
       const localOnly = inbox.filter(item => !syncedCaptureIds.has(item.id))
-      if (localOnly.length > 0) {
-        const rows = localOnly.map(item => ({
-          id: item.id,
-          user_id: user.id,
-          text: item.text,
-          tags: [item.suggested || 'general'],
-          created_at: item.timestamp,
-        }))
-        await supabase.from('nd_captures').upsert(rows, { onConflict: 'id' })
-        setSyncedCaptureIds(prev => {
-          const next = new Set(prev)
-          localOnly.forEach(i => next.add(i.id))
-          return next
-        })
-      }
+      await forceSyncCaptureItems(localOnly)
+
       setStatus('Force sync complete')
-    } catch (e) {
+    } catch {
       setStatus('Force sync error (see console / RLS policies)')
     } finally {
       setIsSyncing(false)
@@ -321,17 +273,9 @@ export default function ControlsTab() {
   function handleCapture() {
     const text = captureText.trim()
     if (!text) return
-    const item: CaptureItem = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2),
-      text,
-      timestamp: new Date().toISOString(),
-      suggested: text.toLowerCase().includes('client') || text.toLowerCase().includes('shoot') ? 'artistic' :
-                 text.toLowerCase().includes('code') || text.toLowerCase().includes('sprint') ? 'automation' : 'personalos',
-    }
-    setInbox(prev => [item, ...prev].slice(0, 12))
+    captureIdea(text)
     setCaptureText('')
     setStatus('Captured to inbox')
-    saveCaptureToSupabase(item)
     setTimeout(() => setStatus(''), 1200)
   }
 
@@ -343,9 +287,7 @@ export default function ControlsTab() {
   }
 
   function removeItem(id: string) {
-    setInbox(prev => prev.filter(i => i.id !== id))
-    setSyncedCaptureIds(prev => { const n = new Set(prev); n.delete(id); return n })
-    removeCaptureFromSupabase(id)
+    removeCaptureItem(id)
   }
 
   function logToResumptionStub(item: CaptureItem) {
@@ -357,32 +299,33 @@ export default function ControlsTab() {
   }
 
   function exportInbox() {
-    const data = JSON.stringify(inbox, null, 2)
-    const blob = new Blob([data], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `legacy-codex-inbox-${new Date().toISOString().slice(0,10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
+    exportCaptureInbox()
     setStatus('Inbox exported')
     setTimeout(() => setStatus(''), 1200)
   }
 
   function clearInbox() {
-    setInbox([])
-    setSyncedCaptureIds(new Set())
+    clearCaptureInbox()
     setStatus('Inbox cleared')
     setTimeout(() => setStatus(''), 900)
   }
 
   // Per-item force sync helper
-  function forceSyncItem(item: CaptureItem) {
+  async function forceSyncItem(item: CaptureItem) {
     if (!user?.id) {
-      signInForSync()
+      await signInForSync()
       return
     }
-    saveCaptureToSupabase(item)
+    setIsSyncing(true)
+    try {
+      await forceSyncCaptureItem(item)
+      setStatus('Saved to Supabase')
+    } catch {
+      setStatus('Capture sync failed (RLS?)')
+    } finally {
+      setIsSyncing(false)
+      setTimeout(() => setStatus(''), 1200)
+    }
   }
 
   return (
@@ -409,7 +352,7 @@ export default function ControlsTab() {
         ) : supabaseConnected ? (
           <Badge tone="teal">Keys ready</Badge>
         ) : (
-          <Badge tone="muted">Local only (add keys + run migration for sync)</Badge>
+          <Badge tone="muted" wrap>Local only (add keys + run migration for sync)</Badge>
         )}
         {isSyncing && <Badge tone="teal">syncing…</Badge>}
         <ActionChip onClick={forceSync} disabled={isSyncing}>
@@ -438,46 +381,50 @@ export default function ControlsTab() {
         <SectionTitle>Sensory & Density</SectionTitle>
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: 4 }}>Density</label>
+            <label htmlFor="control-density" style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: 4 }}>Density</label>
             <select
+              id="control-density"
               value={prefs.density}
-              onChange={e => updatePref('density', e.target.value as any)}
-              style={{ width: '100%', padding: '8px', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)' }}
+              onChange={e => updatePref('density', e.target.value as UIPrefs['density'])}
+              style={{ width: '100%', minHeight: 44, padding: '8px', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', font: 'inherit' }}
             >
               <option value="comfortable">Comfortable (more space)</option>
               <option value="compact">Compact (focus mode)</option>
             </select>
           </div>
           <div>
-            <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: 4 }}>
+            <label htmlFor="control-font-scale" style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: 4 }}>
               Font scale: {prefs.fontScale.toFixed(2)}
             </label>
             <input
+              id="control-font-scale"
               type="range"
               min={0.85}
               max={1.3}
               step={0.05}
               value={prefs.fontScale}
               onChange={e => updatePref('fontScale', parseFloat(e.target.value))}
-              style={{ width: '100%' }}
+              style={{ width: '100%', minHeight: 44, accentColor: 'var(--teal)' }}
             />
           </div>
-          <div className="flex items-center gap-3">
-            <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>High contrast</label>
+          <label className="flex min-h-11 items-center gap-3 cursor-pointer" style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
             <input
               type="checkbox"
               checked={prefs.highContrast}
               onChange={e => updatePref('highContrast', e.target.checked)}
+              style={{ width: 20, height: 20, accentColor: 'var(--teal)' }}
             />
-          </div>
-          <div className="flex items-center gap-3">
-            <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Reduced motion</label>
+            High contrast
+          </label>
+          <label className="flex min-h-11 items-center gap-3 cursor-pointer" style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
             <input
               type="checkbox"
               checked={prefs.reducedMotion}
               onChange={e => updatePref('reducedMotion', e.target.checked)}
+              style={{ width: 20, height: 20, accentColor: 'var(--teal)' }}
             />
-          </div>
+            Reduced motion
+          </label>
         </div>
         {/* Live preview card that reacts to prefs */}
         <div style={{ marginTop: 16 }}>
@@ -508,15 +455,16 @@ export default function ControlsTab() {
           )}
         </div>
         <div className="mb-3">
-          <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: 4 }}>Effective mode</label>
+          <label htmlFor="control-effective-mode" style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'block', marginBottom: 4 }}>Effective mode</label>
           <select
+            id="control-effective-mode"
             value={effectiveMode}
             onChange={e => {
               const m = e.target.value as BiometricMode
               setManualMode(m)
               // If bio present, manual still overrides display here
             }}
-            style={{ width: '100%', padding: '8px', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)' }}
+            style={{ width: '100%', minHeight: 44, padding: '8px', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', font: 'inherit' }}
           >
             {MODES.map(m => (
               <option key={m} value={m}>{MODE_LABELS[m]}</option>

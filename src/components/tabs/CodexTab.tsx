@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { User } from '@supabase/supabase-js'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useLocalStorage } from '@/hooks/useLocalStorage'
@@ -83,7 +84,7 @@ export default function CodexTab() {
   const [status, setStatus] = useState('')
 
   // Supabase hybrid for bookmarks (saved "searches"/pins) — same pattern as Controls
-  const [sbUser, setSbUser] = useState<any>(null)
+  const [sbUser, setSbUser] = useState<User | null>(null)
   const [sbConnected, setSbConnected] = useState(false)
   const [sbSyncing, setSbSyncing] = useState(false)
   const [sbStatus, setSbStatus] = useState('')
@@ -126,31 +127,7 @@ export default function CodexTab() {
     [recents, entryMap]
   )
 
-  // Auth + load bookmarks from Supabase (user scoped)
-  useEffect(() => {
-    let cancelled = false
-    async function initSb() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        const u = session?.user || null
-        if (u) {
-          setSbUser(u)
-          setSbConnected(true)
-          await loadBookmarksFromSupabase(u.id)
-        } else {
-          const key = (supabase as any)?.supabaseKey || ''
-          if (key && !key.includes('your-anon')) {
-            setSbConnected(false)
-            setSbStatus('Sign in from Controls tab to persist bookmarks to Supabase')
-          }
-        }
-      } catch {}
-    }
-    initSb()
-    return () => { cancelled = true }
-  }, [])
-
-  async function loadBookmarksFromSupabase(userId: string) {
+  const loadBookmarksFromSupabase = useCallback(async (userId: string) => {
     if (!userId) return
     try {
       const { data } = await supabase
@@ -160,16 +137,38 @@ export default function CodexTab() {
         .order('created_at', { ascending: false })
         .limit(12)
       if (data && data.length) {
-        const ids = data.map((r: any) => r.entry_id)
+        const ids = data.map((r: { entry_id: string }) => r.entry_id)
         setBookmarks(ids)
         setSbStatus('Bookmarks loaded from Supabase')
         setTimeout(() => setSbStatus(''), 700)
       }
-    } catch (e) {
+    } catch {
       setSbStatus('Bookmark load skipped (RLS/user row)')
       setTimeout(() => setSbStatus(''), 1200)
     }
-  }
+  }, [setBookmarks])
+
+  // Auth + load bookmarks from Supabase (user scoped)
+  useEffect(() => {
+    async function initSb() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const u = session?.user || null
+        if (u) {
+          setSbUser(u)
+          setSbConnected(true)
+          await loadBookmarksFromSupabase(u.id)
+        } else {
+          const key = (supabase as unknown as { supabaseKey?: string })?.supabaseKey || ''
+          if (key && !key.includes('your-anon')) {
+            setSbConnected(false)
+            setSbStatus('Sign in from Controls tab to persist bookmarks to Supabase')
+          }
+        }
+      } catch {}
+    }
+    initSb()
+  }, [loadBookmarksFromSupabase])
 
   async function syncBookmarkToSupabase(entryId: string, isAdd: boolean) {
     if (!sbUser?.id) return
@@ -182,7 +181,7 @@ export default function CodexTab() {
       }
       setSbStatus(isAdd ? 'Pinned to Supabase' : 'Unpinned from Supabase')
       setTimeout(() => setSbStatus(''), 600)
-    } catch (e) {
+    } catch {
       setSbStatus('Supabase bookmark sync failed')
       setTimeout(() => setSbStatus(''), 1200)
     } finally {
@@ -207,7 +206,7 @@ export default function CodexTab() {
       // pull back authoritative
       await loadBookmarksFromSupabase(sbUser.id)
       setSbStatus('Bookmarks force-synced')
-    } catch (e) {
+    } catch {
       setSbStatus('Force bookmark sync error')
     } finally {
       setSbSyncing(false)
@@ -301,17 +300,6 @@ export default function CodexTab() {
   const exportMarkdown = (entry: CodexEntry) => {
     downloadText(`codex-${entry.id}.md`, serializeEntryMarkdown(entry), 'text/markdown;charset=utf-8')
     setStatus(`Exported markdown for ${entry.title}.`)
-  }
-
-  const clearRecents = () => {
-    setRecents([])
-    setStatus('Cleared recent entries.')
-  }
-
-  const clearBookmarks = () => {
-    setBookmarks([])
-    setSbStatus('Cleared local pins (Supabase not touched)')
-    setTimeout(() => setSbStatus(''), 900)
   }
 
   return (

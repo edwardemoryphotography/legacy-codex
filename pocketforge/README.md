@@ -38,6 +38,11 @@ Generated apps are deliberately **static-site + CDN** (no npm/build step):
 builds are fast, never flaky, and previews load instantly on a phone.
 `localStorage` gives them real persistence.
 
+When a forged app needs **AI captions / copy**, it must call the live Convex
+HTTP endpoint `POST https://<deployment>.convex.site/ai/generate` (same model
+keys as the builder). The agent is instructed never to ship hardcoded demo
+captions or stock Unsplash photos as fake "AI" output.
+
 ## Repo layout
 
 ```
@@ -74,14 +79,26 @@ npx convex dev          # creates a free Convex project, deploys, watches
 
 The CLI prints your deployment URL (e.g. `https://happy-animal-123.convex.cloud`).
 
-Set the two API keys the agent needs:
+Set the API keys the agent needs (on the deployment the iOS app points at,
+currently `scintillating-loris-226`):
 
 ```bash
 npx convex env set ANTHROPIC_API_KEY sk-ant-...   # console.anthropic.com
 npx convex env set VERCEL_TOKEN ...               # vercel.com/account/tokens → Create Token
 # Only if your Vercel account is part of a team:
 # npx convex env set VERCEL_TEAM_ID team_...
+# Paste a real key from console.anthropic.com — not the literal text "sk-ant-..."
+npx convex env set ANTHROPIC_API_KEY 'sk-ant-api03-...' \
+  --deployment scintillating-loris-226
+npx convex env set DAYTONA_API_KEY 'dtn_...' \
+  --deployment scintillating-loris-226
+# Optional fallbacks (builder tries Claude → OpenAI → Gemini):
+# npx convex env set OPENAI_API_KEY 'sk-...' --deployment scintillating-loris-226
 ```
+
+If Claude auth fails with `invalid x-api-key`, the key on Convex is wrong or a
+placeholder. Fix it with the command above, or leave Claude unset and rely on
+`OPENAI_API_KEY` / `GEMINI_API_KEY`.
 
 For production use `npx convex deploy` instead of `dev`.
 
@@ -121,6 +138,7 @@ stream, then open the **App** tab when it flips to **Live**. Use the
 | Symptom | Fix |
 |---|---|
 | App shows no projects / create fails | `AppConfig.swift` URL wrong, or backend not deployed (`npx convex dev` running?) |
-| Build fails instantly with env error | Set `ANTHROPIC_API_KEY` / `VERCEL_TOKEN` via `npx convex env set` |
-| Vercel deploy fails with 403 | Token expired or wrong scope — create a new token; set `VERCEL_TEAM_ID` if the account is in a team |
+| Build fails instantly with env error | Set `ANTHROPIC_API_KEY` / `DAYTONA_API_KEY` via `npx convex env set --deployment scintillating-loris-226` |
+| Claude `invalid x-api-key` / 401 | Convex `ANTHROPIC_API_KEY` is missing, expired, or a placeholder (`sk-ant-...`). Set a real key from console.anthropic.com, or unset Claude and use OpenAI/Gemini fallbacks |
+| Preview blank after a while | Sandbox stopped/reclaimed — reopen the project (auto-wake) or rebuild |
 | Xcode can't resolve packages | Xcode → File → Packages → Reset Package Caches |
