@@ -49,7 +49,7 @@ export const patch = internalMutation({
     projectId: v.id("projects"),
     status: v.optional(v.string()),
     statusDetail: v.optional(v.string()),
-    sandboxId: v.optional(v.string()),
+    hostProjectName: v.optional(v.string()),
     previewUrl: v.optional(v.string()),
     provider: v.optional(v.string()),
   },
@@ -63,6 +63,8 @@ export const patch = internalMutation({
   },
 });
 
+// Removes the project row and all of its messages/files. The Vercel
+// project itself is torn down by the `agent:destroy` action, which calls
 /// One-shot repair: projects marked "live" without a previewUrl were a soft-fail
 /// lie. Demote them to "ready" so the UI stops showing a green Live badge.
 export const repairFalseLive = mutation({

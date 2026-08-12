@@ -61,6 +61,7 @@ struct WorkspaceView: View {
 
                 switch tab {
                 case .preview:
+                    PreviewTab(project: model.project, reloadToken: reloadToken)
                     PreviewTab(
                         project: model.project,
                         files: model.files,
@@ -119,7 +120,7 @@ struct WorkspaceView: View {
             }
         }
         .confirmationDialog(
-            "Delete this app and its sandbox?",
+            "Delete this app and its live deployment?",
             isPresented: $showDeleteConfirm,
             titleVisibility: .visible
         ) {
@@ -131,7 +132,7 @@ struct WorkspaceView: View {
             }
         }
         .task {
-            // Sandboxes can go to sleep; make sure this one is serving.
+            // Make sure the preview URL is current whenever a workspace opens.
             await ConvexService.shared.wake(projectId: projectId)
         }
         .onChange(of: model.project?.previewUrl) {
@@ -243,7 +244,6 @@ private struct PreviewTab: View {
     let project: Project?
     let files: [ProjectFile]
     let reloadToken: Int
-    let statusMessages: [Message]
 
     private var hasLocalEntry: Bool {
         files.contains { file in
@@ -254,6 +254,7 @@ private struct PreviewTab: View {
 
     var body: some View {
         Group {
+            if let raw = project?.previewUrl, let url = URL(string: raw) {
             if project?.isBuilding == true {
                 BuildProgressView(
                     detail: project?.statusDetail,
@@ -269,6 +270,17 @@ private struct PreviewTab: View {
                     )
                     .padding(.horizontal, 12)
                     .padding(.bottom, 12)
+            } else if project?.isBuilding == true {
+                placeholder(
+                    symbol: "hammer.fill",
+                    title: "Forging your app",
+                    detail: "Claude is writing the code and the deployment is on its way. The preview appears here the moment it's live."
+                )
+            } else if project?.isError == true {
+                placeholder(
+                    symbol: "exclamationmark.triangle.fill",
+                    title: "Build hit a snag",
+                    detail: "Open the Agent tab and ask for a fix, or try the build again."
             } else if hasLocalEntry {
                 LocalFileWebView(files: files, reloadToken: reloadToken)
                     .id("local-\(reloadToken)-\(files.count)")
@@ -313,177 +325,6 @@ private struct PreviewTab: View {
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 44)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-// MARK: - Build progress
-
-/// The four high-level phases of a build. The current phase is inferred from
-/// the live `statusDetail` text the backend streams.
-private enum BuildPhase: Int, CaseIterable {
-    case design, sandbox, deploy, live
-
-    var label: String {
-        switch self {
-        case .design: return "Designing the app"
-        case .sandbox: return "Spinning up sandbox"
-        case .deploy: return "Deploying files"
-        case .live: return "Going live"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .design: return "wand.and.stars"
-        case .sandbox: return "shippingbox.fill"
-        case .deploy: return "arrow.up.circle.fill"
-        case .live: return "checkmark.seal.fill"
-        }
-    }
-
-    /// Maps a streamed status string onto a phase.
-    static func current(from detail: String?) -> BuildPhase {
-        let d = (detail ?? "").lowercased()
-        if d.contains("live") { return .live }
-        if d.contains("deploy") { return .deploy }
-        if d.contains("sandbox") || d.contains("spinning") { return .sandbox }
-        return .design  // "Designing…" / "falling back to …"
-    }
-}
-
-private struct BuildProgressView: View {
-    let detail: String?
-    let statusMessages: [Message]
-
-    private var phase: BuildPhase { BuildPhase.current(from: detail) }
-
-    var body: some View {
-        VStack(spacing: 22) {
-            Spacer(minLength: 8)
-
-            // Animated header — the live stage headline.
-            VStack(spacing: 14) {
-                Image(systemName: phase.icon)
-                    .font(.system(size: 44))
-                    .foregroundStyle(Theme.heroGradient)
-                    .symbolEffect(.pulse, options: .repeating)
-                    .contentTransition(.symbolEffect(.replace))
-                Text(detail ?? "Building…")
-                    .font(.system(.title3, design: .rounded).weight(.bold))
-                    .foregroundStyle(Theme.textPrimary)
-                    .multilineTextAlignment(.center)
-                    .animation(.snappy, value: detail)
-                    .padding(.horizontal, 32)
-            }
-
-            // Phase stepper.
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(BuildPhase.allCases, id: \.self) { p in
-                    StepRow(phase: p, current: phase)
-                }
-            }
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .cardStyle()
-            .padding(.horizontal, 20)
-
-            // Live activity feed — shows fallback hops as they happen.
-            if !recentNarration.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(recentNarration.enumerated()), id: \.offset) { idx, line in
-                        Text(line)
-                            .font(.system(.caption, design: .rounded))
-                            .foregroundStyle(idx == recentNarration.count - 1 ? Theme.textPrimary : Theme.textSecondary)
-                            .lineLimit(2)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                .padding(.horizontal, 28)
-                .transition(.opacity)
-            }
-
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // Last few streamed status lines (excluding the one already shown as the headline).
-    private var recentNarration: [String] {
-        statusMessages
-            .map(\.content)
-            .filter { $0 != detail }
-            .suffix(3)
-            .map { String($0) }
-    }
-}
-
-private struct StepRow: View {
-    let phase: BuildPhase
-    let current: BuildPhase
-
-    private var isDone: Bool { phase.rawValue < current.rawValue }
-    private var isActive: Bool { phase.rawValue == current.rawValue }
-
-    var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(isDone || isActive ? Theme.accentSoft : Theme.surface)
-                    .frame(width: 30, height: 30)
-                if isDone {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Theme.accent)
-                } else if isActive {
-                    ProgressView().controlSize(.small).tint(Theme.accent)
-                } else {
-                    Circle()
-                        .fill(Theme.textSecondary.opacity(0.4))
-                        .frame(width: 7, height: 7)
-                }
-            }
-            Text(phase.label)
-                .font(.system(.subheadline, design: .rounded).weight(isActive ? .semibold : .regular))
-                .foregroundStyle(isDone || isActive ? Theme.textPrimary : Theme.textSecondary)
-            Spacer()
-        }
-        .padding(.vertical, 7)
-        .opacity(phase.rawValue > current.rawValue ? 0.55 : 1)
-    }
-}
-
-private struct BuildErrorView: View {
-    let detail: String?
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 42))
-                .foregroundStyle(Theme.danger)
-            Text("Build hit a snag")
-                .font(.system(.title3, design: .rounded).weight(.bold))
-                .foregroundStyle(Theme.textPrimary)
-
-            // Surface the actual error, not a generic message.
-            ScrollView {
-                Text(detail ?? "Something went wrong while building.")
-                    .font(.system(.footnote, design: .monospaced))
-                    .foregroundStyle(Theme.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
-            }
-            .frame(maxHeight: 160)
-            .padding(14)
-            .cardStyle()
-            .padding(.horizontal, 20)
-
-            Text("Open the Agent tab and ask for a fix, or send a new message to rebuild.")
-                .font(.system(.subheadline, design: .rounded))
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 36)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -653,7 +494,6 @@ private struct FileDetailView: View {
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(Theme.textPrimary)
                 .textSelection(.enabled)
-                .fixedSize(horizontal: true, vertical: false)
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

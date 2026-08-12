@@ -3,7 +3,6 @@ import SwiftUI
 struct HomeView: View {
     @StateObject private var service = ConvexService.shared
     @State private var showComposer = false
-    @State private var showProfile = false
     @State private var path = NavigationPath()
 
     var body: some View {
@@ -33,16 +32,6 @@ struct HomeView: View {
             .navigationTitle("Your Apps")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showProfile = true
-                    } label: {
-                        Image(systemName: "person.crop.circle")
-                            .font(.title2)
-                            .foregroundStyle(Theme.accent)
-                    }
-                    .accessibilityLabel("Edit your profile")
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showComposer = true
@@ -55,7 +44,6 @@ struct HomeView: View {
             }
             .navigationDestination(for: String.self) { projectId in
                 WorkspaceView(projectId: projectId)
-                    .id(projectId)
             }
             .sheet(isPresented: $showComposer) {
                 ComposerView { projectId in
@@ -63,11 +51,6 @@ struct HomeView: View {
                 }
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
-            }
-            .sheet(isPresented: $showProfile) {
-                ProfileSheet()
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
             }
         }
     }
@@ -80,7 +63,7 @@ struct HomeView: View {
             Text("Nothing forged yet")
                 .font(.system(.title2, design: .rounded).weight(.bold))
                 .foregroundStyle(Theme.textPrimary)
-            Text("Describe an app and watch it come to life in a live cloud sandbox.")
+            Text("Describe an app and watch it come to life at its own live URL.")
                 .font(.system(.subheadline, design: .rounded))
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -131,80 +114,6 @@ struct ProjectCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardStyle()
-    }
-}
-
-/// Where the user's self-description lives. Read by the dice idea generator
-/// so suggestions reflect who they are, not just what they've built.
-enum ProfileStore {
-    static let key = "pf_userProfile"
-}
-
-/// Lightweight editor for the "who I am / what I'm working on" profile that
-/// personalizes rolled ideas.
-struct ProfileSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @AppStorage(ProfileStore.key) private var profile = ""
-    @State private var draft = ""
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                Theme.background.ignoresSafeArea()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text("Tell the dice who you are")
-                            .font(.system(.title3, design: .rounded).weight(.bold))
-                            .foregroundStyle(Theme.textPrimary)
-                        Text("A sentence or two about you and what you're working on. The “roll the dice” idea generator uses this to tailor suggestions.")
-                            .font(.system(.subheadline, design: .rounded))
-                            .foregroundStyle(Theme.textSecondary)
-
-                        TextEditor(text: $draft)
-                            .font(.system(.body, design: .rounded))
-                            .focused($focused)
-                            .scrollContentBackground(.hidden)
-                            .padding(10)
-                            .frame(minHeight: 160)
-                            .background(Theme.surface)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .overlay(alignment: .topLeading) {
-                                if draft.isEmpty {
-                                    Text("e.g. I'm a wedding photographer building tools to run my business and stay creative.")
-                                        .font(.system(.body, design: .rounded))
-                                        .foregroundStyle(Theme.textSecondary.opacity(0.6))
-                                        .padding(.top, 18)
-                                        .padding(.leading, 15)
-                                        .allowsHitTesting(false)
-                                }
-                            }
-                    }
-                    .padding(20)
-                }
-            }
-            .navigationTitle("Profile")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
-                        .foregroundStyle(Theme.textSecondary)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save") {
-                        profile = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-                        dismiss()
-                    }
-                    .font(.system(.body, design: .rounded).weight(.bold))
-                    .foregroundStyle(Theme.accent)
-                }
-            }
-            .onAppear {
-                draft = profile
-                focused = true
-            }
-        }
-        .preferredColorScheme(.dark)
     }
 }
 

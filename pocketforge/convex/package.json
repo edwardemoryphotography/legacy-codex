@@ -2,7 +2,7 @@
   "name": "pocketforge-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "PocketForge Convex backend — AI web-app builder with Daytona sandboxes",
+  "description": "PocketForge Convex backend — AI web-app builder with Vercel hosting",
   "scripts": {
     "dev": "convex dev",
     "deploy": "convex deploy",
@@ -10,13 +10,10 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
-    "@daytonaio/sdk": "^0.185.0",
-    "@google/generative-ai": "^0.24.1",
-    "convex": "^1.41.0",
-    "form-data": "^4.0.0",
-    "openai": "^4.104.0"
+    "convex": "^1.41.0"
   },
   "devDependencies": {
+    "@types/node": "^25.9.3",
     "typescript": "^5.6.0"
   }
 }

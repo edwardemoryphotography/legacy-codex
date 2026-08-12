@@ -7,7 +7,6 @@ struct Project: Decodable, Identifiable, Equatable, Hashable {
     let prompt: String
     let status: String
     let statusDetail: String?
-    let sandboxId: String?
     let previewUrl: String?
     let icon: String?
     let provider: String?
@@ -16,6 +15,7 @@ struct Project: Decodable, Identifiable, Equatable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case creationTime = "_creationTime"
+        case name, prompt, status, statusDetail, previewUrl, icon, updatedAt
         case name, prompt, status, statusDetail, sandboxId, previewUrl, icon, provider, updatedAt
     }
 
@@ -86,14 +86,6 @@ struct Message: Decodable, Identifiable, Equatable {
 
     var isUser: Bool { role == "user" }
     var isStatus: Bool { role == "status" }
-}
-
-/// A dice-rolled app suggestion from the backend idea generator.
-struct AppIdea: Decodable, Identifiable, Equatable {
-    var id: String { title }
-    let title: String
-    let prompt: String
-    let icon: String
 }
 
 struct ProjectFile: Decodable, Identifiable, Equatable {

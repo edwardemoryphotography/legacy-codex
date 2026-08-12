@@ -269,6 +269,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pocketforge.app;
 				POCKETFORGE_CODEX_BASE_URL = "https://legacy-codex.vercel.app";
 				POCKETFORGE_SUPABASE_ANON_KEY = "";
 				POCKETFORGE_SUPABASE_URL = "https://pkydkbuodikttfeawqsw.supabase.co";
@@ -302,6 +303,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pocketforge.app;
 				POCKETFORGE_CODEX_BASE_URL = "https://legacy-codex.vercel.app";
 				POCKETFORGE_SUPABASE_ANON_KEY = "";
 				POCKETFORGE_SUPABASE_URL = "https://pkydkbuodikttfeawqsw.supabase.co";

@@ -1,6 +1,7 @@
 import Foundation
 
 enum AppConfig {
+    /// Convex deployment URL (printed by `npx convex dev` / `npx convex deploy`).
     /// Convex deployment for the Legacy Builder (Claude + Daytona).
     static let convexDeploymentURL = "https://scintillating-loris-226.convex.cloud"
 

@@ -20,6 +20,23 @@ struct WelcomeView: View {
                 Text("Turn ideas into live apps in minutes.")
                     .font(Theme.uiFont(.body, weight: .medium))
                     .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 10)
+
+                VStack(alignment: .leading, spacing: 18) {
+                    featureRow(symbol: "wand.and.stars", title: "AI builder",
+                               detail: "Claude designs and codes complete web apps from a sentence.")
+                    featureRow(symbol: "cloud.fill", title: "Instant hosting",
+                               detail: "Every app goes live on the web with its own URL.")
+                    featureRow(symbol: "bubble.left.and.bubble.right.fill", title: "Iterate by chat",
+                               detail: "Ask for changes and watch them go live in seconds.")
+                }
+                .padding(26)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .cardStyle()
+                .padding(.horizontal, 24)
+                .padding(.top, 44)
+
                 Spacer()
                 Button {
                     hasEnteredApp = true
