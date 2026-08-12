@@ -92,14 +92,14 @@ function getDaytona(): Daytona {
 }
 
 function parseFileBlocks(text: string): { files: Map<string, string>; summary: string } {
+function parseFileBlocks(text: string): { files: Map<string, string>; summary: string } {
   const files = new Map<string, string>();
   const fileRegex = /<file path="([^"]+)">\n?([\s\S]*?)<\/file>/g;
   let match: RegExpExecArray | null;
   while ((match = fileRegex.exec(text)) !== null) {
     const path = match[1].trim().replace(/^\/+/, "");
-    // Defense in depth: allowlist characters and reject directory escapes
-    // before the path is used anywhere outside this function.
-    if (!/^[a-zA-Z0-9_\-./]+$/.test(path) || path.includes("..")) continue;
+    // Reject anything that could escape the app directory or contain shell metacharacters.
+    if (!/^[a-zA-Z0-9_\-\.\/]+$/.test(path) || path.includes("..") || path.length === 0) continue;
     files.set(path, match[2].replace(/\n$/, "") + "\n");
   }
   const summaryMatch = /<summary>([\s\S]*?)<\/summary>/.exec(text);
