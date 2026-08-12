@@ -11,9 +11,10 @@ npm run dev      # Next.js dev server (http://localhost:3000)
 npm run build    # Production build — runs tsc + ESLint before emitting
 npm run start    # Serve the production build locally
 npm run lint     # ESLint via next lint
+npm test         # Run the vitest suite
 ```
 
-No test runner is installed. Type-checking happens only during `npm run build`. To check types in isolation without a full build, run `npx tsc --noEmit`.
+Type-checking happens during `npm run build`. To check types in isolation without a full build, run `npx tsc --noEmit`.
 
 **Config file note:** Next.js 14.2.5 does not support `next.config.ts`. The project uses `next.config.mjs`. Do not create a `next.config.ts`.
 
@@ -73,6 +74,16 @@ This is the single type source for the whole project. Key exports: `TabId` (unio
 
 `CodexTab` and `ControlsTab` use it for anonymous auth (`signInAnonymously`) plus reads/writes to `nd_codex_bookmarks`, `nd_prefs`, and `nd_captures`. If the client fails to construct (e.g. due to initialization or environment issues), it falls back to a no-op stub. Note that placeholder keys do not prevent construction — `createBrowserClient` succeeds even with the placeholder fallback values — so runtime calls against a misconfigured project fail gracefully via component-level error handling instead.
 
+### Test Coverage
+
+The `vitest` test runner is configured (`npm test`, config in `vitest.config.ts`, `environment: 'jsdom'`). Current and candidate coverage:
+
+| Module | Testable surface | Status |
+|--------|-----------------|--------|
+| `src/lib/biometrics.ts` | `isValidDay()`, `parseTrendPayload()`, `summarize()`, `clamp()`, `avg()` | Covered — see `src/lib/biometrics.test.ts` |
+| `src/lib/codexSearch.ts` | `rankEntries()` | Exported, pure, no test file yet — good next candidate (search-ranking spike for feature #2) |
+
+Only list functions here that are actually `export`ed from their module — an AI assistant generating tests against an unexported symbol will fail on the import before it ever reaches the assertion.
 Server-side, `/api/analyze` verifies the caller's JWT with `@supabase/server/core`'s `verifyAuth(req, { auth: 'user' })` — cryptographic verification against the project's JWKS instead of a round-trip to the Auth API. This reads `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_JWKS_URL` (all non-secret; see `.env.local.example`) — the same `pkydkbuodikttfeawqsw` project as the browser client above, just server-only env var names (no `NEXT_PUBLIC_` prefix) so `@supabase/server`'s auto-detected env resolution picks them up. No route currently needs `createAdminClient`/`auth: 'secret'`, so `SUPABASE_SECRET_KEY` is intentionally unset — add it only when a route needs to bypass RLS.
 
 ### Deployment
