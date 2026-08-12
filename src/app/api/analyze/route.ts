@@ -23,7 +23,20 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const { error: authError } = await verifyAuth(req, { auth: 'user' })
   if (authError) {
-    return NextResponse.json({ error: 'Sign in to use artifact analysis.' }, { status: authError.status === 500 ? 500 : 401 })
+    // authError.status is 500 only for genuine server misconfiguration (e.g. a
+    // missing SUPABASE_URL/SUPABASE_JWKS_URL env var causing @supabase/server's
+    // resolveEnv() to fail before it even inspects the request's credentials —
+    // see .agents/skills/supabase-server/SKILL.md). A missing or invalid JWT is
+    // always a 401 with code INVALID_CREDENTIALS. Don't tell the caller to sign
+    // in when the real problem is server config — log it and say so honestly.
+    if (authError.status === 500) {
+      console.error(`/api/analyze: auth misconfigured [${authError.code}] ${authError.message}`)
+      return NextResponse.json(
+        { error: `Server auth is misconfigured: ${authError.message} (${authError.code})` },
+        { status: 500 },
+      )
+    }
+    return NextResponse.json({ error: 'Sign in to use artifact analysis.' }, { status: 401 })
   }
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
