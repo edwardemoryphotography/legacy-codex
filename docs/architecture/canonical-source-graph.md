@@ -40,6 +40,7 @@ flowchart TD
 | Routing, evidence, events, control plane | **INTERNAL COMPONENT** | Capabilities owned by the canonical system |
 | `codex-control-panel` | **MIGRATE INTO CANONICAL** | Human-facing next-move routing is now in Mission; guarded persistence remains a transitional Foundry service until its server boundary is moved |
 | `codex-system-architecture` | **ARCHITECTURE / GOVERNANCE** | Reviewed corpus and system explanation, not the runtime product |
+| PocketForge | **SEPARATE SUPPORTING MODULE** | Native app-building surface; it may hand work to Foundry but does not define the Legacy Codex front door |
 | `artful-intelligence-hub` | **SEPARATE SUPPORTING SURFACE** | Flock operations, not a Legacy Codex front door |
 | Artful Intelligence | **SEPARATE — ON PURPOSE** | Photography product with its own user and primary job |
 | Historical version dashboards and prototypes | **EXPERIMENT / HISTORICAL** | Provenance only; they do not define current product state |

@@ -45,6 +45,7 @@ The same-SHA duplicate `https://legacy-codex-kappa.vercel.app` failed anonymous 
 3. Human missions and Foundry actions now have an explicit boundary, but `evidence_snapshots` and `mission_events` remain transitional stores in production code.
 4. Control Panel's owner-gated `persist_route_atomic` transport still depends on server-only configuration in the standalone service. Do not expose or copy service-role credentials into browser code.
 5. Old branches and deployment projects remain archaeology until their domain/configuration dependencies are checked. Do not delete them by age or name alone.
+6. PocketForge is a supporting module, not the Legacy Codex front door. Its Convex `agent.ts` contains a previously merged, partially reconciled Daytona/Vercel implementation and does not currently parse; repair requires a separate PocketForge architecture decision rather than an opportunistic consolidation edit.
 
 ## Release gates
 
