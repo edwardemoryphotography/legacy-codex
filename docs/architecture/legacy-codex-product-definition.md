@@ -1,13 +1,19 @@
 # Legacy Codex Product Definition & Differentiation
 
-**Version:** 0.1  
-**Date:** July 2026  
-**Status:** Canonical  
+**Canonical name:** Legacy Codex
+
+**Originally decided:** July 2026
+
+**Last reconciled:** August 31, 2026
+
+**Status:** Canonical
 **Decision owner:** Edward Emory Frye
 
 ## Decision
 
 Legacy Codex and Foundry Console are distinct products with a shared architecture. They may exchange requests and status, but they must not duplicate one another's primary interface, user, or responsibility.
+
+Legacy Codex is the only normal human-facing front door. Foundry may retain a separate owner-authenticated technical boundary where security or operational density requires it, but that boundary is an internal component of the Legacy Codex system rather than a competing product identity.
 
 ## 1. Category
 
@@ -65,6 +71,7 @@ These capabilities belong within the canonical architecture. They are not separa
 | PocketForge | Mobile creation and execution surface |
 | Semantic Starfield | Spatial memory and relationship visualization layer |
 | Cognitive Profile | Personalization and adaptive behavior layer |
+| Codex Control Panel | Transitional routing reference/service; its human-facing next-move function belongs in Legacy Codex and its guarded persistence boundary belongs with Foundry |
 
 A module may be presented through Legacy Codex, Foundry Console, or both when appropriate, but its product ownership must follow the core jobs and boundary above.
 
@@ -160,12 +167,13 @@ If these questions cannot be answered clearly, the feature remains an **Experime
 
 ## 11. Change control
 
-This document is the canonical product-definition decision beginning with version 0.1.
+This document is the canonical product-definition decision. Historical conceptual version labels remain provenance and do not name the current product.
 
-Future changes must:
+Future material boundary changes must:
 
-1. Increment the version.
-2. Record the date and reason.
-3. Identify which product boundary changed.
-4. Include migration consequences for affected screens, modules, and repositories.
-5. Be reviewed before implementation changes the architecture.
+1. Record the date and reason.
+2. Identify which product boundary changed.
+3. Include migration consequences for affected screens, modules, and repositories.
+4. Be reviewed before implementation changes the architecture.
+
+Software versions are ordinary release tags tied to shipped code. They are not conceptual milestones or product names.

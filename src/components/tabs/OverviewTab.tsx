@@ -56,7 +56,7 @@ export default function OverviewTab() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
             <div className="flex flex-wrap gap-2 mb-3">
-              <Badge tone="teal">v38 metrics</Badge>
+              <Badge tone="teal">Saved metrics</Badge>
               <Badge tone={overallTone}>{overallLabel}</Badge>
               <Badge tone="muted">local state</Badge>
             </div>
