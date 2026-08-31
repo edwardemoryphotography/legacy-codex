@@ -11,7 +11,7 @@
 
 ## Decision
 
-Legacy Codex and Foundry Console are distinct products with a shared architecture. They may exchange requests and status, but they must not duplicate one another's primary interface, user, or responsibility.
+Legacy Codex and Foundry Console are distinct operating layers of one product system. They may exchange requests and status, but they must not duplicate one another's primary interface, user, or responsibility.
 
 Legacy Codex is the only normal human-facing front door. Foundry may retain a separate owner-authenticated technical boundary where security or operational density requires it, but that boundary is an internal component of the Legacy Codex system rather than a competing product identity.
 
