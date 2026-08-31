@@ -50,14 +50,15 @@ Read this file first, then `STATE.md` for the latest project status, then `TODOS
 
 ```bash
 npm run dev      # Next.js dev server (http://localhost:3000)
-npm run build    # Production build — runs tsc + ESLint before emitting
+npm run build    # Production build
 npm run start    # Serve the production build locally
-npm run lint     # ESLint via next lint
+npm run lint     # ESLint
+npm test         # Vitest suite
 ```
 
-No test runner is installed. Type-checking happens only during `npm run build`. To check types in isolation without a full build, run `npx tsc --noEmit`.
+Run `npx tsc --noEmit` to check types in isolation.
 
-**Config file note:** Next.js 14.2.5 does not support `next.config.ts`. The project uses `next.config.mjs`. Do not create a `next.config.ts`.
+The root app uses Next.js 16.3.0 and `next.config.mjs`. Do not create a competing root Next config.
 
 ## Architecture
 
@@ -65,7 +66,7 @@ No test runner is installed. Type-checking happens only during `npm run build`. 
 
 `src/app/page.tsx` is a server component that simply renders `<CodexApp />`. All real logic lives in `src/components/CodexApp.tsx`, a `'use client'` component.
 
-`CodexApp` owns a single piece of state: `activeTab: TabId`. It renders a fixed/sticky `<nav role="tablist">` with 8 tab buttons (added Controls for neuro UX) and conditionally mounts the matching tab component. Tabs are fully independent — they share no state with each other or with `CodexApp`. Adding a tab requires: (1) adding a `TabId` (now includes controls) in `src/types/index.ts`, (2) adding an entry to the `TABS` array in `CodexApp.tsx`, and (3) creating the tab component and wiring it in the conditional render block.
+`CodexApp` owns a single piece of state: `activeTab: TabId`. It renders the tablist and conditionally mounts the matching tab component. Tabs are independent except for explicit shared hooks/components such as the capture pipeline and Mission's next-move panel. Adding a tab requires: (1) adding a `TabId` in `src/types/index.ts`, (2) adding an entry to the `TABS` array in `CodexApp.tsx`, and (3) creating the tab component and wiring it in the conditional render block.
 
 ### State persistence via `useLocalStorage`
 

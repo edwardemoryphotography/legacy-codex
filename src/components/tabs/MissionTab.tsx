@@ -26,6 +26,7 @@ import {
 } from '@/lib/missionLoop'
 import { groupByMission, hasConflict, isStale } from '@/lib/evidence'
 import { ActionBtn, ActionChip, Badge, Card, Input, SectionSubtitle, SectionTitle } from '@/components/ui'
+import NextMovePanel from '@/components/NextMovePanel'
 
 // ─── Supabase row <-> domain mapping ────────────────────────────────────
 // missionLoop.ts operates on the camelCase Mission/MissionEvent domain
@@ -362,6 +363,8 @@ export default function MissionTab() {
               </p>
             )}
           </Card>
+
+          <NextMovePanel mission={primary ? { title: primary.title, finishLine: primary.finishLine } : null} />
 
           {/* Primary Mission */}
           <Card>
