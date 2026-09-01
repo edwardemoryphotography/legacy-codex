@@ -156,6 +156,21 @@ describe('StrategicDelta', () => {
     expect(traceText.some(t => /restates the mission/.test(t))).toBe(true)
   })
 
+  it('shows which part of the finish line it is aiming at, and which parts were ruled out', async () => {
+    renderDelta([PRIMARY])
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Why?' }))
+
+    expect(screen.getByText('What your finish line asks you to prove')).toBeTruthy()
+    const steps = [...document.querySelectorAll('.sd-steps li')].map(li => li.textContent ?? '')
+    expect(steps).toHaveLength(3)
+    expect(steps[0]).toContain('lands on main')
+    expect(steps[0]).toContain('aiming here')
+    // The parts it is not aiming at are listed without being recommended.
+    expect(steps[2]).toContain('answers without prompting')
+    expect(steps[2]).not.toContain('aiming here')
+  })
+
   // §15 — correction is a first-class interaction, and it re-predicts.
   it('records a correction and immediately predicts something else', async () => {
     const props = renderDelta([
