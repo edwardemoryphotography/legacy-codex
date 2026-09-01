@@ -123,12 +123,15 @@ interface MissionEventRow {
 
 function rowToCorrection(row: MissionEventRow): DeltaCorrection | null {
   try {
-    const parsed = JSON.parse(row.detail) as { move?: unknown; reason?: unknown }
+    const parsed = JSON.parse(row.detail) as { move?: unknown; reason?: unknown; candidateId?: unknown }
     if (typeof parsed.move !== 'string' || typeof parsed.reason !== 'string') return null
     return {
       id: row.id,
       missionId: row.mission_id,
       correctedMove: parsed.move,
+      // Absent on corrections recorded before ids were written; those still
+      // match on prose.
+      candidateId: typeof parsed.candidateId === 'string' ? parsed.candidateId : undefined,
       reason: parsed.reason,
       createdAt: row.created_at,
     }
@@ -348,13 +351,14 @@ export default function MissionTab() {
       const ok = await recordDeltaEvent(
         'delta_corrected',
         delta.missionId,
-        JSON.stringify({ move: delta.move, reason }),
+        JSON.stringify({ move: delta.move, reason, candidateId: delta.candidateId }),
       )
       if (!ok) return false
       const correction: DeltaCorrection = {
         id: newId(),
         missionId: delta.missionId,
         correctedMove: delta.move,
+        candidateId: delta.candidateId ?? undefined,
         reason,
         createdAt: new Date().toISOString(),
       }
@@ -540,37 +544,57 @@ export default function MissionTab() {
         onCorrect={handleCorrectDelta}
         onContextAdded={handleDeltaContext}
         onRecheck={handleDeltaRecheck}
-      />
+      >
+        {loaded && missionList.length === 0 ? (
+          <form
+            className="mission-invite"
+            onSubmit={event => {
+              event.preventDefault()
+              void handleNameOutcome()
+            }}
+          >
+            <div className="mission-invite-field">
+              <label htmlFor="mission-outcome">The outcome that matters most</label>
+              <Input
+                id="mission-outcome"
+                name="outcome"
+                className="mission-invite-input"
+                autoComplete="off"
+                enterKeyHint="next"
+                required
+                placeholder="A real human outcome"
+                value={nameTitle}
+                onChange={setNameTitle}
+              />
+            </div>
+            <div className="mission-invite-field">
+              <label htmlFor="mission-finish">The finish line that ends it</label>
+              <Input
+                id="mission-finish"
+                name="finish_line"
+                className="mission-invite-input"
+                autoComplete="off"
+                enterKeyHint="done"
+                required
+                placeholder="The observable condition that makes it complete"
+                value={nameFinish}
+                onChange={setNameFinish}
+              />
+            </div>
+            <ActionBtn
+              type="submit"
+              disabled={!nameTitle.trim() || !nameFinish.trim()}
+            >
+              This is what matters
+            </ActionBtn>
+          </form>
+        ) : null}
+      </StrategicDelta>
 
       {!loaded ? (
         <p className="mission-status">Loading missions…</p>
       ) : (
         <>
-          {missionList.length === 0 && (
-            <form
-              className="mission-invite"
-              onSubmit={event => {
-                event.preventDefault()
-                void handleNameOutcome()
-              }}
-            >
-              <p className="mission-invite-label">Name the outcome and the finish line that ends it.</p>
-              <Input
-                placeholder="The outcome that matters most"
-                value={nameTitle}
-                onChange={setNameTitle}
-              />
-              <Input
-                placeholder="The finish line that ends it"
-                value={nameFinish}
-                onChange={setNameFinish}
-              />
-              <ActionBtn disabled={!nameTitle.trim() || !nameFinish.trim()} onClick={() => void handleNameOutcome()}>
-                This is what matters
-              </ActionBtn>
-            </form>
-          )}
-
           {/* "Right Now" used to live here. The Strategic Delta above states
               the same thing and carries provenance and controls, so keeping
               both showed the user one sentence twice. */}

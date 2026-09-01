@@ -17,6 +17,7 @@
 
 import type {
   DeltaCandidate,
+  DeltaProofStep,
   DeltaCorrection,
   DeltaEvidenceState,
   DeltaInhibitionReason,
@@ -94,14 +95,146 @@ export function routeSituation(ctx: DeltaContext): DeltaSituation {
 // A small set of plausible moves. Never shown as a menu by default —
 // reducing decision cost is the whole point.
 
+// ─── The quality bar ────────────────────────────────────────────────────
+// The first real product test failed on exactly this: the engine offered
+// `Move "<mission>" toward: <finish line>`, which is the destination
+// concatenated to itself, and the human correctly said "this is not a next
+// move". So the invariant is enforced structurally rather than learned from
+// that one sentence:
+//
+//   A move must introduce at least one non-vacuous operation beyond the
+//   vocabulary the mission already uses to describe where it is going.
+//
+// This is a criterion, not a phrase blacklist. `VACUOUS_OPERATIONS` only
+// defines which words fail to *name an operation* — a move that says
+// "advance" and nothing else names no operation; a move that says "advance
+// X by calling Beau" does.
+
+const STOPWORDS = new Set([
+  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'but', 'by', 'can', 'for', 'from',
+  'has', 'have', 'i', 'if', 'in', 'into', 'is', 'it', 'its', 'me', 'my', 'not',
+  'of', 'on', 'one', 'or', 'so', 'than', 'that', 'the', 'then', 'this', 'to',
+  'toward', 'towards', 'until', 'up', 'was', 'what', 'when', 'which', 'while',
+  'with', 'without', 'you', 'your',
+])
+
+const VACUOUS_OPERATIONS = new Set([
+  'address', 'advance', 'complete', 'continue', 'do', 'finish', 'handle',
+  'make', 'move', 'progress', 'prove', 'pursue', 'tackle', 'work',
+])
+
+function normalize(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// A light suffix stem, so "shipping" is recognised as the mission's own
+// "ship" rather than as new content. Deliberately crude: it only has to make
+// morphological variants of the same word collide.
+function stem(word: string): string {
+  let w = word
+  if (w.length > 4 && w.endsWith('ing')) w = w.slice(0, -3)
+  else if (w.length > 3 && w.endsWith('ed')) w = w.slice(0, -2)
+  else if (w.length > 3 && w.endsWith('es')) w = w.slice(0, -2)
+  else if (w.length > 3 && w.endsWith('s')) w = w.slice(0, -1)
+  if (w.length > 3 && /([bdfglmnprt])\1$/.test(w)) w = w.slice(0, -1)
+  if (w.length > 3 && w.endsWith('e')) w = w.slice(0, -1)
+  if (w.length > 2 && w.endsWith('i')) w = `${w.slice(0, -1)}y`
+  return w
+}
+
+function tokens(text: string): string[] {
+  return normalize(text).split(' ').filter(Boolean).map(stem)
+}
+
+/**
+ * True when `move` names something to do that the mission's own description
+ * of its destination does not already say.
+ */
+export function isConcreteMove(
+  move: string,
+  mission: { title: string; finishLine: string | null },
+): boolean {
+  const destination = new Set(tokens(`${mission.title} ${mission.finishLine ?? ''}`))
+  const stopped = new Set([...STOPWORDS].map(stem))
+  const vacuous = new Set([...VACUOUS_OPERATIONS].map(stem))
+  const introduced = tokens(move).filter(t => !stopped.has(t) && !destination.has(t))
+  if (introduced.length === 0) return false
+  return !introduced.every(t => vacuous.has(t))
+}
+
+/**
+ * A finish line is often written as a sequence of proofs joined by commas
+ * and "and". Splitting it gives the engine something smaller than the whole
+ * outcome to aim at. Fragments are kept verbatim — they are the human's own
+ * words, and quoting them back is honest where paraphrasing them would not be.
+ */
+export function decomposeFinishLine(finishLine: string | null): string[] {
+  if (!finishLine) return []
+  const parts = finishLine
+    .replace(/[.\s]+$/, '')
+    .split(/,\s*(?:and\s+|then\s+)?|\s+and\s+|;\s*|\s+then\s+/i)
+    .map(part => part.trim())
+    .filter(Boolean)
+  // One part means it did not decompose — the whole finish line is not a
+  // smaller target than itself.
+  return parts.length > 1 ? parts : []
+}
+
+// Bands are spaced so adding steps inside one never reorders another.
 const RANK = {
   reconcileEvidence: 0,
-  advancePrimary: 1,
-  clearBlocker: 5,
-  advanceSecondary: 6,
-  promoteToPrimary: 20,
-  setFinishLine: 30,
+  clearBlocker: 100,
+  primaryStep: 200,
+  primaryEvidence: 300,
+  secondaryStep: 400,
+  promoteToPrimary: 500,
+  setFinishLine: 600,
+  wholeMission: 900,
 } as const
+
+// Every part of a mission's finish line becomes its own candidate, so an
+// active mission offers a sequence of checkable steps rather than a single
+// paraphrase of itself. This is what gives a correction somewhere to go: the
+// existing inhibition machinery walks down the sequence instead of running
+// out of candidates on the first rejection.
+function stepCandidates(
+  mission: Mission,
+  band: number,
+): DeltaCandidate[] {
+  const steps = decomposeFinishLine(mission.finishLine)
+  return steps.map((step, index) => ({
+    id: `verify:${mission.id}:${index}`,
+    kind: 'verify_step' as const,
+    move: `Verify this part of your finish line: “${step}”`,
+    missionId: mission.id,
+    rank: band + index,
+  }))
+}
+
+// When a finish line does not decompose, the concrete move is about the
+// proof itself: completion is evidence-gated, so either name the evidence or
+// go produce it. Both introduce an operation the mission statement does not.
+function evidenceCandidate(mission: Mission, band: number): DeltaCandidate {
+  return mission.evidenceRequirement
+    ? {
+        id: `produce-evidence:${mission.id}`,
+        kind: 'produce_evidence',
+        move: `Produce the evidence that closes “${mission.title}”: ${mission.evidenceRequirement}`,
+        missionId: mission.id,
+        rank: band,
+      }
+    : {
+        id: `name-evidence:${mission.id}`,
+        kind: 'name_evidence',
+        move: `Name the evidence that will prove “${mission.title}” is genuinely done.`,
+        missionId: mission.id,
+        rank: band,
+      }
+}
 
 export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
   const out: DeltaCandidate[] = []
@@ -111,6 +244,7 @@ export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
     if (ctx.primaryEvidence.length > 0) {
       out.push({
         id: `reconcile:${primary.id}`,
+        kind: 'reconcile_evidence',
         move: `Reconcile the conflicting evidence on “${primary.title}” before acting on it.`,
         missionId: primary.id,
         rank: RANK.reconcileEvidence,
@@ -119,27 +253,40 @@ export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
     if (primary.blocker) {
       out.push({
         id: `unblock:${primary.id}`,
+        kind: 'clear_blocker',
         move: `Clear what's blocking “${primary.title}”: ${primary.blocker}`,
         missionId: primary.id,
         rank: RANK.clearBlocker,
       })
     }
+
+    out.push(...stepCandidates(primary, RANK.primaryStep))
+    out.push(evidenceCandidate(primary, RANK.primaryEvidence))
+
     if (primary.finishLine) {
+      // Deliberately still generated, and deliberately never selected: it
+      // fails `isConcreteMove`, so it shows up in the Why? trace as an
+      // alternative the engine rejected. Keeping it visible is the point —
+      // and the wording is frozen, because corrections recorded against it
+      // are matched by their prose.
       out.push({
         id: `advance:${primary.id}`,
+        kind: 'whole_mission',
         move: `Move “${primary.title}” toward: ${primary.finishLine}`,
         missionId: primary.id,
-        rank: RANK.advancePrimary,
+        rank: RANK.wholeMission,
       })
     }
   }
 
   if (secondary?.finishLine) {
+    out.push(...stepCandidates(secondary, RANK.secondaryStep))
     out.push({
       id: `advance:${secondary.id}`,
+      kind: 'whole_mission',
       move: `Move “${secondary.title}” toward: ${secondary.finishLine}`,
       missionId: secondary.id,
-      rank: RANK.advanceSecondary,
+      rank: RANK.wholeMission + 1,
     })
   }
 
@@ -147,6 +294,7 @@ export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
     if (m.finishLine) {
       out.push({
         id: `promote:${m.id}`,
+        kind: 'promote_to_primary',
         move: `Make “${m.title}” your Primary Mission and start on: ${m.finishLine}`,
         missionId: m.id,
         // Preserve the newest-touched ordering as leverage order.
@@ -155,6 +303,7 @@ export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
     } else {
       out.push({
         id: `finish-line:${m.id}`,
+        kind: 'set_finish_line',
         move: `Give “${m.title}” an exact finish line, so it can become actionable.`,
         missionId: m.id,
         rank: RANK.setFinishLine + index,
@@ -192,7 +341,12 @@ export function inhibit(candidates: DeltaCandidate[], ctx: DeltaContext): Inhibi
   for (const candidate of candidates) {
     // 1. The user already said this one is wrong. A correction is durable
     //    and outranks every other rule — it is an explicit user policy.
-    const correction = ctx.corrections.find(c => c.correctedMove === candidate.move)
+    //    Matched by candidate id when the correction carries one, and by
+    //    prose otherwise, so corrections recorded before ids existed still
+    //    match and a later copy change cannot silently orphan them.
+    const correction = ctx.corrections.find(c =>
+      c.candidateId ? c.candidateId === candidate.id : c.correctedMove === candidate.move,
+    )
     if (correction) {
       inhibited.push(kill(candidate, 'corrected', `You said this isn't right: ${correction.reason}`))
       continue
@@ -209,16 +363,35 @@ export function inhibit(candidates: DeltaCandidate[], ctx: DeltaContext): Inhibi
       continue
     }
 
-    // 3. Advancing a mission that is blocked is blocked by something more
+    // 3. A move that only restates where the mission is going is not a
+    //    move. This is the bar the first real product test exposed: the
+    //    engine must not offer the destination back as the next step.
+    const owner = [ctx.primary, ctx.secondary, ...ctx.parked].find(m => m?.id === candidate.missionId)
+    if (owner && !isConcreteMove(candidate.move, owner)) {
+      inhibited.push(kill(
+        candidate,
+        'not_a_move',
+        'This restates the mission and its finish line instead of naming something to do.',
+      ))
+      continue
+    }
+
+    // 4. Advancing a mission that is blocked is blocked by something more
     //    fundamental than the move itself.
-    if (candidate.id.startsWith('advance:') && candidate.missionId === ctx.primary?.id && ctx.primary.blocker) {
+    //    Clearing the blocker is the only primary-side move that survives —
+    //    which is exactly what makes the Secondary actionable (spec §5).
+    if (
+      candidate.kind !== 'clear_blocker' &&
+      candidate.missionId === ctx.primary?.id &&
+      ctx.primary.blocker
+    ) {
       inhibited.push(kill(candidate, 'blocked', `Blocked by: ${ctx.primary.blocker}`))
       continue
     }
 
-    // 4. A parked mission cannot quietly displace an active Primary. That
+    // 5. A parked mission cannot quietly displace an active Primary. That
     //    is a priority challenge, and it requires stating what changed.
-    if (candidate.id.startsWith('promote:') && ctx.primary) {
+    if (candidate.kind === 'promote_to_primary' && ctx.primary) {
       inhibited.push(kill(
         candidate,
         'displaces_primary',
@@ -227,8 +400,8 @@ export function inhibit(candidates: DeltaCandidate[], ctx: DeltaContext): Inhibi
       continue
     }
 
-    // 5. A mission with no finish line has no end state to move toward.
-    if (candidate.id.startsWith('finish-line:') && ctx.primary) {
+    // 6. A mission with no finish line has no end state to move toward.
+    if (candidate.kind === 'set_finish_line' && ctx.primary) {
       inhibited.push(kill(
         candidate,
         'no_finish_line',
@@ -240,7 +413,7 @@ export function inhibit(candidates: DeltaCandidate[], ctx: DeltaContext): Inhibi
     surviving.push(candidate)
   }
 
-  // 6. Among what is left, only the highest-leverage move survives.
+  // 7. Among what is left, only the highest-leverage move survives.
   //    Everything else is real, just not first.
   const ranked = surviving.slice().sort((a, b) => a.rank - b.rank || a.id.localeCompare(b.id))
   const [winner, ...rest] = ranked
@@ -249,9 +422,9 @@ export function inhibit(candidates: DeltaCandidate[], ctx: DeltaContext): Inhibi
     inhibited.push(kill(
       loser,
       'lower_leverage',
-      winner
-        ? `Lower leverage than the selected move right now.`
-        : 'Lower leverage.',
+      loser.kind === 'verify_step' && winner?.kind === 'verify_step'
+        ? 'A later part of your finish line than the one now selected.'
+        : 'Lower leverage than the selected move right now.',
     ))
   }
 
@@ -265,6 +438,11 @@ export function inhibit(candidates: DeltaCandidate[], ctx: DeltaContext): Inhibi
 
 const INSUFFICIENT_CONTEXT_MOVE =
   'Name the one outcome that matters most right now, and the finish line that ends it.'
+
+function ordinal(zeroBased: number): string {
+  const names = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth']
+  return names[zeroBased] ?? `${zeroBased + 1}th`
+}
 
 function describeReality(ctx: DeltaContext): string {
   const parts: string[] = []
@@ -310,7 +488,30 @@ function describeWouldChange(situation: DeltaSituation, ctx: DeltaContext): stri
   }
 }
 
-function describeBecause(situation: DeltaSituation, ctx: DeltaContext): string {
+function describeBecause(
+  situation: DeltaSituation,
+  ctx: DeltaContext,
+  winner?: DeltaCandidate,
+  // How many parts of the finish line the human has actually corrected.
+  // Not the same as how many corrections exist: a correction recorded
+  // against the whole mission is not a correction of any one part.
+  correctedSteps = 0,
+): string {
+  // When the move targets one part of a finish line, the useful explanation
+  // is which part and why that one — not why the mission matters.
+  if (winner?.kind === 'verify_step' && winner.missionId) {
+    const owner = [ctx.primary, ctx.secondary].find(m => m?.id === winner.missionId)
+    const total = decomposeFinishLine(owner?.finishLine ?? null).length
+    return correctedSteps > 0
+      ? `Your finish line names ${total} things to prove. You've ruled out ${correctedSteps === 1 ? 'the first' : `${correctedSteps} of them`}, so this is the next part with nothing recorded against it.`
+      : `Your finish line names ${total} things to prove, and none of them has evidence yet. This is the first.`
+  }
+  if (winner?.kind === 'name_evidence') {
+    return 'This mission completes on evidence, and no evidence requirement is set — so there is nothing yet that could prove it done.'
+  }
+  if (winner?.kind === 'produce_evidence') {
+    return 'The finish line does not break into smaller parts, so the next real step is the proof it already asks for.'
+  }
   switch (situation) {
     case 'evidence_conflict':
       return 'Two sources disagree about this mission. Nothing built on top of that is trustworthy until it is resolved.'
@@ -345,30 +546,58 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
 
   const winner = surviving[0]
 
-  // Nothing survived — either there was never anything to predict from, or
-  // every candidate was inhibited. Both are honest states, never padded
-  // with a guess.
+  // What the finish line claims to prove, and how far down it we are. Shown
+  // in Why? so the sequence the engine is walking is inspectable.
+  const aimedAt = ctx.primary ?? ctx.secondary ?? null
+  const proofSteps: DeltaProofStep[] = aimedAt
+    ? decomposeFinishLine(aimedAt.finishLine).map((text, index) => ({
+        index,
+        text,
+        corrected: inhibited.some(c => c.id === `verify:${aimedAt.id}:${index}` && c.reason === 'corrected'),
+        selected: winner?.id === `verify:${aimedAt.id}:${index}`,
+      }))
+    : []
+  const correctedSteps = proofSteps.filter(step => step.corrected).length
+
   if (!winner) {
-    const everythingCorrected = candidates.length > 0
+    // Three genuinely different situations used to share one message. Saying
+    // "add what changed" when the human changed nothing — and when the
+    // engine simply had nothing good to offer — is a generator failure
+    // dressed up as the human's fault.
+    const correctedAny = inhibited.some(c => c.reason === 'corrected')
+    const hadCandidates = candidates.length > 0
+
+    const move = !hadCandidates
+      ? INSUFFICIENT_CONTEXT_MOVE
+      : correctedAny
+      ? `Tell me which part of “${aimedAt?.finishLine ?? 'your finish line'}” is still unproven.`
+      : `Name the evidence that will prove “${aimedAt?.title ?? 'this mission'}” is genuinely done.`
+
+    const because = !hadCandidates
+      ? describeBecause(situation, ctx)
+      : correctedAny
+      ? 'You have corrected every part of this finish line I can currently aim at. I know the outcome, but not which part remains unresolved.'
+      : 'I can see the outcome, but I could not turn this finish line into a step smaller than itself. That is my limit, not missing information from you.'
+
     return {
-      move: everythingCorrected
-        ? 'Add what changed, so there is something new to predict from.'
-        : INSUFFICIENT_CONTEXT_MOVE,
+      move,
+      candidateId: null,
       provenance: 'insufficient_context',
       situation,
       missionId: null,
       missionTitle: null,
-      because: everythingCorrected
-        ? 'Every move currently supportable has been corrected. Nothing new has come in since.'
-        : describeBecause(situation, ctx),
+      because,
       currentReality: describeReality(ctx),
-      blockingGap: everythingCorrected
-        ? 'No uncorrected move remains.'
-        : 'No mission names an outcome and a finish line.',
+      blockingGap: !hadCandidates
+        ? 'No mission names an outcome and a finish line.'
+        : correctedAny
+        ? 'Every part of the finish line has been corrected.'
+        : 'No part of the finish line is smaller than the finish line.',
       evidenceState,
       inhibited,
       wouldChangeIf: describeWouldChange(situation, ctx),
       assembledFrom,
+      proofSteps,
       computedAt: ctx.now,
     }
   }
@@ -378,17 +607,19 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
 
   return {
     move: winner.move,
+    candidateId: winner.id,
     provenance: 'deterministic',
     situation,
     missionId: winner.missionId,
     missionTitle: mission?.title ?? null,
-    because: describeBecause(situation, ctx),
+    because: describeBecause(situation, ctx, winner, correctedSteps),
     currentReality: describeReality(ctx),
     blockingGap: ctx.primary?.blocker ?? null,
     evidenceState,
     inhibited,
     wouldChangeIf: describeWouldChange(situation, ctx),
     assembledFrom,
+    proofSteps,
     computedAt: ctx.now,
   }
 }

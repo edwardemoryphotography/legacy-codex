@@ -669,15 +669,57 @@ body {
 }
 
 .mission-invite {
+  position: relative;
+  z-index: 2;
   display: grid;
-  gap: 10px;
-  margin: 4px 0 8px;
+  gap: 14px;
+  margin: 16px 0 8px;
   max-width: 42rem;
+  pointer-events: auto;
+}
+
+.mission-invite-field {
+  display: grid;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.mission-invite-field label {
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.35;
+  cursor: pointer;
 }
 
 .mission-invite-label {
   color: var(--text-dim);
   font-size: 0.82rem;
+}
+
+/* Input primitives set faint borders via inline style. These fields have
+   to win that fight or they read as static copy and fail hit-testing
+   visually even when the node is an <input>. */
+.mission-invite input {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto !important;
+  cursor: text !important;
+  -webkit-user-select: text;
+  user-select: text;
+  touch-action: manipulation;
+  font-size: 16px !important;
+  border: 1px solid color-mix(in srgb, var(--teal) 32%, var(--line-strong)) !important;
+  background: rgba(8, 10, 18, 0.98) !important;
+  color: var(--text) !important;
+}
+
+.mission-invite input:focus,
+.mission-invite input:focus-visible {
+  outline: 2px solid var(--teal) !important;
+  outline-offset: 2px;
+  border-color: var(--teal) !important;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--teal) 22%, transparent) !important;
 }
 
 .mission-invite button {
@@ -756,4 +798,35 @@ body {
 [data-reduced-motion="true"] .sd[data-state="resolved"] .sd-move,
 [data-reduced-motion="true"] .sd-why {
   animation: none;
+}
+
+/* The finish line as the sequence of proofs it is, so the part the Delta is
+   aimed at — and the parts the human has ruled out — are both inspectable. */
+.sd-steps {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.sd-steps li + li { margin-top: 6px; }
+.sd-steps li[data-selected] { color: var(--text); }
+.sd-steps li[data-corrected] {
+  text-decoration: line-through;
+  text-decoration-color: var(--line-strong);
+}
+.sd-step-tag {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.sd-steps li[data-selected] .sd-step-tag {
+  border-color: var(--teal);
+  color: var(--teal);
 }

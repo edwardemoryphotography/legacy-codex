@@ -99,7 +99,7 @@ export default function CodexApp() {
           id={`panel-${activeTab}`}
           role="tabpanel"
           aria-labelledby={`tab-${activeTab}`}
-          tabIndex={0}
+          tabIndex={-1}
         >
           {activeTab === 'mission'               && <MissionTab />}
           {activeTab === 'overview'             && <OverviewTab />}

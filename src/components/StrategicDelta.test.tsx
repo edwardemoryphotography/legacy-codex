@@ -1,4 +1,5 @@
 /** @vitest-environment jsdom */
+import { useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Mission, MissionState } from '@/types'
@@ -36,12 +37,15 @@ function renderDelta(missions: Mission[], overrides: Partial<React.ComponentProp
   return props
 }
 
+// A compound finish line, because that is the shape the engine aims at:
+// one part at a time rather than the whole outcome restated.
 const PRIMARY = mission({
   id: 'm1',
   state: 'primary',
   title: 'Ship the Strategic Delta',
-  finishLine: 'Live on legacy-codex.vercel.app',
+  finishLine: 'lands on main, deploys to Vercel, and answers without prompting',
 })
+const PRIMARY_FIRST_MOVE = 'Verify this part of your finish line: “lands on main”'
 
 describe('StrategicDelta', () => {
   it('shows a reasoning state, not a prediction, while the read is still pending', () => {
@@ -51,13 +55,13 @@ describe('StrategicDelta', () => {
     expect(region.getAttribute('aria-busy')).toBe('true')
     expect(region.getAttribute('data-state')).toBe('reasoning')
     // Nothing may be asserted as a prediction before the state is read.
-    expect(screen.queryByText(/Ship the Strategic Delta/)).toBeNull()
+    expect(screen.queryByText(/Verify this part of your finish line/)).toBeNull()
   })
 
   it('resolves to one move, marked as predicted from real state', async () => {
     renderDelta([PRIMARY])
 
-    expect(await screen.findByText(/Move “Ship the Strategic Delta” toward/)).toBeTruthy()
+    expect(await screen.findByText(/Verify this part of your finish line/)).toBeTruthy()
     const region = screen.getByLabelText('Strategic Delta')
     expect(region.getAttribute('data-state')).toBe('resolved')
     expect(region.getAttribute('data-provenance')).toBe('deterministic')
@@ -74,13 +78,68 @@ describe('StrategicDelta', () => {
     expect(screen.queryByRole('button', { name: 'Do this' })).toBeNull()
     // Nothing to correct when nothing was predicted.
     expect((screen.getByRole('button', { name: 'Not right' }) as HTMLButtonElement).disabled).toBe(true)
+    // Live region stays on the move copy, never on the section — wrapping
+    // inputs in aria-live intercepts focus/typing on Safari/iOS.
+    expect(screen.getByLabelText('Strategic Delta').getAttribute('aria-live')).toBeNull()
+    expect(screen.getByText(/Name the one outcome that matters most/).getAttribute('aria-live')).toBe('polite')
+  })
+
+  it('renders insufficient-context children as editable labeled fields that accept typing', async () => {
+    function Invite() {
+      const [outcome, setOutcome] = useState('')
+      const [finish, setFinish] = useState('')
+      return (
+        <form>
+          <label htmlFor="mission-outcome">The outcome that matters most</label>
+          <input
+            id="mission-outcome"
+            value={outcome}
+            onChange={event => setOutcome(event.target.value)}
+          />
+          <label htmlFor="mission-finish">The finish line that ends it</label>
+          <input
+            id="mission-finish"
+            value={finish}
+            onChange={event => setFinish(event.target.value)}
+          />
+          <button type="submit" disabled={!outcome.trim() || !finish.trim()}>
+            This is what matters
+          </button>
+        </form>
+      )
+    }
+
+    renderDelta([], { children: <Invite /> })
+
+    const outcome = await screen.findByLabelText('The outcome that matters most')
+    const finish = screen.getByLabelText('The finish line that ends it')
+    expect(outcome.tagName).toBe('INPUT')
+    expect(finish.tagName).toBe('INPUT')
+    expect((outcome as HTMLInputElement).disabled).toBe(false)
+    expect((finish as HTMLInputElement).disabled).toBe(false)
+
+    fireEvent.change(outcome, { target: { value: 'Runtime interaction check' } })
+    fireEvent.change(finish, { target: { value: 'Both fields accept real input' } })
+
+    expect((outcome as HTMLInputElement).value).toBe('Runtime interaction check')
+    expect((finish as HTMLInputElement).value).toBe('Both fields accept real input')
+    expect((screen.getByRole('button', { name: 'This is what matters' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('does not render missing-input children once a mission exists to predict from', async () => {
+    renderDelta([PRIMARY], {
+      children: <input aria-label="The outcome that matters most" />,
+    })
+
+    expect(await screen.findByText(/Verify this part of your finish line/)).toBeTruthy()
+    expect(screen.queryByLabelText('The outcome that matters most')).toBeNull()
   })
 
   // §23 — provenance, not a hidden reasoning trace.
   it('shows structured provenance and the inhibited alternatives behind Why?', async () => {
     renderDelta([
       mission({ id: 'm1', state: 'primary', title: 'Ship it', finishLine: 'Live', blocker: 'Waiting on Vaughn' }),
-      mission({ id: 'm2', state: 'secondary', title: 'Write the docs', finishLine: 'Merged' }),
+      mission({ id: 'm2', state: 'secondary', title: 'Write the docs', finishLine: 'drafts the page, and gets a review' }),
     ])
 
     fireEvent.click(await screen.findByRole('button', { name: 'Why?' }))
@@ -89,9 +148,12 @@ describe('StrategicDelta', () => {
     expect(screen.getByText('Blocking gap')).toBeTruthy()
     expect(screen.getByText('Alternatives inhibited')).toBeTruthy()
     expect(screen.getByText('What would change this')).toBeTruthy()
-    // The alternative that lost is named, with the reason it lost.
-    expect(screen.getByText(/Move “Write the docs” toward/)).toBeTruthy()
-    expect(screen.getByText(/Lower leverage/)).toBeTruthy()
+    // Every alternative that lost is named, each with the reason it lost —
+    // including the paraphrase the engine rejects on quality.
+    const trace = document.querySelectorAll('.sd-trace li')
+    const traceText = [...trace].map(li => li.textContent ?? '')
+    expect(traceText.some(t => /drafts the page/.test(t) && /Lower leverage/.test(t))).toBe(true)
+    expect(traceText.some(t => /restates the mission/.test(t))).toBe(true)
   })
 
   // §15 — correction is a first-class interaction, and it re-predicts.
@@ -121,7 +183,7 @@ describe('StrategicDelta', () => {
   })
 
   it('shows an accepted move as still unproven', async () => {
-    renderDelta([PRIMARY], { acceptedMove: 'Move “Ship the Strategic Delta” toward: Live on legacy-codex.vercel.app' })
+    renderDelta([PRIMARY], { acceptedMove: PRIMARY_FIRST_MOVE })
 
     expect(await screen.findByText(/still a prediction until there's evidence/i)).toBeTruthy()
   })

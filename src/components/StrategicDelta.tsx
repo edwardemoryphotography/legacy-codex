@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DeltaCorrection, EvidenceRecord, Mission, StrategicDelta as Delta } from '@/types'
 import { predictStrategicDelta } from '@/lib/strategicDelta'
 import { ActionBtn, ActionChip, Textarea } from '@/components/ui'
@@ -61,6 +61,9 @@ interface Props {
   onCorrect: DeltaCorrect
   onContextAdded: DeltaContextWrite
   onRecheck: () => void
+  /** Missing-input controls for insufficient context. Rendered inside the
+   *  hero, not below it — and never inside the live region. */
+  children?: ReactNode
 }
 
 export default function StrategicDelta({
@@ -74,6 +77,7 @@ export default function StrategicDelta({
   onCorrect,
   onContextAdded,
   onRecheck,
+  children,
 }: Props) {
   // Set after mount so server and client never disagree about the clock.
   const [now, setNow] = useState<string | null>(null)
@@ -193,7 +197,6 @@ export default function StrategicDelta({
       data-state={reconstructing ? 'reasoning' : 'resolved'}
       data-cognition={cognition}
       data-provenance={delta?.provenance ?? 'deterministic'}
-      aria-live="polite"
       aria-busy={reconstructing || recording}
       aria-label="Strategic Delta"
     >
@@ -206,14 +209,16 @@ export default function StrategicDelta({
       <p className="sd-eyebrow">{eyebrowFor(cognition, pendingRead)}</p>
 
       {pendingRead ? (
-        <p className="sd-phase">
+        <p className="sd-phase" aria-live="polite">
           {showPhaseText ? phaseCopy : '\u00a0'}
         </p>
       ) : delta ? (
         <>
-          <p className="sd-move" key={delta.move}>{delta.move}</p>
+          <p className="sd-move" key={delta.move} aria-live="polite">{delta.move}</p>
 
           <p className="sd-because">{delta.because}</p>
+
+          {delta.provenance === 'insufficient_context' && children}
 
           {correcting && (
             <p className="sd-phase">{showPhaseText ? phaseCopy : '\u00a0'}</p>
@@ -297,6 +302,24 @@ export default function StrategicDelta({
                 <h3>Current reality</h3>
                 <p>{delta.currentReality}</p>
               </section>
+              {delta.proofSteps.length > 0 && (
+                <section>
+                  <h3>What your finish line asks you to prove</h3>
+                  <ol className="sd-steps">
+                    {delta.proofSteps.map(step => (
+                      <li
+                        key={step.index}
+                        data-selected={step.selected || undefined}
+                        data-corrected={step.corrected || undefined}
+                      >
+                        {step.text}
+                        {step.selected && <span className="sd-step-tag">aiming here</span>}
+                        {step.corrected && <span className="sd-step-tag">you ruled this out</span>}
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              )}
               {delta.blockingGap && (
                 <section>
                   <h3>Blocking gap</h3>

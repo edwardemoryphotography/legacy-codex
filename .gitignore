@@ -38,3 +38,6 @@ next-env.d.ts
 
 # claude code agent worktrees (local session state)
 .claude/worktrees/
+
+# Playwright CLI scratch output from browser verification runs
+.playwright-cli/

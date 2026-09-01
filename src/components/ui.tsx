@@ -108,30 +108,48 @@ export function FieldLabel({ htmlFor, children }: { htmlFor?: string; children: 
 /* ─── Input ──────────────────────────────────────────────────── */
 export function Input({
   id,
+  name,
   type = 'text',
   value,
   defaultValue,
   onChange,
   placeholder,
   readOnly,
+  disabled,
+  required,
+  autoComplete,
+  enterKeyHint,
+  className,
 }: {
   id?: string
+  name?: string
   type?: string
   value?: string
   defaultValue?: string
   onChange?: (v: string) => void
   placeholder?: string
   readOnly?: boolean
+  disabled?: boolean
+  required?: boolean
+  autoComplete?: string
+  enterKeyHint?: 'enter' | 'done' | 'go' | 'next' | 'previous' | 'search' | 'send'
+  className?: string
 }) {
   return (
     <input
       id={id}
+      name={name}
       type={type}
       value={value}
       defaultValue={defaultValue}
       onChange={e => onChange?.(e.target.value)}
       placeholder={placeholder}
       readOnly={readOnly}
+      disabled={disabled}
+      required={required}
+      autoComplete={autoComplete}
+      enterKeyHint={enterKeyHint}
+      className={className}
       style={{
         width: '100%',
         border: '1px solid var(--line-strong)',
@@ -229,11 +247,13 @@ export function ActionBtn({
   disabled,
   children,
   variant = 'primary',
+  type = 'button',
 }: {
   onClick?: () => void
   disabled?: boolean
   children: ReactNode
   variant?: 'primary' | 'secondary'
+  type?: 'button' | 'submit'
 }) {
   const styles =
     variant === 'primary'
@@ -252,7 +272,7 @@ export function ActionBtn({
 
   return (
     <button
-      type="button"
+      type={type}
       onClick={onClick}
       disabled={disabled}
       className="interactive-control"

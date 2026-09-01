@@ -215,11 +215,28 @@ export type DeltaInhibitionReason =
   | 'no_finish_line'
   | 'displaces_primary'
   | 'lower_leverage'
+  // The candidate restates the destination instead of naming a move. This
+  // is the quality bar, not a preference — see `isConcreteMove`.
+  | 'not_a_move'
 
 export type DeltaEvidenceState = 'none' | 'verified' | 'conflict' | 'stale' | 'unverified'
 
+// What a candidate proposes doing. Carried explicitly so inhibition rules
+// read as rules rather than sniffing id prefixes.
+export type DeltaCandidateKind =
+  | 'reconcile_evidence'
+  | 'clear_blocker'
+  | 'verify_step'
+  | 'name_evidence'
+  | 'produce_evidence'
+  | 'promote_to_primary'
+  | 'set_finish_line'
+  // Kept so the human can see it was considered and rejected, never selected.
+  | 'whole_mission'
+
 export interface DeltaCandidate {
   id: string
+  kind: DeltaCandidateKind
   move: string
   missionId: string | null
   /** Lower ranks are higher leverage. */
@@ -237,13 +254,29 @@ export interface DeltaCorrection {
   id: string
   missionId: string
   correctedMove: string
+  /** Candidate id the correction was recorded against, when known. Newer
+   *  corrections carry it so a copy change cannot silently orphan them;
+   *  older rows have only the prose and still match on `correctedMove`. */
+  candidateId?: string
   reason: string
   createdAt: string
+}
+
+export interface DeltaProofStep {
+  index: number
+  text: string
+  /** True once the human has corrected the move that targeted this part. */
+  corrected: boolean
+  /** True for the part this Delta is currently aimed at. */
+  selected: boolean
 }
 
 export interface StrategicDelta {
   /** The single move. */
   move: string
+  /** Id of the candidate this move came from, so a correction survives a
+   *  later change to the move's wording. Null when nothing was selected. */
+  candidateId: string | null
   provenance: DeltaProvenance
   situation: DeltaSituation
   missionId: string | null
@@ -259,6 +292,10 @@ export interface StrategicDelta {
   inhibited: InhibitedCandidate[]
   /** The condition under which this recommendation should be recomputed. */
   wouldChangeIf: string
+  /** The finish line broken into the parts it claims to prove, in the order
+   *  the human wrote them, with the ones already corrected marked. Empty when
+   *  the finish line does not decompose. */
+  proofSteps: DeltaProofStep[]
   /** The context sources actually used — counts, never claims. */
   assembledFrom: string[]
   computedAt: string
