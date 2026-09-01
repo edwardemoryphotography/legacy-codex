@@ -1,14 +1,18 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DeltaCorrection, EvidenceRecord, Mission, StrategicDelta as Delta } from '@/types'
 import { predictStrategicDelta } from '@/lib/strategicDelta'
-import { ActionBtn, ActionChip, Badge, Textarea } from '@/components/ui'
+import { ActionBtn, ActionChip, Textarea } from '@/components/ui'
 
 // Phases are derived from work that is actually pending — anonymous
 // sign-in, then the missions/evidence read. Nothing here runs on a timer
 // to look busy; when the read is fast, the Delta simply resolves fast.
 export type DeltaPhase = 'orienting' | 'reading' | 'resolved'
+
+export type DeltaWrite = (delta: Delta) => void | boolean | Promise<void | boolean>
+export type DeltaCorrect = (delta: Delta, reason: string) => void | boolean | Promise<void | boolean>
+export type DeltaContextWrite = (delta: Delta, note: string) => void | boolean | Promise<void | boolean>
 
 const PHASE_TEXT: Record<Exclude<DeltaPhase, 'resolved'>, string> = {
   orienting: 'Reconstructing where you left off…',
@@ -31,6 +35,16 @@ const INHIBITION_LABEL: Record<string, string> = {
 }
 
 type OpenPanel = 'why' | 'correct' | 'changed' | null
+type Cognition = 'reconstructing' | 'correcting' | 'insufficient' | 'settled' | 'accepted' | 'failed'
+
+function eyebrowFor(cognition: Cognition, reasoning: boolean): string {
+  if (cognition === 'failed') return 'This did not record'
+  if (cognition === 'correcting') return 'Reconsidering'
+  if (reasoning) return 'Reconstructing'
+  if (cognition === 'insufficient') return 'Not enough yet'
+  if (cognition === 'accepted') return 'Intending this next'
+  return 'What matters now'
+}
 
 interface Props {
   missions: Mission[]
@@ -40,9 +54,12 @@ interface Props {
   /** The move the user has accepted, if any. Compared by value so a
    *  re-prediction that changes the move clears the accepted state. */
   acceptedMove: string | null
-  onAccept: (delta: Delta) => void
-  onCorrect: (delta: Delta, reason: string) => void
-  onContextAdded: (delta: Delta, note: string) => void
+  /** Persistence failure for a Delta write. Distinct from a successful
+   *  recording — the UI must never look saved when the write was rejected. */
+  persistError?: string | null
+  onAccept: DeltaWrite
+  onCorrect: DeltaCorrect
+  onContextAdded: DeltaContextWrite
   onRecheck: () => void
 }
 
@@ -52,6 +69,7 @@ export default function StrategicDelta({
   corrections,
   phase,
   acceptedMove,
+  persistError = null,
   onAccept,
   onCorrect,
   onContextAdded,
@@ -63,48 +81,87 @@ export default function StrategicDelta({
   const [open, setOpen] = useState<OpenPanel>(null)
   const [correctionReason, setCorrectionReason] = useState('')
   const [changedNote, setChangedNote] = useState('')
+  const [correcting, setCorrecting] = useState(false)
+  const [recording, setRecording] = useState(false)
+  const whyRef = useRef<HTMLDivElement>(null)
+  const correctionRef = useRef<HTMLTextAreaElement>(null)
+  const changedRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     setNow(new Date().toISOString())
   }, [])
 
-  const reasoning = phase !== 'resolved' || now === null
+  const pendingRead = phase !== 'resolved' || now === null
+  const reconstructing = pendingRead || correcting
 
   // A sub-150ms read should not flash a reasoning state at the user; a
   // real one always exceeds this.
   useEffect(() => {
-    if (!reasoning) {
+    if (!reconstructing) {
       setShowPhaseText(false)
       return
     }
     const timer = setTimeout(() => setShowPhaseText(true), 140)
     return () => clearTimeout(timer)
-  }, [reasoning])
+  }, [reconstructing])
 
   const delta = useMemo(
     () => (now === null ? null : predictStrategicDelta(missions, evidence, corrections, now)),
     [missions, evidence, corrections, now],
   )
 
+  useEffect(() => {
+    const node =
+      open === 'why' ? whyRef.current
+        : open === 'correct' ? correctionRef.current
+          : open === 'changed' ? changedRef.current
+            : null
+    if (!node) return
+    node.focus()
+    if (typeof node.scrollIntoView === 'function') {
+      node.scrollIntoView({ block: 'nearest' })
+    }
+  }, [open])
+
   function recheck() {
     setNow(new Date().toISOString())
     onRecheck()
   }
 
-  function submitCorrection() {
-    if (!delta || !correctionReason.trim()) return
-    onCorrect(delta, correctionReason.trim())
-    setCorrectionReason('')
+  async function submitCorrection() {
+    if (!delta || !correctionReason.trim() || recording) return
+    setRecording(true)
+    setCorrecting(true)
     setOpen(null)
+    const result = await Promise.resolve(onCorrect(delta, correctionReason.trim()))
+    setRecording(false)
+    if (result === false) {
+      setCorrecting(false)
+      setOpen('correct')
+      return
+    }
+    setCorrectionReason('')
     setNow(new Date().toISOString())
+    setCorrecting(false)
   }
 
-  function submitChanged() {
-    if (!delta || !changedNote.trim()) return
-    onContextAdded(delta, changedNote.trim())
+  async function submitChanged() {
+    if (!delta || !changedNote.trim() || recording) return
+    setRecording(true)
+    const result = await Promise.resolve(onContextAdded(delta, changedNote.trim()))
+    setRecording(false)
+    if (result === false) return
     setChangedNote('')
     setOpen(null)
     recheck()
+  }
+
+  async function accept() {
+    if (!delta || recording) return
+    setRecording(true)
+    const result = await Promise.resolve(onAccept(delta))
+    setRecording(false)
+    if (result === false) return
   }
 
   // A correction is recorded against the mission the Delta names. An
@@ -112,68 +169,124 @@ export default function StrategicDelta({
   // correct yet — say that rather than offering a control that fails.
   const canCorrect = Boolean(delta?.missionId)
   const accepted = delta !== null && acceptedMove === delta.move
+  const latestCorrection = corrections[corrections.length - 1] ?? null
+
+  const cognition: Cognition = persistError
+    ? 'failed'
+    : correcting
+      ? 'correcting'
+      : pendingRead
+        ? 'reconstructing'
+        : delta?.provenance === 'insufficient_context'
+          ? 'insufficient'
+          : accepted
+            ? 'accepted'
+            : 'settled'
+
+  const phaseCopy = correcting
+    ? 'Reconsidering from what you just taught it…'
+    : PHASE_TEXT[phase === 'resolved' ? 'reading' : phase]
 
   return (
     <section
       className="sd"
-      data-state={reasoning ? 'reasoning' : 'resolved'}
+      data-state={reconstructing ? 'reasoning' : 'resolved'}
+      data-cognition={cognition}
       data-provenance={delta?.provenance ?? 'deterministic'}
       aria-live="polite"
-      aria-busy={reasoning}
+      aria-busy={reconstructing || recording}
       aria-label="Strategic Delta"
     >
-      <div className="sd-halo" aria-hidden="true" />
+      <div className="sd-field" aria-hidden="true">
+        <span className="sd-field-specks" />
+        <span className="sd-field-ring" />
+        <span className="sd-field-core" />
+      </div>
 
-      <p className="sd-eyebrow">
-        <span aria-hidden="true">◇</span>
-        {reasoning ? 'Strategic Delta' : 'Your Strategic Delta'}
-      </p>
+      <p className="sd-eyebrow">{eyebrowFor(cognition, pendingRead)}</p>
 
-      {reasoning ? (
+      {pendingRead ? (
         <p className="sd-phase">
-          {showPhaseText ? PHASE_TEXT[phase === 'resolved' ? 'reading' : phase] : ' '}
+          {showPhaseText ? phaseCopy : '\u00a0'}
         </p>
       ) : delta ? (
         <>
-          <p className="sd-move">{delta.move}</p>
+          <p className="sd-move" key={delta.move}>{delta.move}</p>
 
           <p className="sd-because">{delta.because}</p>
 
-          <div className="sd-controls">
-            {delta.provenance === 'insufficient_context' ? null : accepted ? (
-              <Badge tone="success">Accepted — still a prediction until there&apos;s evidence</Badge>
-            ) : (
-              <ActionBtn onClick={() => onAccept(delta)}>Do this</ActionBtn>
+          {correcting && (
+            <p className="sd-phase">{showPhaseText ? phaseCopy : '\u00a0'}</p>
+          )}
+
+          {latestCorrection && (
+            <p className="sd-taught">
+              You taught it: {latestCorrection.reason}
+            </p>
+          )}
+
+          {persistError && (
+            <p className="sd-fail" role="alert">
+              {persistError}
+            </p>
+          )}
+
+          {accepted && (
+            <p className="sd-accepted">
+              Accepted — still a prediction until there&apos;s evidence
+            </p>
+          )}
+
+          <div className="sd-act">
+            {delta.provenance === 'insufficient_context' || accepted ? null : (
+              <div className="sd-act-primary">
+                <ActionBtn onClick={() => void accept()}>Do this</ActionBtn>
+              </div>
             )}
-            <ActionChip
-              onClick={() => setOpen(open === 'why' ? null : 'why')}
-              variant={open === 'why' ? 'primary' : 'secondary'}
-            >
-              Why?
-            </ActionChip>
-            <ActionChip
-              disabled={!canCorrect}
-              onClick={() => setOpen(open === 'correct' ? null : 'correct')}
-              variant={open === 'correct' ? 'primary' : 'secondary'}
-            >
-              Not right
-            </ActionChip>
-            <ActionChip
-              onClick={() => setOpen(open === 'changed' ? null : 'changed')}
-              variant={open === 'changed' ? 'primary' : 'secondary'}
-            >
-              Something changed
-            </ActionChip>
+            <div className="sd-act-secondary">
+              <ActionChip
+                onClick={() => setOpen(open === 'why' ? null : 'why')}
+                variant={open === 'why' ? 'primary' : 'secondary'}
+                aria-expanded={open === 'why'}
+                aria-controls="sd-why"
+              >
+                Why?
+              </ActionChip>
+              <ActionChip
+                disabled={!canCorrect}
+                onClick={() => setOpen(open === 'correct' ? null : 'correct')}
+                variant={open === 'correct' ? 'primary' : 'secondary'}
+                aria-expanded={open === 'correct'}
+                aria-controls="sd-correct"
+                title={canCorrect ? undefined : 'Nothing to correct until a mission exists'}
+              >
+                Not right
+              </ActionChip>
+              <ActionChip
+                onClick={() => setOpen(open === 'changed' ? null : 'changed')}
+                variant={open === 'changed' ? 'primary' : 'secondary'}
+                aria-expanded={open === 'changed'}
+                aria-controls="sd-changed"
+                className="sd-act-changed"
+              >
+                Something changed
+              </ActionChip>
+            </div>
           </div>
 
-          <div className="sd-provenance">
-            <span>{PROVENANCE_LABEL[delta.provenance]}</span>
-            <span aria-hidden="true">·</span>
-            <span>Read {delta.assembledFrom.join(', ')}</span>
-          </div>
+          <p className="sd-provenance">
+            {PROVENANCE_LABEL[delta.provenance]}
+          </p>
 
           {open === 'why' && (
-            <div className="sd-why">
+            <div
+              id="sd-why"
+              className="sd-why"
+              ref={whyRef}
+              tabIndex={-1}
+              role="region"
+              aria-label="Why this is the move"
+            >
               {delta.missionTitle && (
                 <section>
                   <h3>Mission</h3>
@@ -217,31 +330,38 @@ export default function StrategicDelta({
                 <h3>What would change this</h3>
                 <p>{delta.wouldChangeIf}</p>
               </section>
+              <p className="sd-assembled">Read {delta.assembledFrom.join(', ')}</p>
             </div>
           )}
 
           {open === 'correct' && (
-            <div className="sd-why">
-              <h3>What&apos;s wrong with it?</h3>
+            <div id="sd-correct" className="sd-why sd-teach">
+              <p className="sd-teach-target">
+                <span>Teaching it about</span>
+                {delta.move}
+              </p>
+              <h3>What&apos;s off about this?</h3>
               <label htmlFor="sd-correction" className="sr-only">
                 Why this move isn&apos;t right
               </label>
               <Textarea
                 id="sd-correction"
                 rows={3}
+                compact
                 value={correctionReason}
                 onChange={setCorrectionReason}
                 placeholder="Vaughn isn't available this week. Beau is."
+                textareaRef={correctionRef}
               />
               <div className="sd-controls">
-                <ActionBtn disabled={!correctionReason.trim()} onClick={submitCorrection}>
-                  Record and re-predict
+                <ActionBtn disabled={!correctionReason.trim() || recording} onClick={() => void submitCorrection()}>
+                  Teach it this
                 </ActionBtn>
                 <ActionChip variant="ghost" onClick={() => setOpen(null)}>
                   Cancel
                 </ActionChip>
               </div>
-              <p style={{ marginTop: 10, color: 'var(--text-dim)', fontSize: '0.78rem', lineHeight: 1.5 }}>
+              <p className="sd-hint">
                 This move stops being recommended and stays in your history as a correction. The
                 previous prediction is kept, not erased.
               </p>
@@ -249,20 +369,22 @@ export default function StrategicDelta({
           )}
 
           {open === 'changed' && (
-            <div className="sd-why">
+            <div id="sd-changed" className="sd-why">
               <h3>What changed?</h3>
-              <label htmlFor="sd-changed" className="sr-only">
+              <label htmlFor="sd-changed-note" className="sr-only">
                 What changed
               </label>
               <Textarea
-                id="sd-changed"
+                id="sd-changed-note"
                 rows={3}
+                compact
                 value={changedNote}
                 onChange={setChangedNote}
                 placeholder="The staging deploy finished."
+                textareaRef={changedRef}
               />
               <div className="sd-controls">
-                <ActionBtn disabled={!changedNote.trim()} onClick={submitChanged}>
+                <ActionBtn disabled={!changedNote.trim() || recording} onClick={() => void submitChanged()}>
                   Record and recheck
                 </ActionBtn>
                 <ActionChip variant="ghost" onClick={recheck}>
@@ -272,7 +394,7 @@ export default function StrategicDelta({
                   Cancel
                 </ActionChip>
               </div>
-              <p style={{ marginTop: 10, color: 'var(--text-dim)', fontSize: '0.78rem', lineHeight: 1.5 }}>
+              <p className="sd-hint">
                 Legacy Codex predicts from mission state, so a note alone won&apos;t move the
                 prediction — it goes in the ledger. To change what it predicts, change what it
                 reads: set or clear a blocker, set a finish line, or change what&apos;s Primary.

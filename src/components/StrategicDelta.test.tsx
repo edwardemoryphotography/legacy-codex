@@ -25,6 +25,7 @@ function renderDelta(missions: Mission[], overrides: Partial<React.ComponentProp
     corrections: [],
     phase: 'resolved' as const,
     acceptedMove: null,
+    persistError: null,
     onAccept: vi.fn(),
     onCorrect: vi.fn(),
     onContextAdded: vi.fn(),
@@ -104,7 +105,7 @@ describe('StrategicDelta', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Not right' }))
     fireEvent.change(screen.getByLabelText(/isn't right/i), { target: { value: 'Vaughn is out; Beau is available' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Record and re-predict' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Teach it this' }))
 
     expect(props.onCorrect).toHaveBeenCalledWith(
       expect.objectContaining({ move: firstMove, missionId: 'm1' }),
@@ -130,5 +131,28 @@ describe('StrategicDelta', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Something changed' }))
     expect(screen.getByText(/won't move the\s+prediction/)).toBeTruthy()
+  })
+
+  it('presents a persistence failure as a failure, not a recording', async () => {
+    renderDelta([PRIMARY], {
+      persistError: 'Could not record that against your history — it was not saved.',
+    })
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(/not saved/)
+    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-cognition')).toBe('failed')
+  })
+
+  it('keeps a recorded correction visible as something the system learned', async () => {
+    renderDelta([PRIMARY], {
+      corrections: [{
+        id: 'c1',
+        missionId: 'm1',
+        correctedMove: 'A previous move',
+        reason: 'Vaughn is out; Beau is available',
+        createdAt: '2026-09-01T00:00:00.000Z',
+      }],
+    })
+
+    expect(await screen.findByText(/You taught it: Vaughn is out; Beau is available/)).toBeTruthy()
   })
 })

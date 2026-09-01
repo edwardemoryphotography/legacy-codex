@@ -44,9 +44,7 @@ html {
 
 body {
   background:
-    radial-gradient(circle at top left, rgba(40, 224, 187, 0.18), transparent 30%),
-    radial-gradient(circle at top right, rgba(245, 184, 75, 0.08), transparent 26%),
-    radial-gradient(circle at 50% -10%, rgba(99, 102, 241, 0.12), transparent 24%),
+    radial-gradient(ellipse 80% 40% at 50% -18%, rgba(53, 220, 210, 0.05), transparent 58%),
     linear-gradient(180deg, #07080d 0%, #090b12 100%);
   color: var(--text);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -69,14 +67,40 @@ body::before {
     linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
   background-size: 68px 68px;
   mask-image: radial-gradient(circle at center, black 55%, transparent 100%);
-  opacity: 0.28;
+  opacity: 0.12;
 }
 
 .codex-shell {
   width: min(1120px, 100%);
   margin: 0 auto;
-  padding: 16px;
+  padding: 12px 16px 16px;
   padding-bottom: calc(98px + var(--safe-bottom));
+}
+
+.codex-masthead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.codex-masthead h1 {
+  font-size: 1.12rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.codex-masthead-quiet {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+}
+
+@media (min-width: 1024px) {
+  .codex-masthead h1 {
+    font-size: 1.55rem;
+  }
 }
 
 .codex-tablist {
@@ -276,17 +300,17 @@ body {
 }
 
 /* ─── Strategic Delta ────────────────────────────────────────────────
-   The predictive front door. One rule governs colour here:
+   A living cognitive instrument, not a card. Colour is local to the
+   field at the apex and encodes cognition, not decoration:
 
-     spectrum → unresolved cognition (assembling, routing, inhibiting)
-     teal     → a resolved, rule-based prediction over real state
-     violet   → model-generated, never verified
-     amber    → honest insufficient context
+     spectrum  → reconstructing / correcting (real pending work)
+     teal      → settled rule-based prediction
+     violet    → model-generated, never verified (reserved)
+     amber     → honest insufficient context — no thinking theater
+     error     → persistence/network failure, never a success hue
 
-   So provenance is legible before a word is read, and a model-generated
-   Delta can never disguise itself as a verified one. Motion is bound to
-   real async work: the halo turns while Supabase is genuinely pending and
-   settles when it isn't. Nothing here animates on a timer for effect. */
+   Motion answers "what changed?" The field activates while work is
+   genuinely pending and settles when it isn't. */
 
 :root {
   --sd-cyan: #35dcd2;
@@ -299,99 +323,257 @@ body {
 .sd {
   position: relative;
   isolation: isolate;
-  overflow: hidden;
-  padding: clamp(18px, 4vw, 26px);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
-  background: linear-gradient(180deg, rgba(23, 26, 40, 0.97), rgba(12, 14, 21, 0.99));
-  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.34);
+  padding: 8px 2px 4px;
+  max-width: 42rem;
 }
 
-.sd-halo {
+.sd::after {
+  content: '';
+  display: block;
+  height: 1px;
+  margin: 28px 0 8px;
+  background: linear-gradient(90deg, transparent, var(--line), transparent);
+}
+
+.sd-field {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 64px;
+  margin-bottom: 4px;
+}
+
+.sd-field-core,
+.sd-field-ring,
+.sd-field-specks {
   position: absolute;
-  z-index: -1;
-  inset: -60%;
-  opacity: 0.15;
-  background: conic-gradient(
-    from 0deg,
-    var(--sd-cyan), var(--sd-blue), var(--sd-indigo),
-    var(--sd-violet), var(--sd-magenta), var(--sd-cyan)
-  );
-  filter: blur(58px);
-  transition: opacity 700ms ease;
+  pointer-events: none;
 }
 
-.sd[data-state="reasoning"] .sd-halo {
-  opacity: 0.6;
-  animation: sdOrbit 5.5s linear infinite;
+.sd-field-core {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--sd-cyan);
+  box-shadow: 0 0 22px 7px color-mix(in srgb, var(--sd-cyan) 42%, transparent);
+  transition: background 500ms ease, box-shadow 500ms ease, opacity 500ms ease;
 }
 
-/* Resolution collapses the spectrum into the single hue that states
-   what kind of answer this is. */
-.sd[data-state="resolved"][data-provenance="deterministic"] .sd-halo {
-  background: radial-gradient(circle at 28% -10%, var(--teal), transparent 62%);
-  opacity: 0.3;
-}
-.sd[data-state="resolved"][data-provenance="insufficient_context"] .sd-halo {
-  background: radial-gradient(circle at 28% -10%, var(--amber), transparent 62%);
-  opacity: 0.26;
-}
-.sd[data-state="resolved"][data-provenance="model"] .sd-halo {
-  background: radial-gradient(circle at 28% -10%, var(--sd-violet), transparent 62%);
-  opacity: 0.3;
+.sd-field-ring {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--sd-cyan) 28%, transparent);
+  opacity: 0.35;
+  transition: border-color 500ms ease, opacity 500ms ease, transform 700ms ease;
 }
 
-@keyframes sdOrbit {
-  to { transform: rotate(360deg); }
+.sd-field-specks {
+  inset: -12px 10% auto;
+  height: 88px;
+  opacity: 0;
+  background-image:
+    radial-gradient(1.4px 1.4px at 18% 42%, rgba(53, 220, 210, 0.85), transparent),
+    radial-gradient(1.1px 1.1px at 38% 22%, rgba(77, 142, 247, 0.7), transparent),
+    radial-gradient(1.3px 1.3px at 62% 58%, rgba(169, 92, 240, 0.65), transparent),
+    radial-gradient(1px 1px at 78% 30%, rgba(226, 88, 157, 0.55), transparent),
+    radial-gradient(1.2px 1.2px at 48% 70%, rgba(53, 220, 210, 0.5), transparent);
+  transition: opacity 400ms ease;
 }
 
-.sd-eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--teal);
-  font-size: 0.66rem;
-  font-weight: 800;
-  letter-spacing: 0.19em;
-  text-transform: uppercase;
+.sd[data-cognition="reconstructing"] .sd-field-core,
+.sd[data-cognition="correcting"] .sd-field-core {
+  background: var(--sd-cyan);
+  box-shadow:
+    0 0 18px 6px color-mix(in srgb, var(--sd-cyan) 50%, transparent),
+    0 0 42px 14px color-mix(in srgb, var(--sd-violet) 18%, transparent);
+  animation: sdPulse 1.8s ease-in-out infinite;
 }
-.sd[data-state="reasoning"] .sd-eyebrow { color: var(--sd-cyan); }
-.sd[data-provenance="insufficient_context"] .sd-eyebrow { color: var(--amber); }
-.sd[data-provenance="model"] .sd-eyebrow { color: var(--sd-violet); }
 
-/* Reasoning is soft and unresolved; a decision is sharp. The move
-   converges out of blur exactly once, when the prediction lands. */
-.sd-move {
-  margin-top: 14px;
-  color: var(--text);
-  font-size: clamp(1.3rem, 1.02rem + 1.5vw, 1.85rem);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.26;
-  text-wrap: balance;
+.sd[data-cognition="reconstructing"] .sd-field-ring,
+.sd[data-cognition="correcting"] .sd-field-ring {
+  border-color: color-mix(in srgb, var(--sd-violet) 40%, var(--sd-cyan));
+  opacity: 0.8;
+  animation: sdRing 2.4s ease-out infinite;
 }
-.sd[data-state="resolved"] .sd-move {
-  animation: sdConverge 520ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+
+.sd[data-cognition="reconstructing"] .sd-field-specks,
+.sd[data-cognition="correcting"] .sd-field-specks {
+  opacity: 0.85;
+  animation: sdDrift 7s ease-in-out infinite;
+}
+
+.sd[data-cognition="settled"] .sd-field-core,
+.sd[data-cognition="accepted"] .sd-field-core {
+  background: var(--teal);
+  box-shadow: 0 0 18px 6px color-mix(in srgb, var(--teal) 38%, transparent);
+}
+
+.sd[data-cognition="settled"] .sd-field-ring,
+.sd[data-cognition="accepted"] .sd-field-ring {
+  border-color: color-mix(in srgb, var(--teal) 35%, transparent);
+  opacity: 0.4;
+}
+
+.sd[data-cognition="accepted"] .sd-field-core {
+  animation: sdBreathe 4.8s ease-in-out infinite;
+}
+
+.sd[data-cognition="insufficient"] .sd-field-core {
+  background: var(--amber);
+  box-shadow: 0 0 16px 5px color-mix(in srgb, var(--amber) 32%, transparent);
+}
+
+.sd[data-cognition="insufficient"] .sd-field-ring {
+  border-color: color-mix(in srgb, var(--amber) 40%, transparent);
+  opacity: 0.45;
+}
+
+.sd[data-cognition="failed"] .sd-field-core {
+  background: var(--error);
+  box-shadow: 0 0 16px 5px color-mix(in srgb, var(--error) 36%, transparent);
+}
+
+.sd[data-cognition="failed"] .sd-field-ring {
+  border-color: color-mix(in srgb, var(--error) 45%, transparent);
+  opacity: 0.55;
+}
+
+.sd[data-provenance="model"][data-cognition="settled"] .sd-field-core {
+  background: var(--sd-violet);
+  box-shadow: 0 0 18px 6px color-mix(in srgb, var(--sd-violet) 40%, transparent);
+}
+
+@keyframes sdPulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.12); opacity: 1; }
+}
+
+@keyframes sdRing {
+  0% { transform: scale(0.72); opacity: 0.7; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+
+@keyframes sdDrift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(6px, -5px, 0); }
+}
+
+@keyframes sdBreathe {
+  0%, 100% { opacity: 0.82; }
+  50% { opacity: 1; }
 }
 
 @keyframes sdConverge {
-  from { opacity: 0; filter: blur(9px); transform: translateY(6px); }
+  from { opacity: 0; filter: blur(8px); transform: translateY(6px); }
   to   { opacity: 1; filter: blur(0);   transform: translateY(0); }
 }
 
-.sd-phase {
+@keyframes sdWhyIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.sd-eyebrow {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-align: center;
+}
+.sd[data-cognition="reconstructing"] .sd-eyebrow,
+.sd[data-cognition="correcting"] .sd-eyebrow { color: var(--sd-cyan); }
+.sd[data-cognition="insufficient"] .sd-eyebrow { color: var(--amber); }
+.sd[data-cognition="settled"] .sd-eyebrow,
+.sd[data-cognition="accepted"] .sd-eyebrow { color: var(--teal); }
+.sd[data-cognition="failed"] .sd-eyebrow { color: var(--error); }
+.sd[data-provenance="model"][data-cognition="settled"] .sd-eyebrow { color: var(--sd-violet); }
+
+.sd-move {
   margin-top: 14px;
+  color: var(--text);
+  font-size: clamp(1.42rem, 1.08rem + 1.7vw, 2.05rem);
+  font-weight: 560;
+  letter-spacing: -0.035em;
+  line-height: 1.22;
+  text-wrap: balance;
+}
+.sd[data-state="resolved"] .sd-move {
+  animation: sdConverge 560ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.sd-phase {
+  margin-top: 12px;
   color: var(--text-soft);
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
 .sd-because {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
+  margin-top: 14px;
   color: var(--text-soft);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   line-height: 1.55;
+}
+
+.sd-taught {
+  margin-top: 10px;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.sd-accepted {
+  margin-top: 12px;
+  color: var(--teal);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.sd-fail {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--error) 45%, transparent);
+  background: var(--error-soft);
+  color: var(--error);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.sd-act {
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.sd-act-primary button {
+  width: 100%;
+  border-radius: 999px;
+  min-height: 48px;
+}
+
+.sd-act-secondary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sd-act-secondary button {
+  width: 100%;
+}
+
+.sd-act-secondary .sd-act-changed {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 480px) {
+  .sd-act-secondary {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+  .sd-act-secondary .sd-act-changed {
+    grid-column: auto;
+  }
 }
 
 .sd-controls {
@@ -402,18 +584,18 @@ body {
 }
 
 .sd-provenance {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 10px;
   margin-top: 14px;
   color: var(--text-dim);
-  font-size: 0.7rem;
-  letter-spacing: 0.04em;
+  font-size: 0.78rem;
+  line-height: 1.4;
 }
 
-/* The inhibition trace: the moves that were considered and killed stay
-   visible, struck through, each with the reason it was killed. This is
-   the shape of the decision — not a menu to pick from. */
+.sd-assembled {
+  margin-top: 16px;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
 .sd-trace {
   margin: 0;
   padding: 0;
@@ -434,31 +616,144 @@ body {
 }
 
 .sd-why {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
+  margin-top: 18px;
+  padding-top: 4px;
+  animation: sdWhyIn 280ms ease both;
+}
+.sd-why:focus {
+  outline: none;
+}
+.sd-why:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 4px;
 }
 .sd-why h3 {
-  margin-bottom: 5px;
+  margin-bottom: 4px;
   color: var(--text-dim);
-  font-size: 0.66rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
 }
-.sd-why section + section { margin-top: 14px; }
+.sd-why section + section { margin-top: 16px; }
 .sd-why p {
   color: var(--text-soft);
-  font-size: 0.88rem;
+  font-size: 0.92rem;
   line-height: 1.55;
 }
 
-/* Reduced motion: the state change is still fully conveyed — the halo
-   settles to its resolved hue and the phase/provenance text says where
-   the system is. Only the movement is removed. */
-@media (prefers-reduced-motion: reduce) {
-  .sd[data-state="reasoning"] .sd-halo { animation: none; }
-  .sd[data-state="resolved"] .sd-move { animation: none; }
+.sd-teach-target {
+  margin-bottom: 14px;
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.4;
 }
-[data-reduced-motion="true"] .sd[data-state="reasoning"] .sd-halo { animation: none; }
-[data-reduced-motion="true"] .sd[data-state="resolved"] .sd-move { animation: none; }
+.sd-teach-target span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+.sd-hint {
+  margin-top: 10px;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.mission-status {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  min-height: 1.2em;
+}
+
+.mission-invite {
+  display: grid;
+  gap: 10px;
+  margin: 4px 0 8px;
+  max-width: 42rem;
+}
+
+.mission-invite-label {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+
+.mission-invite button {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 999px;
+}
+
+.mission-layer {
+  display: grid;
+  gap: 14px;
+}
+
+.mission-layer details > summary {
+  cursor: pointer;
+  list-style: none;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--text-dim);
+  font-size: 0.88rem;
+}
+
+.mission-layer details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.mission-primary {
+  padding-top: 2px;
+  max-width: 42rem;
+}
+
+.mission-primary-title {
+  font-size: 1.02rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.mission-primary-meta {
+  margin-top: 6px;
+  color: var(--text-soft);
+  font-size: 0.88rem;
+}
+
+/* Reduced motion: cognition stays legible through colour, copy, and
+   opacity. Spatial motion is removed; the field still changes hue. */
+@media (prefers-reduced-motion: reduce) {
+  .sd[data-cognition="reconstructing"] .sd-field-core,
+  .sd[data-cognition="correcting"] .sd-field-core,
+  .sd[data-cognition="accepted"] .sd-field-core {
+    animation: none;
+  }
+  .sd[data-cognition="reconstructing"] .sd-field-ring,
+  .sd[data-cognition="correcting"] .sd-field-ring,
+  .sd[data-cognition="reconstructing"] .sd-field-specks,
+  .sd[data-cognition="correcting"] .sd-field-specks {
+    animation: none;
+    opacity: 0.55;
+  }
+  .sd[data-state="resolved"] .sd-move,
+  .sd-why {
+    animation: none;
+  }
+}
+[data-reduced-motion="true"] .sd[data-cognition="reconstructing"] .sd-field-core,
+[data-reduced-motion="true"] .sd[data-cognition="correcting"] .sd-field-core,
+[data-reduced-motion="true"] .sd[data-cognition="accepted"] .sd-field-core {
+  animation: none;
+}
+[data-reduced-motion="true"] .sd[data-cognition="reconstructing"] .sd-field-ring,
+[data-reduced-motion="true"] .sd[data-cognition="correcting"] .sd-field-ring,
+[data-reduced-motion="true"] .sd[data-cognition="reconstructing"] .sd-field-specks,
+[data-reduced-motion="true"] .sd[data-cognition="correcting"] .sd-field-specks {
+  animation: none;
+}
+[data-reduced-motion="true"] .sd[data-state="resolved"] .sd-move,
+[data-reduced-motion="true"] .sd-why {
+  animation: none;
+}

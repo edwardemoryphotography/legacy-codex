@@ -155,11 +155,14 @@ export default function MissionTab() {
   const [loaded, setLoaded] = useState(false)
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
+  const [deltaError, setDeltaError] = useState('')
 
   // New-mission form
   const [showNewMission, setShowNewMission] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newWhy, setNewWhy] = useState('')
+  const [nameTitle, setNameTitle] = useState('')
+  const [nameFinish, setNameFinish] = useState('')
 
   // Capture Idea — shared pipeline with ControlsTab; Mission Screen never
   // renders capture.inbox, only writes through it (spec: no full backlog here)
@@ -297,8 +300,11 @@ export default function MissionTab() {
   // AI recommendation is not human commitment, and neither is evidence of
   // completion (spec §14).
   const recordDeltaEvent = useCallback(
-    async (type: MissionEventType, missionId: string, detail: string) => {
-      if (!user) return
+    async (type: MissionEventType, missionId: string, detail: string): Promise<boolean> => {
+      if (!user) {
+        setDeltaError('Could not record that against your history — it was not saved.')
+        return false
+      }
       try {
         const { error: writeError } = await supabase.from('mission_events').insert({
           id: newId(),
@@ -310,28 +316,41 @@ export default function MissionTab() {
           created_at: new Date().toISOString(),
         })
         if (writeError) throw writeError
+        setDeltaError('')
+        return true
       } catch {
-        setError('Could not record that against your history — it was not saved.')
+        setDeltaError('Could not record that against your history — it was not saved.')
+        return false
       }
     },
     [user],
   )
 
   const handleAcceptDelta = useCallback(
-    (delta: Delta) => {
+    async (delta: Delta): Promise<boolean> => {
+      if (delta.missionId) {
+        const ok = await recordDeltaEvent('delta_accepted', delta.missionId, delta.move)
+        if (!ok) return false
+      }
       setAcceptedMove(delta.move)
-      if (delta.missionId) void recordDeltaEvent('delta_accepted', delta.missionId, delta.move)
-      flash('Accepted')
+      return true
     },
-    [recordDeltaEvent, flash],
+    [recordDeltaEvent],
   )
 
   // The corrected prediction is kept, never erased: it stays in
   // mission_events as history and comes back as an inhibition input, so the
-  // engine stops recommending it (spec §15).
+  // engine stops recommending it (spec §15). Local state updates only after
+  // the write succeeds, so the UI never looks recorded when it wasn't.
   const handleCorrectDelta = useCallback(
-    (delta: Delta, reason: string) => {
-      if (!delta.missionId) return
+    async (delta: Delta, reason: string): Promise<boolean> => {
+      if (!delta.missionId) return false
+      const ok = await recordDeltaEvent(
+        'delta_corrected',
+        delta.missionId,
+        JSON.stringify({ move: delta.move, reason }),
+      )
+      if (!ok) return false
       const correction: DeltaCorrection = {
         id: newId(),
         missionId: delta.missionId,
@@ -341,18 +360,17 @@ export default function MissionTab() {
       }
       setCorrections(prev => [...prev, correction])
       setAcceptedMove(null)
-      void recordDeltaEvent('delta_corrected', delta.missionId, JSON.stringify({ move: delta.move, reason }))
-      flash('Correction recorded')
+      return true
     },
-    [recordDeltaEvent, flash],
+    [recordDeltaEvent],
   )
 
   const handleDeltaContext = useCallback(
-    (delta: Delta, note: string) => {
-      if (delta.missionId) void recordDeltaEvent('delta_context_added', delta.missionId, note)
-      flash('Recorded')
+    async (delta: Delta, note: string): Promise<boolean> => {
+      if (!delta.missionId) return true
+      return recordDeltaEvent('delta_context_added', delta.missionId, note)
     },
-    [recordDeltaEvent, flash],
+    [recordDeltaEvent],
   )
 
   const handleDeltaRecheck = useCallback(() => {
@@ -405,6 +423,58 @@ export default function MissionTab() {
     }
   }
 
+  async function handleNameOutcome() {
+    if (!user || !nameTitle.trim() || !nameFinish.trim()) return
+    const id = newId()
+    const nowIso = new Date().toISOString()
+    const captured = captureIdea(board, { id, title: nameTitle, why: '', now: nowIso })
+    if (captured.error) {
+      setError(captured.error)
+      return
+    }
+    const lined = setFinishLine(captured.board, id, nameFinish, nowIso)
+    if (lined.error) {
+      setError(lined.error)
+      return
+    }
+    const promoted = promoteToPrimary(lined.board, id, nowIso)
+    if (promoted.error) {
+      setError(promoted.error)
+      return
+    }
+
+    const before = board
+    setBoard(promoted.board)
+    setError('')
+    try {
+      const { error: missionError } = await supabase
+        .from('missions')
+        .insert(missionToRow(promoted.board.missions[id], user.id))
+      if (missionError) throw missionError
+
+      const events = [captured.event, lined.event, promoted.event].filter(
+        (event): event is NonNullable<typeof event> => event !== null,
+      )
+      for (const event of events) {
+        const { error: eventError } = await supabase.from('mission_events').insert({
+          id: newId(),
+          user_id: user.id,
+          mission_id: id,
+          type: event.type,
+          detail: event.detail,
+          idempotency_key: newId(),
+          created_at: event.createdAt,
+        })
+        if (eventError) throw eventError
+      }
+      setNameTitle('')
+      setNameFinish('')
+    } catch {
+      setBoard(before)
+      setError('Could not save the new mission — nothing was created. Try again.')
+    }
+  }
+
   function handleCaptureIdea() {
     const text = captureText.trim()
     if (!text || !user) return
@@ -448,20 +518,12 @@ export default function MissionTab() {
   const now = new Date().toISOString()
 
   return (
-    <section className="space-y-6">
-      <div className="space-y-2">
-        <SectionTitle>Mission</SectionTitle>
-        <SectionSubtitle>
-          What matters right now, and the next concrete action. One Primary, one Secondary — everything else is Parked.
-        </SectionSubtitle>
-      </div>
-
-      <div className="flex flex-wrap gap-2 items-center" style={{ fontSize: '0.75rem' }}>
-        {user ? <Badge tone="success">Signed in</Badge> : <Badge tone="muted" wrap>{authStatus}</Badge>}
-        {status && <Badge tone="teal">{status}</Badge>}
-      </div>
+    <section className="mission-layer">
+      <p className="mission-status" aria-live="polite">
+        {!user ? authStatus : status}
+      </p>
       {error && (
-        <div style={{ color: 'var(--error)', fontSize: '0.85rem' }}>{error}</div>
+        <p role="alert" style={{ color: 'var(--error)', fontSize: '0.88rem' }}>{error}</p>
       )}
 
       {/* The predictive front door: resolves from real state before the
@@ -473,6 +535,7 @@ export default function MissionTab() {
         corrections={corrections}
         phase={deltaPhase}
         acceptedMove={acceptedMove}
+        persistError={deltaError}
         onAccept={handleAcceptDelta}
         onCorrect={handleCorrectDelta}
         onContextAdded={handleDeltaContext}
@@ -480,25 +543,48 @@ export default function MissionTab() {
       />
 
       {!loaded ? (
-        <Card><div style={{ color: 'var(--text-dim)' }}>Loading missions…</div></Card>
+        <p className="mission-status">Loading missions…</p>
       ) : (
         <>
+          {missionList.length === 0 && (
+            <form
+              className="mission-invite"
+              onSubmit={event => {
+                event.preventDefault()
+                void handleNameOutcome()
+              }}
+            >
+              <p className="mission-invite-label">Name the outcome and the finish line that ends it.</p>
+              <Input
+                placeholder="The outcome that matters most"
+                value={nameTitle}
+                onChange={setNameTitle}
+              />
+              <Input
+                placeholder="The finish line that ends it"
+                value={nameFinish}
+                onChange={setNameFinish}
+              />
+              <ActionBtn disabled={!nameTitle.trim() || !nameFinish.trim()} onClick={() => void handleNameOutcome()}>
+                This is what matters
+              </ActionBtn>
+            </form>
+          )}
+
           {/* "Right Now" used to live here. The Strategic Delta above states
               the same thing and carries provenance and controls, so keeping
               both showed the user one sentence twice. */}
 
-          {/* Primary Mission */}
-          <Card>
-            <SectionTitle>Primary Mission</SectionTitle>
-            {primary ? (
-              <div className="space-y-3">
-                <div>
-                  <div style={{ fontWeight: 700 }}>{primary.title}</div>
-                  {primary.why && <div style={{ color: 'var(--text-soft)', fontSize: '0.85rem', marginTop: 4 }}>{primary.why}</div>}
-                </div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-soft)' }}>
-                  <strong>Finish line:</strong> {primary.finishLine ?? 'not set'}
-                </div>
+          {primary && (
+            <div className="mission-primary space-y-3">
+              <p className="mission-invite-label">The outcome</p>
+              <div>
+                <div className="mission-primary-title">{primary.title}</div>
+                {primary.why && <div className="mission-primary-meta">{primary.why}</div>}
+              </div>
+              <div className="mission-primary-meta">
+                Finish line: {primary.finishLine ?? 'not set'}
+              </div>
                 {primary.evidenceRequirement && (
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-soft)' }}>
                     <strong>Evidence required:</strong> {primary.evidenceRequirement}
@@ -632,13 +718,12 @@ export default function MissionTab() {
                     )}
                   </div>
                 )}
-              </div>
-            ) : (
-              <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
-                No Primary mission. Promote a Parked mission with a finish line below.
-              </div>
-            )}
-          </Card>
+            </div>
+          )}
+
+          <details>
+            <summary>Mission state</summary>
+            <div className="space-y-4 mt-2">
 
           {/* Secondary Mission */}
           <details>
@@ -787,6 +872,8 @@ export default function MissionTab() {
               </div>
             )}
           </Card>
+            </div>
+          </details>
         </>
       )}
     </section>
