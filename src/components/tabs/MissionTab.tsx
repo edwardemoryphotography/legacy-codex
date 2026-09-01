@@ -4,7 +4,15 @@ import { useCallback, useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
 import { useCapture } from '@/hooks/useCapture'
-import type { CapacityLevel, EvidenceRecord, Mission, MissionState } from '@/types'
+import type {
+  CapacityLevel,
+  DeltaCorrection,
+  EvidenceRecord,
+  Mission,
+  MissionEventType,
+  MissionState,
+  StrategicDelta as Delta,
+} from '@/types'
 import {
   EMPTY_BOARD,
   abandonMission,
@@ -27,6 +35,7 @@ import {
 import { groupByMission, hasConflict, isStale } from '@/lib/evidence'
 import { ActionBtn, ActionChip, Badge, Card, Input, SectionSubtitle, SectionTitle } from '@/components/ui'
 import NextMovePanel from '@/components/NextMovePanel'
+import StrategicDelta, { type DeltaPhase } from '@/components/StrategicDelta'
 
 // ─── Supabase row <-> domain mapping ────────────────────────────────────
 // missionLoop.ts operates on the camelCase Mission/MissionEvent domain
@@ -101,6 +110,33 @@ function rowToEvidence(row: EvidenceRow): EvidenceRecord {
   }
 }
 
+// Delta corrections live in mission_events — the table's `type` column has
+// no CHECK constraint, so the append-only ledger already holds predictions,
+// acceptances, and corrections without a migration. `detail` carries the
+// corrected move and the reason together so a correction survives reload.
+interface MissionEventRow {
+  id: string
+  mission_id: string
+  detail: string
+  created_at: string
+}
+
+function rowToCorrection(row: MissionEventRow): DeltaCorrection | null {
+  try {
+    const parsed = JSON.parse(row.detail) as { move?: unknown; reason?: unknown }
+    if (typeof parsed.move !== 'string' || typeof parsed.reason !== 'string') return null
+    return {
+      id: row.id,
+      missionId: row.mission_id,
+      correctedMove: parsed.move,
+      reason: parsed.reason,
+      createdAt: row.created_at,
+    }
+  } catch {
+    return null
+  }
+}
+
 function newId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
@@ -114,6 +150,8 @@ export default function MissionTab() {
   const [authStatus, setAuthStatus] = useState('Checking session…')
   const [board, setBoard] = useState<MissionBoard>(EMPTY_BOARD)
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([])
+  const [corrections, setCorrections] = useState<DeltaCorrection[]>([])
+  const [acceptedMove, setAcceptedMove] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
@@ -150,9 +188,10 @@ export default function MissionTab() {
 
   const loadAll = useCallback(async (userId: string) => {
     try {
-      const [missionsRes, evidenceRes] = await Promise.all([
+      const [missionsRes, evidenceRes, correctionsRes] = await Promise.all([
         supabase.from('missions').select('*').eq('user_id', userId),
         supabase.from('evidence_snapshots').select('*'),
+        supabase.from('mission_events').select('*').eq('user_id', userId).eq('type', 'delta_corrected'),
       ])
       if (missionsRes.error) throw missionsRes.error
 
@@ -164,6 +203,13 @@ export default function MissionTab() {
 
       if (!evidenceRes.error) {
         setEvidence(((evidenceRes.data ?? []) as EvidenceRow[]).map(rowToEvidence))
+      }
+      if (!correctionsRes.error) {
+        setCorrections(
+          ((correctionsRes.data ?? []) as MissionEventRow[])
+            .map(rowToCorrection)
+            .filter((c): c is DeltaCorrection => c !== null),
+        )
       }
       setLoaded(true)
     } catch {
@@ -240,6 +286,77 @@ export default function MissionTab() {
     },
     [board, user, flash],
   )
+
+  // ─── Strategic Delta ──────────────────────────────────────────────────
+  // A Delta is a prediction. Accepting one records that the human agreed —
+  // it deliberately does NOT create a row in the canonical `actions` table.
+  // AI recommendation is not human commitment, and neither is evidence of
+  // completion (spec §14).
+  const recordDeltaEvent = useCallback(
+    async (type: MissionEventType, missionId: string, detail: string) => {
+      if (!user) return
+      try {
+        await supabase.from('mission_events').insert({
+          id: newId(),
+          user_id: user.id,
+          mission_id: missionId,
+          type,
+          detail,
+          idempotency_key: newId(),
+          created_at: new Date().toISOString(),
+        })
+      } catch {
+        setError('Could not record that against your history — it was not saved.')
+      }
+    },
+    [user],
+  )
+
+  const handleAcceptDelta = useCallback(
+    (delta: Delta) => {
+      setAcceptedMove(delta.move)
+      if (delta.missionId) void recordDeltaEvent('delta_accepted', delta.missionId, delta.move)
+      flash('Accepted')
+    },
+    [recordDeltaEvent, flash],
+  )
+
+  // The corrected prediction is kept, never erased: it stays in
+  // mission_events as history and comes back as an inhibition input, so the
+  // engine stops recommending it (spec §15).
+  const handleCorrectDelta = useCallback(
+    (delta: Delta, reason: string) => {
+      if (!delta.missionId) return
+      const correction: DeltaCorrection = {
+        id: newId(),
+        missionId: delta.missionId,
+        correctedMove: delta.move,
+        reason,
+        createdAt: new Date().toISOString(),
+      }
+      setCorrections(prev => [...prev, correction])
+      setAcceptedMove(null)
+      void recordDeltaEvent('delta_corrected', delta.missionId, JSON.stringify({ move: delta.move, reason }))
+      flash('Correction recorded')
+    },
+    [recordDeltaEvent, flash],
+  )
+
+  const handleDeltaContext = useCallback(
+    (delta: Delta, note: string) => {
+      if (delta.missionId) void recordDeltaEvent('delta_context_added', delta.missionId, note)
+      flash('Recorded')
+    },
+    [recordDeltaEvent, flash],
+  )
+
+  const handleDeltaRecheck = useCallback(() => {
+    if (user) void loadAll(user.id)
+  }, [user, loadAll])
+
+  // Derived from work that is genuinely pending, never a timer. `loaded`
+  // is set on every terminal path, including sign-in failure.
+  const deltaPhase: DeltaPhase = loaded ? 'resolved' : user ? 'reading' : 'orienting'
 
   const primary = findByState(board, 'primary')
   const secondary = findByState(board, 'secondary')
@@ -333,38 +450,35 @@ export default function MissionTab() {
       </div>
 
       <div className="flex flex-wrap gap-2 items-center" style={{ fontSize: '0.75rem' }}>
-        {user ? <Badge tone="success">Signed in</Badge> : <Badge tone="muted">{authStatus}</Badge>}
+        {user ? <Badge tone="success">Signed in</Badge> : <Badge tone="muted" wrap>{authStatus}</Badge>}
         {status && <Badge tone="teal">{status}</Badge>}
       </div>
       {error && (
         <div style={{ color: 'var(--error)', fontSize: '0.85rem' }}>{error}</div>
       )}
 
+      {/* The predictive front door: resolves from real state before the
+          user types anything, and renders during the load so its reasoning
+          state reflects work that is actually pending. */}
+      <StrategicDelta
+        missions={Object.values(board.missions)}
+        evidence={evidence}
+        corrections={corrections}
+        phase={deltaPhase}
+        acceptedMove={acceptedMove}
+        onAccept={handleAcceptDelta}
+        onCorrect={handleCorrectDelta}
+        onContextAdded={handleDeltaContext}
+        onRecheck={handleDeltaRecheck}
+      />
+
       {!loaded ? (
         <Card><div style={{ color: 'var(--text-dim)' }}>Loading missions…</div></Card>
       ) : (
         <>
-          {/* Right Now */}
-          <Card highlight="teal">
-            <SectionTitle>Right Now</SectionTitle>
-            {primary ? (
-              primary.blocker ? (
-                <p style={{ color: 'var(--text)', fontSize: '0.95rem' }}>
-                  <strong>{primary.title}</strong> is Blocked: {primary.blocker}. Unblock it, or check Secondary below.
-                </p>
-              ) : (
-                <p style={{ color: 'var(--text)', fontSize: '0.95rem' }}>
-                  Move <strong>{primary.title}</strong> toward: {primary.finishLine}
-                </p>
-              )
-            ) : (
-              <p style={{ color: 'var(--text-soft)', fontSize: '0.95rem' }}>
-                No Primary mission set. Promote a Parked mission below, or capture a new one.
-              </p>
-            )}
-          </Card>
-
-          <NextMovePanel mission={primary ? { title: primary.title, finishLine: primary.finishLine } : null} />
+          {/* "Right Now" used to live here. The Strategic Delta above states
+              the same thing and carries provenance and controls, so keeping
+              both showed the user one sentence twice. */}
 
           {/* Primary Mission */}
           <Card>
@@ -558,6 +672,19 @@ export default function MissionTab() {
                 </div>
               )}
             </Card>
+          </details>
+
+          {/* Typing what feels stuck is now the exception path, not the way
+              in: the Delta predicts from state before the user types. This
+              stays for manual recalibration and for when prediction has
+              nothing to go on. */}
+          <details>
+            <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+              Choose the next move manually
+            </summary>
+            <div style={{ marginTop: 8 }}>
+              <NextMovePanel mission={primary ? { title: primary.title, finishLine: primary.finishLine } : null} />
+            </div>
           </details>
 
           {/* Parked / Candidate — where new missions get a finish line and become Primary */}

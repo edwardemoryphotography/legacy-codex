@@ -151,6 +151,13 @@ export type MissionEventType =
   | 'completed'
   | 'paused'
   | 'abandoned'
+  // Strategic Delta lifecycle. mission_events.type has no CHECK constraint,
+  // so these need no migration; the table stays the append-only ledger for
+  // predictions, acceptances, and corrections alike.
+  | 'delta_predicted'
+  | 'delta_accepted'
+  | 'delta_corrected'
+  | 'delta_context_added'
 
 export interface MissionEvent {
   id: string
@@ -178,4 +185,81 @@ export interface EvidenceRecord {
   claim: string
   observedAt: string
   fetchedAt: string
+}
+
+// ─── Strategic Delta ──────────────────────────────────────────
+// The predictive front door. A Delta is a *prediction*, never
+// automatically an Action — see docs and src/lib/strategicDelta.ts.
+
+// Three states the UI must always be able to tell apart (no fake
+// intelligence): a rule-based prediction over real state, a
+// model-generated prediction, and honestly having nothing to predict from.
+// 'model' is reserved and rendered distinctly; no code path produces it yet.
+export type DeltaProvenance = 'deterministic' | 'model' | 'insufficient_context'
+
+// What kind of situation the current state is — historical LAR's job.
+export type DeltaSituation =
+  | 'evidence_conflict'
+  | 'primary_blocked'
+  | 'primary_active'
+  | 'no_primary_ready'
+  | 'no_primary_unready'
+  | 'empty'
+
+// Why a candidate move was killed — historical REK's job. Inhibition
+// reasons are structural, never motivational.
+export type DeltaInhibitionReason =
+  | 'corrected'
+  | 'unverified_state'
+  | 'blocked'
+  | 'no_finish_line'
+  | 'displaces_primary'
+  | 'lower_leverage'
+
+export type DeltaEvidenceState = 'none' | 'verified' | 'conflict' | 'stale' | 'unverified'
+
+export interface DeltaCandidate {
+  id: string
+  move: string
+  missionId: string | null
+  /** Lower ranks are higher leverage. */
+  rank: number
+}
+
+export interface InhibitedCandidate extends DeltaCandidate {
+  reason: DeltaInhibitionReason
+  explanation: string
+}
+
+// A recorded "Not right." The prior Delta is never erased — the
+// correction is additive and feeds back in as an inhibition input.
+export interface DeltaCorrection {
+  id: string
+  missionId: string
+  correctedMove: string
+  reason: string
+  createdAt: string
+}
+
+export interface StrategicDelta {
+  /** The single move. */
+  move: string
+  provenance: DeltaProvenance
+  situation: DeltaSituation
+  missionId: string | null
+  missionTitle: string | null
+  /** Why this one. */
+  because: string
+  /** What is currently known, stated as fact. */
+  currentReality: string
+  /** What prevents progress, when something does. */
+  blockingGap: string | null
+  evidenceState: DeltaEvidenceState
+  /** Alternatives considered and killed, with the reason each was killed. */
+  inhibited: InhibitedCandidate[]
+  /** The condition under which this recommendation should be recomputed. */
+  wouldChangeIf: string
+  /** The context sources actually used — counts, never claims. */
+  assembledFrom: string[]
+  computedAt: string
 }
