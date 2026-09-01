@@ -268,7 +268,10 @@ export default function MissionTab() {
         if (upsertError) throw upsertError
 
         if (result.event) {
-          await supabase.from('mission_events').insert({
+          // supabase-js resolves errors instead of throwing — check them
+          // explicitly or a rejected event insert would leave the board
+          // ahead of its own history.
+          const { error: eventError } = await supabase.from('mission_events').insert({
             id: newId(),
             user_id: user.id,
             mission_id: result.event.missionId,
@@ -277,6 +280,7 @@ export default function MissionTab() {
             idempotency_key: newId(),
             created_at: result.event.createdAt,
           })
+          if (eventError) throw eventError
         }
         flash('Saved')
       } catch {
@@ -296,7 +300,7 @@ export default function MissionTab() {
     async (type: MissionEventType, missionId: string, detail: string) => {
       if (!user) return
       try {
-        await supabase.from('mission_events').insert({
+        const { error: writeError } = await supabase.from('mission_events').insert({
           id: newId(),
           user_id: user.id,
           mission_id: missionId,
@@ -305,6 +309,7 @@ export default function MissionTab() {
           idempotency_key: newId(),
           created_at: new Date().toISOString(),
         })
+        if (writeError) throw writeError
       } catch {
         setError('Could not record that against your history — it was not saved.')
       }
@@ -376,9 +381,10 @@ export default function MissionTab() {
     }
     setBoard(result.board)
     try {
-      await supabase.from('missions').insert(missionToRow(result.board.missions[id], user.id))
+      const { error: missionError } = await supabase.from('missions').insert(missionToRow(result.board.missions[id], user.id))
+      if (missionError) throw missionError
       if (result.event) {
-        await supabase.from('mission_events').insert({
+        const { error: eventError } = await supabase.from('mission_events').insert({
           id: newId(),
           user_id: user.id,
           mission_id: id,
@@ -387,6 +393,7 @@ export default function MissionTab() {
           idempotency_key: newId(),
           created_at: result.event.createdAt,
         })
+        if (eventError) throw eventError
       }
       setNewTitle('')
       setNewWhy('')
