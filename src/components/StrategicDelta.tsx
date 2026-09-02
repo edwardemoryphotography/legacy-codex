@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { DeltaCorrection, EvidenceRecord, Mission, StrategicDelta as Delta } from '@/types'
+import type { DeltaCandidate, DeltaCorrection, EvidenceRecord, Mission, StrategicDelta as Delta } from '@/types'
 import { predictStrategicDelta } from '@/lib/strategicDelta'
 import { ActionBtn, ActionChip, Textarea } from '@/components/ui'
 
@@ -13,6 +13,21 @@ export type DeltaPhase = 'orienting' | 'reading' | 'resolved'
 export type DeltaWrite = (delta: Delta) => void | boolean | Promise<void | boolean>
 export type DeltaCorrect = (delta: Delta, reason: string) => void | boolean | Promise<void | boolean>
 export type DeltaContextWrite = (delta: Delta, note: string) => void | boolean | Promise<void | boolean>
+
+// The narrowly bounded model-assist request: one clause in, one operation
+// (or nothing) out. The caller (MissionTab) owns auth and the actual fetch
+// to /api/delta-operation — this component only ever sees the result, and
+// only ever feeds it into the same pipeline every deterministic candidate
+// runs through. Omitting this prop is exactly as honest as it returning
+// null every time: no model stage, no fake capability.
+export interface DeltaOperationRequest {
+  missionId: string
+  missionTitle: string
+  finishLine: string
+  clause: string
+  priorCorrections: string[]
+}
+export type DeltaRequestOperation = (req: DeltaOperationRequest) => Promise<string | null>
 
 const PHASE_TEXT: Record<Exclude<DeltaPhase, 'resolved'>, string> = {
   orienting: 'Reconstructing where you left off…',
@@ -32,14 +47,16 @@ const INHIBITION_LABEL: Record<string, string> = {
   no_finish_line: 'No finish line',
   displaces_primary: 'Needs a priority challenge',
   lower_leverage: 'Lower leverage',
+  not_a_move: 'Restates the mission, not a move',
 }
 
 type OpenPanel = 'why' | 'correct' | 'changed' | null
-type Cognition = 'reconstructing' | 'correcting' | 'insufficient' | 'settled' | 'accepted' | 'failed'
+type Cognition = 'reconstructing' | 'correcting' | 'deriving' | 'insufficient' | 'settled' | 'accepted' | 'failed'
 
 function eyebrowFor(cognition: Cognition, reasoning: boolean): string {
   if (cognition === 'failed') return 'This did not record'
   if (cognition === 'correcting') return 'Reconsidering'
+  if (cognition === 'deriving') return 'Working out the step'
   if (reasoning) return 'Reconstructing'
   if (cognition === 'insufficient') return 'Not enough yet'
   if (cognition === 'accepted') return 'Intending this next'
@@ -61,6 +78,11 @@ interface Props {
   onCorrect: DeltaCorrect
   onContextAdded: DeltaContextWrite
   onRecheck: () => void
+  /** The narrowly bounded model-assist stage. Called at most once per
+   *  clause per mount, only when the deterministic engine has genuinely
+   *  exhausted structural signal for it. Omit to run deterministic-only —
+   *  that is a fully honest configuration, not a degraded one. */
+  requestOperation?: DeltaRequestOperation
   /** Missing-input controls for insufficient context. Rendered inside the
    *  hero, not below it — and never inside the live region. */
   children?: ReactNode
@@ -77,6 +99,7 @@ export default function StrategicDelta({
   onCorrect,
   onContextAdded,
   onRecheck,
+  requestOperation,
   children,
 }: Props) {
   // Set after mount so server and client never disagree about the clock.
@@ -87,6 +110,13 @@ export default function StrategicDelta({
   const [changedNote, setChangedNote] = useState('')
   const [correcting, setCorrecting] = useState(false)
   const [recording, setRecording] = useState(false)
+  // Model-derived operations, keyed by the clause id they target. Never
+  // fabricated here — only ever what `requestOperation` handed back, run
+  // through the exact same engine every deterministic candidate goes
+  // through (see `delta` below).
+  const [modelSuggestions, setModelSuggestions] = useState<Record<string, DeltaCandidate>>({})
+  const [awaitingOperation, setAwaitingOperation] = useState(false)
+  const attemptedClauses = useRef<Set<string>>(new Set())
   const whyRef = useRef<HTMLDivElement>(null)
   const correctionRef = useRef<HTMLTextAreaElement>(null)
   const changedRef = useRef<HTMLTextAreaElement>(null)
@@ -96,7 +126,7 @@ export default function StrategicDelta({
   }, [])
 
   const pendingRead = phase !== 'resolved' || now === null
-  const reconstructing = pendingRead || correcting
+  const reconstructing = pendingRead || correcting || awaitingOperation
 
   // A sub-150ms read should not flash a reasoning state at the user; a
   // real one always exceeds this.
@@ -109,10 +139,74 @@ export default function StrategicDelta({
     return () => clearTimeout(timer)
   }, [reconstructing])
 
-  const delta = useMemo(
-    () => (now === null ? null : predictStrategicDelta(missions, evidence, corrections, now)),
+  // The deterministic-only pass. Never rendered directly — it exists only
+  // to ask the engine, honestly, whether a clause is stuck for lack of a
+  // structural operation. `delta`, below, is what's actually shown, and
+  // includes any model suggestion gathered so far.
+  const baseDelta = useMemo(
+    () => (now === null ? null : predictStrategicDelta(missions, evidence, corrections, now, [])),
     [missions, evidence, corrections, now],
   )
+
+  const suggestedOperations = useMemo(() => Object.values(modelSuggestions), [modelSuggestions])
+
+  const delta = useMemo(
+    () => (now === null ? null : predictStrategicDelta(missions, evidence, corrections, now, suggestedOperations)),
+    [missions, evidence, corrections, now, suggestedOperations],
+  )
+
+  // Fires at most once per clause: only when the deterministic pass has
+  // genuinely exhausted structural signal for a specific, known clause of
+  // a known mission. Never invoked for the true no-mission-at-all state
+  // (baseDelta.missionId is null there), and never retried once attempted
+  // — a failed or empty result stays the honest fallback, not a retry loop.
+  useEffect(() => {
+    if (!requestOperation || !baseDelta) return
+    if (baseDelta.provenance !== 'insufficient_context') return
+    const cid = baseDelta.candidateId
+    if (!cid || !cid.startsWith('clause:') || !baseDelta.missionId) return
+    if (attemptedClauses.current.has(cid)) return
+
+    const mission = missions.find(m => m.id === baseDelta.missionId)
+    const clause = baseDelta.proofSteps.find(s => s.selected)?.text
+    if (!mission?.finishLine || !clause) return
+
+    attemptedClauses.current.add(cid)
+    let cancelled = false
+    setAwaitingOperation(true)
+
+    const priorCorrections = corrections
+      .filter(c => c.missionId === mission.id)
+      .map(c => c.reason)
+      .filter(Boolean)
+
+    requestOperation({
+      missionId: mission.id,
+      missionTitle: mission.title,
+      finishLine: mission.finishLine,
+      clause,
+      priorCorrections,
+    })
+      .then(operation => {
+        if (cancelled) return
+        if (operation) {
+          setModelSuggestions(prev => ({
+            ...prev,
+            [cid]: { id: cid, kind: 'model_suggested', move: operation, missionId: mission.id, rank: 0 },
+          }))
+        }
+      })
+      .catch(() => {
+        // The honest fallback already shown stands; nothing more to do.
+      })
+      .finally(() => {
+        if (!cancelled) setAwaitingOperation(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [requestOperation, baseDelta, missions, corrections])
 
   useEffect(() => {
     const node =
@@ -181,15 +275,19 @@ export default function StrategicDelta({
       ? 'correcting'
       : pendingRead
         ? 'reconstructing'
-        : delta?.provenance === 'insufficient_context'
-          ? 'insufficient'
-          : accepted
-            ? 'accepted'
-            : 'settled'
+        : awaitingOperation
+          ? 'deriving'
+          : delta?.provenance === 'insufficient_context'
+            ? 'insufficient'
+            : accepted
+              ? 'accepted'
+              : 'settled'
 
   const phaseCopy = correcting
     ? 'Reconsidering from what you just taught it…'
-    : PHASE_TEXT[phase === 'resolved' ? 'reading' : phase]
+    : awaitingOperation
+      ? 'Working out the concrete step…'
+      : PHASE_TEXT[phase === 'resolved' ? 'reading' : phase]
 
   return (
     <section
@@ -218,9 +316,14 @@ export default function StrategicDelta({
 
           <p className="sd-because">{delta.because}</p>
 
-          {delta.provenance === 'insufficient_context' && children}
+          {/* Missing-input controls belong only to the true no-mission
+              state. A clause the engine can't derive an operation for is
+              also insufficient_context, but a real mission and finish line
+              already exist there — re-showing the "name your mission" form
+              would be wrong. */}
+          {delta.provenance === 'insufficient_context' && !delta.missionId && children}
 
-          {correcting && (
+          {(correcting || awaitingOperation) && (
             <p className="sd-phase">{showPhaseText ? phaseCopy : '\u00a0'}</p>
           )}
 

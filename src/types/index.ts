@@ -226,11 +226,15 @@ export type DeltaEvidenceState = 'none' | 'verified' | 'conflict' | 'stale' | 'u
 export type DeltaCandidateKind =
   | 'reconcile_evidence'
   | 'clear_blocker'
-  | 'verify_step'
   | 'name_evidence'
   | 'produce_evidence'
   | 'promote_to_primary'
   | 'set_finish_line'
+  // A concrete operation for one finish-line clause, proposed by the
+  // narrowly bounded model stage — never generated deterministically.
+  // Runs through the exact same isConcreteMove gate and inhibition as
+  // everything else; this only marks where the candidate came from.
+  | 'model_suggested'
   // Kept so the human can see it was considered and rejected, never selected.
   | 'whole_mission'
 

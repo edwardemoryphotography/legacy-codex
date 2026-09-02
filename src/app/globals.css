@@ -383,7 +383,8 @@ body {
 }
 
 .sd[data-cognition="reconstructing"] .sd-field-core,
-.sd[data-cognition="correcting"] .sd-field-core {
+.sd[data-cognition="correcting"] .sd-field-core,
+.sd[data-cognition="deriving"] .sd-field-core {
   background: var(--sd-cyan);
   box-shadow:
     0 0 18px 6px color-mix(in srgb, var(--sd-cyan) 50%, transparent),
@@ -392,14 +393,16 @@ body {
 }
 
 .sd[data-cognition="reconstructing"] .sd-field-ring,
-.sd[data-cognition="correcting"] .sd-field-ring {
+.sd[data-cognition="correcting"] .sd-field-ring,
+.sd[data-cognition="deriving"] .sd-field-ring {
   border-color: color-mix(in srgb, var(--sd-violet) 40%, var(--sd-cyan));
   opacity: 0.8;
   animation: sdRing 2.4s ease-out infinite;
 }
 
 .sd[data-cognition="reconstructing"] .sd-field-specks,
-.sd[data-cognition="correcting"] .sd-field-specks {
+.sd[data-cognition="correcting"] .sd-field-specks,
+.sd[data-cognition="deriving"] .sd-field-specks {
   opacity: 0.85;
   animation: sdDrift 7s ease-in-out infinite;
 }
@@ -483,7 +486,8 @@ body {
   text-align: center;
 }
 .sd[data-cognition="reconstructing"] .sd-eyebrow,
-.sd[data-cognition="correcting"] .sd-eyebrow { color: var(--sd-cyan); }
+.sd[data-cognition="correcting"] .sd-eyebrow,
+.sd[data-cognition="deriving"] .sd-eyebrow { color: var(--sd-cyan); }
 .sd[data-cognition="insufficient"] .sd-eyebrow { color: var(--amber); }
 .sd[data-cognition="settled"] .sd-eyebrow,
 .sd[data-cognition="accepted"] .sd-eyebrow { color: var(--teal); }

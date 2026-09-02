@@ -40,6 +40,13 @@ export interface DeltaContext {
   /** Evidence attached to the Primary mission only. */
   primaryEvidence: EvidenceRecord[]
   corrections: DeltaCorrection[]
+  // Caller-supplied, model-derived operation candidates for a specific
+  // finish-line clause (see `clauseId`). The engine never fetches these —
+  // it only ever consumes what it is handed, runs it through the same
+  // quality gate and inhibition as everything deterministic, and stays
+  // synchronous either way. A Delta with no model stage wired up is exactly
+  // as honest as one that tried and got nothing back.
+  suggestedOperations: DeltaCandidate[]
   now: string
 }
 
@@ -48,6 +55,7 @@ export function assembleDeltaContext(
   evidence: EvidenceRecord[],
   corrections: DeltaCorrection[],
   now: string,
+  suggestedOperations: DeltaCandidate[] = [],
 ): DeltaContext {
   const primary = missions.find(m => m.state === 'primary') ?? null
   const secondary = missions.find(m => m.state === 'secondary') ?? null
@@ -60,7 +68,17 @@ export function assembleDeltaContext(
 
   const primaryEvidence = primary ? evidence.filter(e => e.missionId === primary.id) : []
 
-  return { primary, secondary, parked, primaryEvidence, corrections, now }
+  return { primary, secondary, parked, primaryEvidence, corrections, suggestedOperations, now }
+}
+
+/** Stable identity for "the operation targeting finish-line clause N of
+ *  this mission" — shared by a model-suggested candidate and, when no
+ *  candidate exists at all for that clause, the honest fallback that names
+ *  it. Correcting either one is what lets the engine walk forward past it,
+ *  the same mechanism that already lets a correction inhibit any other
+ *  candidate. */
+export function clauseId(missionId: string, index: number): string {
+  return `clause:${missionId}:${index}`
 }
 
 export function summarizeEvidence(records: EvidenceRecord[], now: string): DeltaEvidenceState {
@@ -118,9 +136,28 @@ const STOPWORDS = new Set([
   'with', 'without', 'you', 'your',
 ])
 
+// Frame words a template reaches for when it has nothing real to say —
+// "this part", "the thing", "that step" — carry no content of their own.
+// Without these, "Verify this part of your finish line" reads as concrete
+// because "part"/"finish"/"line" look like new tokens; they're scaffolding.
+const SCAFFOLD_NOUNS = new Set([
+  'part', 'piece', 'item', 'thing', 'step', 'clause', 'section',
+  // Legacy Codex's own vocabulary for talking about a mission, not content
+  // any real mission would use to distinguish itself. Without these, a
+  // template built from this app's own words about itself ("this part of
+  // your finish line") reads as new content purely because the mission's
+  // own text rarely repeats the words "finish" or "line" back.
+  'mission', 'outcome', 'finish', 'line', 'operation', 'action',
+])
+
 const VACUOUS_OPERATIONS = new Set([
   'address', 'advance', 'complete', 'continue', 'do', 'finish', 'handle',
   'make', 'move', 'progress', 'prove', 'pursue', 'tackle', 'work',
+  // Naming that something should be checked is not the same as naming the
+  // check. These verbs are fine riding alongside a real object ("verify
+  // the correction survived reload"); alone, or alongside only scaffolding,
+  // they are the exact template shape the first two real tests exposed.
+  'verify', 'check', 'confirm', 'review', 'inspect', 'examine',
 ])
 
 function normalize(text: string): string {
@@ -159,7 +196,7 @@ export function isConcreteMove(
   mission: { title: string; finishLine: string | null },
 ): boolean {
   const destination = new Set(tokens(`${mission.title} ${mission.finishLine ?? ''}`))
-  const stopped = new Set([...STOPWORDS].map(stem))
+  const stopped = new Set([...STOPWORDS, ...SCAFFOLD_NOUNS].map(stem))
   const vacuous = new Set([...VACUOUS_OPERATIONS].map(stem))
   const introduced = tokens(move).filter(t => !stopped.has(t) && !destination.has(t))
   if (introduced.length === 0) return false
@@ -188,37 +225,25 @@ export function decomposeFinishLine(finishLine: string | null): string[] {
 const RANK = {
   reconcileEvidence: 0,
   clearBlocker: 100,
-  primaryStep: 200,
+  // Where a model-derived operation for one clause slots in: it beats a
+  // mission's single-clause evidence framing (a genuinely derivable
+  // operation for a *specific* unresolved part outranks a generic one for
+  // the whole mission) but never beats reconciling evidence or a blocker.
+  modelSuggestion: 150,
   primaryEvidence: 300,
-  secondaryStep: 400,
   promoteToPrimary: 500,
   setFinishLine: 600,
   wholeMission: 900,
 } as const
 
-// Every part of a mission's finish line becomes its own candidate, so an
-// active mission offers a sequence of checkable steps rather than a single
-// paraphrase of itself. This is what gives a correction somewhere to go: the
-// existing inhibition machinery walks down the sequence instead of running
-// out of candidates on the first rejection.
-function stepCandidates(
-  mission: Mission,
-  band: number,
-): DeltaCandidate[] {
-  const steps = decomposeFinishLine(mission.finishLine)
-  return steps.map((step, index) => ({
-    id: `verify:${mission.id}:${index}`,
-    kind: 'verify_step' as const,
-    move: `Verify this part of your finish line: “${step}”`,
-    missionId: mission.id,
-    rank: band + index,
-  }))
-}
-
-// When a finish line does not decompose, the concrete move is about the
-// proof itself: completion is evidence-gated, so either name the evidence or
-// go produce it. Both introduce an operation the mission statement does not.
-function evidenceCandidate(mission: Mission, band: number): DeltaCandidate {
+// When a finish line does not decompose into multiple clauses, the concrete
+// move is about the proof itself: completion is evidence-gated, so either
+// name the evidence or go produce it. Both introduce an operation the
+// mission statement does not. When it DOES decompose, this stays silent —
+// naming generic "evidence" for the whole mission would outrank an actual
+// per-clause operation, and defeat the point of decomposing at all.
+function evidenceCandidate(mission: Mission, band: number): DeltaCandidate | null {
+  if (decomposeFinishLine(mission.finishLine).length > 0) return null
   return mission.evidenceRequirement
     ? {
         id: `produce-evidence:${mission.id}`,
@@ -239,6 +264,7 @@ function evidenceCandidate(mission: Mission, band: number): DeltaCandidate {
 export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
   const out: DeltaCandidate[] = []
   const { primary, secondary, parked } = ctx
+  const targetMissionIds = new Set([primary?.id, secondary?.id].filter((id): id is string => Boolean(id)))
 
   if (primary) {
     if (ctx.primaryEvidence.length > 0) {
@@ -260,8 +286,8 @@ export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
       })
     }
 
-    out.push(...stepCandidates(primary, RANK.primaryStep))
-    out.push(evidenceCandidate(primary, RANK.primaryEvidence))
+    const evidence = evidenceCandidate(primary, RANK.primaryEvidence)
+    if (evidence) out.push(evidence)
 
     if (primary.finishLine) {
       // Deliberately still generated, and deliberately never selected: it
@@ -280,7 +306,6 @@ export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
   }
 
   if (secondary?.finishLine) {
-    out.push(...stepCandidates(secondary, RANK.secondaryStep))
     out.push({
       id: `advance:${secondary.id}`,
       kind: 'whole_mission',
@@ -310,6 +335,16 @@ export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
       })
     }
   })
+
+  // Model-derived operations for a specific clause. Trusted no further than
+  // any deterministic candidate: same rank tier applied uniformly here
+  // (the caller's own rank is ignored) regardless of what the caller set,
+  // and every one of these still has to survive `inhibit` — including the
+  // `isConcreteMove` gate — like everything else in `out`.
+  for (const suggestion of ctx.suggestedOperations) {
+    if (!suggestion.missionId || !targetMissionIds.has(suggestion.missionId)) continue
+    out.push({ ...suggestion, kind: 'model_suggested', rank: RANK.modelSuggestion })
+  }
 
   return out
 }
@@ -419,13 +454,7 @@ export function inhibit(candidates: DeltaCandidate[], ctx: DeltaContext): Inhibi
   const [winner, ...rest] = ranked
 
   for (const loser of rest) {
-    inhibited.push(kill(
-      loser,
-      'lower_leverage',
-      loser.kind === 'verify_step' && winner?.kind === 'verify_step'
-        ? 'A later part of your finish line than the one now selected.'
-        : 'Lower leverage than the selected move right now.',
-    ))
+    inhibited.push(kill(loser, 'lower_leverage', 'Lower leverage than the selected move right now.'))
   }
 
   return {
@@ -438,11 +467,6 @@ export function inhibit(candidates: DeltaCandidate[], ctx: DeltaContext): Inhibi
 
 const INSUFFICIENT_CONTEXT_MOVE =
   'Name the one outcome that matters most right now, and the finish line that ends it.'
-
-function ordinal(zeroBased: number): string {
-  const names = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth']
-  return names[zeroBased] ?? `${zeroBased + 1}th`
-}
 
 function describeReality(ctx: DeltaContext): string {
   const parts: string[] = []
@@ -469,7 +493,22 @@ function describeReality(ctx: DeltaContext): string {
   return `${parts.join('; ')}.`
 }
 
-function describeWouldChange(situation: DeltaSituation, ctx: DeltaContext): string {
+function describeWouldChange(
+  situation: DeltaSituation,
+  ctx: DeltaContext,
+  targetClauseIndex: number | null = null,
+  clauseTexts: string[] = [],
+): string {
+  // A move aimed at one clause changes on causes specific to that clause,
+  // not on mission-level causes that don't actually bear on it — evidence
+  // landing on the mission overall, or the mission itself getting blocked,
+  // are still true triggers, but "this clause is now resolved" and "you
+  // correct this specific operation" are the ones this move actually turns
+  // on. Only reachable when targeting a clause, so `clauseTexts[targetClauseIndex]`
+  // is always in range here.
+  if (targetClauseIndex !== null && clauseTexts[targetClauseIndex]) {
+    return `Evidence lands specifically against “${clauseTexts[targetClauseIndex]}”, or you correct this operation and I move to what's next.`
+  }
   switch (situation) {
     case 'evidence_conflict':
       return 'One source is confirmed and the disagreement resolves.'
@@ -497,14 +536,16 @@ function describeBecause(
   // against the whole mission is not a correction of any one part.
   correctedSteps = 0,
 ): string {
-  // When the move targets one part of a finish line, the useful explanation
-  // is which part and why that one — not why the mission matters.
-  if (winner?.kind === 'verify_step' && winner.missionId) {
+  // When the move is a concrete operation for one clause of the finish
+  // line, the useful explanation is which clause it targets and why that
+  // one — not why the mission matters in general.
+  if (winner?.kind === 'model_suggested' && winner.missionId) {
     const owner = [ctx.primary, ctx.secondary].find(m => m?.id === winner.missionId)
     const total = decomposeFinishLine(owner?.finishLine ?? null).length
-    return correctedSteps > 0
-      ? `Your finish line names ${total} things to prove. You've ruled out ${correctedSteps === 1 ? 'the first' : `${correctedSteps} of them`}, so this is the next part with nothing recorded against it.`
-      : `Your finish line names ${total} things to prove, and none of them has evidence yet. This is the first.`
+    const targeted = correctedSteps > 0
+      ? `you've ruled out ${correctedSteps === 1 ? 'the first' : `${correctedSteps} of them`}, so this targets the next one with nothing recorded against it`
+      : 'nothing has been recorded against any of them yet, so this targets the first'
+    return `Your finish line names ${total} things to prove, and ${targeted}.`
   }
   if (winner?.kind === 'name_evidence') {
     return 'This mission completes on evidence, and no evidence requirement is set — so there is nothing yet that could prove it done.'
@@ -546,56 +587,108 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
 
   const winner = surviving[0]
 
-  // What the finish line claims to prove, and how far down it we are. Shown
-  // in Why? so the sequence the engine is walking is inspectable.
+  // What the finish line claims to prove, how far down it we are, and
+  // which clause (if any) is corrected — computed straight from
+  // corrections, never from `inhibited`, because a clause no longer has a
+  // deterministic candidate sitting in `candidates` for `inhibited` to
+  // record a rejection against. Shown in Why? so the sequence the engine
+  // is walking is inspectable regardless of whether a candidate exists.
   const aimedAt = ctx.primary ?? ctx.secondary ?? null
-  const proofSteps: DeltaProofStep[] = aimedAt
-    ? decomposeFinishLine(aimedAt.finishLine).map((text, index) => ({
-        index,
-        text,
-        corrected: inhibited.some(c => c.id === `verify:${aimedAt.id}:${index}` && c.reason === 'corrected'),
-        selected: winner?.id === `verify:${aimedAt.id}:${index}`,
-      }))
-    : []
+  const clauseTexts = decomposeFinishLine(aimedAt?.finishLine ?? null)
+  const correctedClauseIndices = new Set(
+    aimedAt
+      ? clauseTexts
+          .map((_, index) => index)
+          .filter(index => ctx.corrections.some(c => c.candidateId === clauseId(aimedAt.id, index)))
+      : [],
+  )
+
+  // The clause a model-suggested winner targets, parsed back out of its id
+  // (`clause:<missionId>:<index>` — see `clauseId`); or, when nothing won,
+  // the earliest clause nothing has been recorded against — the same
+  // sequential walk the rest of the engine already uses.
+  const winnerClauseIndex =
+    winner?.kind === 'model_suggested' ? Number(winner.id.split(':')[2]) : null
+  const nextUncorrectedIndex = clauseTexts.findIndex((_, index) => !correctedClauseIndices.has(index))
+  const targetClauseIndex = winner
+    ? winnerClauseIndex
+    : clauseTexts.length > 0 && nextUncorrectedIndex !== -1
+      ? nextUncorrectedIndex
+      : null
+
+  const proofSteps: DeltaProofStep[] = clauseTexts.map((text, index) => ({
+    index,
+    text,
+    corrected: correctedClauseIndices.has(index),
+    selected: targetClauseIndex === index,
+  }))
   const correctedSteps = proofSteps.filter(step => step.corrected).length
 
   if (!winner) {
-    // Three genuinely different situations used to share one message. Saying
-    // "add what changed" when the human changed nothing — and when the
-    // engine simply had nothing good to offer — is a generator failure
-    // dressed up as the human's fault.
-    const correctedAny = inhibited.some(c => c.reason === 'corrected')
     const hadCandidates = candidates.length > 0
+    // A blanket "was anything corrected" check is only honest here, in the
+    // no-clause-sequence case (single-clause finish line, or blocked with
+    // its clear_blocker candidate corrected) — there's at most one or two
+    // structural candidates, so the check can't conflate distinct clauses.
+    const structuralCorrected = clauseTexts.length === 0 && inhibited.some(c => c.reason === 'corrected')
+    // Real state exists and names something unresolved, but no structural
+    // signal (blocker, evidence, a model suggestion) could turn it into an
+    // operation. This is the engine's own limit, not missing input from
+    // the human — so it says so, rather than asking them to report a
+    // change they never made.
+    const clauseExhausted = clauseTexts.length > 0 && targetClauseIndex === null
+    const clauseNeedsOperation = clauseTexts.length > 0 && targetClauseIndex !== null
 
     const move = !hadCandidates
       ? INSUFFICIENT_CONTEXT_MOVE
-      : correctedAny
+      : clauseNeedsOperation
+      ? `I can see “${clauseTexts[targetClauseIndex as number]}” is still unresolved, but I can't derive the concrete step for it from your mission state alone.`
+      : clauseExhausted
       ? `Tell me which part of “${aimedAt?.finishLine ?? 'your finish line'}” is still unproven.`
+      : structuralCorrected
+      ? `Tell me what would actually move “${aimedAt?.title ?? 'this mission'}” forward.`
       : `Name the evidence that will prove “${aimedAt?.title ?? 'this mission'}” is genuinely done.`
 
     const because = !hadCandidates
       ? describeBecause(situation, ctx)
-      : correctedAny
+      : clauseNeedsOperation
+      ? correctedSteps > 0
+        ? `Your finish line names ${clauseTexts.length} things to prove. You've ruled out ${correctedSteps === 1 ? 'the first' : `${correctedSteps} of them`}, and this is the next one — but nothing in the mission, blocker, or evidence state tells me the concrete step for it.`
+        : `Your finish line names ${clauseTexts.length} things to prove, and this is the first. Nothing in the mission, blocker, or evidence state tells me the concrete step for it.`
+      : clauseExhausted
       ? 'You have corrected every part of this finish line I can currently aim at. I know the outcome, but not which part remains unresolved.'
+      : structuralCorrected
+      ? 'You corrected the only structural signal I had for this mission, and I don’t have another angle on it from mission, blocker, or evidence state alone.'
       : 'I can see the outcome, but I could not turn this finish line into a step smaller than itself. That is my limit, not missing information from you.'
 
     return {
       move,
-      candidateId: null,
+      candidateId: clauseNeedsOperation ? clauseId(aimedAt!.id, targetClauseIndex as number) : null,
       provenance: 'insufficient_context',
       situation,
-      missionId: null,
-      missionTitle: null,
+      // A real mission is in view whenever there was anything to generate
+      // candidates from at all — even though nothing survived, the caller
+      // (the model-assist fetch, in particular) still needs to know which
+      // mission and clause this honest state is about. Only the truly
+      // empty case (no mission at all) has none to name.
+      missionId: hadCandidates && aimedAt ? aimedAt.id : null,
+      missionTitle: hadCandidates && aimedAt ? aimedAt.title : null,
       because,
       currentReality: describeReality(ctx),
       blockingGap: !hadCandidates
         ? 'No mission names an outcome and a finish line.'
-        : correctedAny
+        : clauseNeedsOperation
+        ? 'No concrete operation could be derived for this part of your finish line.'
+        : clauseExhausted
         ? 'Every part of the finish line has been corrected.'
+        : structuralCorrected
+        ? 'The only candidate this mission had was corrected.'
         : 'No part of the finish line is smaller than the finish line.',
       evidenceState,
       inhibited,
-      wouldChangeIf: describeWouldChange(situation, ctx),
+      wouldChangeIf: clauseNeedsOperation
+        ? `You tell me the concrete step yourself, evidence lands specifically against “${clauseTexts[targetClauseIndex as number]}”, or you correct this and I move to what's next.`
+        : describeWouldChange(situation, ctx),
       assembledFrom,
       proofSteps,
       computedAt: ctx.now,
@@ -608,7 +701,7 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
   return {
     move: winner.move,
     candidateId: winner.id,
-    provenance: 'deterministic',
+    provenance: winner.kind === 'model_suggested' ? 'model' : 'deterministic',
     situation,
     missionId: winner.missionId,
     missionTitle: mission?.title ?? null,
@@ -617,7 +710,7 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
     blockingGap: ctx.primary?.blocker ?? null,
     evidenceState,
     inhibited,
-    wouldChangeIf: describeWouldChange(situation, ctx),
+    wouldChangeIf: describeWouldChange(situation, ctx, targetClauseIndex, clauseTexts),
     assembledFrom,
     proofSteps,
     computedAt: ctx.now,
@@ -630,6 +723,7 @@ export function predictStrategicDelta(
   evidence: EvidenceRecord[],
   corrections: DeltaCorrection[],
   now: string,
+  suggestedOperations: DeltaCandidate[] = [],
 ): StrategicDelta {
-  return selectStrategicDelta(assembleDeltaContext(missions, evidence, corrections, now))
+  return selectStrategicDelta(assembleDeltaContext(missions, evidence, corrections, now, suggestedOperations))
 }

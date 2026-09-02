@@ -35,7 +35,7 @@ import {
 import { groupByMission, hasConflict, isStale } from '@/lib/evidence'
 import { ActionBtn, ActionChip, Badge, Card, Input, SectionSubtitle, SectionTitle } from '@/components/ui'
 import NextMovePanel from '@/components/NextMovePanel'
-import StrategicDelta, { type DeltaPhase } from '@/components/StrategicDelta'
+import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase } from '@/components/StrategicDelta'
 
 // ─── Supabase row <-> domain mapping ────────────────────────────────────
 // missionLoop.ts operates on the camelCase Mission/MissionEvent domain
@@ -159,6 +159,11 @@ export default function MissionTab() {
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
   const [deltaError, setDeltaError] = useState('')
+  // Whether the server has ANTHROPIC_API_KEY set. Checked once, mirroring
+  // ConstraintValidatorTab's own GET-before-POST pattern for the same
+  // reason: an unconfigured server should never even attempt the call, not
+  // just fail it gracefully.
+  const [operationStageConfigured, setOperationStageConfigured] = useState(false)
 
   // New-mission form
   const [showNewMission, setShowNewMission] = useState(false)
@@ -249,6 +254,19 @@ export default function MissionTab() {
     init()
     return () => { cancelled = true }
   }, [loadAll])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/delta-operation')
+      .then(res => res.json())
+      .then((data: { configured?: unknown }) => {
+        if (!cancelled) setOperationStageConfigured(data.configured === true)
+      })
+      .catch(() => {
+        if (!cancelled) setOperationStageConfigured(false)
+      })
+    return () => { cancelled = true }
+  }, [])
 
   // Applies a pure missionLoop action, persists the affected missions +
   // event, and rolls the board back on write failure so displayed state
@@ -380,6 +398,35 @@ export default function MissionTab() {
   const handleDeltaRecheck = useCallback(() => {
     if (user) void loadAll(user.id)
   }, [user, loadAll])
+
+  // The narrowly bounded model-assist stage: one clause in, one operation
+  // (or null) out. Owns auth and the network call so StrategicDelta.tsx
+  // stays Supabase-agnostic, same as every other onXxx prop it takes. Never
+  // called with anything the caller didn't already have — no browsing, no
+  // other users' data.
+  const handleRequestOperation = useCallback(async (req: DeltaOperationRequest): Promise<string | null> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/delta-operation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          missionTitle: req.missionTitle,
+          finishLine: req.finishLine,
+          clause: req.clause,
+          priorCorrections: req.priorCorrections,
+        }),
+      })
+      if (!res.ok) return null
+      const data = (await res.json()) as { operation?: unknown }
+      return typeof data.operation === 'string' ? data.operation : null
+    } catch {
+      return null
+    }
+  }, [])
 
   // Derived from work that is genuinely pending, never a timer. `loaded`
   // is set on every terminal path, including sign-in failure.
@@ -544,6 +591,7 @@ export default function MissionTab() {
         onCorrect={handleCorrectDelta}
         onContextAdded={handleDeltaContext}
         onRecheck={handleDeltaRecheck}
+        requestOperation={operationStageConfigured ? handleRequestOperation : undefined}
       >
         {loaded && missionList.length === 0 ? (
           <form

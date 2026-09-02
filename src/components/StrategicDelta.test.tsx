@@ -38,14 +38,30 @@ function renderDelta(missions: Mission[], overrides: Partial<React.ComponentProp
 }
 
 // A compound finish line, because that is the shape the engine aims at:
-// one part at a time rather than the whole outcome restated.
+// one part at a time rather than the whole outcome restated. With no
+// `requestOperation` supplied (the default in these tests), a mission
+// shaped like this has no structural signal to select from — it resolves
+// to the honest "I can't derive the concrete step" state, never a
+// clause-naming template. See the `requestOperation` describe block below
+// for the model-assisted path.
 const PRIMARY = mission({
   id: 'm1',
   state: 'primary',
   title: 'Ship the Strategic Delta',
   finishLine: 'lands on main, deploys to Vercel, and answers without prompting',
 })
-const PRIMARY_FIRST_MOVE = 'Verify this part of your finish line: “lands on main”'
+
+// A mission with a real, always-deterministic winner (clearing the
+// blocker) — used wherever a test needs a genuine "Do this"-able move
+// rather than the honest clause fallback.
+const BLOCKED = mission({
+  id: 'm1',
+  state: 'primary',
+  title: 'Ship it',
+  finishLine: 'Live',
+  blocker: 'Waiting on Vaughn',
+})
+const BLOCKED_MOVE = "Clear what's blocking “Ship it”: Waiting on Vaughn"
 
 describe('StrategicDelta', () => {
   it('shows a reasoning state, not a prediction, while the read is still pending', () => {
@@ -55,17 +71,31 @@ describe('StrategicDelta', () => {
     expect(region.getAttribute('aria-busy')).toBe('true')
     expect(region.getAttribute('data-state')).toBe('reasoning')
     // Nothing may be asserted as a prediction before the state is read.
-    expect(screen.queryByText(/Verify this part of your finish line/)).toBeNull()
+    expect(screen.queryByText(BLOCKED_MOVE)).toBeNull()
   })
 
-  it('resolves to one move, marked as predicted from real state', async () => {
-    renderDelta([PRIMARY])
+  it('resolves to a real move, marked as predicted from real state', async () => {
+    renderDelta([BLOCKED])
 
-    expect(await screen.findByText(/Verify this part of your finish line/)).toBeTruthy()
+    expect(await screen.findByText(BLOCKED_MOVE)).toBeTruthy()
     const region = screen.getByLabelText('Strategic Delta')
     expect(region.getAttribute('data-state')).toBe('resolved')
     expect(region.getAttribute('data-provenance')).toBe('deterministic')
     expect(screen.getByText('Predicted from your mission state')).toBeTruthy()
+  })
+
+  // The round-2 failure, guarded at the component boundary: with no model
+  // stage wired up, a compound finish line must render the honest
+  // "cannot derive the concrete step" state — never a clause-naming
+  // template like "Verify this part of your finish line: …".
+  it('renders the honest cannot-derive state for a clause with no structural signal, never a template', async () => {
+    renderDelta([PRIMARY])
+
+    expect(await screen.findByText(/lands on main/)).toBeTruthy()
+    expect(screen.queryByText(/^Verify (this|that|it)/i)).toBeNull()
+    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-provenance')).toBe('insufficient_context')
+    // Insufficient-context still hides "Do this" — there is nothing to accept.
+    expect(screen.queryByRole('button', { name: 'Do this' })).toBeNull()
   })
 
   // §30 — the UI must never let insufficient context read as intelligence.
@@ -126,12 +156,15 @@ describe('StrategicDelta', () => {
     expect((screen.getByRole('button', { name: 'This is what matters' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('does not render missing-input children once a mission exists to predict from', async () => {
+  it('renders the missing-input children only when there is no mission at all, never for a known clause', async () => {
     renderDelta([PRIMARY], {
       children: <input aria-label="The outcome that matters most" />,
     })
 
-    expect(await screen.findByText(/Verify this part of your finish line/)).toBeTruthy()
+    // PRIMARY resolves to the honest cannot-derive state — also
+    // `insufficient_context`, but about a known clause, not a missing
+    // mission. The invite form belongs only to the latter.
+    expect(await screen.findByText(/lands on main/)).toBeTruthy()
     expect(screen.queryByLabelText('The outcome that matters most')).toBeNull()
   })
 
@@ -149,11 +182,12 @@ describe('StrategicDelta', () => {
     expect(screen.getByText('Alternatives inhibited')).toBeTruthy()
     expect(screen.getByText('What would change this')).toBeTruthy()
     // Every alternative that lost is named, each with the reason it lost —
-    // including the paraphrase the engine rejects on quality.
+    // including both missions' paraphrases, which the engine rejects on
+    // quality rather than ever offering them as the move.
     const trace = document.querySelectorAll('.sd-trace li')
     const traceText = [...trace].map(li => li.textContent ?? '')
-    expect(traceText.some(t => /drafts the page/.test(t) && /Lower leverage/.test(t))).toBe(true)
-    expect(traceText.some(t => /restates the mission/.test(t))).toBe(true)
+    expect(traceText.some(t => /Write the docs/.test(t) && /drafts the page/.test(t))).toBe(true)
+    expect(traceText.filter(t => /Restates the mission, not a move/.test(t))).toHaveLength(2)
   })
 
   it('shows which part of the finish line it is aiming at, and which parts were ruled out', async () => {
@@ -191,14 +225,14 @@ describe('StrategicDelta', () => {
   })
 
   it('accepting records agreement without claiming the work is done', async () => {
-    const props = renderDelta([PRIMARY])
+    const props = renderDelta([BLOCKED])
 
     fireEvent.click(await screen.findByRole('button', { name: 'Do this' }))
     expect(props.onAccept).toHaveBeenCalledWith(expect.objectContaining({ missionId: 'm1' }))
   })
 
   it('shows an accepted move as still unproven', async () => {
-    renderDelta([PRIMARY], { acceptedMove: PRIMARY_FIRST_MOVE })
+    renderDelta([BLOCKED], { acceptedMove: BLOCKED_MOVE })
 
     expect(await screen.findByText(/still a prediction until there's evidence/i)).toBeTruthy()
   })
@@ -231,5 +265,87 @@ describe('StrategicDelta', () => {
     })
 
     expect(await screen.findByText(/You taught it: Vaughn is out; Beau is available/)).toBeTruthy()
+  })
+})
+
+// The narrowly bounded model-assist stage, as seen from the component: it
+// is asked at most once per clause, its result runs through the exact same
+// engine as everything deterministic, and its absence is a fully honest
+// configuration, not a degraded one.
+describe('StrategicDelta — requestOperation', () => {
+  it('does not call requestOperation at all when a real move already exists', async () => {
+    const requestOperation = vi.fn()
+    renderDelta([BLOCKED], { requestOperation })
+
+    await screen.findByText(BLOCKED_MOVE)
+    expect(requestOperation).not.toHaveBeenCalled()
+  })
+
+  it('does not call requestOperation for the true no-mission state', async () => {
+    const requestOperation = vi.fn()
+    renderDelta([], { requestOperation })
+
+    await screen.findByText(/Name the one outcome that matters most/)
+    expect(requestOperation).not.toHaveBeenCalled()
+  })
+
+  it('requests one operation for the unresolved clause, grounded in real mission state, and selects it once it resolves', async () => {
+    const requestOperation = vi.fn().mockResolvedValue('Open a PR with the change and request review')
+    renderDelta([PRIMARY], { requestOperation })
+
+    expect(await screen.findByText('Open a PR with the change and request review')).toBeTruthy()
+    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-provenance')).toBe('model')
+    expect(screen.getByText('Model-generated — not verified')).toBeTruthy()
+
+    expect(requestOperation).toHaveBeenCalledTimes(1)
+    const req = requestOperation.mock.calls[0][0]
+    expect(req.missionId).toBe('m1')
+    expect(req.missionTitle).toBe('Ship the Strategic Delta')
+    expect(req.clause).toContain('lands on main')
+  })
+
+  it('falls back to the honest state, still no template, when requestOperation resolves nothing', async () => {
+    const requestOperation = vi.fn().mockResolvedValue(null)
+    renderDelta([PRIMARY], { requestOperation })
+
+    expect(await screen.findByText(/lands on main/)).toBeTruthy()
+    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-provenance')).toBe('insufficient_context')
+    expect(screen.queryByText(/^Verify (this|that|it)/i)).toBeNull()
+  })
+
+  it('never asks twice for the same clause', async () => {
+    const requestOperation = vi.fn().mockResolvedValue(null)
+    const { rerender } = render(
+      <StrategicDelta
+        missions={[PRIMARY]}
+        evidence={[]}
+        corrections={[]}
+        phase="resolved"
+        acceptedMove={null}
+        onAccept={vi.fn()}
+        onCorrect={vi.fn()}
+        onContextAdded={vi.fn()}
+        onRecheck={vi.fn()}
+        requestOperation={requestOperation}
+      />,
+    )
+
+    await screen.findByText(/lands on main/)
+    rerender(
+      <StrategicDelta
+        missions={[PRIMARY]}
+        evidence={[]}
+        corrections={[]}
+        phase="resolved"
+        acceptedMove={null}
+        onAccept={vi.fn()}
+        onCorrect={vi.fn()}
+        onContextAdded={vi.fn()}
+        onRecheck={vi.fn()}
+        requestOperation={requestOperation}
+      />,
+    )
+
+    expect(requestOperation).toHaveBeenCalledTimes(1)
   })
 })
