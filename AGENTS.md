@@ -127,9 +127,9 @@ Three rules that are load-bearing, not stylistic:
   canonical `actions` table. Recommendation ≠ commitment.
 - **Provenance is a discriminated union** (`DeltaProvenance`), and colour encodes
   it: spectrum = unresolved cognition, teal = rule-based prediction, violet =
-  model-generated, amber = insufficient context. `'model'` is declared and styled
-  but no code path produces it yet — wire it only when an LLM genuinely adds
-  value, and never let it render as teal.
+  model-generated, amber = insufficient context. The bounded `/api/delta-operation`
+  path may produce `'model'` only after its output passes the same deterministic
+  quality and inhibition gates; it must never render as teal.
 - **Insufficient context is a first-class path, not a fallback.** With no mission
   state the Delta names the one missing input. It never guesses.
 
@@ -167,3 +167,13 @@ The layout sets `robots: noindex, nofollow` — this is a private operational da
 - `POST /api/analyze` accepts `multipart/form-data` (`instruction` + one or more `files`), converts each file to an Anthropic content block (PDF → `document`, images → `image`, text/md/csv/json → inline `text`), and calls `client.messages.create` with `model: "Codex-opus-5"`. Unsupported file types (e.g. `.docx`, video) are rejected with a 400 — Codex's Messages API doesn't accept them the way Gemini's `inlineData` did, so `ConstraintValidatorTab`'s accepted-file list was narrowed accordingly.
 
 `ConstraintValidatorTab.tsx` is the only consumer: it checks `/api/analyze` (GET) on mount to enable/disable the Analyze button, then POSTs the selected files as `FormData` on submit.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

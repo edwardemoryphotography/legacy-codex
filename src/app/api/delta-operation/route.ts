@@ -28,6 +28,12 @@ export const runtime = 'nodejs'
 
 const MODEL = 'claude-opus-5'
 const MAX_OPERATION_CHARS = 160
+const MAX_REQUEST_BYTES = 12 * 1024
+const MAX_MISSION_TITLE_CHARS = 500
+const MAX_FINISH_LINE_CHARS = 2_000
+const MAX_CLAUSE_CHARS = 1_000
+const MAX_REJECTED_OPERATIONS = 8
+const MAX_CORRECTION_REASON_CHARS = 500
 
 const SYSTEM_PROMPT = `You turn one unresolved sentence from a person's own finish line into ONE concrete action they can perform right now to test or advance it.
 
@@ -38,29 +44,74 @@ Rules:
 - Never invent facts you were not given. If you cannot ground a concrete action in what you were told, output exactly: NONE
 - Do not explain your reasoning. Output only the action, or NONE.`
 
-export async function GET() {
-  return NextResponse.json({ configured: Boolean(process.env.ANTHROPIC_API_KEY) })
-}
-
 interface RequestBody {
   missionTitle?: unknown
   finishLine?: unknown
   clause?: unknown
-  priorCorrections?: unknown
+  rejectedOperations?: unknown
 }
 
-export async function POST(req: NextRequest) {
-  const { error: authError } = await verifyAuth(req, { auth: 'user' })
+interface RejectedOperation {
+  operation: string
+  reason: string
+}
+
+function isLocalDevelopment(req: NextRequest): boolean {
+  return process.env.NODE_ENV === 'development' && ['localhost', '127.0.0.1', '::1'].includes(req.nextUrl.hostname)
+}
+
+async function verifyOwner(req: NextRequest): Promise<NextResponse | null> {
+  const { data: auth, error: authError } = await verifyAuth(req, { auth: 'user' })
   if (authError) {
     if (authError.status === 500) {
-      console.error(`/api/delta-operation: auth misconfigured [${authError.code}] ${authError.message}`)
+      console.error(`/api/delta-operation auth misconfigured [${authError.code}]`)
       return NextResponse.json(
-        { error: `Server auth is misconfigured: ${authError.message} (${authError.code})` },
+        { error: 'Server authentication is misconfigured.' },
         { status: 500 },
       )
     }
     return NextResponse.json({ error: 'Sign in to use model-assisted candidates.' }, { status: 401 })
   }
+
+  const userId = auth?.userClaims?.id
+  const allowedUserId = process.env.DELTA_OPERATION_ALLOWED_USER_ID
+  if (!isLocalDevelopment(req) && (!allowedUserId || userId !== allowedUserId)) {
+    return NextResponse.json({ error: 'Model-assisted candidates are not enabled for this account.' }, { status: 403 })
+  }
+
+  return null
+}
+
+function boundedString(value: unknown, maxChars: number): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed && trimmed.length <= maxChars ? trimmed : null
+}
+
+function parseRejectedOperations(value: unknown): RejectedOperation[] | null {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > MAX_REJECTED_OPERATIONS) return null
+  const parsed: RejectedOperation[] = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object') return null
+    const record = item as { operation?: unknown; reason?: unknown }
+    const operation = boundedString(record.operation, MAX_OPERATION_CHARS)
+    const reason = boundedString(record.reason, MAX_CORRECTION_REASON_CHARS)
+    if (!operation || !reason) return null
+    parsed.push({ operation, reason })
+  }
+  return parsed
+}
+
+export async function GET(req: NextRequest) {
+  const authResponse = await verifyOwner(req)
+  if (authResponse) return authResponse
+  return NextResponse.json({ configured: Boolean(process.env.ANTHROPIC_API_KEY) })
+}
+
+export async function POST(req: NextRequest) {
+  const authResponse = await verifyOwner(req)
+  if (authResponse) return authResponse
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
       { error: 'Set ANTHROPIC_API_KEY on the server to enable model-assisted candidates.' },
@@ -68,23 +119,30 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  const declaredLength = Number(req.headers.get('content-length') ?? '0')
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) {
+    return NextResponse.json({ error: 'Request body is too large.' }, { status: 413 })
+  }
+
   let body: RequestBody
   try {
-    body = await req.json()
+    const rawBody = await req.text()
+    if (Buffer.byteLength(rawBody, 'utf8') > MAX_REQUEST_BYTES) {
+      return NextResponse.json({ error: 'Request body is too large.' }, { status: 413 })
+    }
+    body = JSON.parse(rawBody) as RequestBody
   } catch {
     return NextResponse.json({ error: 'Request body must be JSON.' }, { status: 400 })
   }
 
-  const missionTitle = typeof body.missionTitle === 'string' ? body.missionTitle.trim() : ''
-  const finishLine = typeof body.finishLine === 'string' ? body.finishLine.trim() : ''
-  const clause = typeof body.clause === 'string' ? body.clause.trim() : ''
-  const priorCorrections = Array.isArray(body.priorCorrections)
-    ? body.priorCorrections.filter((c): c is string => typeof c === 'string').slice(0, 10)
-    : []
+  const missionTitle = boundedString(body.missionTitle, MAX_MISSION_TITLE_CHARS)
+  const finishLine = boundedString(body.finishLine, MAX_FINISH_LINE_CHARS)
+  const clause = boundedString(body.clause, MAX_CLAUSE_CHARS)
+  const rejectedOperations = parseRejectedOperations(body.rejectedOperations)
 
-  if (!missionTitle || !finishLine || !clause) {
+  if (!missionTitle || !finishLine || !clause || !rejectedOperations) {
     return NextResponse.json(
-      { error: 'missionTitle, finishLine, and clause are all required.' },
+      { error: 'Request fields are missing, invalid, or too large.' },
       { status: 400 },
     )
   }
@@ -93,8 +151,8 @@ export async function POST(req: NextRequest) {
     `Mission: ${missionTitle}`,
     `Full finish line: ${finishLine}`,
     `The one unresolved part to turn into an action: ${clause}`,
-    priorCorrections.length > 0
-      ? `Actions already rejected by this person, do not repeat their shape:\n${priorCorrections.map(r => `- ${r}`).join('\n')}`
+    rejectedOperations.length > 0
+      ? `Operations already rejected for this unresolved target. Do not repeat them:\n${rejectedOperations.map(({ operation, reason }) => `- ${operation} (reason: ${reason})`).join('\n')}`
       : null,
   ].filter((x): x is string => x !== null).join('\n\n')
 
@@ -126,8 +184,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ operation: raw })
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error(`/api/delta-operation: model call failed: ${message}`)
-    return NextResponse.json({ operation: null })
+    const status = err instanceof Anthropic.APIError ? err.status : 'unknown'
+    console.error(`/api/delta-operation model call failed [${status}]`)
+    return NextResponse.json({ error: 'Model operation generation failed.' }, { status: 502 })
   }
 }

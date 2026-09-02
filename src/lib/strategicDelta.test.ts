@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest'
 import type { DeltaCandidate, DeltaCorrection, EvidenceRecord, Mission, MissionState } from '@/types'
 import {
   assembleDeltaContext,
+  candidateTargetsClause,
   clauseId,
   decomposeFinishLine,
   isConcreteMove,
   generateCandidates,
   inhibit,
+  operationCandidateId,
   predictStrategicDelta,
   routeSituation,
   summarizeEvidence,
@@ -58,7 +60,8 @@ function correction(over: Partial<DeltaCorrection> & { correctedMove: string }):
 // hands the engine. Never fabricated by the engine itself; only ever
 // supplied by the caller, exactly like this.
 function suggestion(missionId: string, index: number, move: string): DeltaCandidate {
-  return { id: clauseId(missionId, index), kind: 'model_suggested', move, missionId, rank: 0 }
+  const targetId = clauseId(missionId, index)
+  return { id: operationCandidateId(targetId, move), kind: 'model_suggested', move, missionId, targetId, rank: 0 }
 }
 
 describe('summarizeEvidence', () => {
@@ -70,7 +73,7 @@ describe('summarizeEvidence', () => {
     expect(summarizeEvidence([evidence({ id: 'e1', missionId: 'm1', status: 'conflict' })], NOW)).toBe('conflict')
   })
 
-  it('treats two sources disagreeing as a conflict even when neither row is flagged', () => {
+  it('does not manufacture a conflict from different verification states alone', () => {
     const state = summarizeEvidence(
       [
         evidence({ id: 'e1', missionId: 'm1', source: 'github', status: 'verified' }),
@@ -78,7 +81,7 @@ describe('summarizeEvidence', () => {
       ],
       NOW,
     )
-    expect(state).toBe('conflict')
+    expect(state).toBe('unverified')
   })
 
   it('reports stale when the only record is older than the staleness window', () => {
@@ -135,7 +138,7 @@ describe('inhibition', () => {
     const ctx = assembleDeltaContext(missions, [], [], NOW, [suggestion('m1', 0, 'Send the change for review')])
     const { inhibited } = inhibit(generateCandidates(ctx), ctx)
 
-    const killed = inhibited.find(c => c.id === clauseId('m1', 0))
+    const killed = inhibited.find(c => c.move === 'Send the change for review')
     expect(killed?.reason).toBe('blocked')
     expect(killed?.explanation).toContain('Waiting on Vaughn')
   })
@@ -146,8 +149,8 @@ describe('inhibition', () => {
     const ctx = assembleDeltaContext(missions, [], [], NOW, [suggestion('m1', 0, 'Continue advancing the redesign')])
     const { surviving, inhibited } = inhibit(generateCandidates(ctx), ctx)
 
-    expect(surviving.some(c => c.id === clauseId('m1', 0))).toBe(false)
-    expect(inhibited.find(c => c.id === clauseId('m1', 0))?.reason).toBe('not_a_move')
+    expect(surviving.some(c => c.move === 'Continue advancing the redesign')).toBe(false)
+    expect(inhibited.find(c => c.move === 'Continue advancing the redesign')?.reason).toBe('not_a_move')
   })
 
   it('refuses to let a parked mission silently displace an active Primary', () => {
@@ -172,6 +175,14 @@ describe('inhibition', () => {
     expect(surviving[0].id).toBe('reconcile:m1')
     expect(inhibited.every(c => c.id !== 'reconcile:m1')).toBe(true)
     expect(inhibited.some(c => c.reason === 'unverified_state')).toBe(true)
+  })
+
+  it('does not claim evidence conflicts when the only linked record is verified', () => {
+    const missions = [mission({ id: 'm1', state: 'primary', finishLine: 'Shipped' })]
+    const ev = [evidence({ id: 'e1', missionId: 'm1', status: 'verified' })]
+    const ctx = assembleDeltaContext(missions, ev, [], NOW)
+
+    expect(generateCandidates(ctx).some(candidate => candidate.kind === 'reconcile_evidence')).toBe(false)
   })
 
   it('leaves exactly one surviving move', () => {
@@ -301,27 +312,29 @@ describe('predictStrategicDelta', () => {
     expect(delta.because).toContain("only structural signal")
   })
 
-  // The actual round-2 bug: correcting a clause-targeted move must walk to
-  // the next clause, never collapse to "add what changed" while real,
-  // untouched clauses remain.
-  it('walks to the next clause — not to "add what changed" — when a clause-targeted move is corrected', () => {
+  it('tries another operation for the same unresolved target after a model operation is corrected', () => {
     const missions = [mission({ id: 'm1', state: 'primary', title: 'Ship the Delta', finishLine: COMPOUND })]
-    const first = predictStrategicDelta(missions, [], [], NOW)
-    expect(first.candidateId).toBe(clauseId('m1', 0))
+    const first = predictStrategicDelta(missions, [], [], NOW, [
+      suggestion('m1', 0, 'Open the change and ask a reviewer to test it'),
+    ])
+    expect(first.provenance).toBe('model')
 
     const second = predictStrategicDelta(
       missions,
       [],
       [correction({ missionId: 'm1', correctedMove: first.move, candidateId: first.candidateId ?? undefined, reason: 'already shipped' })],
       NOW,
+      [suggestion('m1', 0, 'Reload the deployed page and compare the visible result with the finish line')],
     )
 
-    expect(second.provenance).toBe('insufficient_context')
-    expect(second.candidateId).toBe(clauseId('m1', 1))
-    expect(second.move).toContain('verifies it in production')
+    expect(second.provenance).toBe('model')
+    expect(second.candidateId).not.toBe(first.candidateId)
+    expect(second.move).toContain('Reload the deployed page')
     expect(second.move).not.toContain('what changed')
-    expect(second.proofSteps.find(s => s.index === 0)?.corrected).toBe(true)
-    expect(second.proofSteps.find(s => s.index === 1)?.selected).toBe(true)
+    expect(second.proofSteps.find(s => s.index === 0)?.rejectedOperations).toBe(1)
+    expect(second.proofSteps.find(s => s.index === 0)?.selected).toBe(true)
+    expect(second.proofSteps.find(s => s.index === 1)?.selected).toBe(false)
+    expect(candidateTargetsClause(second.candidateId ?? undefined, clauseId('m1', 0))).toBe(true)
   })
 
   it('reports what it assembled from as counts, making no claim it cannot support', () => {
@@ -420,12 +433,14 @@ describe('regression — the real Strategic Delta failed twice', () => {
     expect(delta.inhibited.find(c => c.move === REAL_PARAPHRASE)?.reason).toBe('corrected')
   })
 
-  it('walks to a different, uncorrected clause each time he corrects', () => {
+  it('keeps seeking better operations for the first unresolved proof target after corrections', () => {
     const targets: (string | null)[] = []
     let corrections = [correction({ missionId: 'real', correctedMove: REAL_PARAPHRASE, reason: REAL_CORRECTION })]
 
     for (let i = 0; i < 3; i += 1) {
-      const delta = predictStrategicDelta(real(), [], corrections, NOW)
+      const delta = predictStrategicDelta(real(), [], corrections, NOW, [
+        suggestion('real', 0, `Open the deployed Delta and record what happens in test pass ${i + 1}`),
+      ])
       targets.push(delta.candidateId)
       expect(ROUND_2_BAD_MOVES).not.toContain(delta.move)
       corrections = [
@@ -441,7 +456,7 @@ describe('regression — the real Strategic Delta failed twice', () => {
     }
 
     expect(new Set(targets).size).toBe(3)
-    expect(targets).toEqual([clauseId('real', 0), clauseId('real', 1), clauseId('real', 2)])
+    expect(targets.every(target => candidateTargetsClause(target ?? undefined, clauseId('real', 0)))).toBe(true)
   })
 
   it('exposes the finish line as the sequence of proofs it is, aimed at the first clause', () => {

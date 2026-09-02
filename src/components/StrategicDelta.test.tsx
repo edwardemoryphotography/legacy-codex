@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Mission, MissionState } from '@/types'
+import { operationCandidateId } from '@/lib/strategicDelta'
 import StrategicDelta from './StrategicDelta'
 
 function mission(over: Partial<Mission> & { id: string; state: MissionState }): Mission {
@@ -347,5 +348,49 @@ describe('StrategicDelta — requestOperation', () => {
     )
 
     expect(requestOperation).toHaveBeenCalledTimes(1)
+  })
+
+  it('requests a new operation for the same unresolved target after the first operation is corrected', async () => {
+    const firstOperation = 'Open the deployed Delta and ask a reviewer to try it'
+    const secondOperation = 'Reload the Delta and compare the visible recommendation with the finish line'
+    const requestOperation = vi.fn()
+      .mockResolvedValueOnce(firstOperation)
+      .mockResolvedValueOnce(secondOperation)
+    const correction = {
+      id: 'c1',
+      missionId: 'm1',
+      correctedMove: firstOperation,
+      candidateId: operationCandidateId('clause:m1:0', firstOperation),
+      reason: 'The reviewer is unavailable today.',
+      createdAt: '2026-09-01T00:00:00.000Z',
+    }
+    const props = {
+      missions: [PRIMARY],
+      evidence: [],
+      phase: 'resolved' as const,
+      acceptedMove: null,
+      onAccept: vi.fn(),
+      onCorrect: vi.fn(),
+      onContextAdded: vi.fn(),
+      onRecheck: vi.fn(),
+      requestOperation,
+    }
+    const { rerender } = render(<StrategicDelta {...props} corrections={[]} />)
+
+    expect(await screen.findByText(firstOperation)).toBeTruthy()
+    rerender(<StrategicDelta {...props} corrections={[correction]} />)
+
+    expect(await screen.findByText(secondOperation)).toBeTruthy()
+    expect(requestOperation).toHaveBeenCalledTimes(2)
+    expect(screen.getByText(/rejected one earlier operation/)).toBeTruthy()
+  })
+
+  it('shows a provider failure without replacing it with a fake prediction', async () => {
+    const requestOperation = vi.fn().mockRejectedValue(new Error('provider unavailable'))
+    renderDelta([PRIMARY], { requestOperation })
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Model-assisted operation generation failed/)
+    expect(screen.getByText(/lands on main/)).toBeTruthy()
+    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-cognition')).toBe('failed')
   })
 })

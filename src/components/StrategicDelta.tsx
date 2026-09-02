@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DeltaCandidate, DeltaCorrection, EvidenceRecord, Mission, StrategicDelta as Delta } from '@/types'
-import { predictStrategicDelta } from '@/lib/strategicDelta'
+import { candidateTargetsClause, operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
 import { ActionBtn, ActionChip, Textarea } from '@/components/ui'
 
 // Phases are derived from work that is actually pending — anonymous
@@ -25,7 +25,7 @@ export interface DeltaOperationRequest {
   missionTitle: string
   finishLine: string
   clause: string
-  priorCorrections: string[]
+  rejectedOperations: Array<{ operation: string; reason: string }>
 }
 export type DeltaRequestOperation = (req: DeltaOperationRequest) => Promise<string | null>
 
@@ -116,7 +116,8 @@ export default function StrategicDelta({
   // through (see `delta` below).
   const [modelSuggestions, setModelSuggestions] = useState<Record<string, DeltaCandidate>>({})
   const [awaitingOperation, setAwaitingOperation] = useState(false)
-  const attemptedClauses = useRef<Set<string>>(new Set())
+  const [operationError, setOperationError] = useState<string | null>(null)
+  const attemptedOperationStates = useRef<Set<string>>(new Set())
   const whyRef = useRef<HTMLDivElement>(null)
   const correctionRef = useRef<HTMLTextAreaElement>(null)
   const changedRef = useRef<HTMLTextAreaElement>(null)
@@ -155,49 +156,65 @@ export default function StrategicDelta({
     [missions, evidence, corrections, now, suggestedOperations],
   )
 
-  // Fires at most once per clause: only when the deterministic pass has
+  // Fires at most once for each target/rejection state: only when the deterministic pass has
   // genuinely exhausted structural signal for a specific, known clause of
   // a known mission. Never invoked for the true no-mission-at-all state
   // (baseDelta.missionId is null there), and never retried once attempted
-  // — a failed or empty result stays the honest fallback, not a retry loop.
+  // — a failed or empty result stays the honest fallback until the human adds
+  // a correction that gives the model a new constraint for the same target.
   useEffect(() => {
     if (!requestOperation || !baseDelta) return
     if (baseDelta.provenance !== 'insufficient_context') return
-    const cid = baseDelta.candidateId
-    if (!cid || !cid.startsWith('clause:') || !baseDelta.missionId) return
-    if (attemptedClauses.current.has(cid)) return
+    const targetId = baseDelta.candidateId
+    if (!targetId || !targetId.startsWith('clause:') || !baseDelta.missionId) return
+
+    const targetCorrections = corrections.filter(c => candidateTargetsClause(c.candidateId, targetId))
+    const attemptKey = `${targetId}:${targetCorrections.map(c => c.id).join(',')}`
+    if (attemptedOperationStates.current.has(attemptKey)) return
 
     const mission = missions.find(m => m.id === baseDelta.missionId)
     const clause = baseDelta.proofSteps.find(s => s.selected)?.text
     if (!mission?.finishLine || !clause) return
 
-    attemptedClauses.current.add(cid)
+    attemptedOperationStates.current.add(attemptKey)
     let cancelled = false
+    queueMicrotask(() => {
+      if (!cancelled) setOperationError(null)
+    })
     setAwaitingOperation(true)
 
-    const priorCorrections = corrections
-      .filter(c => c.missionId === mission.id)
-      .map(c => c.reason)
-      .filter(Boolean)
+    const rejectedOperations = corrections
+      .filter(c => c.missionId === mission.id && (!c.candidateId || candidateTargetsClause(c.candidateId, targetId)))
+      .map(c => ({ operation: c.correctedMove, reason: c.reason }))
+      .filter(c => c.operation && c.reason)
 
     requestOperation({
       missionId: mission.id,
       missionTitle: mission.title,
       finishLine: mission.finishLine,
       clause,
-      priorCorrections,
+      rejectedOperations,
     })
       .then(operation => {
         if (cancelled) return
         if (operation) {
           setModelSuggestions(prev => ({
             ...prev,
-            [cid]: { id: cid, kind: 'model_suggested', move: operation, missionId: mission.id, rank: 0 },
+            [operationCandidateId(targetId, operation)]: {
+              id: operationCandidateId(targetId, operation),
+              kind: 'model_suggested',
+              move: operation,
+              missionId: mission.id,
+              targetId,
+              rank: 0,
+            },
           }))
         }
       })
       .catch(() => {
-        // The honest fallback already shown stands; nothing more to do.
+        if (!cancelled) {
+          setOperationError('Model-assisted operation generation failed. The honest fallback remains.')
+        }
       })
       .finally(() => {
         if (!cancelled) setAwaitingOperation(false)
@@ -269,7 +286,7 @@ export default function StrategicDelta({
   const accepted = delta !== null && acceptedMove === delta.move
   const latestCorrection = corrections[corrections.length - 1] ?? null
 
-  const cognition: Cognition = persistError
+  const cognition: Cognition = persistError || operationError
     ? 'failed'
     : correcting
       ? 'correcting'
@@ -336,6 +353,12 @@ export default function StrategicDelta({
           {persistError && (
             <p className="sd-fail" role="alert">
               {persistError}
+            </p>
+          )}
+
+          {operationError && (
+            <p className="sd-fail" role="alert">
+              {operationError}
             </p>
           )}
 
@@ -413,11 +436,15 @@ export default function StrategicDelta({
                       <li
                         key={step.index}
                         data-selected={step.selected || undefined}
-                        data-corrected={step.corrected || undefined}
+                        data-rejected={step.rejectedOperations > 0 || undefined}
                       >
                         {step.text}
                         {step.selected && <span className="sd-step-tag">aiming here</span>}
-                        {step.corrected && <span className="sd-step-tag">you ruled this out</span>}
+                        {step.rejectedOperations > 0 && (
+                          <span className="sd-step-tag">
+                            {step.rejectedOperations} rejected move{step.rejectedOperations === 1 ? '' : 's'}; still unresolved
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ol>

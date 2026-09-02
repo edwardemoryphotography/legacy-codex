@@ -85,9 +85,9 @@ Three rules that are load-bearing, not stylistic:
   canonical `actions` table. Recommendation ≠ commitment.
 - **Provenance is a discriminated union** (`DeltaProvenance`), and colour encodes
   it: spectrum = unresolved cognition, teal = rule-based prediction, violet =
-  model-generated, amber = insufficient context. `'model'` is declared and styled
-  but no code path produces it yet — wire it only when an LLM genuinely adds
-  value, and never let it render as teal.
+  model-generated, amber = insufficient context. The bounded `/api/delta-operation`
+  path may produce `'model'` only after its output passes the same deterministic
+  quality and inhibition gates; it must never render as teal.
 - **Insufficient context is a first-class path, not a fallback.** With no mission
   state the Delta names the one missing input. It never guesses.
 

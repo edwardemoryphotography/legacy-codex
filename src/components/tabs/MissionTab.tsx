@@ -202,7 +202,7 @@ export default function MissionTab() {
       const [missionsRes, evidenceRes, correctionsRes] = await Promise.all([
         supabase.from('missions').select('*').eq('user_id', userId),
         supabase.from('evidence_snapshots').select('*'),
-        supabase.from('mission_events').select('*').eq('user_id', userId).eq('type', 'delta_corrected'),
+        supabase.from('mission_events').select('*').eq('user_id', userId).eq('type', 'delta_corrected').order('created_at', { ascending: true }),
       ])
       if (missionsRes.error) throw missionsRes.error
 
@@ -256,17 +256,26 @@ export default function MissionTab() {
   }, [loadAll])
 
   useEffect(() => {
+    if (!user) {
+      return
+    }
     let cancelled = false
-    fetch('/api/delta-operation')
-      .then(res => res.json())
-      .then((data: { configured?: unknown }) => {
-        if (!cancelled) setOperationStageConfigured(data.configured === true)
-      })
-      .catch(() => {
+    void (async () => {
+      try {
+        const sessionResult = await supabase.auth.getSession()
+        const res = await fetch('/api/delta-operation', {
+          headers: sessionResult.data.session?.access_token
+            ? { Authorization: `Bearer ${sessionResult.data.session.access_token}` }
+            : {},
+        })
+        const data = await res.json() as { configured?: unknown }
+        if (!cancelled) setOperationStageConfigured(res.ok && data.configured === true)
+      } catch {
         if (!cancelled) setOperationStageConfigured(false)
-      })
+      }
+    })()
     return () => { cancelled = true }
-  }, [])
+  }, [user])
 
   // Applies a pure missionLoop action, persists the affected missions +
   // event, and rolls the board back on write failure so displayed state
@@ -417,10 +426,10 @@ export default function MissionTab() {
           missionTitle: req.missionTitle,
           finishLine: req.finishLine,
           clause: req.clause,
-          priorCorrections: req.priorCorrections,
+          rejectedOperations: req.rejectedOperations,
         }),
       })
-      if (!res.ok) return null
+      if (!res.ok) throw new Error('Model operation generation failed.')
       const data = (await res.json()) as { operation?: unknown }
       return typeof data.operation === 'string' ? data.operation : null
     } catch {

@@ -152,8 +152,8 @@ export type MissionEventType =
   | 'paused'
   | 'abandoned'
   // Strategic Delta lifecycle. mission_events.type has no CHECK constraint,
-  // so these need no migration; the table stays the append-only ledger for
-  // predictions, acceptances, and corrections alike.
+  // so these need no migration. This remains a transitional, user-scoped
+  // vertical-slice stream — not universal correction ownership.
   | 'delta_predicted'
   | 'delta_accepted'
   | 'delta_corrected'
@@ -243,6 +243,9 @@ export interface DeltaCandidate {
   kind: DeltaCandidateKind
   move: string
   missionId: string | null
+  /** Stable proof-target identity for clause-scoped operations. Distinct from
+   *  `id`: rejecting one operation must not mark its proof target resolved. */
+  targetId?: string
   /** Lower ranks are higher leverage. */
   rank: number
 }
@@ -269,8 +272,9 @@ export interface DeltaCorrection {
 export interface DeltaProofStep {
   index: number
   text: string
-  /** True once the human has corrected the move that targeted this part. */
-  corrected: boolean
+  /** Candidate operations rejected for this still-unresolved target. A
+   *  rejection is feedback about an operation, never proof of completion. */
+  rejectedOperations: number
   /** True for the part this Delta is currently aimed at. */
   selected: boolean
 }

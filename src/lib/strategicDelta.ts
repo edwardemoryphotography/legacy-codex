@@ -71,22 +71,41 @@ export function assembleDeltaContext(
   return { primary, secondary, parked, primaryEvidence, corrections, suggestedOperations, now }
 }
 
-/** Stable identity for "the operation targeting finish-line clause N of
- *  this mission" — shared by a model-suggested candidate and, when no
- *  candidate exists at all for that clause, the honest fallback that names
- *  it. Correcting either one is what lets the engine walk forward past it,
- *  the same mechanism that already lets a correction inhibit any other
- *  candidate. */
+/** Stable identity for finish-line clause N of this mission. This identifies
+ *  the unresolved proof target, not any candidate operation aimed at it. */
 export function clauseId(missionId: string, index: number): string {
   return `clause:${missionId}:${index}`
+}
+
+/** A stable, operation-specific identity. The move is part of the identity so
+ *  correcting candidate A inhibits A without inhibiting candidate B for the
+ *  same unresolved proof target. */
+export function operationCandidateId(targetId: string, move: string): string {
+  let hash = 2166136261
+  for (let index = 0; index < move.length; index += 1) {
+    hash ^= move.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `${targetId}:operation:${(hash >>> 0).toString(36)}`
+}
+
+export function candidateTargetsClause(candidateId: string | undefined, targetId: string): boolean {
+  return candidateId === targetId || candidateId?.startsWith(`${targetId}:operation:`) === true
+}
+
+function parseClauseId(targetId: string | undefined): { missionId: string; index: number } | null {
+  if (!targetId) return null
+  const match = /^clause:([^:]+):(\d+)$/.exec(targetId)
+  if (!match) return null
+  return { missionId: match[1], index: Number(match[2]) }
 }
 
 export function summarizeEvidence(records: EvidenceRecord[], now: string): DeltaEvidenceState {
   if (records.length === 0) return 'none'
   if (records.some(r => r.status === 'conflict')) return 'conflict'
-  // Two sources disagreeing is a conflict even when neither row is flagged.
-  const statuses = new Set(records.map(r => r.status))
-  if (statuses.has('verified') && statuses.size > 1) return 'conflict'
+  // Verification status is not claim content. A verified row beside an
+  // unverified row does not prove the sources disagree; only an explicit
+  // conflict status can support that assertion.
   if (records.some(r => r.status === 'stale' || isStale(r.fetchedAt, now))) return 'stale'
   if (records.some(r => r.status === 'unverified')) return 'unverified'
   return 'verified'
@@ -267,7 +286,7 @@ export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
   const targetMissionIds = new Set([primary?.id, secondary?.id].filter((id): id is string => Boolean(id)))
 
   if (primary) {
-    if (ctx.primaryEvidence.length > 0) {
+    if (summarizeEvidence(ctx.primaryEvidence, ctx.now) === 'conflict') {
       out.push({
         id: `reconcile:${primary.id}`,
         kind: 'reconcile_evidence',
@@ -343,6 +362,14 @@ export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
   // `isConcreteMove` gate — like everything else in `out`.
   for (const suggestion of ctx.suggestedOperations) {
     if (!suggestion.missionId || !targetMissionIds.has(suggestion.missionId)) continue
+    const target = parseClauseId(suggestion.targetId)
+    if (!target || target.missionId !== suggestion.missionId) continue
+    const owner = [primary, secondary].find(m => m?.id === suggestion.missionId)
+    const clauses = decomposeFinishLine(owner?.finishLine ?? null)
+    // Until trusted state says a target is resolved, the first target remains
+    // unresolved. A rejected operation may generate a new candidate for it;
+    // it may not silently unlock a later clause.
+    if (target.index !== 0 || !clauses[target.index]) continue
     out.push({ ...suggestion, kind: 'model_suggested', rank: RANK.modelSuggestion })
   }
 
@@ -507,7 +534,7 @@ function describeWouldChange(
   // on. Only reachable when targeting a clause, so `clauseTexts[targetClauseIndex]`
   // is always in range here.
   if (targetClauseIndex !== null && clauseTexts[targetClauseIndex]) {
-    return `Evidence lands specifically against “${clauseTexts[targetClauseIndex]}”, or you correct this operation and I move to what's next.`
+    return `Evidence lands specifically against “${clauseTexts[targetClauseIndex]}”, or you correct this operation and I try another operation for the same unresolved target.`
   }
   switch (situation) {
     case 'evidence_conflict':
@@ -531,10 +558,7 @@ function describeBecause(
   situation: DeltaSituation,
   ctx: DeltaContext,
   winner?: DeltaCandidate,
-  // How many parts of the finish line the human has actually corrected.
-  // Not the same as how many corrections exist: a correction recorded
-  // against the whole mission is not a correction of any one part.
-  correctedSteps = 0,
+  rejectedOperations = 0,
 ): string {
   // When the move is a concrete operation for one clause of the finish
   // line, the useful explanation is which clause it targets and why that
@@ -542,9 +566,9 @@ function describeBecause(
   if (winner?.kind === 'model_suggested' && winner.missionId) {
     const owner = [ctx.primary, ctx.secondary].find(m => m?.id === winner.missionId)
     const total = decomposeFinishLine(owner?.finishLine ?? null).length
-    const targeted = correctedSteps > 0
-      ? `you've ruled out ${correctedSteps === 1 ? 'the first' : `${correctedSteps} of them`}, so this targets the next one with nothing recorded against it`
-      : 'nothing has been recorded against any of them yet, so this targets the first'
+    const targeted = rejectedOperations > 0
+      ? `you rejected ${rejectedOperations === 1 ? 'one earlier operation' : `${rejectedOperations} earlier operations`} for the first target, so this is another attempt at that same unresolved condition`
+      : 'no trusted state says the first target is resolved, so this aims there'
     return `Your finish line names ${total} things to prove, and ${targeted}.`
   }
   if (winner?.kind === 'name_evidence') {
@@ -587,42 +611,29 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
 
   const winner = surviving[0]
 
-  // What the finish line claims to prove, how far down it we are, and
-  // which clause (if any) is corrected — computed straight from
-  // corrections, never from `inhibited`, because a clause no longer has a
-  // deterministic candidate sitting in `candidates` for `inhibited` to
-  // record a rejection against. Shown in Why? so the sequence the engine
-  // is walking is inspectable regardless of whether a candidate exists.
+  // What the finish line claims to prove and which operation rejections were
+  // recorded against each target. Rejections remain attached to their target
+  // for provenance, but never count as proof that the target is resolved.
   const aimedAt = ctx.primary ?? ctx.secondary ?? null
   const clauseTexts = decomposeFinishLine(aimedAt?.finishLine ?? null)
-  const correctedClauseIndices = new Set(
-    aimedAt
-      ? clauseTexts
-          .map((_, index) => index)
-          .filter(index => ctx.corrections.some(c => c.candidateId === clauseId(aimedAt.id, index)))
-      : [],
-  )
-
-  // The clause a model-suggested winner targets, parsed back out of its id
-  // (`clause:<missionId>:<index>` — see `clauseId`); or, when nothing won,
-  // the earliest clause nothing has been recorded against — the same
-  // sequential walk the rest of the engine already uses.
-  const winnerClauseIndex =
-    winner?.kind === 'model_suggested' ? Number(winner.id.split(':')[2]) : null
-  const nextUncorrectedIndex = clauseTexts.findIndex((_, index) => !correctedClauseIndices.has(index))
+  const winnerTarget = winner?.kind === 'model_suggested' ? parseClauseId(winner.targetId) : null
   const targetClauseIndex = winner
-    ? winnerClauseIndex
-    : clauseTexts.length > 0 && nextUncorrectedIndex !== -1
-      ? nextUncorrectedIndex
+    ? winnerTarget?.index ?? null
+    : clauseTexts.length > 0
+      ? 0
       : null
 
   const proofSteps: DeltaProofStep[] = clauseTexts.map((text, index) => ({
     index,
     text,
-    corrected: correctedClauseIndices.has(index),
+    rejectedOperations: aimedAt
+      ? ctx.corrections.filter(c => candidateTargetsClause(c.candidateId, clauseId(aimedAt.id, index))).length
+      : 0,
     selected: targetClauseIndex === index,
   }))
-  const correctedSteps = proofSteps.filter(step => step.corrected).length
+  const targetRejections = targetClauseIndex === null
+    ? 0
+    : proofSteps[targetClauseIndex]?.rejectedOperations ?? 0
 
   if (!winner) {
     const hadCandidates = candidates.length > 0
@@ -636,15 +647,12 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
     // operation. This is the engine's own limit, not missing input from
     // the human — so it says so, rather than asking them to report a
     // change they never made.
-    const clauseExhausted = clauseTexts.length > 0 && targetClauseIndex === null
     const clauseNeedsOperation = clauseTexts.length > 0 && targetClauseIndex !== null
 
     const move = !hadCandidates
       ? INSUFFICIENT_CONTEXT_MOVE
       : clauseNeedsOperation
       ? `I can see “${clauseTexts[targetClauseIndex as number]}” is still unresolved, but I can't derive the concrete step for it from your mission state alone.`
-      : clauseExhausted
-      ? `Tell me which part of “${aimedAt?.finishLine ?? 'your finish line'}” is still unproven.`
       : structuralCorrected
       ? `Tell me what would actually move “${aimedAt?.title ?? 'this mission'}” forward.`
       : `Name the evidence that will prove “${aimedAt?.title ?? 'this mission'}” is genuinely done.`
@@ -652,11 +660,9 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
     const because = !hadCandidates
       ? describeBecause(situation, ctx)
       : clauseNeedsOperation
-      ? correctedSteps > 0
-        ? `Your finish line names ${clauseTexts.length} things to prove. You've ruled out ${correctedSteps === 1 ? 'the first' : `${correctedSteps} of them`}, and this is the next one — but nothing in the mission, blocker, or evidence state tells me the concrete step for it.`
+      ? targetRejections > 0
+        ? `Your finish line names ${clauseTexts.length} things to prove. You rejected ${targetRejections === 1 ? 'one operation' : `${targetRejections} operations`} for this first unresolved target, but nothing in the mission, blocker, or evidence state yet supports a better one.`
         : `Your finish line names ${clauseTexts.length} things to prove, and this is the first. Nothing in the mission, blocker, or evidence state tells me the concrete step for it.`
-      : clauseExhausted
-      ? 'You have corrected every part of this finish line I can currently aim at. I know the outcome, but not which part remains unresolved.'
       : structuralCorrected
       ? 'You corrected the only structural signal I had for this mission, and I don’t have another angle on it from mission, blocker, or evidence state alone.'
       : 'I can see the outcome, but I could not turn this finish line into a step smaller than itself. That is my limit, not missing information from you.'
@@ -679,15 +685,13 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
         ? 'No mission names an outcome and a finish line.'
         : clauseNeedsOperation
         ? 'No concrete operation could be derived for this part of your finish line.'
-        : clauseExhausted
-        ? 'Every part of the finish line has been corrected.'
         : structuralCorrected
         ? 'The only candidate this mission had was corrected.'
         : 'No part of the finish line is smaller than the finish line.',
       evidenceState,
       inhibited,
       wouldChangeIf: clauseNeedsOperation
-        ? `You tell me the concrete step yourself, evidence lands specifically against “${clauseTexts[targetClauseIndex as number]}”, or you correct this and I move to what's next.`
+        ? `You tell me the concrete step yourself, evidence lands specifically against “${clauseTexts[targetClauseIndex as number]}”, or you correct an attempted operation and I try another for this same unresolved target.`
         : describeWouldChange(situation, ctx),
       assembledFrom,
       proofSteps,
@@ -705,7 +709,7 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
     situation,
     missionId: winner.missionId,
     missionTitle: mission?.title ?? null,
-    because: describeBecause(situation, ctx, winner, correctedSteps),
+    because: describeBecause(situation, ctx, winner, targetRejections),
     currentReality: describeReality(ctx),
     blockingGap: ctx.primary?.blocker ?? null,
     evidenceState,
