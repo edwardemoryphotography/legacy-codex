@@ -344,24 +344,45 @@ export default function MissionTab() {
         <Card><div style={{ color: 'var(--text-dim)' }}>Loading missions…</div></Card>
       ) : (
         <>
-          {/* Right Now */}
-          <Card highlight="teal">
-            <SectionTitle>Right Now</SectionTitle>
-            {primary ? (
-              primary.blocker ? (
-                <p style={{ color: 'var(--text)', fontSize: '0.95rem' }}>
-                  <strong>{primary.title}</strong> is Blocked: {primary.blocker}. Unblock it, or check Secondary below.
-                </p>
-              ) : (
-                <p style={{ color: 'var(--text)', fontSize: '0.95rem' }}>
-                  Move <strong>{primary.title}</strong> toward: {primary.finishLine}
-                </p>
-              )
-            ) : (
-              <p style={{ color: 'var(--text-soft)', fontSize: '0.95rem' }}>
-                No Primary mission set. Promote a Parked mission below, or capture a new one.
+          {/* Right Now — the home-screen next action. Keep this the visual hero. */}
+          <Card
+            highlight="teal"
+            style={{
+              boxShadow: '0 22px 56px rgba(0, 0, 0, 0.28), 0 0 40px rgba(40, 224, 187, 0.08)',
+            }}
+          >
+            <div className="py-3 sm:py-5">
+              <p
+                className="text-[11px] uppercase tracking-[0.24em] font-bold mb-3"
+                style={{ color: 'var(--teal)' }}
+              >
+                Right now
               </p>
-            )}
+              {primary ? (
+                primary.blocker ? (
+                  <h2
+                    className="text-2xl sm:text-3xl font-black tracking-tight"
+                    style={{ color: 'var(--text)', letterSpacing: '-0.04em', lineHeight: 1.25 }}
+                  >
+                    {primary.title} is blocked: {primary.blocker}. Unblock it, or check Secondary below.
+                  </h2>
+                ) : (
+                  <h2
+                    className="text-2xl sm:text-3xl font-black tracking-tight"
+                    style={{ color: 'var(--text)', letterSpacing: '-0.04em', lineHeight: 1.25 }}
+                  >
+                    Move {primary.title} toward {primary.finishLine ?? 'a finish line you still need to write'}.
+                  </h2>
+                )
+              ) : (
+                <h2
+                  className="text-2xl sm:text-3xl font-black tracking-tight"
+                  style={{ color: 'var(--text)', letterSpacing: '-0.04em', lineHeight: 1.25 }}
+                >
+                  No Primary mission set. Promote a Parked mission below, or capture a new one.
+                </h2>
+              )}
+            </div>
           </Card>
 
           <NextMovePanel mission={primary ? { title: primary.title, finishLine: primary.finishLine } : null} />
