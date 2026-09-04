@@ -1,0 +1,36 @@
+Legacy Codex — Mission redesign
+
+1. Inspect the canonical app and preserve its mission/evidence ownership. Complete.
+2. Make Right now the single focus surface; place next-move input inside it. Complete.
+3. Integrate ThinkingOrb and BorderBeam with real state and motion preferences. Complete.
+4. Verify desktop, mobile, keyboard navigation, and reduced motion. Passed locally.
+5. Saved draft PR #70. Hosted preview queued; production release pending.
+
+Design decisions
+- Existing dark palette, restrained blue-violet focus treatment, 24px focus radius.
+- Desktop side navigation; existing reachable bottom tab navigation on phones.
+- Capture directly below the focus panel; Primary and evidence details disclose on demand.
+- No generated design imagery or seeded personal data: implemented directly in the real app.
+- 64px connecting orb while loading missions; paused breathing orb when idle.
+- 20px solving orb only during the existing artifact analysis request.
+- Ocean beam, strength 0.45, seven-second cycle, only for an available unblocked Primary.
+- Motion respects system reduced motion, Codex calm controls, and tab visibility.
+- Next-move suggestions remain local rule-based suggestions; no artificial AI wait.
+- Editing the request clears stale suggestions. Clipboard failures are visible.
+- Missing account/mission data is unavailable, not an invented empty mission list.
+
+Validation
+- Production build passed.
+- TypeScript passed.
+- Changed-file ESLint passed.
+- Existing mission, evidence, and next-move tests: 42 passed.
+- Chromium: 1360x1000 desktop and 390x844 phone; no horizontal overflow.
+- Keyboard navigation, suggestion generation/reset, and reduced motion passed.
+- Visually inspected typography, palette, navigation, spacing, focus panel, and mobile wrapping.
+- Local database credentials and server analysis key are not configured here.
+- Real database writes and model responses require verification in the configured preview.
+
+Next move
+Review: https://github.com/edwardemoryphotography/legacy-codex/pull/70
+Open the preview on an iPhone and use your own mission to check capture, finish line,
+Primary selection, and resumption before releasing to the canonical production site.

@@ -55,44 +55,10 @@ export default function CodexApp() {
 
   return (
     <div className="codex-shell">
-      {/* Desktop label */}
-      <p className="hidden lg:block mb-4 text-tx-soft text-sm">
-        Personal cognitive operating system.
-      </p>
-
-      {/* Header */}
-      <div className="flex flex-wrap justify-between gap-3 items-center mb-3">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ letterSpacing: '0.01em' }}>
-          Legacy Codex
-        </h1>
-        <span
-          className="font-bold rounded-full px-3 py-1.5 text-xs tracking-widest uppercase"
-          style={{
-            border: '1px solid var(--teal)',
-            background: 'var(--teal-soft)',
-            color: 'var(--teal)',
-          }}
-        >
-          Operational
-        </span>
-      </div>
-
-      {/* Pills */}
-      <div className="flex flex-wrap gap-2 mb-6">
-        {['Reality Filter Active', 'No mock data'].map(pill => (
-          <div
-            key={pill}
-            className="text-xs rounded-full px-2.5 py-1.5"
-            style={{
-              border: '1px solid var(--line-strong)',
-              background: 'var(--surface-soft)',
-              color: 'var(--text-soft)',
-            }}
-          >
-            {pill}
-          </div>
-        ))}
-      </div>
+      <header className="codex-header">
+        <h1>Legacy Codex<span className="brand-dot" aria-hidden="true" /></h1>
+        <p>A little clarity. One next move.</p>
+      </header>
 
       {/* Tab bar */}
       <nav
@@ -126,7 +92,7 @@ export default function CodexApp() {
       </nav>
 
       {/* Tab panels */}
-      <main>
+      <main className="codex-main">
         <div
           className="panel-enter"
           key={activeTab}
@@ -147,8 +113,8 @@ export default function CodexApp() {
         </div>
       </main>
 
-      <footer className="mt-10 pt-3 text-tx-dim text-xs" style={{ borderTop: '1px solid var(--line)' }}>
-        Legacy Codex | Reality Filter Active | No mock data.
+      <footer className="codex-footer">
+        Your context. Your pace.
       </footer>
     </div>
   )

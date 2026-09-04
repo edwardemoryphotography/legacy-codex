@@ -26,6 +26,8 @@ import {
 } from '@/lib/missionLoop'
 import { groupByMission, hasConflict, isStale } from '@/lib/evidence'
 import { ActionBtn, ActionChip, Badge, Card, Input, SectionSubtitle, SectionTitle } from '@/components/ui'
+import ActivityOrb from '@/components/ActivityOrb'
+import FocusBeam from '@/components/FocusBeam'
 import NextMovePanel from '@/components/NextMovePanel'
 
 // ─── Supabase row <-> domain mapping ────────────────────────────────────
@@ -115,6 +117,7 @@ export default function MissionTab() {
   const [board, setBoard] = useState<MissionBoard>(EMPTY_BOARD)
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
 
@@ -167,7 +170,8 @@ export default function MissionTab() {
       }
       setLoaded(true)
     } catch {
-      setError('Could not load missions from Supabase (check RLS / connection).')
+      setLoadFailed(true)
+      setError('Could not load your missions. Reload to reconnect; your saved work has not changed.')
       setLoaded(true)
     }
   }, [])
@@ -189,7 +193,7 @@ export default function MissionTab() {
         await loadAll(current.id)
       } catch {
         if (!cancelled) {
-          setAuthStatus('Sign-in failed — missions require a signed-in session (RLS)')
+          setAuthStatus('Missions unavailable — could not connect to your account.')
           setLoaded(true)
         }
       }
@@ -259,7 +263,8 @@ export default function MissionTab() {
     }
     setBoard(result.board)
     try {
-      await supabase.from('missions').insert(missionToRow(result.board.missions[id], user.id))
+      const { error: insertError } = await supabase.from('missions').insert(missionToRow(result.board.missions[id], user.id))
+      if (insertError) throw insertError
       if (result.event) {
         await supabase.from('mission_events').insert({
           id: newId(),
@@ -286,7 +291,6 @@ export default function MissionTab() {
     if (!text || !user) return
     capture.capture(text)
     setCaptureText('')
-    flash('Captured — Parked in your inbox')
   }
 
   function requestChallenge() {
@@ -324,70 +328,66 @@ export default function MissionTab() {
   const now = new Date().toISOString()
 
   return (
-    <section className="space-y-6">
-      <div className="space-y-2">
-        <SectionTitle>Mission</SectionTitle>
-        <SectionSubtitle>
-          What matters right now, and the next concrete action. One Primary, one Secondary — everything else is Parked.
-        </SectionSubtitle>
+    <section className="mission-space">
+      <div className="mission-heading">
+        <div>
+          <h2>What matters now?</h2>
+          <p>Make room for the one thing that moves you forward.</p>
+        </div>
+        <span className="session-status" role="status">
+          <span className={user ? 'session-dot connected' : 'session-dot'} aria-hidden="true" />
+          {user ? 'Connected' : authStatus}
+        </span>
       </div>
+      {status && <p className="mission-notice" role="status">{status}</p>}
+      {error && <p className="mission-notice" role="alert" style={{ color: 'var(--error)' }}>{error}</p>}
 
-      <div className="flex flex-wrap gap-2 items-center" style={{ fontSize: '0.75rem' }}>
-        {user ? <Badge tone="success">Signed in</Badge> : <Badge tone="muted">{authStatus}</Badge>}
-        {status && <Badge tone="teal">{status}</Badge>}
-      </div>
-      {error && (
-        <div style={{ color: 'var(--error)', fontSize: '0.85rem' }}>{error}</div>
-      )}
-
-      {!loaded ? (
-        <Card><div style={{ color: 'var(--text-dim)' }}>Loading missions…</div></Card>
-      ) : (
-        <>
-          {/* Right Now — the home-screen next action. Keep this the visual hero. */}
-          <Card
-            highlight="teal"
-            style={{
-              boxShadow: '0 22px 56px rgba(0, 0, 0, 0.28), 0 0 40px rgba(40, 224, 187, 0.08)',
-            }}
-          >
-            <div className="py-3 sm:py-5">
-              <p
-                className="text-[11px] uppercase tracking-[0.24em] font-bold mb-3"
-                style={{ color: 'var(--teal)' }}
-              >
-                Right now
-              </p>
-              {primary ? (
-                primary.blocker ? (
-                  <h2
-                    className="text-2xl sm:text-3xl font-black tracking-tight"
-                    style={{ color: 'var(--text)', letterSpacing: '-0.04em', lineHeight: 1.25 }}
-                  >
-                    {primary.title} is blocked: {primary.blocker}. Unblock it, or check Secondary below.
-                  </h2>
-                ) : (
-                  <h2
-                    className="text-2xl sm:text-3xl font-black tracking-tight"
-                    style={{ color: 'var(--text)', letterSpacing: '-0.04em', lineHeight: 1.25 }}
-                  >
-                    Move {primary.title} toward {primary.finishLine ?? 'a finish line you still need to write'}.
-                  </h2>
-                )
+      <FocusBeam active={loaded && !!user && !!primary && !primary.blocker && !loadFailed}>
+        <div className="right-now">
+          <div className="right-now-heading">
+            <ActivityOrb state={loaded ? 'breathing' : 'connecting'} active={!loaded} />
+            <div>
+              <p className="focus-label">Right now</p>
+              {!loaded ? (
+                <h3>Connecting to your missions…</h3>
+              ) : !user || loadFailed ? (
+                <h3>Let’s start with what you know.</h3>
+              ) : primary ? (
+                <h3>{primary.title}</h3>
               ) : (
-                <h2
-                  className="text-2xl sm:text-3xl font-black tracking-tight"
-                  style={{ color: 'var(--text)', letterSpacing: '-0.04em', lineHeight: 1.25 }}
-                >
-                  No Primary mission set. Promote a Parked mission below, or capture a new one.
-                </h2>
+                <h3>Give one thing your attention.</h3>
               )}
             </div>
-          </Card>
+          </div>
+          <p className="focus-description">
+            {!loaded ? 'Reading your saved context.' : !user || loadFailed
+              ? 'Your saved missions are unavailable. You can still use the next-move helper below.'
+              : primary?.blocker ? `Blocked: ${primary.blocker}. Review the mission below to unblock it or adjust your priority.`
+              : primary ? `Finish line: ${primary.finishLine ?? 'not yet defined'}`
+              : 'No Primary mission yet. Capture a mission, define its finish line, then make it your focus.'}
+          </p>
+          <NextMovePanel key={primary?.id ?? 'no-primary'} embedded mission={primary ? { title: primary.title, finishLine: primary.finishLine } : null} />
+        </div>
+      </FocusBeam>
 
-          <NextMovePanel mission={primary ? { title: primary.title, finishLine: primary.finishLine } : null} />
+      {loaded && user && !loadFailed && (
+        <>
+          <div className="mission-capture">
+            <div>
+              <h3>Keep the idea. Keep your focus.</h3>
+              <p>Capture it for later without changing your Primary mission.</p>
+            </div>
+            <label htmlFor="capture-idea" className="sr-only">Capture an idea for later</label>
+            <div className="capture-controls">
+              <Input id="capture-idea" placeholder="What’s on your mind?" value={captureText} onChange={setCaptureText} />
+              <ActionBtn disabled={!captureText.trim()} onClick={handleCaptureIdea}>Capture</ActionBtn>
+            </div>
+            {capture.status && <p role="status">{capture.status}</p>}
+          </div>
 
           {/* Primary Mission */}
+          {primary && <details className="mission-disclosure">
+          <summary>Review your Primary mission</summary>
           <Card>
             <SectionTitle>Primary Mission</SectionTitle>
             {primary ? (
@@ -540,8 +540,10 @@ export default function MissionTab() {
             )}
           </Card>
 
+          </details>}
+
           {/* Secondary Mission */}
-          <details>
+          <details className="mission-disclosure">
             <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-dim)' }}>
               Secondary Mission {secondary ? `— ${secondary.title}` : '(none active)'}
             </summary>
@@ -640,17 +642,9 @@ export default function MissionTab() {
             </div>
           </Card>
 
-          {/* Capture Idea */}
-          <Card>
-            <SectionTitle>Capture Idea</SectionTitle>
-            <SectionSubtitle>Say it in your own words. It is Parked by default — this does not interrupt Primary.</SectionSubtitle>
-            <div className="flex gap-2">
-              <Input placeholder="Type the idea…" value={captureText} onChange={setCaptureText} />
-              <ActionBtn disabled={!captureText.trim()} onClick={handleCaptureIdea}>Capture</ActionBtn>
-            </div>
-          </Card>
-
           {/* Evidence Status */}
+          <details className="mission-disclosure">
+          <summary>Evidence behind your focus</summary>
           <Card>
             <SectionTitle>Evidence Status</SectionTitle>
             {primaryEvidence.length === 0 ? (
@@ -674,6 +668,7 @@ export default function MissionTab() {
               </div>
             )}
           </Card>
+          </details>
         </>
       )}
     </section>

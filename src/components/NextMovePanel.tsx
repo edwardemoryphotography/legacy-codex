@@ -5,10 +5,11 @@ import { recommendNextMove, type NextMoveRecommendation } from '@/lib/nextMove'
 import { ActionBtn, ActionChip, Badge, Card, SectionSubtitle, SectionTitle, Textarea } from '@/components/ui'
 
 type Props = {
+  embedded?: boolean
   mission?: { title: string; finishLine: string | null } | null
 }
 
-export default function NextMovePanel({ mission = null }: Props) {
+export default function NextMovePanel({ mission = null, embedded = false }: Props) {
   const [intent, setIntent] = useState('')
   const [recommendation, setRecommendation] = useState<NextMoveRecommendation | null>(null)
   const [copied, setCopied] = useState(false)
@@ -20,19 +21,26 @@ export default function NextMovePanel({ mission = null }: Props) {
     setCopied(false)
   }
 
-  function copyHandoff() {
+  const [copyError, setCopyError] = useState('')
+
+  async function copyHandoff() {
     if (!recommendation) return
-    navigator.clipboard?.writeText(recommendation.handoff).then(() => {
+    try {
+      await navigator.clipboard.writeText(recommendation.handoff)
       setCopied(true)
-      setTimeout(() => setCopied(false), 1400)
-    })
+      setCopyError('')
+    } catch {
+      setCopyError('Could not copy. Select the handoff text below to copy it manually.')
+    }
   }
 
+  const Surface = embedded ? 'div' : Card
+
   return (
-    <Card>
-      <SectionTitle>Choose the Next Move</SectionTitle>
+    <Surface className="next-move-composer">
+      <SectionTitle>Find your next move</SectionTitle>
       <SectionSubtitle>
-        When the path is unclear, describe the friction in ordinary language. Legacy Codex will choose one lane and one concrete move.
+        What feels unclear or stuck? Start with what you know.
       </SectionSubtitle>
 
       <label htmlFor="next-move-intent" className="sr-only">What are you trying to move forward?</label>
@@ -40,18 +48,19 @@ export default function NextMovePanel({ mission = null }: Props) {
         id="next-move-intent"
         rows={3}
         value={intent}
-        onChange={setIntent}
+        onChange={value => { setIntent(value); setRecommendation(null); setCopied(false); setCopyError('') }}
         placeholder={mission ? `What feels unclear or stuck about “${mission.title}”?` : 'What are you trying to move forward?'}
       />
-      <div className="mt-3">
+      <div className="composer-actions">
         <ActionBtn onClick={chooseNextMove} disabled={!intent.trim()}>Find the next move</ActionBtn>
+        <span>Uses local rules · no AI request</span>
       </div>
 
       {recommendation && (
         <div className="mt-4 space-y-3" role="status" aria-live="polite">
           <div className="flex flex-wrap gap-2 items-center">
             <Badge tone="teal">{recommendation.label}</Badge>
-            <Badge tone="muted">Doctrine route · not executed</Badge>
+            <Badge tone="muted">Suggested · not started</Badge>
           </div>
           <div>
             <div style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>NEXT MOVE</div>
@@ -72,11 +81,12 @@ export default function NextMovePanel({ mission = null }: Props) {
               <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', marginTop: 8, color: 'var(--text-dim)', fontSize: '0.75rem', fontFamily: 'inherit' }}>{recommendation.handoff}</pre>
               <div className="mt-3">
                 <ActionChip onClick={copyHandoff}>{copied ? 'Copied' : 'Copy handoff'}</ActionChip>
+                {copyError && <p role="alert">{copyError}</p>}
               </div>
             </div>
           </details>
         </div>
       )}
-    </Card>
+    </Surface>
   )
 }
