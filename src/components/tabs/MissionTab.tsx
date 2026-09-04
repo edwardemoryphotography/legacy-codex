@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { BorderBeam } from 'border-beam'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
 import { useCapture } from '@/hooks/useCapture'
@@ -345,45 +346,47 @@ export default function MissionTab() {
       ) : (
         <>
           {/* Right Now — the home-screen next action. Keep this the visual hero. */}
-          <Card
-            highlight="teal"
-            style={{
-              boxShadow: '0 22px 56px rgba(0, 0, 0, 0.28), 0 0 40px rgba(40, 224, 187, 0.08)',
-            }}
-          >
-            <div className="py-3 sm:py-5">
-              <p
-                className="text-[11px] uppercase tracking-[0.24em] font-bold mb-3"
-                style={{ color: 'var(--teal)' }}
-              >
-                Right now
-              </p>
-              {primary ? (
-                primary.blocker ? (
-                  <h2
-                    className="text-2xl sm:text-3xl font-black tracking-tight"
-                    style={{ color: 'var(--text)', letterSpacing: '-0.04em', lineHeight: 1.25 }}
-                  >
-                    {primary.title} is blocked: {primary.blocker}. Unblock it, or check Secondary below.
-                  </h2>
+          <BorderBeam size="md" colorVariant="mono" strength={0.6} theme="dark">
+            <Card
+              highlight="teal"
+              style={{
+                boxShadow: '0 22px 56px rgba(0, 0, 0, 0.28), 0 0 40px rgba(40, 224, 187, 0.08)',
+              }}
+            >
+              <div className="py-3 sm:py-5">
+                <p
+                  className="text-[11px] uppercase tracking-[0.24em] font-bold mb-3"
+                  style={{ color: 'var(--teal)' }}
+                >
+                  Right now
+                </p>
+                {primary ? (
+                  primary.blocker ? (
+                    <h2
+                      className="text-2xl sm:text-3xl font-black tracking-tight"
+                      style={{ color: 'var(--text)', letterSpacing: '-0.04em', lineHeight: 1.25 }}
+                    >
+                      {primary.title} is blocked: {primary.blocker}. Unblock it, or check Secondary below.
+                    </h2>
+                  ) : (
+                    <h2
+                      className="text-2xl sm:text-3xl font-black tracking-tight"
+                      style={{ color: 'var(--text)', letterSpacing: '-0.04em', lineHeight: 1.25 }}
+                    >
+                      Move {primary.title} toward {primary.finishLine ?? 'a finish line you still need to write'}.
+                    </h2>
+                  )
                 ) : (
                   <h2
                     className="text-2xl sm:text-3xl font-black tracking-tight"
                     style={{ color: 'var(--text)', letterSpacing: '-0.04em', lineHeight: 1.25 }}
                   >
-                    Move {primary.title} toward {primary.finishLine ?? 'a finish line you still need to write'}.
+                    No Primary mission set. Promote a Parked mission below, or capture a new one.
                   </h2>
-                )
-              ) : (
-                <h2
-                  className="text-2xl sm:text-3xl font-black tracking-tight"
-                  style={{ color: 'var(--text)', letterSpacing: '-0.04em', lineHeight: 1.25 }}
-                >
-                  No Primary mission set. Promote a Parked mission below, or capture a new one.
-                </h2>
-              )}
-            </div>
-          </Card>
+                )}
+              </div>
+            </Card>
+          </BorderBeam>
 
           <NextMovePanel mission={primary ? { title: primary.title, finishLine: primary.finishLine } : null} />
 
