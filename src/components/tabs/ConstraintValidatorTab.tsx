@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ThinkingOrb } from 'thinking-orbs'
+import ActivityOrb from '@/components/ActivityOrb'
 import { CONSTRAINT_TERMS, CANONICAL_PRINCIPLES } from '@/data/principles'
 import { supabase } from '@/lib/supabase/client'
 import {
@@ -322,7 +322,7 @@ export default function ConstraintValidatorTab() {
           <ActionBtn onClick={analyze} disabled={analyzeStatus === 'running' || files.length === 0}>
             {analyzeStatus === 'running' ? (
               <span className="flex items-center gap-2">
-                <ThinkingOrb state="solving" size={20} theme="dark" />
+                <ActivityOrb state="solving" size={20} active />
                 Analyzing…
               </span>
             ) : (
