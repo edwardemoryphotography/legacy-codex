@@ -30,6 +30,7 @@ import { ActionBtn, ActionChip, Badge, Card, Input, SectionSubtitle, SectionTitl
 import ActivityOrb from '@/components/ActivityOrb'
 import FocusBeam from '@/components/FocusBeam'
 import NextMovePanel from '@/components/NextMovePanel'
+import SavedActions from '@/components/SavedActions'
 
 // ─── Supabase row <-> domain mapping ────────────────────────────────────
 // missionLoop.ts operates on the camelCase Mission/MissionEvent domain
@@ -122,6 +123,10 @@ export default function MissionTab() {
   const [loadFailed, setLoadFailed] = useState(false)
   const [connectionAttempt, setConnectionAttempt] = useState(0)
   const [connectionError, setConnectionError] = useState('')
+  const [actionMissionId, setActionMissionId] = useState<string | null>(null)
+  const onActiveActionChange = useCallback((missionId: string, active: boolean) => {
+    setActionMissionId(active ? missionId : null)
+  }, [])
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
 
@@ -394,12 +399,13 @@ export default function MissionTab() {
               : primary ? `Finish line: ${primary.finishLine ?? 'not yet defined'}`
               : 'No Primary mission yet. Capture a mission, define its finish line, then make it your focus.'}
           </p>
-          <NextMovePanel embedded context={{
+          {(!primary || actionMissionId !== primary.id) && <NextMovePanel embedded context={{
             mission: primary,
             missionStatus: !loaded ? 'loading' : !user || loadFailed ? 'unavailable' : 'ready',
             evidence: primaryEvidence,
             evidenceStatus,
-          }} />
+          }} />}
+          {loaded && user && !loadFailed && primary && <SavedActions key={primary.id} missionId={primary.id} onActiveChange={onActiveActionChange} />}
         </div>
       </FocusBeam>
 

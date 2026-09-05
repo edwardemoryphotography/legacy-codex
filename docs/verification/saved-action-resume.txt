@@ -1,0 +1,34 @@
+SAVED NEXT ACTION / RESUME — 2026-09-05
+
+Authorization: Eddie requested the next phase and completion of frontend /
+backend wiring, including release, in the ongoing conversation.
+
+1. Add mission_id, resume_note, updated_at to existing canonical actions.
+2. Enforce mission ownership for reads/inserts/updates, immutable mission link,
+   and one unfinished next action per mission. Do not reassign existing rows.
+3. Show the same persisted action in Mission and Resumption Log.
+4. Support save, start/resume, save note, pause, and user-reported completion.
+5. Verify types/build/tests, apply migration, release and check live browser.
+
+Migration mission_action_resume applied to pkydkbuodikttfeawqsw. Metadata
+verified: new columns exist, RLS enabled, 4 policies, no anon INSERT grant,
+no anon EXECUTE grant on the trigger function. Security advisors reviewed:
+actions is discoverable by authenticated users and allows signed-in anonymous
+users to access their own mission-linked rows, as required by the existing
+Mission authentication model. These are expected notices, not public-row
+access. Other existing project advisories are outside this bounded change.
+Reference: https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0012_auth_allow_anonymous_sign_ins
+
+93 existing tests pass; no fabricated missions, actions, or evidence were
+introduced for validation. TypeScript and changed-source lint pass. Production
+build passed before the small callback integration; CI covers the final tree.
+Database confirmation is required before the UI claims a save. Updates compare
+updated_at so another tab's edit produces an error instead of silent overwrite.
+Failed saves preserve the local note. Saved notes persist across reloads through
+Supabase, within the same account. Browser-specific anonymous identity remains
+a separate recovery limitation; this change does not merge accounts.
+
+This closes the saved-action continuity gap. It does not implement predictive
+Strategic Delta, external action execution, or turn self-reported DONE into
+canonical evidence. Existing local resumption packets remain available below
+the shared saved-action surface; they are not silently imported or discarded.
