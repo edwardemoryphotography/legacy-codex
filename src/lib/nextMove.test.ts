@@ -1,29 +1,55 @@
 import { describe, expect, it } from 'vitest'
-import { recommendNextMove } from './nextMove'
+import type { NextMoveContext } from '@/types'
+import { nextMoveContextExpiresAt, nextMoveContextKey, recommendNextMove } from './nextMove'
+
+// Empty/error/loading contracts require no fabricated mission or evidence rows.
+const unavailable: NextMoveContext = {
+  mission: null, missionStatus: 'unavailable', evidence: [], evidenceStatus: 'unavailable',
+}
+const loadedWithoutPrimary: NextMoveContext = { ...unavailable, missionStatus: 'ready', evidenceStatus: 'ready' }
 
 describe('recommendNextMove', () => {
-  it('routes implementation work to the build lane', () => {
-    const result = recommendNextMove('Fix the mobile frontend and run the build')
-    expect(result.lane).toBe('build')
-    expect(result.source).toBe('doctrine')
+  it('does not claim failed reads mean no Primary exists', () => {
+    const result = recommendNextMove('', unavailable)
+    expect(result.reason).toBe('mission_unavailable')
+    expect(result.nextMove).toContain('Reload')
+    expect(result.source).toBe('local-rules')
+    expect(result.handoff).toContain('not committed or started')
   })
 
-  it('routes release work to the ship lane', () => {
-    const result = recommendNextMove('Deploy the merged commit to Vercel and verify the live URL')
-    expect(result.lane).toBe('ship')
-    expect(result.evidenceNeeded).toContain('Merged commit')
+  it('asks one focus question only after the mission read succeeds', () => {
+    const result = recommendNextMove('', loadedWithoutPrimary)
+    expect(result.reason).toBe('no_primary')
+    expect(result.kind).toBe('question')
+    expect(result.nextMove.match(/\?/g)).toHaveLength(1)
   })
 
-  it('falls back to clarifying the finish line when no lane matches', () => {
-    expect(recommendNextMove('something fuzzy').lane).toBe('structure')
+  it('does not treat a pending read as empty or failed', () => {
+    const result = recommendNextMove('', { ...unavailable, missionStatus: 'loading' })
+    expect(result.reason).toBe('loading')
+    expect(result.nextMove).toContain('Wait')
   })
 
-  it('preserves mission context in the builder handoff', () => {
-    const result = recommendNextMove('I am blocked and need to continue', {
-      title: 'Consolidate Legacy Codex',
-      finishLine: 'One canonical live product',
-    })
-    expect(result.handoff).toContain('Mission: Consolidate Legacy Codex')
-    expect(result.handoff).toContain('Finish line: One canonical live product')
+  it('does not route the actual lunch-break request to generic architecture', () => {
+    // Verbatim excerpt supplied by Eddie in the repair's originating conversation.
+    const intent = "I'm on my lunch break"
+    const result = recommendNextMove(intent, unavailable)
+    expect(result.reason).toBe('mission_unavailable')
+    expect(result.handoff).toContain(intent)
+    expect(result.handoff).not.toContain('Foundry — Architecture')
+  })
+
+  it('invalidates a result when context availability changes', () => {
+    const now = new Date().toISOString()
+    expect(nextMoveContextKey(unavailable, now)).not.toBe(nextMoveContextKey(loadedWithoutPrimary, now))
+  })
+
+  it('does not invalidate unchanged context just because it was reallocated', () => {
+    const now = new Date().toISOString()
+    expect(nextMoveContextKey(unavailable, now)).toBe(nextMoveContextKey({ ...unavailable, evidence: [] }, now))
+  })
+
+  it('does not schedule a freshness timer when there is no evidence', () => {
+    expect(nextMoveContextExpiresAt(unavailable, new Date().toISOString())).toBeNull()
   })
 })

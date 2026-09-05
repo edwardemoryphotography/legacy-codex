@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
 import { useCapture } from '@/hooks/useCapture'
-import type { CapacityLevel, EvidenceRecord, Mission, MissionState } from '@/types'
+import type { CapacityLevel, ContextAvailability, EvidenceRecord, Mission, MissionState } from '@/types'
 import {
   EMPTY_BOARD,
   abandonMission,
@@ -116,6 +116,7 @@ export default function MissionTab() {
   const [authStatus, setAuthStatus] = useState('Checking session…')
   const [board, setBoard] = useState<MissionBoard>(EMPTY_BOARD)
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([])
+  const [evidenceStatus, setEvidenceStatus] = useState<ContextAvailability>('loading')
   const [loaded, setLoaded] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
   const [status, setStatus] = useState('')
@@ -152,6 +153,7 @@ export default function MissionTab() {
   }, [])
 
   const loadAll = useCallback(async (userId: string) => {
+    setEvidenceStatus('loading')
     try {
       const [missionsRes, evidenceRes] = await Promise.all([
         supabase.from('missions').select('*').eq('user_id', userId),
@@ -167,9 +169,13 @@ export default function MissionTab() {
 
       if (!evidenceRes.error) {
         setEvidence(((evidenceRes.data ?? []) as EvidenceRow[]).map(rowToEvidence))
+        setEvidenceStatus('ready')
+      } else {
+        setEvidenceStatus('unavailable')
       }
       setLoaded(true)
     } catch {
+      setEvidenceStatus('unavailable')
       setLoadFailed(true)
       setError('Could not load your missions. Reload to reconnect; your saved work has not changed.')
       setLoaded(true)
@@ -193,6 +199,7 @@ export default function MissionTab() {
         await loadAll(current.id)
       } catch {
         if (!cancelled) {
+          setEvidenceStatus('unavailable')
           setAuthStatus('Missions unavailable — could not connect to your account.')
           setLoaded(true)
         }
@@ -366,7 +373,12 @@ export default function MissionTab() {
               : primary ? `Finish line: ${primary.finishLine ?? 'not yet defined'}`
               : 'No Primary mission yet. Capture a mission, define its finish line, then make it your focus.'}
           </p>
-          <NextMovePanel key={primary?.id ?? 'no-primary'} embedded mission={primary ? { title: primary.title, finishLine: primary.finishLine } : null} />
+          <NextMovePanel embedded context={{
+            mission: primary,
+            missionStatus: !loaded ? 'loading' : !user || loadFailed ? 'unavailable' : 'ready',
+            evidence: primaryEvidence,
+            evidenceStatus,
+          }} />
         </div>
       </FocusBeam>
 

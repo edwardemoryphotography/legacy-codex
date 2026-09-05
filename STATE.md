@@ -10,6 +10,8 @@ This file used to keep its own independent copy of that same content. It drifted
 - **LESSONS** — durable, *repo-specific* improvement notes (not cross-project — those go in the hub's `STATE.md`). Add an entry only when a lesson is likely to help a future session working in this repo specifically.
   - Home is the Mission tab (`CodexApp` default `activeTab`). The next-action surface is the **Right Now** card, not Overview's Foundry readout and not a second panel. Visual emphasis belongs there. `.card` padding in `globals.css` is `!important`, so extra space has to come from an inner wrapper, not `Card` `style.padding`.
 
+  - The next-move chooser must receive the full Primary mission and explicit read availability. Failed evidence reads are not empty evidence. Clear suggestions when mission/evidence context changes or evidence ages; copied handoffs are not commitments. See `docs/verification/mission-aware-next-move.txt`.
+
 ## Update protocol
 
 After any session that ships, blocks, or unblocks something for this repo: update `codex-control-panel/STATE.md` (canonical), not this file. Only add to this file's Repo-local notes section above if a note genuinely wouldn't make sense in the cross-project file.

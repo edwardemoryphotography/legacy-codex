@@ -1,0 +1,40 @@
+MISSION-AWARE NEXT MOVE — 2026-09-05 UTC
+
+Status: implemented and verified locally; not merged or verified live.
+Eddie explicitly authorized uploading the verified branch and opening its
+review PR after automatic approval review requested publication permission.
+See the PR for current remote check and deployment status.
+Authorization: Eddie approved the specific next-move repair after the source
+review in this conversation. The repository-wide application freeze remains.
+
+1. DONE — Reproduced the keyword-only decision gap at base b4fd47c.
+2. DONE — Passed full Primary mission and separate mission/evidence read status
+   into the existing chooser. No new queries, stores, or schema changes.
+3. DONE — Replaced keyword lanes with context gates: read availability, active
+   Primary, blocker, reported capacity mismatch, finish line, and evidence
+   validity/conflict/freshness/verification. Missing context asks one question.
+4. DONE — Cleared suggestions/copy status when context or notes change, keeping
+   the note draft. Evidence expiration and browser visibility trigger rechecks.
+5. DONE — Verified the code and replayed the actual saved mission records.
+6. PENDING — Review/merge, then verify the canonical live product under its
+   actual owner session. A deployment status is not an end-to-end pass.
+
+Validation: TypeScript and production build passed; 93 committed tests passed.
+Changed-file ESLint passed; full lint has 0 errors / 5 pre-existing warnings.
+Three additional local checks replayed real Supabase reads: both stored Primary
+records selected evidence_missing using their actual finish lines, and switching
+between those actual contexts removed the result while preserving the draft.
+The read found 2 Primary rows belonging to 2 distinct owners and 0 evidence
+snapshots. No raw account records or private replay files are committed.
+No new fabricated mission/evidence rows, mocked services, or production writes.
+
+Limits: real blocker/capacity/conflict/stale-evidence branches were unavailable
+in the observed data and have not been exercised with real account records.
+React interactions were checked in jsdom; authenticated browser behavior and
+live deployment remain unverified. The local build had no account credentials.
+
+The helper is still explicitly rule-based. Free-text notes are preserved in the
+handoff, not interpreted as new facts or commitments. It has no linked recorded
+next action, so it asks for the missing action rather than inventing one.
+Durable accept/action/resume wiring and predictive Strategic Delta are later
+capabilities, not claims made by this change.
