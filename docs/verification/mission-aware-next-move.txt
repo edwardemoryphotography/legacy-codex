@@ -1,66 +1,41 @@
-MISSION-AWARE NEXT MOVE — 2026-09-05 UTC
+LEGACY CODEX — NEXT-MOVE AND CONNECTION REPAIR — 2026-09-05
 
-Status: implemented and verified locally; not merged or verified live.
-Release status is recorded in PR #71 and the canonical cross-project STATE.md.
-Eddie explicitly authorized uploading the verified branch and opening its
-review PR after automatic approval review requested publication permission.
-See the PR for current remote check and deployment status.
-Authorization: Eddie approved the specific next-move repair after the source
-review in this conversation. The repository-wide application freeze remains.
+Live product: https://legacy-codex.vercel.app/
+Repo: edwardemoryphotography/legacy-codex
+Release: PR71 merged as 161f38d1ad887da5b1530674ca07cc5ea717daea.
+Production verified at descendant 12b6326fc9fda02cdcbe5319690097f7a26e4775;
+that later skills commit does not change application source.
+Vercel: frontend / prj_irrXhfz1elCLhO1Pdgd0ffM4wfz2.
+Supabase: foundry-console / pkydkbuodikttfeawqsw.
 
-1. DONE — Reproduced the keyword-only decision gap at base b4fd47c.
-2. DONE — Passed full Primary mission and separate mission/evidence read status
-   into the existing chooser. No new queries, stores, or schema changes.
-3. DONE — Replaced keyword lanes with context gates: read availability, active
-   Primary, blocker, reported capacity mismatch, finish line, and evidence
-   validity/conflict/freshness/verification. Missing context asks one question.
-4. DONE — Cleared suggestions/copy status when context or notes change, keeping
-   the note draft. Evidence expiration and browser visibility trigger rechecks.
-5. DONE — Verified the code and replayed the actual saved mission records.
-6. PENDING — Review/merge, then verify the canonical live product under its
-   actual owner session. A deployment status is not an end-to-end pass.
+1. DONE — Existing Mission design uses Orb and Beam in the Right Now card.
+2. DONE — Chooser receives the full Primary, constraints, and explicit read
+   availability; it no longer selects canned instructions from keywords.
+3. DONE — Context/note/freshness changes clear obsolete suggestions while
+   retaining the typed note. Future timestamps trigger validity rechecks.
+4. DONE — Connection failures offer in-place retry and sanitized guidance.
+   Failed session reads do not trigger replacement anonymous sign-in;
+   remounts share in-flight sign-in; absent users end loading with an error.
+   Failed mission reads no longer display Connected.
+5. DONE — PR71 CI passed lint, TypeScript, tests and production build.
+   Production browser reached Connected and the next-move button returned
+   an honest no-Primary clarification from its actual empty session.
+6. UNVERIFIED — Eddie's existing phone session and saved-mission recovery.
+   The screenshot's exact failure did not reproduce. Do not clear browser
+   data or claim a global outage, missing keys, or recovered ownership.
 
-Validation: TypeScript and production build passed; 93 committed tests passed.
-Changed-file ESLint passed; full lint has 0 errors / 5 pre-existing warnings.
-Three additional local checks replayed real Supabase reads: both stored Primary
-records selected evidence_missing using their actual finish lines, and switching
-between those actual contexts removed the result while preserving the draft.
-The read found 2 Primary rows belonging to 2 distinct owners and 0 evidence
-snapshots. No raw account records or private replay files are committed.
-No new fabricated mission/evidence rows, mocked services, or production writes.
+Validation boundary: PR71 initially included five isolated auth-stub tests.
+Those have been removed to honor Eddie's no-mock/no-synthetic instruction.
+The retained suite contains 93 tests. No fabricated mission/evidence records
+were written to production. Prior private read-only replay used the two actual
+saved Primary records: both reported missing linked evidence using their real
+finish lines; switching contexts discarded the result but retained the draft.
+No raw account records or private replay files are committed.
 
-FOLLOW-UP — ACCOUNT CONNECTION RECOVERY (2026-09-05)
-Eddie supplied the connection-failure screenshot and explicitly authorized
-carrying diagnosis, repair, release, and verification through without routine
-Git approval stops. Browser checks of canonical production and PR71's frontend
-preview both reached Connected with successful empty mission reads in fresh
-anonymous sessions. The exact phone failure did not reproduce; missing preview
-environment variables and a global Supabase outage are not proven causes.
-
-Repair: in-place connection retry preserving the note; session errors are
-handled before anonymous sign-in; in-flight sign-in is shared across remounts;
-null-user responses end in recoverable failure instead of endless loading;
-mission-read failure no longer displays Connected. Error guidance is sanitized
-and links to the canonical site. No clearing storage, signing out, credential
-changes, ownership reassignment, schema changes, or fabricated product records.
-Five isolated failure/recovery UI tests use empty query responses and an auth
-response stub; these are not live owner-session verification. Full suite: 98
-tests passed, production build passed, lint 0 errors / 5 existing warnings.
-Also corrected PR review's evidence clock transition: future timestamps now
-schedule invalidation when they become current, before their stale deadline.
-
-Remaining limit: access to Eddie's pre-existing missions has not been verified
-in his phone session. Anonymous identities do not automatically follow users
-across browsers or deployment domains. Do not clear that browser's saved data.
-Reference: https://supabase.com/docs/guides/auth/auth-anonymous
-
-Limits: real blocker/capacity/conflict/stale-evidence branches were unavailable
-in the observed data and have not been exercised with real account records.
-React interactions were checked in jsdom; authenticated browser behavior and
-live deployment remain unverified. The local build had no account credentials.
-
-The helper is still explicitly rule-based. Free-text notes are preserved in the
-handoff, not interpreted as new facts or commitments. It has no linked recorded
-next action, so it asks for the missing action rather than inventing one.
-Durable accept/action/resume wiring and predictive Strategic Delta are later
-capabilities, not claims made by this change.
+Anonymous sessions are browser/domain specific; a fresh browser connection
+does not verify access to Eddie's pre-existing missions. Reference:
+https://supabase.com/docs/guides/auth/auth-anonymous
+The chooser remains local rules, with notes preserved only in its handoff.
+Predictive Strategic Delta and durable accept/action/resume linkage are not
+complete and are not claimed by this release. Credentials, ownership, schema,
+environment settings, and existing user data were not changed by this repair.
