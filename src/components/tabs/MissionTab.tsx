@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
+import { connectMissionSession, missionConnectionMessage } from '@/lib/supabase/missionSession'
 import { useCapture } from '@/hooks/useCapture'
-import type { CapacityLevel, EvidenceRecord, Mission, MissionState } from '@/types'
+import type { CapacityLevel, ContextAvailability, EvidenceRecord, Mission, MissionState } from '@/types'
 import {
   EMPTY_BOARD,
   abandonMission,
@@ -116,8 +117,11 @@ export default function MissionTab() {
   const [authStatus, setAuthStatus] = useState('Checking session…')
   const [board, setBoard] = useState<MissionBoard>(EMPTY_BOARD)
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([])
+  const [evidenceStatus, setEvidenceStatus] = useState<ContextAvailability>('loading')
   const [loaded, setLoaded] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
+  const [connectionAttempt, setConnectionAttempt] = useState(0)
+  const [connectionError, setConnectionError] = useState('')
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
 
@@ -151,12 +155,14 @@ export default function MissionTab() {
     setTimeout(() => setStatus(''), 1600)
   }, [])
 
-  const loadAll = useCallback(async (userId: string) => {
+  const loadAll = useCallback(async (userId: string, isCancelled: () => boolean = () => false) => {
+    setEvidenceStatus('loading')
     try {
       const [missionsRes, evidenceRes] = await Promise.all([
         supabase.from('missions').select('*').eq('user_id', userId),
         supabase.from('evidence_snapshots').select('*'),
       ])
+      if (isCancelled()) return
       if (missionsRes.error) throw missionsRes.error
 
       const missions: Record<string, Mission> = {}
@@ -167,11 +173,17 @@ export default function MissionTab() {
 
       if (!evidenceRes.error) {
         setEvidence(((evidenceRes.data ?? []) as EvidenceRow[]).map(rowToEvidence))
+        setEvidenceStatus('ready')
+      } else {
+        setEvidenceStatus('unavailable')
       }
       setLoaded(true)
+      setLoadFailed(false)
     } catch {
+      if (isCancelled()) return
+      setEvidenceStatus('unavailable')
       setLoadFailed(true)
-      setError('Could not load your missions. Reload to reconnect; your saved work has not changed.')
+      setConnectionError('Could not load your missions. Try again; your saved work has not changed.')
       setLoaded(true)
     }
   }, [])
@@ -180,19 +192,17 @@ export default function MissionTab() {
     let cancelled = false
     async function init() {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        let current = session?.user ?? null
-        if (!current) {
-          const { data, error: signInError } = await supabase.auth.signInAnonymously()
-          if (signInError) throw signInError
-          current = data.user
-        }
-        if (cancelled || !current) return
+        const current = await connectMissionSession()
+        if (cancelled) return
         setUser(current)
         setAuthStatus('Signed in')
-        await loadAll(current.id)
-      } catch {
+        await loadAll(current.id, () => cancelled)
+      } catch (connectionFailure) {
         if (!cancelled) {
+          setUser(null)
+          setLoadFailed(true)
+          setConnectionError(missionConnectionMessage(connectionFailure))
+          setEvidenceStatus('unavailable')
           setAuthStatus('Missions unavailable — could not connect to your account.')
           setLoaded(true)
         }
@@ -200,7 +210,16 @@ export default function MissionTab() {
     }
     init()
     return () => { cancelled = true }
-  }, [loadAll])
+  }, [loadAll, connectionAttempt])
+
+  function retryConnection() {
+    setLoaded(false)
+    setLoadFailed(false)
+    setConnectionError('')
+    setAuthStatus('Reconnecting…')
+    setEvidenceStatus('loading')
+    setConnectionAttempt(attempt => attempt + 1)
+  }
 
   // Applies a pure missionLoop action, persists the affected missions +
   // event, and rolls the board back on write failure so displayed state
@@ -335,12 +354,21 @@ export default function MissionTab() {
           <p>Make room for the one thing that moves you forward.</p>
         </div>
         <span className="session-status" role="status">
-          <span className={user ? 'session-dot connected' : 'session-dot'} aria-hidden="true" />
-          {user ? 'Connected' : authStatus}
+          <span className={loaded && user && !loadFailed ? 'session-dot connected' : 'session-dot'} aria-hidden="true" />
+          {!loaded ? authStatus : loadFailed ? 'Missions unavailable' : user ? 'Connected' : authStatus}
         </span>
       </div>
       {status && <p className="mission-notice" role="status">{status}</p>}
       {error && <p className="mission-notice" role="alert" style={{ color: 'var(--error)' }}>{error}</p>}
+      {connectionError && (
+        <div className="mission-notice" role="alert">
+          <p>{connectionError}</p>
+          <div className="flex flex-wrap items-center gap-4 mt-3">
+            <ActionBtn onClick={retryConnection}>Try connection again</ActionBtn>
+            <a href="https://legacy-codex.vercel.app">Open main Legacy Codex site</a>
+          </div>
+        </div>
+      )}
 
       <FocusBeam active={loaded && !!user && !!primary && !primary.blocker && !loadFailed}>
         <div className="right-now">
@@ -366,7 +394,12 @@ export default function MissionTab() {
               : primary ? `Finish line: ${primary.finishLine ?? 'not yet defined'}`
               : 'No Primary mission yet. Capture a mission, define its finish line, then make it your focus.'}
           </p>
-          <NextMovePanel key={primary?.id ?? 'no-primary'} embedded mission={primary ? { title: primary.title, finishLine: primary.finishLine } : null} />
+          <NextMovePanel embedded context={{
+            mission: primary,
+            missionStatus: !loaded ? 'loading' : !user || loadFailed ? 'unavailable' : 'ready',
+            evidence: primaryEvidence,
+            evidenceStatus,
+          }} />
         </div>
       </FocusBeam>
 
