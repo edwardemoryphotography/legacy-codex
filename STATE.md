@@ -15,4 +15,11 @@ This file used to keep its own independent copy of that same content. It drifted
 
 ## Update protocol
 
+Saved action continuity: Mission and Resumption Log now share mission-linked
+rows in the canonical `actions` table. `mission_id` is immutable; RLS checks
+the owning mission's `user_id`. Unlinked builder actions retain their prior
+owner-only reads. Never infer DONE from saving a note, starting an action, or
+copying a handoff. DONE here is explicitly the user's report, not verified
+evidence. See `docs/verification/saved-action-resume.txt`.
+
 After any session that ships, blocks, or unblocks something for this repo: update `codex-control-panel/STATE.md` (canonical), not this file. Only add to this file's Repo-local notes section above if a note genuinely wouldn't make sense in the cross-project file.
