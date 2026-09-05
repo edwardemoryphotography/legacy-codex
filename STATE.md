@@ -11,6 +11,7 @@ This file used to keep its own independent copy of that same content. It drifted
   - Home is the Mission tab (`CodexApp` default `activeTab`). The next-action surface is the **Right Now** card, not Overview's Foundry readout and not a second panel. Visual emphasis belongs there. `.card` padding in `globals.css` is `!important`, so extra space has to come from an inner wrapper, not `Card` `style.padding`.
 
   - The next-move chooser must receive the full Primary mission and explicit read availability. Failed evidence reads are not empty evidence. Clear suggestions when mission/evidence context changes or evidence ages; copied handoffs are not commitments. See `docs/verification/mission-aware-next-move.txt`.
+  - Account recovery: retry failed reads in place and preserve drafts. Never treat a failed getSession as permission to replace an anonymous identity. The canonical domain is legacy-codex.vercel.app, served by Vercel project frontend (prj_irrXhfz1elCLhO1Pdgd0ffM4wfz2), against Supabase pkydkbuodikttfeawqsw. A working fresh browser session does not verify access to Eddie’s existing missions; preview and production sessions are separate.
 
 ## Update protocol
 

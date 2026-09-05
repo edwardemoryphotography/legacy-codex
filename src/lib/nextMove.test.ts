@@ -12,7 +12,7 @@ describe('recommendNextMove', () => {
   it('does not claim failed reads mean no Primary exists', () => {
     const result = recommendNextMove('', unavailable)
     expect(result.reason).toBe('mission_unavailable')
-    expect(result.nextMove).toContain('Reload')
+    expect(result.nextMove).toContain('Try connection again')
     expect(result.source).toBe('local-rules')
     expect(result.handoff).toContain('not committed or started')
   })

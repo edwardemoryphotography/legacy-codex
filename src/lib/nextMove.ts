@@ -30,7 +30,7 @@ export function nextMoveContextKey(context: NextMoveContext, now: string): strin
 export function nextMoveContextExpiresAt(context: NextMoveContext, now: string): number | null {
   const nowMs = Date.parse(now)
   const expiries = missionEvidence(context).flatMap(record => [record.observedAt, record.fetchedAt])
-    .map(timestamp => Date.parse(timestamp) + STALE_AFTER_HOURS * 60 * 60 * 1000 + 1)
+    .flatMap(timestamp => [Date.parse(timestamp), Date.parse(timestamp) + STALE_AFTER_HOURS * 60 * 60 * 1000 + 1])
     .filter(expiry => Number.isFinite(expiry) && expiry > nowMs)
   return expiries.length ? Math.min(...expiries) : null
 }
@@ -76,7 +76,7 @@ export function recommendNextMove(
   })
   if (missionStatus === 'unavailable') return result({
     reason: 'mission_unavailable', kind: 'review', label: 'Reconnect to your mission',
-    nextMove: 'Reload to reconnect to your saved missions before choosing a move.',
+    nextMove: 'Use “Try connection again” above to reconnect to your saved missions before choosing a move.',
     why: 'Saved mission context is unavailable. Your typed request alone cannot establish your Primary mission or its constraints.',
     evidenceNeeded: 'A successful account connection and mission read.',
   })

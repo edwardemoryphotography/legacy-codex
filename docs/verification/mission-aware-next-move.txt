@@ -1,6 +1,7 @@
 MISSION-AWARE NEXT MOVE — 2026-09-05 UTC
 
 Status: implemented and verified locally; not merged or verified live.
+Release status is recorded in PR #71 and the canonical cross-project STATE.md.
 Eddie explicitly authorized uploading the verified branch and opening its
 review PR after automatic approval review requested publication permission.
 See the PR for current remote check and deployment status.
@@ -27,6 +28,31 @@ between those actual contexts removed the result while preserving the draft.
 The read found 2 Primary rows belonging to 2 distinct owners and 0 evidence
 snapshots. No raw account records or private replay files are committed.
 No new fabricated mission/evidence rows, mocked services, or production writes.
+
+FOLLOW-UP — ACCOUNT CONNECTION RECOVERY (2026-09-05)
+Eddie supplied the connection-failure screenshot and explicitly authorized
+carrying diagnosis, repair, release, and verification through without routine
+Git approval stops. Browser checks of canonical production and PR71's frontend
+preview both reached Connected with successful empty mission reads in fresh
+anonymous sessions. The exact phone failure did not reproduce; missing preview
+environment variables and a global Supabase outage are not proven causes.
+
+Repair: in-place connection retry preserving the note; session errors are
+handled before anonymous sign-in; in-flight sign-in is shared across remounts;
+null-user responses end in recoverable failure instead of endless loading;
+mission-read failure no longer displays Connected. Error guidance is sanitized
+and links to the canonical site. No clearing storage, signing out, credential
+changes, ownership reassignment, schema changes, or fabricated product records.
+Five isolated failure/recovery UI tests use empty query responses and an auth
+response stub; these are not live owner-session verification. Full suite: 98
+tests passed, production build passed, lint 0 errors / 5 existing warnings.
+Also corrected PR review's evidence clock transition: future timestamps now
+schedule invalidation when they become current, before their stale deadline.
+
+Remaining limit: access to Eddie's pre-existing missions has not been verified
+in his phone session. Anonymous identities do not automatically follow users
+across browsers or deployment domains. Do not clear that browser's saved data.
+Reference: https://supabase.com/docs/guides/auth/auth-anonymous
 
 Limits: real blocker/capacity/conflict/stale-evidence branches were unavailable
 in the observed data and have not been exercised with real account records.
