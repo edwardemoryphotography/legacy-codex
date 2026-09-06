@@ -35,14 +35,18 @@ export default function SavedActions({ missionId, onActiveChange }: { missionId?
       if (!cancelled()) {
         const saved = (data ?? []) as unknown as SavedAction[]
         setActions(saved); setError('')
-        if (missionId) onActiveChange?.(missionId, saved.some(action => action.status !== 'DONE'))
       }
     } catch {
       if (!cancelled()) setError('Could not read your saved actions. Your work has not been changed.')
     } finally {
       if (!cancelled()) setLoading(false)
     }
-  }, [missionId, onActiveChange])
+  }, [missionId])
+
+  const hasOpenAction = actions.some(action => action.status !== 'DONE')
+  useEffect(() => {
+    if (missionId && !loading && !error) onActiveChange?.(missionId, hasOpenAction)
+  }, [missionId, loading, error, hasOpenAction, onActiveChange])
 
   useEffect(() => {
     let cancelled = false
@@ -61,7 +65,6 @@ export default function SavedActions({ missionId, onActiveChange }: { missionId?
       }).select(fields).single()
       if (writeError || !data) throw writeError ?? new Error('No saved action returned')
       setActions(previous => [data as unknown as SavedAction, ...previous])
-      onActiveChange?.(missionId, true)
       setTitle(''); setNotice('Next action saved. It will be here when you return.')
     } catch {
       setNotice('Could not save. Keep your text and retry. If another tab saved an action, refresh the list first.')
@@ -77,9 +80,7 @@ export default function SavedActions({ missionId, onActiveChange }: { missionId?
         <div role="alert"><p>{error}</p><ActionBtn onClick={() => { setLoading(true); void load() }}>Retry saved actions</ActionBtn></div>
       ) : <>
         {openActions.map(action => <ActionCard key={`${action.id}:${action.updated_at}`} action={action} onSaved={saved => {
-          const updated = actions.map(item => item.id === saved.id ? saved : item)
-          setActions(updated)
-          if (missionId) onActiveChange?.(missionId, updated.some(item => item.status !== 'DONE'))
+          setActions(previous => previous.map(item => item.id === saved.id ? saved : item))
         }} />)}
         {!openActions.length && (missionId ? <div className="space-y-3">
           <p>Name one concrete step you want to take. Saving it is a commitment, not proof that it is done.</p>
