@@ -21,12 +21,14 @@ Since 2026-08-31: Mission Right Now emphasis (#66); Orb/Beam Mission redesign (#
 
 ## Verified baseline
 
+`be17ccba9200fac1e43253c09a3f4108f598b280` is the last verified **application-bearing** production baseline before this coordination-only PR — it is not a SHA expected to remain "current" once this docs PR merges. Automated evidence-snapshot commits from `evidence-bridge[bot]` (data-only, touching exclusively `public/notes/evidence-snapshot.json`) continue to advance Production independent of application changes: as of this reconcile, Production has moved past `be17ccba` to `1dbdbbe2` and then `27fbb0cd` via exactly two such commits, with zero application source files touched by either.
+
 | State | Evidence |
 | --- | --- |
 | Merged | `origin/main` at `be17ccba9200fac1e43253c09a3f4108f598b280` |
-| Deployed | GitHub/Vercel records show that SHA on Production for `frontend`, `legacy-codex`, and related projects; commit statuses success |
+| Deployed | Checked directly against the Vercel API (not only GitHub's status mirror) — `READY` Production deployments at this exact SHA: `frontend` (`dpl_8rXPSVB3FkKYUEsG3mPF7a1fcbwx`), `legacy-codex` (`dpl_CMc8JMWZr3ZVa4UDGAzvvitevW4U`), `codex-starforge-dashboard` (`dpl_CdJHi7wW6os42GM9QVksUMHRPDPc`), `legacy-codex-vercel-diagnostic` (`dpl_5bJANDmgrZJk7DncuYj6CbNbGhUp`) |
 | Runtime verified | 2026-08-31 browser check loaded the Mission screen at `legacy-codex.vercel.app` and completed anonymous sign-in. Mission save/resume is shipped on this SHA; owner-session iPhone verification of save / pause / reload / resume is still pending. |
-| Live | `https://legacy-codex.vercel.app` is the canonical reachable product URL (Vercel project `frontend`) |
+| Live | `https://legacy-codex.vercel.app` is the canonical reachable product URL — confirmed via the Vercel project's domain list to belong to project `frontend` |
 
 The 2026-08-31 check also found that the duplicate `https://legacy-codex-kappa.vercel.app` failed anonymous sign-in. The duplicate projects are therefore not behaviorally equivalent and must not be retired or receive the canonical alias until configuration parity is proven.
 
