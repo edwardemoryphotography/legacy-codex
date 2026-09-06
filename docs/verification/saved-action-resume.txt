@@ -28,7 +28,27 @@ Failed saves preserve the local note. Saved notes persist across reloads through
 Supabase, within the same account. Browser-specific anonymous identity remains
 a separate recovery limitation; this change does not merge accounts.
 
-This closes the saved-action continuity gap. It does not implement predictive
+This implements saved-action continuity; the owner-session proof remains open.
+It does not implement predictive
 Strategic Delta, external action execution, or turn self-reported DONE into
 canonical evidence. Existing local resumption packets remain available below
 the shared saved-action surface; they are not silently imported or discarded.
+
+REPAIR — 2026-09-06 UTC
+Canonical release status: codex-control-panel/STATE.md (not this artifact).
+PR72 review findings checked against eff514a: the index excluded unfinished
+rows with is_next_action=false, and save callbacks captured stale arrays.
+The follow-up uses functional array replacement and committed-state notification.
+Production migration enforce_one_unfinished_mission_action applied successfully;
+pg_indexes confirms unique (mission_id) WHERE mission_id IS NOT NULL AND
+status <> 'DONE', without the flag exemption. No RLS or ownership changes.
+Preflight: zero mission-linked actions, zero duplicate groups. No fabricated
+records inserted. This is schema verification, not an end-to-end save test.
+Security advisors reviewed; existing signed-in schema visibility and anonymous
+owner-policy notices remain (see Supabase database lints 0027 and 0012).
+Existing 93 tests, TypeScript and lint (0 errors, 5 pre-existing warnings) pass.
+No new synthetic owner-session fixture or runtime proof was introduced.
+Original iPhone proof still required: real Primary -> save one action -> start ->
+save note and pause -> reload -> resume same action ID and note, no duplicates.
+Do not clear browser data, replace its anonymous identity, or mark this complete
+using a fresh browser session. PR71 evidence-gate defects are out of scope.
