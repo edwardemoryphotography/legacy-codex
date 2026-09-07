@@ -1,6 +1,26 @@
 {
-  "generatedAt": "2026-09-06T21:58:22.633Z",
+  "generatedAt": "2026-09-07T03:14:10.041Z",
   "records": [
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-77",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#77",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #77 \"docs: reconcile verified production workflow\" merged. 4 check run(s), 4 passing.",
+      "observedAt": "2026-09-07T00:34:34Z",
+      "fetchedAt": "2026-09-07T03:14:04.517Z"
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-76",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#76",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #76 \"fix: restore production analyzer authentication\" merged. 4 check run(s), 4 passing.",
+      "observedAt": "2026-09-07T00:28:04Z",
+      "fetchedAt": "2026-09-07T03:14:04.846Z"
+    },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-74",
       "missionId": null,
@@ -9,7 +29,7 @@
       "status": "verified",
       "claim": "PR #74 \"docs: reconcile PROJECT_STATUS.md to 2026-09-06\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-06T19:12:16Z",
-      "fetchedAt": "2026-09-06T21:58:16.505Z"
+      "fetchedAt": "2026-09-07T03:14:05.150Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-75",
@@ -19,7 +39,7 @@
       "status": "unverified",
       "claim": "PR #75 \"docs: correct stale Supabase project claim for codex-system-architecture\" open, not yet merged.",
       "observedAt": "2026-09-06T19:07:24Z",
-      "fetchedAt": "2026-09-06T21:58:16.505Z"
+      "fetchedAt": "2026-09-07T03:14:05.150Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-69",
@@ -29,7 +49,7 @@
       "status": "verified",
       "claim": "PR #69 \"Add transitions-dev and transitions-polish skills\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-06T06:54:20Z",
-      "fetchedAt": "2026-09-06T21:58:16.859Z"
+      "fetchedAt": "2026-09-07T03:14:05.429Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-73",
@@ -39,7 +59,7 @@
       "status": "verified",
       "claim": "PR #73 \"Repair PR72 action uniqueness and concurrent saves\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-06T00:30:56Z",
-      "fetchedAt": "2026-09-06T21:58:17.245Z"
+      "fetchedAt": "2026-09-07T03:14:05.715Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-67",
@@ -49,7 +69,7 @@
       "status": "verified",
       "claim": "PR #67 \"fix(ci): commit untracked evidence snapshot\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-05T19:20:07Z",
-      "fetchedAt": "2026-09-06T21:58:17.597Z"
+      "fetchedAt": "2026-09-07T03:14:06.014Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-72",
@@ -59,7 +79,7 @@
       "status": "verified",
       "claim": "PR #72 \"Save and resume the same next action across Mission and Resumption Log\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-05T19:09:56Z",
-      "fetchedAt": "2026-09-06T21:58:17.944Z"
+      "fetchedAt": "2026-09-07T03:14:06.322Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-66",
@@ -69,7 +89,7 @@
       "status": "verified",
       "claim": "PR #66 \"Make the home-screen next action bigger\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-05T06:15:58Z",
-      "fetchedAt": "2026-09-06T21:58:18.260Z"
+      "fetchedAt": "2026-09-07T03:14:06.755Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-71",
@@ -79,7 +99,7 @@
       "status": "verified",
       "claim": "PR #71 \"Make next-move guidance use mission context and evidence\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-05T05:52:42Z",
-      "fetchedAt": "2026-09-06T21:58:18.604Z"
+      "fetchedAt": "2026-09-07T03:14:07.076Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-70",
@@ -89,7 +109,7 @@
       "status": "verified",
       "claim": "PR #70 \"Redesign Mission around one focus surface with Orb and Beam\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-04T10:23:48Z",
-      "fetchedAt": "2026-09-06T21:58:18.930Z"
+      "fetchedAt": "2026-09-07T03:14:07.340Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-68",
@@ -99,7 +119,7 @@
       "status": "verified",
       "claim": "PR #68 \"Add ThinkingOrb + BorderBeam micro-interactions\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-04T08:52:14Z",
-      "fetchedAt": "2026-09-06T21:58:19.304Z"
+      "fetchedAt": "2026-09-07T03:14:07.672Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-65",
@@ -109,7 +129,7 @@
       "status": "verified",
       "claim": "PR #65 \"feat: consolidate Legacy Codex front door\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-08-31T23:00:26Z",
-      "fetchedAt": "2026-09-06T21:58:19.659Z"
+      "fetchedAt": "2026-09-07T03:14:07.983Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-63",
@@ -119,7 +139,7 @@
       "status": "verified",
       "claim": "PR #63 \"fix(api/analyze): honest error when auth is misconfigured, not a fake sign-in prompt\" merged. 5 check run(s), 5 passing.",
       "observedAt": "2026-08-31T20:31:14Z",
-      "fetchedAt": "2026-09-06T21:58:19.996Z"
+      "fetchedAt": "2026-09-07T03:14:08.292Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-64",
@@ -129,7 +149,7 @@
       "status": "verified",
       "claim": "PR #64 \"fix(security): update nanoid to 3.3.18\" merged. 5 check run(s), 5 passing.",
       "observedAt": "2026-08-23T19:48:10Z",
-      "fetchedAt": "2026-09-06T21:58:20.378Z"
+      "fetchedAt": "2026-09-07T03:14:08.623Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-14",
@@ -139,7 +159,7 @@
       "status": "verified",
       "claim": "PR #14 \"docs: improve CLAUDE.md with test coverage guidance and missing commands\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-08-12T04:36:30Z",
-      "fetchedAt": "2026-09-06T21:58:20.734Z"
+      "fetchedAt": "2026-09-07T03:14:08.900Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-19",
@@ -149,7 +169,7 @@
       "status": "verified",
       "claim": "PR #19 \"PocketForge: Replit-style iOS app builder (SwiftUI + Convex + Vercel + Claude)\" merged. 4 check run(s), 3 passing.",
       "observedAt": "2026-08-12T04:22:59Z",
-      "fetchedAt": "2026-09-06T21:58:21.072Z"
+      "fetchedAt": "2026-09-07T03:14:09.208Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-35",
@@ -159,7 +179,7 @@
       "status": "verified",
       "claim": "PR #35 \"Add agent router, task queue, and standards pointer\" merged. 1 check run(s), 1 passing.",
       "observedAt": "2026-08-11T13:49:10Z",
-      "fetchedAt": "2026-09-06T21:58:21.413Z"
+      "fetchedAt": "2026-09-07T03:14:09.473Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-62",
@@ -169,7 +189,7 @@
       "status": "verified",
       "claim": "PR #62 \"docs: preserve flock hub command-bar sign-in fix patch\" merged. 4 check run(s), 3 passing.",
       "observedAt": "2026-08-11T09:17:39Z",
-      "fetchedAt": "2026-09-06T21:58:21.746Z"
+      "fetchedAt": "2026-09-07T03:14:09.787Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-60",
@@ -179,27 +199,7 @@
       "status": "verified",
       "claim": "PR #60 \"Unify capture pipeline across Controls and Mission\" merged. 1 check run(s), 1 passing.",
       "observedAt": "2026-08-10T09:14:59Z",
-      "fetchedAt": "2026-09-06T21:58:22.032Z"
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-61",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#61",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #61 \"Wire up @supabase/server for JWT verification in /api/analyze\" merged. 1 check run(s), 1 passing.",
-      "observedAt": "2026-08-10T08:20:34Z",
-      "fetchedAt": "2026-09-06T21:58:22.307Z"
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-59",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#59",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #59 \"Mission Screen UI (Phase 2)\" merged. 1 check run(s), 1 passing.",
-      "observedAt": "2026-08-09T18:43:58Z",
-      "fetchedAt": "2026-09-06T21:58:22.633Z"
+      "fetchedAt": "2026-09-07T03:14:10.041Z"
     }
   ]
 }
