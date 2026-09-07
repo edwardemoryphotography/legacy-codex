@@ -122,6 +122,10 @@ export function routeSituation(ctx: DeltaContext): DeltaSituation {
   // sources disagree about is acting on unverified information.
   if (evidenceState === 'conflict') return 'evidence_conflict'
   if (ctx.primary?.blocker) return 'primary_blocked'
+  // A blocker has an escape-hatch candidate (clear it); a reported capacity
+  // mismatch does not — missionLoop.ts has no action that un-reports one.
+  // So this is its own situation, not folded into primary_blocked.
+  if (ctx.primary?.capacityMismatch) return 'primary_capacity_mismatch'
   if (ctx.primary) return 'primary_active'
   if (ctx.parked.some(m => m.finishLine)) return 'no_primary_ready'
   if (ctx.parked.length > 0) return 'no_primary_unready'
@@ -451,6 +455,23 @@ export function inhibit(candidates: DeltaCandidate[], ctx: DeltaContext): Inhibi
       continue
     }
 
+    // 4b. A reported capacity mismatch is the other route to an actionable
+    //    Secondary (spec §5). Unlike a blocker, nothing un-reports it, so
+    //    every Primary-side candidate defers — there is no escape hatch to
+    //    exempt the way clear_blocker is exempted above.
+    if (
+      candidate.missionId === ctx.primary?.id &&
+      !ctx.primary.blocker &&
+      ctx.primary.capacityMismatch
+    ) {
+      inhibited.push(kill(
+        candidate,
+        'capacity_mismatch',
+        'You reported this mission does not fit your current capacity.',
+      ))
+      continue
+    }
+
     // 5. A parked mission cannot quietly displace an active Primary. That
     //    is a priority challenge, and it requires stating what changed.
     if (candidate.kind === 'promote_to_primary' && ctx.primary) {
@@ -501,6 +522,8 @@ function describeReality(ctx: DeltaContext): string {
     parts.push(
       ctx.primary.blocker
         ? `“${ctx.primary.title}” is Primary and blocked`
+        : ctx.primary.capacityMismatch
+        ? `“${ctx.primary.title}” is Primary and reported as not fitting current capacity`
         : `“${ctx.primary.title}” is Primary`,
     )
   } else {
@@ -543,6 +566,10 @@ function describeWouldChange(
       return ctx.secondary
         ? `The blocker clears, or you report that it needs someone else — then “${ctx.secondary.title}” becomes the move.`
         : 'The blocker clears, or you report that it needs someone else.'
+    case 'primary_capacity_mismatch':
+      // Nothing un-reports a capacity mismatch, so this doesn't "clear" the
+      // way a blocker does — it changes only when Primary itself changes.
+      return `You make something else Primary, or “${ctx.primary?.title ?? 'the Primary'}” is completed, paused, or abandoned.`
     case 'primary_active':
       return `“${ctx.primary?.title ?? 'The Primary'}” gets blocked, new evidence contradicts it, or you make something else Primary.`
     case 'no_primary_ready':
@@ -582,6 +609,8 @@ function describeBecause(
       return 'Two sources disagree about this mission. Nothing built on top of that is trustworthy until it is resolved.'
     case 'primary_blocked':
       return `“${ctx.primary?.title ?? 'The Primary mission'}” is the outcome that matters, and this blocker is the only thing standing between it and progress.`
+    case 'primary_capacity_mismatch':
+      return `You reported “${ctx.primary?.title ?? 'the Primary'}” doesn't fit your current capacity, and that report is what makes the Secondary actionable right now.`
     case 'primary_active':
       return `“${ctx.primary?.title ?? 'This'}” is the one outcome currently designated Primary, and nothing is blocking it.`
     case 'no_primary_ready':
@@ -614,7 +643,18 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
   // What the finish line claims to prove and which operation rejections were
   // recorded against each target. Rejections remain attached to their target
   // for provenance, but never count as proof that the target is resolved.
-  const aimedAt = ctx.primary ?? ctx.secondary ?? null
+  // Prefer whichever mission actually won (a blocked Primary's own
+  // clear_blocker candidate still aims at Primary, correctly). Only when
+  // nothing won does it matter whose clauses to name — and there, a
+  // deferred Primary (blocked, or a reported capacity mismatch) means the
+  // Secondary is what's actually in play, so the honest fallback should
+  // name the Secondary's unresolved part, not the mission that can't win.
+  const winnerMission = winner
+    ? [ctx.primary, ctx.secondary].find(m => m?.id === winner.missionId) ?? null
+    : null
+  const primaryDeferred = Boolean(ctx.primary && (ctx.primary.blocker || ctx.primary.capacityMismatch))
+  const aimedAt =
+    winnerMission ?? (primaryDeferred ? ctx.secondary ?? ctx.primary : ctx.primary ?? ctx.secondary) ?? null
   const clauseTexts = decomposeFinishLine(aimedAt?.finishLine ?? null)
   const winnerTarget = winner?.kind === 'model_suggested' ? parseClauseId(winner.targetId) : null
   const targetClauseIndex = winner

@@ -201,6 +201,11 @@ export type DeltaProvenance = 'deterministic' | 'model' | 'insufficient_context'
 export type DeltaSituation =
   | 'evidence_conflict'
   | 'primary_blocked'
+  // Primary is unblocked but the human explicitly reported it doesn't fit
+  // their current capacity (spec §5's other route to an actionable
+  // Secondary). Unlike a blocker, there is no "clear it" action — the
+  // report itself is what makes the Secondary the move.
+  | 'primary_capacity_mismatch'
   | 'primary_active'
   | 'no_primary_ready'
   | 'no_primary_unready'
@@ -212,6 +217,11 @@ export type DeltaInhibitionReason =
   | 'corrected'
   | 'unverified_state'
   | 'blocked'
+  // The human explicitly reported the Primary doesn't fit their current
+  // capacity — distinct from `blocked`: no candidate survives this the way
+  // clear_blocker survives a blocker, because there is no action that
+  // un-reports a capacity mismatch.
+  | 'capacity_mismatch'
   | 'no_finish_line'
   | 'displaces_primary'
   | 'lower_leverage'

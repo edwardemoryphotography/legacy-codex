@@ -214,25 +214,30 @@ export default function MissionTab() {
       ])
       if (isCancelled()) return
       if (missionsRes.error) throw missionsRes.error
+      // Corrections are load-bearing for inhibition (AGENTS.md: persisted
+      // corrections "feed back in as an inhibition input"). A failed read
+      // must not resolve as "no corrections" — that would let the Delta
+      // recommend a move the human already explicitly rejected. Treat it
+      // as a load failure, the same as a failed missions read, rather than
+      // silently proceeding with stale or empty correction state.
+      if (correctionsRes.error) throw correctionsRes.error
 
       const missions: Record<string, Mission> = {}
       for (const row of (missionsRes.data ?? []) as MissionRow[]) {
         missions[row.id] = rowToMission(row)
       }
       setBoard({ missions })
+      setCorrections(
+        ((correctionsRes.data ?? []) as MissionEventRow[])
+          .map(rowToCorrection)
+          .filter((c): c is DeltaCorrection => c !== null),
+      )
 
       if (!evidenceRes.error) {
         setEvidence(((evidenceRes.data ?? []) as EvidenceRow[]).map(rowToEvidence))
         setEvidenceStatus('ready')
       } else {
         setEvidenceStatus('unavailable')
-      }
-      if (!correctionsRes.error) {
-        setCorrections(
-          ((correctionsRes.data ?? []) as MissionEventRow[])
-            .map(rowToCorrection)
-            .filter((c): c is DeltaCorrection => c !== null),
-        )
       }
       setLoaded(true)
       setLoadFailed(false)
@@ -334,7 +339,28 @@ export default function MissionTab() {
             idempotency_key: newId(),
             created_at: result.event.createdAt,
           })
-          if (eventError) throw eventError
+          if (eventError) {
+            // The missions upsert above already committed the new state —
+            // only the audit event failed. Two writes without a
+            // transaction can't both roll back for free, so compensate
+            // explicitly: write the pre-image back so what's persisted
+            // matches the React state we're about to revert to, rather
+            // than silently leaving a change committed that the UI (and
+            // the audit trail) both say never happened.
+            const compensationRows = affectedIds
+              .filter(id => before.missions[id])
+              .map(id => missionToRow(before.missions[id], user.id))
+            const { error: compensateError } = await supabase
+              .from('missions')
+              .upsert(compensationRows, { onConflict: 'id' })
+            setBoard(before)
+            setError(
+              compensateError
+                ? 'Write partially saved — this change persisted but its history entry did not, and reverting it also failed. Reload before making another change.'
+                : 'Write failed — change was not saved. Nothing changed; try again.',
+            )
+            return
+          }
         }
         flash('Saved')
       } catch {
@@ -419,7 +445,12 @@ export default function MissionTab() {
 
   const handleDeltaContext = useCallback(
     async (delta: Delta, note: string): Promise<boolean> => {
-      if (!delta.missionId) return true
+      // mission_events.mission_id is not null, so there is nowhere to
+      // persist a note when nothing is Primary yet — the same constraint
+      // that already disables "Not right" in this state. Report failure
+      // rather than pretending the note was saved; the control itself is
+      // disabled for the same reason, this is defense in depth.
+      if (!delta.missionId) return false
       return recordDeltaEvent('delta_context_added', delta.missionId, note)
     },
     [recordDeltaEvent],
@@ -434,28 +465,33 @@ export default function MissionTab() {
   // stays Supabase-agnostic, same as every other onXxx prop it takes. Never
   // called with anything the caller didn't already have — no browsing, no
   // other users' data.
+  // A request failure (network error, 401/403/502, a malformed response)
+  // must reject rather than resolve to null — null is reserved for the one
+  // legitimate outcome, a well-formed `{ operation: null }` response
+  // meaning the model genuinely had nothing to add. Conflating the two
+  // made every real outage present as an honest reasoning limit, and left
+  // StrategicDelta's own rejection handling unreachable.
   const handleRequestOperation = useCallback(async (req: DeltaOperationRequest): Promise<string | null> => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const res = await fetch('/api/delta-operation', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
-        body: JSON.stringify({
-          missionTitle: req.missionTitle,
-          finishLine: req.finishLine,
-          clause: req.clause,
-          rejectedOperations: req.rejectedOperations,
-        }),
-      })
-      if (!res.ok) throw new Error('Model operation generation failed.')
-      const data = (await res.json()) as { operation?: unknown }
-      return typeof data.operation === 'string' ? data.operation : null
-    } catch {
-      return null
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/delta-operation', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
+      body: JSON.stringify({
+        missionTitle: req.missionTitle,
+        finishLine: req.finishLine,
+        clause: req.clause,
+        rejectedOperations: req.rejectedOperations,
+      }),
+    })
+    if (!res.ok) throw new Error(`Model operation generation failed (${res.status}).`)
+    const data = (await res.json()) as { operation?: unknown }
+    if (data.operation !== null && typeof data.operation !== 'string') {
+      throw new Error('Model operation generation returned a malformed response.')
     }
+    return data.operation
   }, [])
 
   // Derived from work that is genuinely pending, never a timer. `loaded`
@@ -492,7 +528,21 @@ export default function MissionTab() {
           idempotency_key: newId(),
           created_at: result.event.createdAt,
         })
-        if (eventError) throw eventError
+        if (eventError) {
+          // The mission row above already committed. Compensate by
+          // deleting it rather than leaving a mission that exists in
+          // Supabase but not in the capture history this claims failed —
+          // mission_events.mission_id cascades on delete, so this is safe
+          // even though no event was actually written yet for this row.
+          const { error: deleteError } = await supabase.from('missions').delete().eq('id', id)
+          setBoard(board)
+          setError(
+            deleteError
+              ? 'Write partially saved — a mission was created but could not be recorded or removed. Reload before continuing.'
+              : 'Could not save the new mission — nothing was created. Try again.',
+          )
+          return
+        }
       }
       setNewTitle('')
       setNewWhy('')
@@ -546,7 +596,24 @@ export default function MissionTab() {
           idempotency_key: newId(),
           created_at: event.createdAt,
         })
-        if (eventError) throw eventError
+        if (eventError) {
+          // The mission row already committed its final state (title,
+          // finish line, Primary — captureIdea/setFinishLine/promoteToPrimary
+          // are folded into one insert above), and any events in this loop
+          // before the failing one already wrote too. Compensate by
+          // deleting the mission rather than leaving one with only a
+          // prefix of its founding history — mission_events cascades on
+          // delete, so this cleans up every already-written event for it
+          // regardless of how far the loop got.
+          const { error: deleteError } = await supabase.from('missions').delete().eq('id', id)
+          setBoard(before)
+          setError(
+            deleteError
+              ? 'Write partially saved — a mission was created but could not be fully recorded or removed. Reload before continuing.'
+              : 'Could not save the new mission — nothing was created. Try again.',
+          )
+          return
+        }
       }
       setNameTitle('')
       setNameFinish('')

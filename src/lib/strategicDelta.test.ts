@@ -118,6 +118,18 @@ describe('routeSituation', () => {
       'primary_blocked',
     ],
     [
+      'primary_capacity_mismatch when the Primary is unblocked but reported as not fitting capacity',
+      [mission({ id: 'm1', state: 'primary', finishLine: 'Shipped', capacityMismatch: true })],
+      [],
+      'primary_capacity_mismatch',
+    ],
+    [
+      'primary_blocked outranks a capacity mismatch — the blocker is checked first',
+      [mission({ id: 'm1', state: 'primary', finishLine: 'Shipped', blocker: 'Waiting on Vaughn', capacityMismatch: true })],
+      [],
+      'primary_blocked',
+    ],
+    [
       'evidence_conflict outranks a blocker — unverified state is the prior gate',
       [mission({ id: 'm1', state: 'primary', finishLine: 'Shipped', blocker: 'Waiting on Vaughn' })],
       [evidence({ id: 'e1', missionId: 'm1', status: 'conflict' })],
@@ -245,6 +257,44 @@ describe('predictStrategicDelta', () => {
     expect(delta.move).toBe('Open a PR with the change and request review')
     expect(delta.missionId).toBe('m1')
     expect(delta.proofSteps.find(s => s.index === 0)?.selected).toBe(true)
+  })
+
+  // Regression: capacityMismatch was never read by the engine at all, so a
+  // Primary the human explicitly reported as not fitting their capacity
+  // kept winning anyway — the Secondary the mismatch report is supposed to
+  // make actionable (spec §5) could never become the recommendation.
+  it('defers every Primary candidate once capacity mismatch is reported, and lets a supplied Secondary operation win', () => {
+    const missions = [
+      mission({ id: 'm1', state: 'primary', title: 'Ship it', finishLine: 'Live', capacityMismatch: true }),
+      mission({ id: 'm2', state: 'secondary', title: 'Write the docs', finishLine: COMPOUND }),
+    ]
+    const delta = predictStrategicDelta(missions, [], [], NOW, [
+      suggestion('m2', 0, 'Draft the first section and send it for review'),
+    ])
+
+    expect(delta.provenance).toBe('model')
+    expect(delta.missionId).toBe('m2')
+    expect(delta.move).toBe('Draft the first section and send it for review')
+    // Primary's own move is still visible, but rejected for the mismatch —
+    // not silently dropped, and not confused with a real blocker.
+    const primaryRejected = delta.inhibited.find(c => c.missionId === 'm1')
+    expect(primaryRejected?.reason).toBe('capacity_mismatch')
+  })
+
+  // Without a supplied operation, the honest fallback must name the
+  // Secondary's own unresolved clause — not Primary's, which can no
+  // longer win once deferred by the mismatch report.
+  it('names the Secondary\'s clause, not the deferred Primary\'s, when nothing has won yet under a capacity mismatch', () => {
+    const missions = [
+      mission({ id: 'm1', state: 'primary', title: 'Ship it', finishLine: 'Live', capacityMismatch: true }),
+      mission({ id: 'm2', state: 'secondary', title: 'Write the docs', finishLine: COMPOUND }),
+    ]
+    const delta = predictStrategicDelta(missions, [], [], NOW)
+
+    expect(delta.provenance).toBe('insufficient_context')
+    expect(delta.missionId).toBe('m2')
+    expect(delta.move).toContain('ships the change')
+    expect(delta.candidateId).toBe(clauseId('m2', 0))
   })
 
   it('predicts clearing the blocker over any clause on the Secondary, and keeps the Secondary paraphrase visible as rejected', () => {

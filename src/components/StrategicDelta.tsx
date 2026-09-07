@@ -44,6 +44,7 @@ const INHIBITION_LABEL: Record<string, string> = {
   corrected: 'You corrected this',
   unverified_state: 'Unverified state',
   blocked: 'Blocked',
+  capacity_mismatch: 'Reported as not fitting capacity',
   no_finish_line: 'No finish line',
   displaces_primary: 'Needs a priority challenge',
   lower_leverage: 'Lower leverage',
@@ -394,11 +395,13 @@ export default function StrategicDelta({
                 Not right
               </ActionChip>
               <ActionChip
+                disabled={!canCorrect}
                 onClick={() => setOpen(open === 'changed' ? null : 'changed')}
                 variant={open === 'changed' ? 'primary' : 'secondary'}
                 aria-expanded={open === 'changed'}
                 aria-controls="sd-changed"
                 className="sd-act-changed"
+                title={canCorrect ? undefined : 'Nothing to attach a note to until a mission exists'}
               >
                 Something changed
               </ActionChip>
