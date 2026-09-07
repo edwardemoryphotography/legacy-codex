@@ -120,7 +120,7 @@ Project: `pkydkbuodikttfeawqsw`
 - **Type source:** `src/types/index.ts` — define shapes here first.
 - **Styling:** CSS custom properties in `src/app/globals.css`, Tailwind aliases in `tailwind.config.ts`.
 - **State:** `useLocalStorage` hook for SSR-safe persistence.
-- **Supabase:** Separate project (`pkydkbuodikttfeawqsw`) — **not** shared with `codex-system-architecture`.
+- **Supabase:** Project `pkydkbuodikttfeawqsw` (`foundry-console`). **Correction (live-verified 2026-09-06):** no separate `supabase-indigo-paddle` project exists — `codex-system-architecture` self-documents this same project ID as its own. Do not assume separate *or* shared tables/credentials between the two repos without confirming each app's actual configured env vars.
 - **Claude API:** `src/app/api/analyze/route.ts` — server-side only, `ANTHROPIC_API_KEY`.
 - **Deploy:** Vercel required (has `/api/analyze` server route). Not a static export.
 
