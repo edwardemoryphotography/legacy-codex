@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyAuth } from '@supabase/server/core'
+import { resolveEnv, verifyAuth } from '@supabase/server/core'
 
 export const runtime = 'nodejs'
 
@@ -21,7 +21,28 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { error: authError } = await verifyAuth(req, { auth: 'user' })
+  // The browser and this route use the same Supabase project. Vercel may only
+  // configure NEXT_PUBLIC_SUPABASE_URL; this is a public project URL, not a
+  // secret. Preserve explicit server/JWKS settings when they are supplied.
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const hasJwksConfig = Boolean(process.env.SUPABASE_JWKS || process.env.SUPABASE_JWKS_URL)
+  const { data: authEnv, error: envError } = resolveEnv({
+    ...(url ? { url } : {}),
+  })
+  if (authEnv && !hasJwksConfig) {
+    try {
+      // Never take a verification URL from a request or token. Overrides skip
+      // the SDK's URL parser, so explicitly require HTTPS before fetching keys.
+      const jwks = new URL(`${authEnv.url.replace(/\/$/, '')}/auth/v1/.well-known/jwks.json`)
+      if (jwks.protocol !== 'https:' || jwks.username || jwks.password || jwks.search || jwks.hash) throw new Error('Invalid JWKS URL')
+      authEnv.jwks = jwks
+    } catch {
+      return NextResponse.json({ error: 'Artifact analysis authentication is unavailable.' }, { status: 503 })
+    }
+  }
+  const { error: authError } = envError
+    ? { error: envError }
+    : await verifyAuth(req, { auth: 'user', env: authEnv! })
   if (authError) {
     // authError.status is 500 only for genuine server misconfiguration (e.g. a
     // missing SUPABASE_URL/SUPABASE_JWKS_URL env var causing @supabase/server's
