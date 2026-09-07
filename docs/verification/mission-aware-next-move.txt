@@ -1,0 +1,41 @@
+LEGACY CODEX — NEXT-MOVE AND CONNECTION REPAIR — 2026-09-05
+
+Live product: https://legacy-codex.vercel.app/
+Repo: edwardemoryphotography/legacy-codex
+Release: PR71 merged as 161f38d1ad887da5b1530674ca07cc5ea717daea.
+Production verified at descendant 12b6326fc9fda02cdcbe5319690097f7a26e4775;
+that later skills commit does not change application source.
+Vercel: frontend / prj_irrXhfz1elCLhO1Pdgd0ffM4wfz2.
+Supabase: foundry-console / pkydkbuodikttfeawqsw.
+
+1. DONE — Existing Mission design uses Orb and Beam in the Right Now card.
+2. DONE — Chooser receives the full Primary, constraints, and explicit read
+   availability; it no longer selects canned instructions from keywords.
+3. DONE — Context/note/freshness changes clear obsolete suggestions while
+   retaining the typed note. Future timestamps trigger validity rechecks.
+4. DONE — Connection failures offer in-place retry and sanitized guidance.
+   Failed session reads do not trigger replacement anonymous sign-in;
+   remounts share in-flight sign-in; absent users end loading with an error.
+   Failed mission reads no longer display Connected.
+5. DONE — PR71 CI passed lint, TypeScript, tests and production build.
+   Production browser reached Connected and the next-move button returned
+   an honest no-Primary clarification from its actual empty session.
+6. UNVERIFIED — Eddie's existing phone session and saved-mission recovery.
+   The screenshot's exact failure did not reproduce. Do not clear browser
+   data or claim a global outage, missing keys, or recovered ownership.
+
+Validation boundary: PR71 initially included five isolated auth-stub tests.
+Those have been removed to honor Eddie's no-mock/no-synthetic instruction.
+The retained suite contains 93 tests. No fabricated mission/evidence records
+were written to production. Prior private read-only replay used the two actual
+saved Primary records: both reported missing linked evidence using their real
+finish lines; switching contexts discarded the result but retained the draft.
+No raw account records or private replay files are committed.
+
+Anonymous sessions are browser/domain specific; a fresh browser connection
+does not verify access to Eddie's pre-existing missions. Reference:
+https://supabase.com/docs/guides/auth/auth-anonymous
+The chooser remains local rules, with notes preserved only in its handoff.
+Predictive Strategic Delta and durable accept/action/resume linkage are not
+complete and are not claimed by this release. Credentials, ownership, schema,
+environment settings, and existing user data were not changed by this repair.

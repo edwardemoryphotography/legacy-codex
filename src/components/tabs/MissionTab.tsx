@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
+import { connectMissionSession, missionConnectionMessage } from '@/lib/supabase/missionSession'
 import { useCapture } from '@/hooks/useCapture'
 import type {
   CapacityLevel,
+  ContextAvailability,
   DeltaCorrection,
   EvidenceRecord,
   Mission,
@@ -35,6 +37,7 @@ import {
 import { groupByMission, hasConflict, isStale } from '@/lib/evidence'
 import { ActionBtn, ActionChip, Badge, Card, Input, SectionSubtitle, SectionTitle } from '@/components/ui'
 import NextMovePanel from '@/components/NextMovePanel'
+import SavedActions from '@/components/SavedActions'
 import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase } from '@/components/StrategicDelta'
 
 // ─── Supabase row <-> domain mapping ────────────────────────────────────
@@ -153,9 +156,13 @@ export default function MissionTab() {
   const [authStatus, setAuthStatus] = useState('Checking session…')
   const [board, setBoard] = useState<MissionBoard>(EMPTY_BOARD)
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([])
+  const [evidenceStatus, setEvidenceStatus] = useState<ContextAvailability>('loading')
   const [corrections, setCorrections] = useState<DeltaCorrection[]>([])
   const [acceptedMove, setAcceptedMove] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [connectionAttempt, setConnectionAttempt] = useState(0)
+  const [connectionError, setConnectionError] = useState('')
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
   const [deltaError, setDeltaError] = useState('')
@@ -197,13 +204,15 @@ export default function MissionTab() {
     setTimeout(() => setStatus(''), 1600)
   }, [])
 
-  const loadAll = useCallback(async (userId: string) => {
+  const loadAll = useCallback(async (userId: string, isCancelled: () => boolean = () => false) => {
+    setEvidenceStatus('loading')
     try {
       const [missionsRes, evidenceRes, correctionsRes] = await Promise.all([
         supabase.from('missions').select('*').eq('user_id', userId),
         supabase.from('evidence_snapshots').select('*'),
         supabase.from('mission_events').select('*').eq('user_id', userId).eq('type', 'delta_corrected').order('created_at', { ascending: true }),
       ])
+      if (isCancelled()) return
       if (missionsRes.error) throw missionsRes.error
 
       const missions: Record<string, Mission> = {}
@@ -214,6 +223,9 @@ export default function MissionTab() {
 
       if (!evidenceRes.error) {
         setEvidence(((evidenceRes.data ?? []) as EvidenceRow[]).map(rowToEvidence))
+        setEvidenceStatus('ready')
+      } else {
+        setEvidenceStatus('unavailable')
       }
       if (!correctionsRes.error) {
         setCorrections(
@@ -223,8 +235,12 @@ export default function MissionTab() {
         )
       }
       setLoaded(true)
+      setLoadFailed(false)
     } catch {
-      setError('Could not load missions from Supabase (check RLS / connection).')
+      if (isCancelled()) return
+      setEvidenceStatus('unavailable')
+      setLoadFailed(true)
+      setConnectionError('Could not load your missions. Try again; your saved work has not changed.')
       setLoaded(true)
     }
   }, [])
@@ -233,32 +249,37 @@ export default function MissionTab() {
     let cancelled = false
     async function init() {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        let current = session?.user ?? null
-        if (!current) {
-          const { data, error: signInError } = await supabase.auth.signInAnonymously()
-          if (signInError) throw signInError
-          current = data.user
-        }
-        if (cancelled || !current) return
+        const current = await connectMissionSession()
+        if (cancelled) return
         setUser(current)
         setAuthStatus('Signed in')
-        await loadAll(current.id)
-      } catch {
+        await loadAll(current.id, () => cancelled)
+      } catch (connectionFailure) {
         if (!cancelled) {
-          setAuthStatus('Sign-in failed — missions require a signed-in session (RLS)')
+          setUser(null)
+          setLoadFailed(true)
+          setConnectionError(missionConnectionMessage(connectionFailure))
+          setEvidenceStatus('unavailable')
+          setAuthStatus('Missions unavailable — could not connect to your account.')
           setLoaded(true)
         }
       }
     }
     init()
     return () => { cancelled = true }
-  }, [loadAll])
+  }, [loadAll, connectionAttempt])
+
+  function retryConnection() {
+    setLoaded(false)
+    setLoadFailed(false)
+    setConnectionError('')
+    setAuthStatus('Reconnecting…')
+    setEvidenceStatus('loading')
+    setConnectionAttempt(attempt => attempt + 1)
+  }
 
   useEffect(() => {
-    if (!user) {
-      return
-    }
+    if (!user) return
     let cancelled = false
     void (async () => {
       try {
@@ -578,12 +599,21 @@ export default function MissionTab() {
   const now = new Date().toISOString()
 
   return (
-    <section className="mission-layer">
-      <p className="mission-status" aria-live="polite">
-        {!user ? authStatus : status}
-      </p>
-      {error && (
-        <p role="alert" style={{ color: 'var(--error)', fontSize: '0.88rem' }}>{error}</p>
+    <section className="mission-space">
+      <span className="session-status" role="status">
+        <span className={loaded && user && !loadFailed ? 'session-dot connected' : 'session-dot'} aria-hidden="true" />
+        {!loaded ? authStatus : loadFailed ? 'Missions unavailable' : user ? 'Connected' : authStatus}
+      </span>
+      {status && <p className="mission-status" role="status">{status}</p>}
+      {error && <p className="mission-status" role="alert" style={{ color: 'var(--error)' }}>{error}</p>}
+      {connectionError && (
+        <div className="mission-status" role="alert">
+          <p>{connectionError}</p>
+          <div className="flex flex-wrap items-center gap-4 mt-3">
+            <ActionBtn onClick={retryConnection}>Try connection again</ActionBtn>
+            <a href="https://legacy-codex.vercel.app">Open main Legacy Codex site</a>
+          </div>
+        </div>
       )}
 
       {/* The predictive front door: resolves from real state before the
@@ -648,6 +678,13 @@ export default function MissionTab() {
         ) : null}
       </StrategicDelta>
 
+      {/* Accepting a Delta is a prediction, not a commitment — SavedActions
+          is where accepting one turns into a tracked, resumable action with
+          status and a place to leave yourself a note. */}
+      {loaded && user && !loadFailed && primary && (
+        <SavedActions key={primary.id} missionId={primary.id} />
+      )}
+
       {!loaded ? (
         <p className="mission-status">Loading missions…</p>
       ) : (
@@ -657,157 +694,158 @@ export default function MissionTab() {
               both showed the user one sentence twice. */}
 
           {primary && (
-            <div className="mission-primary space-y-3">
-              <p className="mission-invite-label">The outcome</p>
-              <div>
-                <div className="mission-primary-title">{primary.title}</div>
-                {primary.why && <div className="mission-primary-meta">{primary.why}</div>}
-              </div>
-              <div className="mission-primary-meta">
-                Finish line: {primary.finishLine ?? 'not set'}
-              </div>
-                {primary.evidenceRequirement && (
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-soft)' }}>
-                    <strong>Evidence required:</strong> {primary.evidenceRequirement}
+            <details className="mission-disclosure">
+              <summary>Review your Primary mission</summary>
+              <Card>
+                <SectionTitle>Primary Mission</SectionTitle>
+                <div className="space-y-3">
+                  <div>
+                    <div style={{ fontWeight: 700 }}>{primary.title}</div>
+                    {primary.why && <div style={{ color: 'var(--text-soft)', fontSize: '0.85rem', marginTop: 4 }}>{primary.why}</div>}
                   </div>
-                )}
-                <div className="flex flex-wrap gap-2 items-center">
-                  {primary.blocker ? (
-                    <Badge tone="amber" wrap>Blocked: {primary.blocker}</Badge>
-                  ) : (
-                    <Badge tone="success">Active</Badge>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-soft)' }}>
+                    <strong>Finish line:</strong> {primary.finishLine ?? 'not set'}
+                  </div>
+                  {primary.evidenceRequirement && (
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-soft)' }}>
+                      <strong>Evidence required:</strong> {primary.evidenceRequirement}
+                    </div>
                   )}
-                  {primary.capacityMismatch && <Badge tone="muted">Capacity mismatch reported</Badge>}
-                </div>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    {primary.blocker ? (
+                      <Badge tone="amber" wrap>Blocked: {primary.blocker}</Badge>
+                    ) : (
+                      <Badge tone="success">Active</Badge>
+                    )}
+                    {primary.capacityMismatch && <Badge tone="muted">Capacity mismatch reported</Badge>}
+                  </div>
 
-                {primary.blocker ? (
-                  <ActionChip onClick={() => applyAndPersist(b => unblock(b, primary.id, now), [primary.id])}>
-                    Unblock — resume as Primary
-                  </ActionChip>
-                ) : (
-                  <div className="flex gap-2">
-                    <Input placeholder="What's blocking this?" value={blockerDraft} onChange={setBlockerDraft} />
-                    <ActionChip
-                      disabled={!blockerDraft.trim()}
-                      onClick={() => {
-                        applyAndPersist(b => reportBlocker(b, primary.id, blockerDraft, now), [primary.id])
-                        setBlockerDraft('')
-                      }}
+                  {primary.blocker ? (
+                    <ActionChip onClick={() => applyAndPersist(b => unblock(b, primary.id, now), [primary.id])}>
+                      Unblock — resume as Primary
+                    </ActionChip>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Input placeholder="What's blocking this?" value={blockerDraft} onChange={setBlockerDraft} />
+                      <ActionChip
+                        disabled={!blockerDraft.trim()}
+                        onClick={() => {
+                          applyAndPersist(b => reportBlocker(b, primary.id, blockerDraft, now), [primary.id])
+                          setBlockerDraft('')
+                        }}
+                      >
+                        Report blocker
+                      </ActionChip>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <select
+                      value={capacityLevel}
+                      onChange={e => setCapacityLevel(e.target.value as CapacityLevel)}
+                      style={{ minHeight: 44, borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', padding: '0 8px', font: 'inherit', fontSize: '0.8rem' }}
+                      aria-label="Self-reported capacity"
                     >
-                      Report blocker
+                      {CAPACITY_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                    <ActionChip
+                      onClick={() => applyAndPersist(b => reportCapacityMismatch(b, primary.id, capacityLevel, now), [primary.id])}
+                    >
+                      Does not fit my capacity right now
                     </ActionChip>
                   </div>
-                )}
 
-                <div className="flex flex-wrap gap-2 items-center">
-                  <select
-                    value={capacityLevel}
-                    onChange={e => setCapacityLevel(e.target.value as CapacityLevel)}
-                    style={{ minHeight: 44, borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', padding: '0 8px', font: 'inherit', fontSize: '0.8rem' }}
-                    aria-label="Self-reported capacity"
-                  >
-                    {CAPACITY_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-                  </select>
-                  <ActionChip
-                    onClick={() => applyAndPersist(b => reportCapacityMismatch(b, primary.id, capacityLevel, now), [primary.id])}
-                  >
-                    Does not fit my capacity right now
-                  </ActionChip>
-                </div>
+                  <details>
+                    <summary style={{ cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-dim)' }}>Complete this mission</summary>
+                    <div className="space-y-2 mt-2">
+                      <label className="flex items-center gap-2" style={{ fontSize: '0.8rem', color: 'var(--text-soft)' }}>
+                        <input type="checkbox" checked={completeConfirmed} onChange={e => setCompleteConfirmed(e.target.checked)} style={{ width: 18, height: 18 }} />
+                        I have real evidence this is done (merged PR, live URL, delivered artifact)
+                      </label>
+                      <Input placeholder="Evidence detail (link, PR #, artifact)" value={completeDetail} onChange={setCompleteDetail} />
+                      <ActionBtn
+                        disabled={!completeConfirmed || !completeDetail.trim()}
+                        onClick={() => {
+                          applyAndPersist(
+                            b => completeMission(b, primary.id, { evidenceConfirmed: completeConfirmed, evidenceDetail: completeDetail }, now),
+                            [primary.id],
+                          )
+                          setCompleteConfirmed(false)
+                          setCompleteDetail('')
+                        }}
+                      >
+                        Mark Completed
+                      </ActionBtn>
+                    </div>
+                  </details>
 
-                <details>
-                  <summary style={{ cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-dim)' }}>Complete this mission</summary>
-                  <div className="space-y-2 mt-2">
-                    <label className="flex items-center gap-2" style={{ fontSize: '0.8rem', color: 'var(--text-soft)' }}>
-                      <input type="checkbox" checked={completeConfirmed} onChange={e => setCompleteConfirmed(e.target.checked)} style={{ width: 18, height: 18 }} />
-                      I have real evidence this is done (merged PR, live URL, delivered artifact)
-                    </label>
-                    <Input placeholder="Evidence detail (link, PR #, artifact)" value={completeDetail} onChange={setCompleteDetail} />
-                    <ActionBtn
-                      disabled={!completeConfirmed || !completeDetail.trim()}
-                      onClick={() => {
-                        applyAndPersist(
-                          b => completeMission(b, primary.id, { evidenceConfirmed: completeConfirmed, evidenceDetail: completeDetail }, now),
-                          [primary.id],
-                        )
-                        setCompleteConfirmed(false)
-                        setCompleteDetail('')
-                      }}
-                    >
-                      Mark Completed
-                    </ActionBtn>
+                  <div className="flex gap-2">
+                    <ActionChip variant="ghost" onClick={() => applyAndPersist(b => pauseMission(b, primary.id, 'Deliberately paused', now), [primary.id])}>
+                      Deliberately pause
+                    </ActionChip>
+                    <ActionChip variant="danger" onClick={() => applyAndPersist(b => abandonMission(b, primary.id, 'Abandoned', now), [primary.id])}>
+                      Abandon
+                    </ActionChip>
                   </div>
-                </details>
 
-                <div className="flex gap-2">
-                  <ActionChip variant="ghost" onClick={() => applyAndPersist(b => pauseMission(b, primary.id, 'Deliberately paused', now), [primary.id])}>
-                    Deliberately pause
-                  </ActionChip>
-                  <ActionChip variant="danger" onClick={() => applyAndPersist(b => abandonMission(b, primary.id, 'Abandoned', now), [primary.id])}>
-                    Abandon
-                  </ActionChip>
-                </div>
-
-                {challengeCandidates.length > 0 && (
-                  <div className="pt-2" style={{ borderTop: '1px solid var(--line)' }}>
-                    {!challengeOpen ? (
-                      <ActionChip onClick={() => setChallengeOpen(true)}>Priority challenge</ActionChip>
-                    ) : !pendingChallenge ? (
-                      <div className="space-y-2">
-                        <select
-                          value={challengeCandidateId}
-                          onChange={e => setChallengeCandidateId(e.target.value)}
-                          style={{ width: '100%', minHeight: 44, borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', padding: '0 8px', font: 'inherit' }}
-                        >
-                          <option value="">Which mission should replace {primary.title}?</option>
-                          {challengeCandidates.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
-                        </select>
-                        <Input placeholder="What changes?" value={challengeWhat} onChange={setChallengeWhat} />
-                        <Input placeholder="Why does it change?" value={challengeWhy} onChange={setChallengeWhy} />
-                        <div className="flex gap-2">
-                          <ActionChip disabled={!challengeCandidateId || !challengeWhat.trim() || !challengeWhy.trim()} onClick={requestChallenge}>
-                            Preview challenge
-                          </ActionChip>
-                          <ActionChip variant="ghost" onClick={() => setChallengeOpen(false)}>Cancel</ActionChip>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2 p-3 rounded-codex" style={{ border: '1px solid var(--amber)', background: 'var(--amber-soft)' }}>
-                        <div style={{ fontSize: '0.85rem' }}>
-                          <strong>What:</strong> {pendingChallenge.what}
-                        </div>
-                        <div style={{ fontSize: '0.85rem' }}>
-                          <strong>Why:</strong> {pendingChallenge.why}
-                        </div>
-                        <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
-                          {primary.title} moves to:
+                  {challengeCandidates.length > 0 && (
+                    <div className="pt-2" style={{ borderTop: '1px solid var(--line)' }}>
+                      {!challengeOpen ? (
+                        <ActionChip onClick={() => setChallengeOpen(true)}>Priority challenge</ActionChip>
+                      ) : !pendingChallenge ? (
+                        <div className="space-y-2">
                           <select
-                            value={challengeDisplacedNext}
-                            onChange={e => setChallengeDisplacedNext(e.target.value as typeof challengeDisplacedNext)}
-                            style={{ marginLeft: 8, minHeight: 36, borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', font: 'inherit' }}
+                            value={challengeCandidateId}
+                            onChange={e => setChallengeCandidateId(e.target.value)}
+                            style={{ width: '100%', minHeight: 44, borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', padding: '0 8px', font: 'inherit' }}
                           >
-                            <option value="parked">Parked</option>
-                            <option value="paused">Deliberately Paused</option>
-                            <option value="abandoned">Abandoned</option>
+                            <option value="">Which mission should replace {primary.title}?</option>
+                            {challengeCandidates.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
                           </select>
-                        </label>
-                        <div className="flex gap-2">
-                          <ActionBtn onClick={confirmChallenge}>Apply — replace Primary</ActionBtn>
-                          <ActionChip variant="ghost" onClick={() => { setPendingChallenge(null); setChallengeOpen(false) }}>Cancel</ActionChip>
+                          <Input placeholder="What changes?" value={challengeWhat} onChange={setChallengeWhat} />
+                          <Input placeholder="Why does it change?" value={challengeWhy} onChange={setChallengeWhy} />
+                          <div className="flex gap-2">
+                            <ActionChip disabled={!challengeCandidateId || !challengeWhat.trim() || !challengeWhy.trim()} onClick={requestChallenge}>
+                              Preview challenge
+                            </ActionChip>
+                            <ActionChip variant="ghost" onClick={() => setChallengeOpen(false)}>Cancel</ActionChip>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-            </div>
+                      ) : (
+                        <div className="space-y-2 p-3 rounded-codex" style={{ border: '1px solid var(--amber)', background: 'var(--amber-soft)' }}>
+                          <div style={{ fontSize: '0.85rem' }}>
+                            <strong>What:</strong> {pendingChallenge.what}
+                          </div>
+                          <div style={{ fontSize: '0.85rem' }}>
+                            <strong>Why:</strong> {pendingChallenge.why}
+                          </div>
+                          <label style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
+                            {primary.title} moves to:
+                            <select
+                              value={challengeDisplacedNext}
+                              onChange={e => setChallengeDisplacedNext(e.target.value as typeof challengeDisplacedNext)}
+                              style={{ marginLeft: 8, minHeight: 36, borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', font: 'inherit' }}
+                            >
+                              <option value="parked">Parked</option>
+                              <option value="paused">Deliberately Paused</option>
+                              <option value="abandoned">Abandoned</option>
+                            </select>
+                          </label>
+                          <div className="flex gap-2">
+                            <ActionBtn onClick={confirmChallenge}>Apply — replace Primary</ActionBtn>
+                            <ActionChip variant="ghost" onClick={() => { setPendingChallenge(null); setChallengeOpen(false) }}>Cancel</ActionChip>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </details>
           )}
 
-          <details>
-            <summary>Mission state</summary>
-            <div className="space-y-4 mt-2">
-
           {/* Secondary Mission */}
-          <details>
+          <details className="mission-disclosure">
             <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-dim)' }}>
               Secondary Mission {secondary ? `— ${secondary.title}` : '(none active)'}
             </summary>
@@ -851,12 +889,20 @@ export default function MissionTab() {
               in: the Delta predicts from state before the user types. This
               stays for manual recalibration and for when prediction has
               nothing to go on. */}
-          <details>
+          <details className="mission-disclosure">
             <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-dim)' }}>
               Choose the next move manually
             </summary>
             <div style={{ marginTop: 8 }}>
-              <NextMovePanel mission={primary ? { title: primary.title, finishLine: primary.finishLine } : null} />
+              <NextMovePanel
+                embedded
+                context={{
+                  mission: primary,
+                  missionStatus: !loaded ? 'loading' : !user || loadFailed ? 'unavailable' : 'ready',
+                  evidence: primaryEvidence,
+                  evidenceStatus,
+                }}
+              />
             </div>
           </details>
 
@@ -927,33 +973,35 @@ export default function MissionTab() {
               <Input placeholder="Type the idea…" value={captureText} onChange={setCaptureText} />
               <ActionBtn disabled={!captureText.trim()} onClick={handleCaptureIdea}>Capture</ActionBtn>
             </div>
+            {capture.status && <p role="status">{capture.status}</p>}
           </Card>
 
           {/* Evidence Status */}
-          <Card>
-            <SectionTitle>Evidence Status</SectionTitle>
-            {primaryEvidence.length === 0 ? (
-              <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
-                No evidence linked to the Primary mission yet.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {hasConflict(primaryEvidence) && <Badge tone="error">Conflict — sources disagree</Badge>}
-                {primaryEvidence.map(rec => (
-                  <div key={rec.id} className="p-2 rounded-codex" style={{ border: '1px solid var(--line)', background: 'var(--surface-soft)' }}>
-                    <div style={{ fontSize: '0.85rem' }}>{rec.claim}</div>
-                    <div className="flex gap-2 mt-1 flex-wrap items-center" style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
-                      <Badge tone={rec.status === 'verified' ? 'success' : rec.status === 'conflict' ? 'error' : 'muted'}>{rec.status}</Badge>
-                      <span>{rec.source}</span>
-                      <span>{new Date(rec.fetchedAt).toLocaleString()}</span>
-                      {isStale(rec.fetchedAt, now) && <Badge tone="amber">Stale</Badge>}
+          <details className="mission-disclosure">
+            <summary>Evidence behind your focus</summary>
+            <Card>
+              <SectionTitle>Evidence Status</SectionTitle>
+              {primaryEvidence.length === 0 ? (
+                <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+                  No evidence linked to the Primary mission yet.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {hasConflict(primaryEvidence) && <Badge tone="error">Conflict — sources disagree</Badge>}
+                  {primaryEvidence.map(rec => (
+                    <div key={rec.id} className="p-2 rounded-codex" style={{ border: '1px solid var(--line)', background: 'var(--surface-soft)' }}>
+                      <div style={{ fontSize: '0.85rem' }}>{rec.claim}</div>
+                      <div className="flex gap-2 mt-1 flex-wrap items-center" style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
+                        <Badge tone={rec.status === 'verified' ? 'success' : rec.status === 'conflict' ? 'error' : 'muted'}>{rec.status}</Badge>
+                        <span>{rec.source}</span>
+                        <span>{new Date(rec.fetchedAt).toLocaleString()}</span>
+                        {isStale(rec.fetchedAt, now) && <Badge tone="amber">Stale</Badge>}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-            </div>
+                  ))}
+                </div>
+              )}
+            </Card>
           </details>
         </>
       )}

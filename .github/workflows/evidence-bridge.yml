@@ -36,12 +36,16 @@ jobs:
 
       - name: Commit snapshot if changed
         run: |
-          if git diff --quiet -- public/notes/evidence-snapshot.json; then
+          git config user.name "evidence-bridge[bot]"
+          git config user.email "evidence-bridge@users.noreply.github.com"
+          # `git diff` ignores untracked files, so a newly written snapshot that
+          # was never committed looks like "no changes" and never gets `git add`ed.
+          # Stage first, then compare the index to HEAD: commits when the file is
+          # new or its contents changed, no-ops when the committed file is identical.
+          git add -- public/notes/evidence-snapshot.json
+          if git diff --cached --quiet -- public/notes/evidence-snapshot.json; then
             echo "No evidence changes."
             exit 0
           fi
-          git config user.name "evidence-bridge[bot]"
-          git config user.email "evidence-bridge@users.noreply.github.com"
-          git add public/notes/evidence-snapshot.json
           git commit -m "chore: update evidence snapshot"
           git push

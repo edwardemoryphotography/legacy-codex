@@ -55,9 +55,9 @@ export default function CodexApp() {
 
   return (
     <div className="codex-shell">
-      <header className="codex-masthead">
-        <h1>Legacy Codex</h1>
-        <p className="codex-masthead-quiet hidden lg:block">What matters, and the next move.</p>
+      <header className="codex-header">
+        <h1>Legacy Codex<span className="brand-dot" aria-hidden="true" /></h1>
+        <p>A little clarity. One next move.</p>
       </header>
 
       {/* Tab bar */}
@@ -92,7 +92,7 @@ export default function CodexApp() {
       </nav>
 
       {/* Tab panels */}
-      <main>
+      <main className="codex-main">
         <div
           className="panel-enter"
           key={activeTab}
@@ -113,8 +113,8 @@ export default function CodexApp() {
         </div>
       </main>
 
-      <footer className="mt-10 pt-3 text-tx-dim text-xs" style={{ borderTop: '1px solid var(--line)' }}>
-        Legacy Codex | Reality Filter Active | No mock data.
+      <footer className="codex-footer">
+        Your context. Your pace.
       </footer>
     </div>
   )
