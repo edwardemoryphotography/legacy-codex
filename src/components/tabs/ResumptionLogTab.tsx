@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useLocalStorage } from '@/hooks/useLocalStorage'
+import SavedActions from '@/components/SavedActions'
 import { ActionBtn, ActionChip, Badge, Card, HelperLine, Input, SectionSubtitle, SectionTitle } from '@/components/ui'
 
 interface ResumptionDraft {
@@ -164,6 +165,7 @@ export default function ResumptionLogTab() {
 
   return (
     <section className="space-y-6">
+      <SavedActions />
       <div className="space-y-2">
         <SectionTitle>Resumption Log</SectionTitle>
         <SectionSubtitle>

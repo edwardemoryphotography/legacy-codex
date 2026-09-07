@@ -1,165 +1,66 @@
-# Legacy Codex — Project Status
+| Merged | `origin/main` at `2bcf8e401490f9659cc17d9780a0de7b28535491` |
+| Deployed | Canonical Vercel project `frontend` production deployment `dpl_yvzgfdQFiLL1WP79rzYUGf9YKR8P` is `READY` at the exact merged SHA. |
+| Runtime verified | 2026-09-07 persistent production session completed save → start → note → pause → reload → resume with mission `8d561af2-1c61-4302-8f4e-6d97f5423448` and exactly one action `df2f3ffe-137b-4a73-862a-bcfdd417969c`. The saved ID/note survived reload; no duplicate or application error occurred. `POST /api/analyze` now returns the correct unauthenticated 401 boundary instead of the reproduced configuration 500; Vercel reported no runtime errors in the verification window. |# Legacy Codex — Current Project Status
 
-> **Single source of truth for all agents.** Read this before starting any work.
-> **Canonical repo:** `~/legacy-codex` (Next.js 16.3, main branch)
-> **Remote:** `https://github.com/edwardemoryphotography/legacy-codex`
+**Last reconciled:** 2026-09-07
 
----
+**Canonical repository:** `edwardemoryphotography/legacy-codex`
 
-## 🎯 Current Mission
+**Canonical checkout:** `~/legacy-codex`
+**Canonical production URL:** `https://legacy-codex.vercel.app`
 
-Turn Legacy Codex from a polished local dashboard into an **operational private studio OS** with deep linking, operator controls, persisted workspace snapshots, codex bookmarking/search improvements, resumable logs, and useful biometric/task workflows.
+This file is dated coordination state. Recheck GitHub, Vercel, and the live product before promoting any claim. The source-of-truth map is `docs/architecture/canonical-source-graph.md`.
 
----
+## Current product milestone
 
-## 📁 Canonical Checkout
+Make the human execution loop usable from the single canonical Legacy Codex front door:
 
-| Path | Purpose | Next.js |
-|------|---------|---------|
-| `~/legacy-codex` | **✅ PRIMARY** — All PR work, builds, deployments | 16.3 |
-| `~/workspace/legacy-codex` | ⚠️ Stale (Next.js 14.2.5) — do not use for new work | 14.2.5 |
+`Capture -> Clarify -> Constrain -> Choose -> Act -> Resume`
 
-**Rule:** Always work in `~/legacy-codex`. The workspace checkout is legacy-only.
+The human execution loop is now production-verified in a persistent real session: one real mission was captured and promoted; exactly one linked action was saved, started, paused with a note, reloaded as Ready to resume with the same ID and note, and resumed without an error or duplicate. Recovery of Eddie's historical anonymous identity specifically from his original physical iPhone remains a distinct device/session-continuity check, not an unresolved defect in the verified general workflow.
 
----
+Since 2026-08-31: Mission Right Now emphasis (#66); Orb/Beam Mission redesign (#68, #70); mission-aware next move + connection recovery (#71); save/resume mission-linked next actions (#72) repaired (#73); evidence CI fix (#67); transitions skills (#69).
 
-## 🔀 Active Pull Requests
+## Verified baseline
 
-| PR | Lane | Branch | Author | Status | Mergeable | Dependencies |
-|---|---|---|---|---|---|---|
-| **#37** | Mission Loop | `claude/superpowers-mission-loop-iuuozw` | Claude Code | 🟡 DRAFT | UNSTABLE | Rework required |
+`2bcf8e401490f9659cc17d9780a0de7b28535491` is the verified application-bearing production baseline. It includes PR #76's analyzer-auth repair on top of the Mission save/resume work.
 
-### PR #47 — ✅ MERGED + LIVE DB VERIFIED (2026-08-07)
-- `routed_requests` + `evidence_items`; append-only correction chain
-- Live checks + hardening gap closed on `pkydkbuodikttfeawqsw`
+| State | Evidence |
+| --- | --- |
+| Merged | `origin/main` at `be17ccba9200fac1e43253c09a3f4108f598b280` |
+| Deployed | Checked directly against the Vercel API (not only GitHub's status mirror) — `READY` Production deployments at this exact SHA: `frontend` (`dpl_8rXPSVB3FkKYUEsG3mPF7a1fcbwx`), `legacy-codex` (`dpl_CMc8JMWZr3ZVa4UDGAzvvitevW4U`), `codex-starforge-dashboard` (`dpl_CdJHi7wW6os42GM9QVksUMHRPDPc`), `legacy-codex-vercel-diagnostic` (`dpl_5bJANDmgrZJk7DncuYj6CbNbGhUp`) |
+| Runtime verified | 2026-08-31 browser check loaded the Mission screen at `legacy-codex.vercel.app` and completed anonymous sign-in. Mission save/resume is shipped on this SHA; owner-session iPhone verification of save / pause / reload / resume is still pending. |
+| Live | `https://legacy-codex.vercel.app` is the canonical reachable product URL — confirmed via the Vercel project's domain list to belong to project `frontend` |
 
-### PR #49 — ✅ MERGED (2026-08-07)
-- `/dashboard/routing` Foundry UI on main
+The 2026-08-31 check also found that the duplicate `https://legacy-codex-kappa.vercel.app` failed anonymous sign-in. The duplicate projects are therefore not behaviorally equivalent and must not be retired or receive the canonical alias until configuration parity is proven.
 
-### PR #55 — ✅ MERGED (2026-08-08)
-- Live `POST /ai/generate` for forged apps + provider extract
-- Soft-fail → `ready` (not fake Live); **per-IP rate limit** (30/10m)
+## Consolidation decisions
 
-### PR #56 — ✅ MERGED (2026-08-08)
-- iOS Ready vs Live honesty + on-device `LocalFileWebView` preview
+- Root Legacy Codex app — **CANONICAL**.
+- Foundry Console — **INTERNAL COMPONENT**, with a deliberately separate owner-auth boundary until it can be exposed safely behind the canonical product.
+- Codex Control Panel — **MIGRATE INTO CANONICAL**. Human-facing next-move routing moves into the Mission screen; guarded Foundry persistence remains transitional.
+- `codex-system-architecture` — **ARCHITECTURE / GOVERNANCE**.
+- Artful Intelligence — **SEPARATE — ON PURPOSE**.
+- Static Consolidation tab — **SUPERSEDED** by the source graph and this dated status file.
+- Historical version labels — **HISTORICAL**, not current product naming.
 
-### PR #37 — Mission Loop
-- **Blocked:** needs rework — tables would parallel `actions`/`events`/`evidence_items`
+## Known contradictions and remaining gates
 
----
+1. The Vercel project named `frontend` owns `legacy-codex.vercel.app`; the better-named `legacy-codex` project is not configuration-equivalent yet.
+2. `/api/analyze` now reuses the already-configured public browser Supabase project URL when the duplicate unprefixed URL is absent, derives its HTTPS JWKS endpoint, and preserves required user authentication. Full authenticated file analysis still depends on a real signed-in session and a real supported artifact.
+3. Human missions and Foundry actions now have an explicit boundary, but `evidence_snapshots` and `mission_events` remain transitional stores in production code.
+4. Control Panel's owner-gated `persist_route_atomic` transport still depends on server-only configuration in the standalone service. Do not expose or copy service-role credentials into browser code.
+5. Old branches and deployment projects remain archaeology until their domain/configuration dependencies are checked. Do not delete them by age or name alone.
+6. PocketForge is a supporting module, not the Legacy Codex front door. Its Convex `agent.ts` contains a previously merged, partially reconciled Daytona/Vercel implementation and does not currently parse; repair requires a separate PocketForge architecture decision rather than an opportunistic consolidation edit.
 
-## 🛤️ Lane C Recovery Worktrees
-
-Codex has verified candidates in isolated worktrees:
-
-| Worktree | Branch | Commit | Status |
-|---|---|---|---|
-| `~/Documents/Codex/.../legacy-pr47` | `lane-c/recovery-task1-legacy-pr47` | `30ec9c0` | ✅ Verified |
-| `~/Documents/Codex/.../legacy-pr49` | `lane-c/recovery-task1-legacy-pr49` | `8117d95` | ✅ Verified |
-
-These are **disposable verification sandboxes**. Changes should be reconciled back to the branch heads in `~/legacy-codex`, not committed from the worktrees.
-
----
-
-## 📋 Rescue Plan (Hermes)
-
-File: `~/legacy-codex/.hermes/plans/legacy-codex-rescue.md`
-
-1. **Workspace deep-linking + command palette** — `?tab=` / `#tab=` URL sync, Cmd/Ctrl+K palette
-2. **Resumption + workspace state persistence** — localStorage history, snapshot export
-3. **Codex knowledge graph upgrades** — bookmarks, recent entries, tag filtering, copy-link
-4. **Sprint / constraint workflows** — checklist generation, improved file analysis guidance
-5. **Biometric / operator polish** — refresh status, empty-state honesty, summary badges
-6. **Final verification + cleanup** — build, browser smoke test, commit
-
----
-
-## 🤖 Agent Assignments
-
-### Hermes
-- **Current:** Idle (home directory, cron jobs only)
-- **Target:** `~/legacy-codex`
-- **Action:** Start a session in `~/legacy-codex` and execute the rescue plan tasks
-- **Config:** `~/.hermes/profiles/default/config.yaml` (set `cwd: ~/legacy-codex`)
-
-### Claude Code
-- **Current:** Idle (home directory, recently ran `/doctor`, `/login`)
-- **Target:** `~/legacy-codex`
-- **Action:** `claude ~/legacy-codex` or within session: `/cwd ~/legacy-codex`
-- **Focus:** PR #49 merge prep — verify the branch merges cleanly, update PR if needed
-
-### Codex
-- **Current:** Deep in Lane C verification (`~/Documents/Codex/...` worktrees)
-- **Target:** Reconcile back to `~/legacy-codex` branches
-- **Action:** Switch to `~/legacy-codex`, work on PR #49 (now unblocked since #47 merged)
-- **Focus:** Complete PR #49 — update branch with main, final verification, ready for merge
-
----
-
-## 🗄️ Database Schema
-
-Project: `pkydkbuodikttfeawqsw`
-
-| Table | Purpose | Added By |
-|---|---|---|
-| `routed_requests` | Validated route persistence with correction chain | PR #47 |
-| `evidence_items` | Evidence for routes/work items | PR #47 |
-| `nd_prefs` | User preferences (JSONB) | 2026-06-16 migration |
-| `nd_captures` | Quick capture / inbox | 2026-06-16 migration |
-| `nd_biometric_trends` | Biometrics sync (BiometricsTab) | 2026-06-16 migration |
-| `nd_codex_bookmarks` | Saved codex entries / pins | 2026-06-16 migration |
-| `actions` | Work items (existing) | Legacy |
-| `events` | Append-only audit log (existing) | Legacy |
-| `workspaces` | Project registry (existing) | Legacy |
-
----
-
-## 🏗️ Architecture Notes
-
-- **Tab system:** `src/components/CodexApp.tsx` owns `activeTab`. 9 tabs total (including new Consolidation).
-- **Type source:** `src/types/index.ts` — define shapes here first.
-- **Styling:** CSS custom properties in `src/app/globals.css`, Tailwind aliases in `tailwind.config.ts`.
-- **State:** `useLocalStorage` hook for SSR-safe persistence.
-- **Supabase:** Project `pkydkbuodikttfeawqsw` (`foundry-console`). **Correction (live-verified 2026-09-06):** no separate `supabase-indigo-paddle` project exists — `codex-system-architecture` self-documents this same project ID as its own. Do not assume separate *or* shared tables/credentials between the two repos without confirming each app's actual configured env vars.
-- **Claude API:** `src/app/api/analyze/route.ts` — server-side only, `ANTHROPIC_API_KEY`.
-- **Deploy:** Vercel required (has `/api/analyze` server route). Not a static export.
-
----
-
-## ✅ Build Verification
+## Release gates
 
 ```bash
-cd ~/legacy-codex
-npm run build    # Next.js 16.3, Turbopack
-npm run lint     # ESLint
-npx tsc --noEmit # Type check
+npm ci
+npm test
+npm run lint
+npx tsc --noEmit
+npm run build
 ```
 
-Last verified: **2026-08-06** — Build passing with ConsolidationTab + BiometricsTab refactor.
-
----
-
-## 🚧 Blockers
-
-1. ~~**PR #47** needs owner session to apply migration + verify RLS~~ ✅ **RESOLVED**
-2. **PR #37** needs rework — conflicts with existing `actions`/`events` tables
-3. ~~**PR #49** needs branch updated on GitHub~~ ✅ **RESOLVED** — merged main, pushed
-4. **Hermes** needs to be pointed at `~/legacy-codex` (currently in home dir)
-5. **Claude Code** needs to be pointed at `~/legacy-codex` (currently in home dir)
-
----
-
-## 📝 Changelog
-
-| Date | Change |
-|---|---|
-| 2026-08-07 | Neuro UX migration applied: `nd_prefs`, `nd_captures`, `nd_biometric_trends`, `nd_codex_bookmarks` |
-| 2026-08-07 | PR #47 **MERGED** — routing control plane foundation live on main |
-| 2026-08-07 | PR #49 branch updated with main, pushed to GitHub — no conflicts |
-| 2026-08-07 | Supabase migration applied + RLS verified on production DB |
-| 2026-08-06 | Ported ConsolidationTab from `~/workspace/legacy-codex` to canonical repo |
-| 2026-08-06 | Ported BiometricsTab refactor (extracted `@/lib/biometrics`) |
-| 2026-08-05 | Codex completed Lane C Task 2A verification (builds, tests, SQL, security matrix) |
-| 2026-08-04 | Codex started Lane C recovery worktree verification |
-| 2026-07-30 | PR #47 opened (Claude Code) — routing control plane foundation |
-| 2026-07-30 | PR #49 opened (Cursor/Codex) — Foundry routing UI |
+Verified after merge: exact production SHA/deployment, real Mission capture and next-move behavior, save / pause / reload / resume of one action, database absence of duplicates, correct analyzer authentication boundary, and no Vercel runtime errors. The original physical-iPhone identity recovery check may still be run separately if continuity with that historical anonymous session matters.

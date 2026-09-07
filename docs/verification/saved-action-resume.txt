@@ -1,0 +1,54 @@
+SAVED NEXT ACTION / RESUME — 2026-09-05
+
+Authorization: Eddie requested the next phase and completion of frontend /
+backend wiring, including release, in the ongoing conversation.
+
+1. Add mission_id, resume_note, updated_at to existing canonical actions.
+2. Enforce mission ownership for reads/inserts/updates, immutable mission link,
+   and one unfinished next action per mission. Do not reassign existing rows.
+3. Show the same persisted action in Mission and Resumption Log.
+4. Support save, start/resume, save note, pause, and user-reported completion.
+5. Verify types/build/tests, apply migration, release and check live browser.
+
+Migration mission_action_resume applied to pkydkbuodikttfeawqsw. Metadata
+verified: new columns exist, RLS enabled, 4 policies, no anon INSERT grant,
+no anon EXECUTE grant on the trigger function. Security advisors reviewed:
+actions is discoverable by authenticated users and allows signed-in anonymous
+users to access their own mission-linked rows, as required by the existing
+Mission authentication model. These are expected notices, not public-row
+access. Other existing project advisories are outside this bounded change.
+Reference: https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0012_auth_allow_anonymous_sign_ins
+
+93 existing tests pass; no fabricated missions, actions, or evidence were
+introduced for validation. TypeScript and changed-source lint pass. Production
+build passed before the small callback integration; CI covers the final tree.
+Database confirmation is required before the UI claims a save. Updates compare
+updated_at so another tab's edit produces an error instead of silent overwrite.
+Failed saves preserve the local note. Saved notes persist across reloads through
+Supabase, within the same account. Browser-specific anonymous identity remains
+a separate recovery limitation; this change does not merge accounts.
+
+This implements saved-action continuity; the owner-session proof remains open.
+It does not implement predictive
+Strategic Delta, external action execution, or turn self-reported DONE into
+canonical evidence. Existing local resumption packets remain available below
+the shared saved-action surface; they are not silently imported or discarded.
+
+REPAIR — 2026-09-06 UTC
+Canonical release status: codex-control-panel/STATE.md (not this artifact).
+PR72 review findings checked against eff514a: the index excluded unfinished
+rows with is_next_action=false, and save callbacks captured stale arrays.
+The follow-up uses functional array replacement and committed-state notification.
+Production migration enforce_one_unfinished_mission_action applied successfully;
+pg_indexes confirms unique (mission_id) WHERE mission_id IS NOT NULL AND
+status <> 'DONE', without the flag exemption. No RLS or ownership changes.
+Preflight: zero mission-linked actions, zero duplicate groups. No fabricated
+records inserted. This is schema verification, not an end-to-end save test.
+Security advisors reviewed; existing signed-in schema visibility and anonymous
+owner-policy notices remain (see Supabase database lints 0027 and 0012).
+Existing 93 tests, TypeScript and lint (0 errors, 5 pre-existing warnings) pass.
+No new synthetic owner-session fixture or runtime proof was introduced.
+Original iPhone proof still required: real Primary -> save one action -> start ->
+save note and pause -> reload -> resume same action ID and note, no duplicates.
+Do not clear browser data, replace its anonymous identity, or mark this complete
+using a fresh browser session. PR71 evidence-gate defects are out of scope.

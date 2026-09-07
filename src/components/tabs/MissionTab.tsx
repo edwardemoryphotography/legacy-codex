@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
+import { connectMissionSession, missionConnectionMessage } from '@/lib/supabase/missionSession'
 import { useCapture } from '@/hooks/useCapture'
-import type { CapacityLevel, EvidenceRecord, Mission, MissionState } from '@/types'
+import type { CapacityLevel, ContextAvailability, EvidenceRecord, Mission, MissionState } from '@/types'
 import {
   EMPTY_BOARD,
   abandonMission,
@@ -26,6 +27,10 @@ import {
 } from '@/lib/missionLoop'
 import { groupByMission, hasConflict, isStale } from '@/lib/evidence'
 import { ActionBtn, ActionChip, Badge, Card, Input, SectionSubtitle, SectionTitle } from '@/components/ui'
+import ActivityOrb from '@/components/ActivityOrb'
+import FocusBeam from '@/components/FocusBeam'
+import NextMovePanel from '@/components/NextMovePanel'
+import SavedActions from '@/components/SavedActions'
 
 // ─── Supabase row <-> domain mapping ────────────────────────────────────
 // missionLoop.ts operates on the camelCase Mission/MissionEvent domain
@@ -113,7 +118,15 @@ export default function MissionTab() {
   const [authStatus, setAuthStatus] = useState('Checking session…')
   const [board, setBoard] = useState<MissionBoard>(EMPTY_BOARD)
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([])
+  const [evidenceStatus, setEvidenceStatus] = useState<ContextAvailability>('loading')
   const [loaded, setLoaded] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [connectionAttempt, setConnectionAttempt] = useState(0)
+  const [connectionError, setConnectionError] = useState('')
+  const [actionMissionId, setActionMissionId] = useState<string | null>(null)
+  const onActiveActionChange = useCallback((missionId: string, active: boolean) => {
+    setActionMissionId(active ? missionId : null)
+  }, [])
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
 
@@ -147,12 +160,14 @@ export default function MissionTab() {
     setTimeout(() => setStatus(''), 1600)
   }, [])
 
-  const loadAll = useCallback(async (userId: string) => {
+  const loadAll = useCallback(async (userId: string, isCancelled: () => boolean = () => false) => {
+    setEvidenceStatus('loading')
     try {
       const [missionsRes, evidenceRes] = await Promise.all([
         supabase.from('missions').select('*').eq('user_id', userId),
         supabase.from('evidence_snapshots').select('*'),
       ])
+      if (isCancelled()) return
       if (missionsRes.error) throw missionsRes.error
 
       const missions: Record<string, Mission> = {}
@@ -163,10 +178,17 @@ export default function MissionTab() {
 
       if (!evidenceRes.error) {
         setEvidence(((evidenceRes.data ?? []) as EvidenceRow[]).map(rowToEvidence))
+        setEvidenceStatus('ready')
+      } else {
+        setEvidenceStatus('unavailable')
       }
       setLoaded(true)
+      setLoadFailed(false)
     } catch {
-      setError('Could not load missions from Supabase (check RLS / connection).')
+      if (isCancelled()) return
+      setEvidenceStatus('unavailable')
+      setLoadFailed(true)
+      setConnectionError('Could not load your missions. Try again; your saved work has not changed.')
       setLoaded(true)
     }
   }, [])
@@ -175,27 +197,34 @@ export default function MissionTab() {
     let cancelled = false
     async function init() {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        let current = session?.user ?? null
-        if (!current) {
-          const { data, error: signInError } = await supabase.auth.signInAnonymously()
-          if (signInError) throw signInError
-          current = data.user
-        }
-        if (cancelled || !current) return
+        const current = await connectMissionSession()
+        if (cancelled) return
         setUser(current)
         setAuthStatus('Signed in')
-        await loadAll(current.id)
-      } catch {
+        await loadAll(current.id, () => cancelled)
+      } catch (connectionFailure) {
         if (!cancelled) {
-          setAuthStatus('Sign-in failed — missions require a signed-in session (RLS)')
+          setUser(null)
+          setLoadFailed(true)
+          setConnectionError(missionConnectionMessage(connectionFailure))
+          setEvidenceStatus('unavailable')
+          setAuthStatus('Missions unavailable — could not connect to your account.')
           setLoaded(true)
         }
       }
     }
     init()
     return () => { cancelled = true }
-  }, [loadAll])
+  }, [loadAll, connectionAttempt])
+
+  function retryConnection() {
+    setLoaded(false)
+    setLoadFailed(false)
+    setConnectionError('')
+    setAuthStatus('Reconnecting…')
+    setEvidenceStatus('loading')
+    setConnectionAttempt(attempt => attempt + 1)
+  }
 
   // Applies a pure missionLoop action, persists the affected missions +
   // event, and rolls the board back on write failure so displayed state
@@ -258,7 +287,8 @@ export default function MissionTab() {
     }
     setBoard(result.board)
     try {
-      await supabase.from('missions').insert(missionToRow(result.board.missions[id], user.id))
+      const { error: insertError } = await supabase.from('missions').insert(missionToRow(result.board.missions[id], user.id))
+      if (insertError) throw insertError
       if (result.event) {
         await supabase.from('mission_events').insert({
           id: newId(),
@@ -285,7 +315,6 @@ export default function MissionTab() {
     if (!text || !user) return
     capture.capture(text)
     setCaptureText('')
-    flash('Captured — Parked in your inbox')
   }
 
   function requestChallenge() {
@@ -323,47 +352,81 @@ export default function MissionTab() {
   const now = new Date().toISOString()
 
   return (
-    <section className="space-y-6">
-      <div className="space-y-2">
-        <SectionTitle>Mission</SectionTitle>
-        <SectionSubtitle>
-          What matters right now, and the next concrete action. One Primary, one Secondary — everything else is Parked.
-        </SectionSubtitle>
+    <section className="mission-space">
+      <div className="mission-heading">
+        <div>
+          <h2>What matters now?</h2>
+          <p>Make room for the one thing that moves you forward.</p>
+        </div>
+        <span className="session-status" role="status">
+          <span className={loaded && user && !loadFailed ? 'session-dot connected' : 'session-dot'} aria-hidden="true" />
+          {!loaded ? authStatus : loadFailed ? 'Missions unavailable' : user ? 'Connected' : authStatus}
+        </span>
       </div>
-
-      <div className="flex flex-wrap gap-2 items-center" style={{ fontSize: '0.75rem' }}>
-        {user ? <Badge tone="success">Signed in</Badge> : <Badge tone="muted">{authStatus}</Badge>}
-        {status && <Badge tone="teal">{status}</Badge>}
-      </div>
-      {error && (
-        <div style={{ color: 'var(--error)', fontSize: '0.85rem' }}>{error}</div>
+      {status && <p className="mission-notice" role="status">{status}</p>}
+      {error && <p className="mission-notice" role="alert" style={{ color: 'var(--error)' }}>{error}</p>}
+      {connectionError && (
+        <div className="mission-notice" role="alert">
+          <p>{connectionError}</p>
+          <div className="flex flex-wrap items-center gap-4 mt-3">
+            <ActionBtn onClick={retryConnection}>Try connection again</ActionBtn>
+            <a href="https://legacy-codex.vercel.app">Open main Legacy Codex site</a>
+          </div>
+        </div>
       )}
 
-      {!loaded ? (
-        <Card><div style={{ color: 'var(--text-dim)' }}>Loading missions…</div></Card>
-      ) : (
-        <>
-          {/* Right Now */}
-          <Card highlight="teal">
-            <SectionTitle>Right Now</SectionTitle>
-            {primary ? (
-              primary.blocker ? (
-                <p style={{ color: 'var(--text)', fontSize: '0.95rem' }}>
-                  <strong>{primary.title}</strong> is Blocked: {primary.blocker}. Unblock it, or check Secondary below.
-                </p>
+      <FocusBeam active={loaded && !!user && !!primary && !primary.blocker && !loadFailed}>
+        <div className="right-now">
+          <div className="right-now-heading">
+            <ActivityOrb state={loaded ? 'breathing' : 'connecting'} active={!loaded} />
+            <div>
+              <p className="focus-label">Right now</p>
+              {!loaded ? (
+                <h3>Connecting to your missions…</h3>
+              ) : !user || loadFailed ? (
+                <h3>Let’s start with what you know.</h3>
+              ) : primary ? (
+                <h3>{primary.title}</h3>
               ) : (
-                <p style={{ color: 'var(--text)', fontSize: '0.95rem' }}>
-                  Move <strong>{primary.title}</strong> toward: {primary.finishLine}
-                </p>
-              )
-            ) : (
-              <p style={{ color: 'var(--text-soft)', fontSize: '0.95rem' }}>
-                No Primary mission set. Promote a Parked mission below, or capture a new one.
-              </p>
-            )}
-          </Card>
+                <h3>Give one thing your attention.</h3>
+              )}
+            </div>
+          </div>
+          <p className="focus-description">
+            {!loaded ? 'Reading your saved context.' : !user || loadFailed
+              ? 'Your saved missions are unavailable. You can still use the next-move helper below.'
+              : primary?.blocker ? `Blocked: ${primary.blocker}. Review the mission below to unblock it or adjust your priority.`
+              : primary ? `Finish line: ${primary.finishLine ?? 'not yet defined'}`
+              : 'No Primary mission yet. Capture a mission, define its finish line, then make it your focus.'}
+          </p>
+          {(!primary || actionMissionId !== primary.id) && <NextMovePanel embedded context={{
+            mission: primary,
+            missionStatus: !loaded ? 'loading' : !user || loadFailed ? 'unavailable' : 'ready',
+            evidence: primaryEvidence,
+            evidenceStatus,
+          }} />}
+          {loaded && user && !loadFailed && primary && <SavedActions key={primary.id} missionId={primary.id} onActiveChange={onActiveActionChange} />}
+        </div>
+      </FocusBeam>
+
+      {loaded && user && !loadFailed && (
+        <>
+          <div className="mission-capture">
+            <div>
+              <h3>Keep the idea. Keep your focus.</h3>
+              <p>Capture it for later without changing your Primary mission.</p>
+            </div>
+            <label htmlFor="capture-idea" className="sr-only">Capture an idea for later</label>
+            <div className="capture-controls">
+              <Input id="capture-idea" placeholder="What’s on your mind?" value={captureText} onChange={setCaptureText} />
+              <ActionBtn disabled={!captureText.trim()} onClick={handleCaptureIdea}>Capture</ActionBtn>
+            </div>
+            {capture.status && <p role="status">{capture.status}</p>}
+          </div>
 
           {/* Primary Mission */}
+          {primary && <details className="mission-disclosure">
+          <summary>Review your Primary mission</summary>
           <Card>
             <SectionTitle>Primary Mission</SectionTitle>
             {primary ? (
@@ -516,8 +579,10 @@ export default function MissionTab() {
             )}
           </Card>
 
+          </details>}
+
           {/* Secondary Mission */}
-          <details>
+          <details className="mission-disclosure">
             <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-dim)' }}>
               Secondary Mission {secondary ? `— ${secondary.title}` : '(none active)'}
             </summary>
@@ -616,17 +681,9 @@ export default function MissionTab() {
             </div>
           </Card>
 
-          {/* Capture Idea */}
-          <Card>
-            <SectionTitle>Capture Idea</SectionTitle>
-            <SectionSubtitle>Say it in your own words. It is Parked by default — this does not interrupt Primary.</SectionSubtitle>
-            <div className="flex gap-2">
-              <Input placeholder="Type the idea…" value={captureText} onChange={setCaptureText} />
-              <ActionBtn disabled={!captureText.trim()} onClick={handleCaptureIdea}>Capture</ActionBtn>
-            </div>
-          </Card>
-
           {/* Evidence Status */}
+          <details className="mission-disclosure">
+          <summary>Evidence behind your focus</summary>
           <Card>
             <SectionTitle>Evidence Status</SectionTitle>
             {primaryEvidence.length === 0 ? (
@@ -650,6 +707,7 @@ export default function MissionTab() {
               </div>
             )}
           </Card>
+          </details>
         </>
       )}
     </section>

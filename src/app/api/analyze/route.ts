@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyAuth } from '@supabase/server/core'
+import { resolveEnv, verifyAuth } from '@supabase/server/core'
 
 export const runtime = 'nodejs'
 
@@ -21,9 +21,43 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { error: authError } = await verifyAuth(req, { auth: 'user' })
+  // The browser and this route use the same Supabase project. Vercel may only
+  // configure NEXT_PUBLIC_SUPABASE_URL; this is a public project URL, not a
+  // secret. Preserve explicit server/JWKS settings when they are supplied.
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const hasJwksConfig = Boolean(process.env.SUPABASE_JWKS || process.env.SUPABASE_JWKS_URL)
+  const { data: authEnv, error: envError } = resolveEnv({
+    ...(url ? { url } : {}),
+  })
+  if (authEnv && !hasJwksConfig) {
+    try {
+      // Never take a verification URL from a request or token. Overrides skip
+      // the SDK's URL parser, so explicitly require HTTPS before fetching keys.
+      const jwks = new URL(`${authEnv.url.replace(/\/$/, '')}/auth/v1/.well-known/jwks.json`)
+      if (jwks.protocol !== 'https:' || jwks.username || jwks.password || jwks.search || jwks.hash) throw new Error('Invalid JWKS URL')
+      authEnv.jwks = jwks
+    } catch {
+      return NextResponse.json({ error: 'Artifact analysis authentication is unavailable.' }, { status: 503 })
+    }
+  }
+  const { error: authError } = envError
+    ? { error: envError }
+    : await verifyAuth(req, { auth: 'user', env: authEnv! })
   if (authError) {
-    return NextResponse.json({ error: 'Sign in to use artifact analysis.' }, { status: authError.status === 500 ? 500 : 401 })
+    // authError.status is 500 only for genuine server misconfiguration (e.g. a
+    // missing SUPABASE_URL/SUPABASE_JWKS_URL env var causing @supabase/server's
+    // resolveEnv() to fail before it even inspects the request's credentials —
+    // see .agents/skills/supabase-server/SKILL.md). A missing or invalid JWT is
+    // always a 401 with code INVALID_CREDENTIALS. Don't tell the caller to sign
+    // in when the real problem is server config — log it and say so honestly.
+    if (authError.status === 500) {
+      console.error(`/api/analyze: auth misconfigured [${authError.code}] ${authError.message}`)
+      return NextResponse.json(
+        { error: `Server auth is misconfigured: ${authError.message} (${authError.code})` },
+        { status: 500 },
+      )
+    }
+    return NextResponse.json({ error: 'Sign in to use artifact analysis.' }, { status: 401 })
   }
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(

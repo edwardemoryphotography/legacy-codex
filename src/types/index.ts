@@ -93,7 +93,6 @@ export type TabId =
   | 'constraint-validator'
   | 'codex'
   | 'controls'
-  | 'consolidation'
 
 export interface UIPrefs {
   density: 'compact' | 'comfortable'
@@ -179,4 +178,28 @@ export interface EvidenceRecord {
   claim: string
   observedAt: string
   fetchedAt: string
+}
+
+// ─── Context-aware next move (local rules, no execution) ────────────────
+export type ContextAvailability = 'loading' | 'ready' | 'unavailable'
+
+export interface NextMoveContext {
+  mission: Mission | null
+  missionStatus: ContextAvailability
+  evidence: EvidenceRecord[]
+  evidenceStatus: ContextAvailability
+}
+
+export interface NextMoveRecommendation {
+  reason: 'loading' | 'mission_unavailable' | 'no_primary' | 'inactive_mission'
+    | 'blocker' | 'capacity' | 'finish_line' | 'evidence_unavailable'
+    | 'evidence_invalid' | 'evidence_conflict' | 'evidence_stale'
+    | 'evidence_unverified' | 'evidence_missing' | 'next_action'
+  kind: 'question' | 'review'
+  label: string
+  nextMove: string
+  why: string
+  evidenceNeeded: string
+  handoff: string
+  source: 'local-rules'
 }
