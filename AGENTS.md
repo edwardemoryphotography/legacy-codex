@@ -102,6 +102,45 @@ Readiness is computed as: `recovery × 0.48 + focus × 0.32 + min(100, sleep × 
 
 A live bridge is expected to write this file externally (WHOOP API, Apple Health export, Muse, etc.). The dashboard has no opinion about how the file is produced — it only reads it.
 
+### Strategic Delta (`src/lib/strategicDelta.ts`)
+
+The predictive front door. `MissionTab` renders `<StrategicDelta />` above
+everything else, so opening the app answers "what matters right now?" from real
+state before the user types anything.
+
+The engine is pure — no I/O, no clock, no randomness (`now` is a parameter) — and
+runs five stages: `assembleDeltaContext` → `routeSituation` → `generateCandidates`
+→ `inhibit` → `selectStrategicDelta`. These map to the historical CSF / LAR / REK
+functions recovered from `EdwardEmoryPhotography/rork-legacy-codex-companion`;
+their acronym expansions are *not* treated as canonical, only their behaviour.
+
+**This is the same function `foundry-console/src/lib/derived-state.ts` performs
+for the builder layer** (`whatMattersNow` / `nextAction` / `nextActionProvenance`,
+honest nulls). It is deliberately re-implemented rather than imported — Legacy
+Codex is the human front door and must not depend on Foundry. If you change one,
+consider whether the other learned the same thing.
+
+Three rules that are load-bearing, not stylistic:
+
+- **A Delta is a prediction, never automatically an Action.** Accepting one
+  records `delta_accepted` in `mission_events`; it must not write to the
+  canonical `actions` table. Recommendation ≠ commitment.
+- **Provenance is a discriminated union** (`DeltaProvenance`), and colour encodes
+  it: spectrum = unresolved cognition, teal = rule-based prediction, violet =
+  model-generated, amber = insufficient context. The bounded `/api/delta-operation`
+  path may produce `'model'` only after its output passes the same deterministic
+  quality and inhibition gates; it must never render as teal.
+- **Insufficient context is a first-class path, not a fallback.** With no mission
+  state the Delta names the one missing input. It never guesses.
+
+Corrections ("Not right") persist as `delta_corrected` rows in `mission_events`
+— that table's `type` column has no CHECK constraint, so new event types need no
+migration — and feed back in as an inhibition input. The corrected move stops
+being recommended; the prior prediction stays in history rather than being erased.
+Because `mission_events.mission_id` is `not null`, an insufficient-context Delta
+cannot be corrected (there is no mission to attach it to), and the UI disables
+that control rather than failing at runtime.
+
 ### Styling system
 
 The design uses CSS custom properties defined in `src/app/globals.css` as the single source of truth for colour, surface, and radius tokens. These are mirrored into the Tailwind theme in `tailwind.config.ts` under shortened aliases (`bg`, `surface`, `tx`, `teal`, `amber`, `error`, `success`, `line`, `codex`/`codex-sm`/`codex-lg` border-radius). Inline `style` props use `var(--*)` directly for values that would be verbose as utility classes. The app is dark-only — there is no light-mode variant.
@@ -128,3 +167,13 @@ The layout sets `robots: noindex, nofollow` — this is a private operational da
 - `POST /api/analyze` accepts `multipart/form-data` (`instruction` + one or more `files`), converts each file to an Anthropic content block (PDF → `document`, images → `image`, text/md/csv/json → inline `text`), and calls `client.messages.create` with `model: "Codex-opus-5"`. Unsupported file types (e.g. `.docx`, video) are rejected with a 400 — Codex's Messages API doesn't accept them the way Gemini's `inlineData` did, so `ConstraintValidatorTab`'s accepted-file list was narrowed accordingly.
 
 `ConstraintValidatorTab.tsx` is the only consumer: it checks `/api/analyze` (GET) on mount to enable/disable the Analyze button, then POSTs the selected files as `FormData` on submit.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

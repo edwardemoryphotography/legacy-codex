@@ -1,7 +1,7 @@
 // Shared low-level UI primitives for Legacy Codex
 // All components use CSS custom properties (var(--*)) from globals.css
 
-import type { ReactNode, CSSProperties } from 'react'
+import type { ReactNode, CSSProperties, Ref } from 'react'
 
 const TONE_STYLES = {
   teal: {
@@ -108,30 +108,48 @@ export function FieldLabel({ htmlFor, children }: { htmlFor?: string; children: 
 /* ─── Input ──────────────────────────────────────────────────── */
 export function Input({
   id,
+  name,
   type = 'text',
   value,
   defaultValue,
   onChange,
   placeholder,
   readOnly,
+  disabled,
+  required,
+  autoComplete,
+  enterKeyHint,
+  className,
 }: {
   id?: string
+  name?: string
   type?: string
   value?: string
   defaultValue?: string
   onChange?: (v: string) => void
   placeholder?: string
   readOnly?: boolean
+  disabled?: boolean
+  required?: boolean
+  autoComplete?: string
+  enterKeyHint?: 'enter' | 'done' | 'go' | 'next' | 'previous' | 'search' | 'send'
+  className?: string
 }) {
   return (
     <input
       id={id}
+      name={name}
       type={type}
       value={value}
       defaultValue={defaultValue}
       onChange={e => onChange?.(e.target.value)}
       placeholder={placeholder}
       readOnly={readOnly}
+      disabled={disabled}
+      required={required}
+      autoComplete={autoComplete}
+      enterKeyHint={enterKeyHint}
+      className={className}
       style={{
         width: '100%',
         border: '1px solid var(--line-strong)',
@@ -154,16 +172,21 @@ export function Textarea({
   onChange,
   placeholder,
   rows = 6,
+  compact = false,
+  textareaRef,
 }: {
   id?: string
   value?: string
   onChange?: (v: string) => void
   placeholder?: string
   rows?: number
+  compact?: boolean
+  textareaRef?: Ref<HTMLTextAreaElement>
 }) {
   return (
     <textarea
       id={id}
+      ref={textareaRef}
       value={value}
       onChange={e => onChange?.(e.target.value)}
       placeholder={placeholder}
@@ -176,7 +199,7 @@ export function Textarea({
         color: 'var(--text)',
         font: 'inherit',
         padding: '11px 12px',
-        minHeight: 140,
+        minHeight: compact ? 88 : 140,
         resize: 'vertical',
         transition: 'border-color 150ms ease, background 150ms ease, box-shadow 150ms ease',
       }}
@@ -224,11 +247,13 @@ export function ActionBtn({
   disabled,
   children,
   variant = 'primary',
+  type = 'button',
 }: {
   onClick?: () => void
   disabled?: boolean
   children: ReactNode
   variant?: 'primary' | 'secondary'
+  type?: 'button' | 'submit'
 }) {
   const styles =
     variant === 'primary'
@@ -247,7 +272,7 @@ export function ActionBtn({
 
   return (
     <button
-      type="button"
+      type={type}
       onClick={onClick}
       disabled={disabled}
       className="interactive-control"
@@ -274,11 +299,19 @@ export function ActionChip({
   disabled,
   children,
   variant = 'secondary',
+  className = '',
+  title,
+  'aria-expanded': ariaExpanded,
+  'aria-controls': ariaControls,
 }: {
   onClick?: () => void
   disabled?: boolean
   children: ReactNode
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
+  className?: string
+  title?: string
+  'aria-expanded'?: boolean
+  'aria-controls'?: string
 }) {
   const styles =
     variant === 'primary'
@@ -310,7 +343,10 @@ export function ActionChip({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="interactive-control"
+      title={title}
+      aria-expanded={ariaExpanded}
+      aria-controls={ariaControls}
+      className={'interactive-control ' + className}
       style={{
         ...styles,
         borderRadius: 999,
