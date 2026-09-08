@@ -274,6 +274,14 @@ body {
   width: 100%;
   height: 64px;
   margin-bottom: 4px;
+  /* Written by CognitionField.tsx on pointer move, throttled to one
+     write per animation frame and never via React state. Defaults keep
+     the field centred/inert until a pointer actually arrives, and touch
+     never sets these at all — proximity stays a desktop/hover-shaped
+     effect (see CognitionField.tsx). */
+  --px: 0.5;
+  --py: 0.5;
+  --proximity: 0;
 }
 
 /* Ambient wash behind the orb. Sized as a percentage of .sd-field's own
@@ -282,7 +290,12 @@ body {
    the point: this is the field the hero sits inside, not a card. Colour
    interpolates with the same cognition states as the core/ring below; no
    keyframe animation here, so reduced-motion users still get the state
-   change, just without continuous motion. */
+   change, just without continuous motion.
+
+   The translate/scale below is the pointer-proximity response: it reads
+   --px/--py/--proximity, which CognitionField only ever sets when motion
+   is allowed, so a reduced-motion session simply never moves this (the
+   custom properties stay at their inert defaults). */
 .sd-field::before {
   content: '';
   position: absolute;
@@ -292,7 +305,28 @@ body {
   background: radial-gradient(circle, color-mix(in srgb, var(--sd-cyan) 16%, transparent) 0%, transparent 70%);
   opacity: 0.5;
   pointer-events: none;
-  transition: background 700ms ease, opacity 700ms ease;
+  transform:
+    translate(calc((var(--px) - 0.5) * 2 * var(--proximity) * 16px), calc((var(--py) - 0.5) * 2 * var(--proximity) * 16px))
+    scale(calc(1 + var(--proximity) * 0.12));
+  transition: background 700ms ease, opacity 700ms ease, transform 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* A single restrained ripple at the tap point — mouse, pen, or touch
+   alike. One-shot: the class is removed and re-added by CognitionField.tsx
+   on every pointerdown, which is what replays the animation on a repeat
+   tap in the same spot. */
+.sd-field-tap::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--tap-x, 0.5) * 100%);
+  top: calc(var(--tap-y, 0.5) * 100%);
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--sd-cyan) 45%, transparent);
+  pointer-events: none;
+  animation: sdTapRipple 800ms ease-out;
 }
 
 .sd-field-core,
@@ -317,7 +351,11 @@ body {
   border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--sd-cyan) 28%, transparent);
   opacity: 0.35;
-  transition: border-color 500ms ease, opacity 500ms ease, transform 700ms ease;
+  /* Idle proximity response only — an active cognition state (below) drives
+     this same property via the sdRing keyframe instead, which takes over
+     transform entirely while it runs. */
+  transform: scale(calc(1 + var(--proximity) * 0.1));
+  transition: border-color 500ms ease, opacity 500ms ease, transform 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 .sd-field-specks {
@@ -430,6 +468,44 @@ body {
   background: radial-gradient(circle, color-mix(in srgb, var(--sd-violet) 15%, transparent) 0%, transparent 70%);
 }
 
+/* State differentiation beyond colour. These come after the shared
+   reconstructing/correcting/deriving rules above and win on cascade order
+   for the one state each targets — deliberately narrow overrides rather
+   than restructuring the shared blocks. */
+
+/* Deriving: "working out the concrete step" is real pending async work
+   (an actual model-assist request), so the field reads as more
+   concentrated/energetic than the open-ended reconstructing read — a
+   tighter drift and a faster ring pulse, not a new colour or a new state. */
+.sd[data-cognition="deriving"] .sd-field-specks {
+  opacity: 0.95;
+  animation-duration: 4.2s;
+}
+
+.sd[data-cognition="deriving"] .sd-field-ring {
+  animation-duration: 1.6s;
+}
+
+/* Correcting: a prior structure loosening and reforming around a new
+   constraint, not just "more reconstructing" — a one-shot bloom on the
+   ambient wash when the state is entered, and a magenta-leaning tint
+   (the human just taught it something, not merely a read in progress) to
+   read as distinct from reconstructing/deriving's cyan-violet. */
+.sd[data-cognition="correcting"] .sd-field::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--sd-magenta) 18%, transparent) 0%, color-mix(in srgb, var(--sd-cyan) 10%, transparent) 46%, transparent 72%);
+  animation: sdLoosen 1.1s cubic-bezier(0.22, 0.61, 0.36, 1) 1;
+}
+
+.sd[data-cognition="correcting"] .sd-field-ring {
+  border-color: color-mix(in srgb, var(--sd-magenta) 40%, var(--sd-cyan));
+}
+
+/* Failed: a controlled, one-shot disruption on entering the state — never
+   a loop, never implying the retry itself is exciting. */
+.sd[data-cognition="failed"] .sd-field-core {
+  animation: sdFailJitter 260ms ease-out 1;
+}
+
 @keyframes sdPulse {
   0%, 100% { transform: scale(1); opacity: 0.85; }
   50% { transform: scale(1.12); opacity: 1; }
@@ -448,6 +524,31 @@ body {
 @keyframes sdBreathe {
   0%, 100% { opacity: 0.82; }
   50% { opacity: 1; }
+}
+
+/* Correcting: the ambient wash loosens outward past its resting scale,
+   then reforms — spatial correlate of "prior structure loosens and
+   reforms around the new constraint". One-shot; the pointer-proximity
+   transform (see .sd-field::before above) takes back over once it ends. */
+@keyframes sdLoosen {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+/* Failed: a controlled, restrained disruption — never a bounce, never
+   repeating. */
+@keyframes sdFailJitter {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  50% { transform: translateX(2px); }
+  75% { transform: translateX(-1px); }
+}
+
+/* The tap ripple — one restrained pulse outward from the tap point. */
+@keyframes sdTapRipple {
+  from { transform: scale(0.6); opacity: 0.85; }
+  to { transform: scale(7); opacity: 0; }
 }
 
 @keyframes sdConverge {
@@ -770,6 +871,11 @@ body {
   }
   .sd[data-state="resolved"] .sd-move,
   .sd-why {
+    animation: none;
+  }
+  .sd[data-cognition="correcting"] .sd-field::before,
+  .sd[data-cognition="failed"] .sd-field-core,
+  .sd-field-tap::after {
     animation: none;
   }
 }

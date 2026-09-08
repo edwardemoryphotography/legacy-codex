@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DeltaCandidate, DeltaCorrection, EvidenceRecord, Mission, StrategicDelta as Delta } from '@/types'
 import { candidateTargetsClause, operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
 import { ActionBtn, ActionChip, Textarea } from '@/components/ui'
+import CognitionField from '@/components/CognitionField'
 
 // Phases are derived from work that is actually pending — anonymous
 // sign-in, then the missions/evidence read. Nothing here runs on a timer
@@ -316,11 +317,7 @@ export default function StrategicDelta({
       aria-busy={reconstructing || recording}
       aria-label="Strategic Delta"
     >
-      <div className="sd-field" aria-hidden="true">
-        <span className="sd-field-specks" />
-        <span className="sd-field-ring" />
-        <span className="sd-field-core" />
-      </div>
+      <CognitionField />
 
       <p className="sd-eyebrow">{eyebrowFor(cognition, pendingRead)}</p>
 
