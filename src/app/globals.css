@@ -250,7 +250,51 @@ body {
   --sd-indigo: #7d6bf7;
   --sd-violet: #a95cf0;
   --sd-magenta: #e2589d;
+  /* The seven states read as one living system, not seven colours:
+     positions on a single spectral ramp. Cool and diffuse while context is
+     being rebuilt, concentrated and warming while a concrete step is
+     derived, violet-magenta while a human correction reorganizes the
+     structure, settling into teal as the prediction coheres. Insufficient
+     and failed sit deliberately off the ramp — they are absences of
+     cognition, not kinds of it. */
+  --sd-correct: color-mix(in srgb, var(--sd-magenta) 62%, var(--sd-violet));
+  --sd-insufficient: color-mix(in srgb, var(--amber) 55%, var(--text-dim));
+  /* Shared motion vocabulary — every field motion below is one of these
+     rather than its own ad-hoc curve. */
+  --sd-ease-settle: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --sd-ease-bloom: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --sd-dur-state: 640ms;
+  --sd-dur-react: 320ms;
+  --sd-dur-reveal: 560ms;
 }
+
+/* Registered so the ambient wash's custom-property colours can *transition*
+   (a plain custom property snaps; a registered <color> interpolates). Every
+   cognition state below only sets --sd-wash-a/--sd-wash-b + opacity, which
+   is what makes state changes crossfade instead of jump. Browsers without
+   @property support simply keep the previous snap — no worse than before. */
+@property --sd-wash-a {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: rgba(0, 0, 0, 0);
+}
+@property --sd-wash-b {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: rgba(0, 0, 0, 0);
+}
+
+/* One accent per cognition state, consumed by the eyebrow, the tap ripple,
+   and any other place the state's hue should speak. The field's core, ring,
+   and wash layer additional structure on top of this. */
+.sd[data-cognition="reconstructing"] { --sd-hue: var(--sd-indigo); }
+.sd[data-cognition="deriving"] { --sd-hue: var(--sd-cyan); }
+.sd[data-cognition="correcting"] { --sd-hue: var(--sd-correct); }
+.sd[data-cognition="settled"],
+.sd[data-cognition="accepted"] { --sd-hue: var(--teal); }
+.sd[data-cognition="insufficient"] { --sd-hue: var(--sd-insufficient); }
+.sd[data-cognition="failed"] { --sd-hue: var(--error); }
+.sd[data-provenance="model"][data-cognition="settled"] { --sd-hue: var(--sd-violet); }
 
 .sd {
   position: relative;
@@ -274,6 +318,74 @@ body {
   width: 100%;
   height: 64px;
   margin-bottom: 4px;
+  /* Written by CognitionField.tsx on pointer move, throttled to one
+     write per animation frame and never via React state. Defaults keep
+     the field centred/inert until a pointer actually arrives, and touch
+     never sets these at all — proximity stays a desktop/hover-shaped
+     effect (see CognitionField.tsx). */
+  --px: 0.5;
+  --py: 0.5;
+  --proximity: 0;
+  /* How far the wash drifts toward the pointer at full proximity. Widened
+     on desktop where the field has room to breathe. */
+  --sd-prox-range: 16px;
+}
+
+/* Ambient wash behind the orb. Sized as a percentage of .sd-field's own
+   (bounded) width so it can never cause horizontal overflow, and allowed
+   to bleed vertically into the surrounding negative space — that bleed is
+   the point: this is the field the hero sits inside, not a card. Colour
+   interpolates with the same cognition states as the core/ring below; no
+   keyframe animation here, so reduced-motion users still get the state
+   change, just without continuous motion.
+
+   The translate/scale below is the pointer-proximity response: it reads
+   --px/--py/--proximity, which CognitionField only ever sets when motion
+   is allowed, so a reduced-motion session simply never moves this (the
+   custom properties stay at their inert defaults). */
+.sd-field::before {
+  content: '';
+  position: absolute;
+  inset: -70px 15% auto;
+  height: 210px;
+  border-radius: 50%;
+  /* Colours come from the registered --sd-wash-* properties (see @property
+     above) so a cognition-state change crossfades the wash rather than
+     snapping the gradient. Stop positions are shared across states on
+     purpose — concentration is expressed through colour strength and
+     opacity, which can interpolate, not through stop positions, which
+     can't. */
+  --sd-wash-a: color-mix(in srgb, var(--sd-cyan) 16%, transparent);
+  --sd-wash-b: transparent;
+  background: radial-gradient(circle, var(--sd-wash-a) 0%, var(--sd-wash-b) 46%, transparent 72%);
+  opacity: 0.5;
+  pointer-events: none;
+  transform:
+    translate(calc((var(--px) - 0.5) * 2 * var(--proximity) * var(--sd-prox-range)), calc((var(--py) - 0.5) * 2 * var(--proximity) * var(--sd-prox-range)))
+    scale(calc(1 + var(--proximity) * 0.12));
+  transition:
+    --sd-wash-a var(--sd-dur-state) ease,
+    --sd-wash-b var(--sd-dur-state) ease,
+    opacity var(--sd-dur-state) ease,
+    transform var(--sd-dur-react) var(--sd-ease-settle);
+}
+
+/* A single restrained ripple at the tap point — mouse, pen, or touch
+   alike. One-shot: the class is removed and re-added by CognitionField.tsx
+   on every pointerdown, which is what replays the animation on a repeat
+   tap in the same spot. */
+.sd-field-tap::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--tap-x, 0.5) * 100%);
+  top: calc(var(--tap-y, 0.5) * 100%);
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--sd-hue, var(--sd-cyan)) 45%, transparent);
+  pointer-events: none;
+  animation: sdTapRipple 760ms var(--sd-ease-settle);
 }
 
 .sd-field-core,
@@ -289,7 +401,11 @@ body {
   border-radius: 50%;
   background: var(--sd-cyan);
   box-shadow: 0 0 22px 7px color-mix(in srgb, var(--sd-cyan) 42%, transparent);
-  transition: background 500ms ease, box-shadow 500ms ease, opacity 500ms ease;
+  transition:
+    background var(--sd-dur-state) ease,
+    box-shadow var(--sd-dur-state) ease,
+    opacity var(--sd-dur-state) ease,
+    transform var(--sd-dur-state) var(--sd-ease-settle);
 }
 
 .sd-field-ring {
@@ -298,7 +414,14 @@ body {
   border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--sd-cyan) 28%, transparent);
   opacity: 0.35;
-  transition: border-color 500ms ease, opacity 500ms ease, transform 700ms ease;
+  /* Idle proximity response only — an active cognition state (below) drives
+     this same property via the sdRing keyframe instead, which takes over
+     transform entirely while it runs. */
+  transform: scale(calc(1 + var(--proximity) * 0.1));
+  transition:
+    border-color var(--sd-dur-state) ease,
+    opacity var(--sd-dur-state) ease,
+    transform var(--sd-dur-react) var(--sd-ease-settle);
 }
 
 .sd-field-specks {
@@ -311,32 +434,108 @@ body {
     radial-gradient(1.3px 1.3px at 62% 58%, rgba(169, 92, 240, 0.65), transparent),
     radial-gradient(1px 1px at 78% 30%, rgba(226, 88, 157, 0.55), transparent),
     radial-gradient(1.2px 1.2px at 48% 70%, rgba(53, 220, 210, 0.5), transparent);
-  transition: opacity 400ms ease;
+  transition: opacity var(--sd-dur-state) ease;
 }
 
+/* The three pending-work states share one motion grammar — pulse, ring,
+   drift. What distinguishes them is hue, tempo, and concentration (the
+   per-state blocks below), so the field reads as one system changing its
+   mind, not three unrelated animations. */
 .sd[data-cognition="reconstructing"] .sd-field-core,
 .sd[data-cognition="correcting"] .sd-field-core,
 .sd[data-cognition="deriving"] .sd-field-core {
-  background: var(--sd-cyan);
-  box-shadow:
-    0 0 18px 6px color-mix(in srgb, var(--sd-cyan) 50%, transparent),
-    0 0 42px 14px color-mix(in srgb, var(--sd-violet) 18%, transparent);
-  animation: sdPulse 1.8s ease-in-out infinite;
+  animation: sdPulse 2.6s ease-in-out infinite;
 }
 
 .sd[data-cognition="reconstructing"] .sd-field-ring,
 .sd[data-cognition="correcting"] .sd-field-ring,
 .sd[data-cognition="deriving"] .sd-field-ring {
-  border-color: color-mix(in srgb, var(--sd-violet) 40%, var(--sd-cyan));
   opacity: 0.8;
-  animation: sdRing 2.4s ease-out infinite;
+  animation: sdRing 3.2s var(--sd-ease-settle) infinite;
 }
 
 .sd[data-cognition="reconstructing"] .sd-field-specks,
 .sd[data-cognition="correcting"] .sd-field-specks,
 .sd[data-cognition="deriving"] .sd-field-specks {
   opacity: 0.85;
-  animation: sdDrift 7s ease-in-out infinite;
+  animation: sdDrift 8s ease-in-out infinite;
+}
+
+/* Reconstructing — diffuse and exploratory: a cool indigo core inside a
+   wide blue halo, the slowest tempo of the pending states. */
+.sd[data-cognition="reconstructing"] .sd-field-core {
+  background: var(--sd-indigo);
+  box-shadow:
+    0 0 18px 6px color-mix(in srgb, var(--sd-indigo) 44%, transparent),
+    0 0 48px 18px color-mix(in srgb, var(--sd-blue) 15%, transparent);
+}
+
+.sd[data-cognition="reconstructing"] .sd-field-ring {
+  border-color: color-mix(in srgb, var(--sd-blue) 44%, transparent);
+}
+
+.sd[data-cognition="reconstructing"] .sd-field-specks {
+  background-image:
+    radial-gradient(1.4px 1.4px at 18% 42%, rgba(53, 220, 210, 0.8), transparent),
+    radial-gradient(1.1px 1.1px at 38% 22%, rgba(77, 142, 247, 0.7), transparent),
+    radial-gradient(1.3px 1.3px at 62% 58%, rgba(125, 107, 247, 0.65), transparent),
+    radial-gradient(1px 1px at 78% 30%, rgba(77, 142, 247, 0.5), transparent),
+    radial-gradient(1.2px 1.2px at 48% 70%, rgba(53, 220, 210, 0.45), transparent);
+}
+
+/* Deriving — "working out the concrete step" is real pending async work
+   (an actual model-assist request), so the field concentrates: higher
+   spectral energy, a tighter halo, a faster tempo, and the first warm
+   accent entering the specks. */
+.sd[data-cognition="deriving"] .sd-field-core {
+  background: var(--sd-cyan);
+  box-shadow:
+    0 0 16px 5px color-mix(in srgb, var(--sd-cyan) 56%, transparent),
+    0 0 32px 10px color-mix(in srgb, var(--sd-indigo) 24%, transparent);
+  animation-duration: 1.5s;
+}
+
+.sd[data-cognition="deriving"] .sd-field-ring {
+  border-color: color-mix(in srgb, var(--sd-cyan) 46%, transparent);
+  animation-duration: 1.6s;
+}
+
+.sd[data-cognition="deriving"] .sd-field-specks {
+  opacity: 0.95;
+  background-image:
+    radial-gradient(1.4px 1.4px at 18% 42%, rgba(53, 220, 210, 0.85), transparent),
+    radial-gradient(1.1px 1.1px at 38% 22%, rgba(77, 142, 247, 0.7), transparent),
+    radial-gradient(1.3px 1.3px at 62% 58%, rgba(169, 92, 240, 0.65), transparent),
+    radial-gradient(1.1px 1.1px at 78% 30%, rgba(245, 184, 75, 0.6), transparent),
+    radial-gradient(1.2px 1.2px at 48% 70%, rgba(53, 220, 210, 0.5), transparent);
+  animation-duration: 4.2s;
+}
+
+/* Correcting — a prior structure loosening and reforming around a
+   constraint a human just supplied: violet-magenta hue (the human taught
+   it something, not merely a read in progress), a mid tempo, and the
+   one-shot loosen/reform bloom on the wash below. */
+.sd[data-cognition="correcting"] .sd-field-core {
+  background: var(--sd-correct);
+  box-shadow:
+    0 0 18px 6px color-mix(in srgb, var(--sd-magenta) 40%, transparent),
+    0 0 42px 14px color-mix(in srgb, var(--sd-violet) 20%, transparent);
+  animation-duration: 2.1s;
+}
+
+.sd[data-cognition="correcting"] .sd-field-ring {
+  border-color: color-mix(in srgb, var(--sd-magenta) 42%, var(--sd-violet));
+  animation-duration: 2.4s;
+}
+
+.sd[data-cognition="correcting"] .sd-field-specks {
+  background-image:
+    radial-gradient(1.4px 1.4px at 18% 42%, rgba(226, 88, 157, 0.75), transparent),
+    radial-gradient(1.1px 1.1px at 38% 22%, rgba(169, 92, 240, 0.7), transparent),
+    radial-gradient(1.3px 1.3px at 62% 58%, rgba(125, 107, 247, 0.6), transparent),
+    radial-gradient(1px 1px at 78% 30%, rgba(53, 220, 210, 0.5), transparent),
+    radial-gradient(1.2px 1.2px at 48% 70%, rgba(226, 88, 157, 0.5), transparent);
+  animation-duration: 6s;
 }
 
 .sd[data-cognition="settled"] .sd-field-core,
@@ -345,34 +544,50 @@ body {
   box-shadow: 0 0 18px 6px color-mix(in srgb, var(--teal) 38%, transparent);
 }
 
+/* The prediction just cohered: one quiet settle-in, then stillness. */
+.sd[data-cognition="settled"] .sd-field-core {
+  animation: sdSettle 900ms var(--sd-ease-settle) 1;
+}
+
 .sd[data-cognition="settled"] .sd-field-ring,
 .sd[data-cognition="accepted"] .sd-field-ring {
   border-color: color-mix(in srgb, var(--teal) 35%, transparent);
   opacity: 0.4;
 }
 
+/* Accepted is quieter than settled — an intention recorded, not a
+   celebration: dimmer halo, fainter ring, a slow breath. */
 .sd[data-cognition="accepted"] .sd-field-core {
+  box-shadow: 0 0 14px 5px color-mix(in srgb, var(--teal) 30%, transparent);
   animation: sdBreathe 4.8s ease-in-out infinite;
 }
 
+.sd[data-cognition="accepted"] .sd-field-ring {
+  opacity: 0.28;
+}
+
+/* Insufficient context reads as literally less certain: a desaturated hue,
+   a physically smaller core, a fainter ring, and more of the surrounding
+   negative space left alone. */
 .sd[data-cognition="insufficient"] .sd-field-core {
-  background: var(--amber);
-  box-shadow: 0 0 16px 5px color-mix(in srgb, var(--amber) 32%, transparent);
+  background: var(--sd-insufficient);
+  box-shadow: 0 0 14px 4px color-mix(in srgb, var(--amber) 24%, transparent);
+  transform: scale(0.85);
 }
 
 .sd[data-cognition="insufficient"] .sd-field-ring {
-  border-color: color-mix(in srgb, var(--amber) 40%, transparent);
-  opacity: 0.45;
+  border-color: color-mix(in srgb, var(--amber) 32%, transparent);
+  opacity: 0.35;
 }
 
 .sd[data-cognition="failed"] .sd-field-core {
   background: var(--error);
-  box-shadow: 0 0 16px 5px color-mix(in srgb, var(--error) 36%, transparent);
+  box-shadow: 0 0 14px 5px color-mix(in srgb, var(--error) 30%, transparent);
 }
 
 .sd[data-cognition="failed"] .sd-field-ring {
-  border-color: color-mix(in srgb, var(--error) 45%, transparent);
-  opacity: 0.55;
+  border-color: color-mix(in srgb, var(--error) 40%, transparent);
+  opacity: 0.5;
 }
 
 .sd[data-provenance="model"][data-cognition="settled"] .sd-field-core {
@@ -380,9 +595,68 @@ body {
   box-shadow: 0 0 18px 6px color-mix(in srgb, var(--sd-violet) 40%, transparent);
 }
 
+/* Ambient wash — same states as the core/ring above, at hero scale. Each
+   state sets only the registered --sd-wash-* colours plus opacity, so the
+   whole wash crossfades on a state change (see @property above).
+   Insufficient context reads as literally less certain: lower opacity,
+   more of the surrounding negative space left alone. Settled/accepted
+   stay quiet on purpose — confidence here is calm, not a celebration. */
+.sd[data-cognition="reconstructing"] .sd-field::before {
+  --sd-wash-a: color-mix(in srgb, var(--sd-indigo) 17%, transparent);
+  --sd-wash-b: color-mix(in srgb, var(--sd-blue) 10%, transparent);
+  opacity: 0.7;
+}
+
+.sd[data-cognition="deriving"] .sd-field::before {
+  --sd-wash-a: color-mix(in srgb, var(--sd-cyan) 20%, transparent);
+  --sd-wash-b: color-mix(in srgb, var(--sd-indigo) 12%, transparent);
+  opacity: 0.85;
+}
+
+.sd[data-cognition="correcting"] .sd-field::before {
+  --sd-wash-a: color-mix(in srgb, var(--sd-magenta) 17%, transparent);
+  --sd-wash-b: color-mix(in srgb, var(--sd-violet) 11%, transparent);
+  opacity: 0.75;
+  animation: sdLoosen 1.1s var(--sd-ease-bloom) 1;
+}
+
+.sd[data-cognition="settled"] .sd-field::before {
+  --sd-wash-a: color-mix(in srgb, var(--teal) 14%, transparent);
+  --sd-wash-b: transparent;
+  opacity: 0.4;
+}
+
+.sd[data-cognition="accepted"] .sd-field::before {
+  --sd-wash-a: color-mix(in srgb, var(--teal) 11%, transparent);
+  --sd-wash-b: transparent;
+  opacity: 0.3;
+}
+
+.sd[data-cognition="insufficient"] .sd-field::before {
+  --sd-wash-a: color-mix(in srgb, var(--amber) 8%, transparent);
+  --sd-wash-b: transparent;
+  opacity: 0.22;
+}
+
+.sd[data-cognition="failed"] .sd-field::before {
+  --sd-wash-a: color-mix(in srgb, var(--error) 13%, transparent);
+  --sd-wash-b: transparent;
+  opacity: 0.42;
+}
+
+.sd[data-provenance="model"][data-cognition="settled"] .sd-field::before {
+  --sd-wash-a: color-mix(in srgb, var(--sd-violet) 15%, transparent);
+}
+
+/* Failed: a controlled, one-shot disruption on entering the state — never
+   a loop, never implying the retry itself is exciting. */
+.sd[data-cognition="failed"] .sd-field-core {
+  animation: sdFailJitter 260ms var(--sd-ease-settle) 1;
+}
+
 @keyframes sdPulse {
-  0%, 100% { transform: scale(1); opacity: 0.85; }
-  50% { transform: scale(1.12); opacity: 1; }
+  0%, 100% { transform: scale(1); opacity: 0.84; }
+  50% { transform: scale(1.09); opacity: 1; }
 }
 
 @keyframes sdRing {
@@ -400,9 +674,44 @@ body {
   50% { opacity: 1; }
 }
 
+/* Correcting: the ambient wash loosens outward past its resting scale,
+   then reforms — spatial correlate of "prior structure loosens and
+   reforms around the new constraint". One-shot; the pointer-proximity
+   transform (see .sd-field::before above) takes back over once it ends. */
+@keyframes sdLoosen {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+/* Failed: a controlled, restrained disruption — never a bounce, never
+   repeating. */
+@keyframes sdFailJitter {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  50% { transform: translateX(2px); }
+  75% { transform: translateX(-1px); }
+}
+
+/* The tap ripple — one restrained pulse outward from the tap point. */
+@keyframes sdTapRipple {
+  from { transform: scale(0.6); opacity: 0.8; }
+  to { transform: scale(5.5); opacity: 0; }
+}
+
+/* The moment a prediction coheres: a single, small inward settle — then
+   the core holds still. One-shot; loops would read as nervousness. */
+@keyframes sdSettle {
+  from { transform: scale(1.1); }
+  to { transform: scale(1); }
+}
+
+/* The move resolving into place. Opacity + transform only: animating a
+   blur filter repaints the (large) headline every frame, which is exactly
+   the kind of paint cost the field is designed to avoid. */
 @keyframes sdConverge {
-  from { opacity: 0; filter: blur(8px); transform: translateY(6px); }
-  to   { opacity: 1; filter: blur(0);   transform: translateY(0); }
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes sdWhyIn {
@@ -410,46 +719,52 @@ body {
   to   { opacity: 1; }
 }
 
+/* Understated orientation label — the point is that it reads as a quiet
+   frame around the move, not competing content. Uppercase + wide tracking
+   at a small size is what keeps it legible while clearly subordinate. */
 .sd-eyebrow {
   color: var(--text-dim);
-  font-size: 0.82rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
   text-align: center;
+  transition: color var(--sd-dur-state) ease;
 }
-.sd[data-cognition="reconstructing"] .sd-eyebrow,
-.sd[data-cognition="correcting"] .sd-eyebrow,
-.sd[data-cognition="deriving"] .sd-eyebrow { color: var(--sd-cyan); }
-.sd[data-cognition="insufficient"] .sd-eyebrow { color: var(--amber); }
-.sd[data-cognition="settled"] .sd-eyebrow,
-.sd[data-cognition="accepted"] .sd-eyebrow { color: var(--teal); }
-.sd[data-cognition="failed"] .sd-eyebrow { color: var(--error); }
-.sd[data-provenance="model"][data-cognition="settled"] .sd-eyebrow { color: var(--sd-violet); }
+.sd[data-cognition] .sd-eyebrow { color: var(--sd-hue, var(--text-dim)); }
 
+/* The predicted move carries the strongest visual weight in the hero —
+   heavier and larger than everything around it, so hierarchy reads from
+   type and space alone, with no extra container. */
 .sd-move {
-  margin-top: 14px;
+  margin-top: 18px;
   color: var(--text);
-  font-size: clamp(1.42rem, 1.08rem + 1.7vw, 2.05rem);
-  font-weight: 560;
-  letter-spacing: -0.035em;
-  line-height: 1.22;
+  font-size: clamp(1.46rem, 1.06rem + 1.9vw, 2.2rem);
+  font-weight: 640;
+  letter-spacing: -0.038em;
+  line-height: 1.18;
   text-wrap: balance;
 }
 .sd[data-state="resolved"] .sd-move {
-  animation: sdConverge 560ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: sdConverge var(--sd-dur-reveal) var(--sd-ease-settle) both;
 }
 
 .sd-phase {
   margin-top: 12px;
   color: var(--text-soft);
   font-size: 0.95rem;
+  text-wrap: pretty;
 }
 
+/* Supporting information — clearly secondary to .sd-move via size and the
+   wider gap above it, not via a container or a dimmer colour that would
+   hurt first-run legibility. */
 .sd-because {
-  margin-top: 14px;
+  margin-top: 16px;
   color: var(--text-soft);
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   line-height: 1.55;
+  text-wrap: pretty;
 }
 
 .sd-taught {
@@ -477,10 +792,13 @@ body {
   line-height: 1.45;
 }
 
+/* Controls sit in their own zone, visually separated from the move/because
+   block above so they read as "what to do about it" rather than competing
+   with the prediction itself for attention. */
 .sd-act {
   display: grid;
   gap: 8px;
-  margin-top: 20px;
+  margin-top: 26px;
 }
 
 .sd-act-primary button {
@@ -554,7 +872,7 @@ body {
 .sd-why {
   margin-top: 18px;
   padding-top: 4px;
-  animation: sdWhyIn 280ms ease both;
+  animation: sdWhyIn var(--sd-dur-react) var(--sd-ease-settle) both;
 }
 .sd-why:focus {
   outline: none;
@@ -706,6 +1024,7 @@ body {
   .sd[data-cognition="reconstructing"] .sd-field-core,
   .sd[data-cognition="correcting"] .sd-field-core,
   .sd[data-cognition="deriving"] .sd-field-core,
+  .sd[data-cognition="settled"] .sd-field-core,
   .sd[data-cognition="accepted"] .sd-field-core {
     animation: none;
   }
@@ -718,14 +1037,25 @@ body {
     animation: none;
     opacity: 0.55;
   }
+  /* The insufficient state keeps its lower certainty through hue and
+     opacity alone — the spatial shrink is motion, so it goes. */
+  .sd[data-cognition="insufficient"] .sd-field-core {
+    transform: none;
+  }
   .sd[data-state="resolved"] .sd-move,
   .sd-why {
+    animation: none;
+  }
+  .sd[data-cognition="correcting"] .sd-field::before,
+  .sd[data-cognition="failed"] .sd-field-core,
+  .sd-field-tap::after {
     animation: none;
   }
 }
 [data-reduced-motion="true"] .sd[data-cognition="reconstructing"] .sd-field-core,
 [data-reduced-motion="true"] .sd[data-cognition="correcting"] .sd-field-core,
 [data-reduced-motion="true"] .sd[data-cognition="deriving"] .sd-field-core,
+[data-reduced-motion="true"] .sd[data-cognition="settled"] .sd-field-core,
 [data-reduced-motion="true"] .sd[data-cognition="accepted"] .sd-field-core {
   animation: none;
 }
@@ -768,6 +1098,59 @@ body {
 .sd-steps li[data-selected] .sd-step-tag {
   border-color: var(--teal);
   color: var(--teal);
+}
+
+/* Desktop spatial polish (1024/1280/1440): the field grows into its hero
+   role, the proximity response reaches further, and the hero sits against
+   more negative space. The composition is unchanged — same field, same
+   move-first hierarchy — only the scale of the space around it. */
+@media (min-width: 1024px) {
+  .sd {
+    max-width: 44rem;
+    padding-top: 12px;
+  }
+  .sd::after {
+    margin-top: 40px;
+  }
+  .sd-field {
+    height: 96px;
+    margin-bottom: 10px;
+    --sd-prox-range: 24px;
+  }
+  .sd-field::before {
+    inset: -110px 18% auto;
+    height: 320px;
+  }
+  .sd-field-core {
+    width: 10px;
+    height: 10px;
+  }
+  .sd-field-ring {
+    width: 48px;
+    height: 48px;
+  }
+  .sd-field-specks {
+    inset: -22px 12% auto;
+    height: 140px;
+  }
+  .sd-move {
+    margin-top: 22px;
+  }
+}
+
+/* Small phones (320/375/390/428): keep the move dominant and the rhythm
+   calm — spacing adjusts, nothing shrinks to "fit". */
+@media (max-width: 600px) {
+  .sd-field {
+    margin-bottom: 8px;
+  }
+  .sd-move {
+    margin-top: 14px;
+  }
+  .sd-act {
+    margin-top: 22px;
+  }
+}
 
 /* Mission front door: quiet navigation, one focal surface, progressive detail. */
 .codex-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 24px; }
@@ -798,5 +1181,4 @@ body {
   .codex-header p { display: none; }
   .mission-space { gap: 24px; }
   .session-status { max-width: 100%; }
-}
 }
