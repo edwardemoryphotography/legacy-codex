@@ -561,11 +561,15 @@ body {
   to   { opacity: 1; }
 }
 
+/* Understated orientation label — the point is that it reads as a quiet
+   frame around the move, not competing content. Uppercase + wide tracking
+   at a small size is what keeps it legible while clearly subordinate. */
 .sd-eyebrow {
   color: var(--text-dim);
-  font-size: 0.82rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
   text-align: center;
 }
 .sd[data-cognition="reconstructing"] .sd-eyebrow,
@@ -577,13 +581,16 @@ body {
 .sd[data-cognition="failed"] .sd-eyebrow { color: var(--error); }
 .sd[data-provenance="model"][data-cognition="settled"] .sd-eyebrow { color: var(--sd-violet); }
 
+/* The predicted move carries the strongest visual weight in the hero —
+   heavier and larger than everything around it, so hierarchy reads from
+   type and space alone, with no extra container. */
 .sd-move {
-  margin-top: 14px;
+  margin-top: 18px;
   color: var(--text);
-  font-size: clamp(1.42rem, 1.08rem + 1.7vw, 2.05rem);
-  font-weight: 560;
-  letter-spacing: -0.035em;
-  line-height: 1.22;
+  font-size: clamp(1.46rem, 1.06rem + 1.9vw, 2.2rem);
+  font-weight: 640;
+  letter-spacing: -0.038em;
+  line-height: 1.18;
   text-wrap: balance;
 }
 .sd[data-state="resolved"] .sd-move {
@@ -596,10 +603,13 @@ body {
   font-size: 0.95rem;
 }
 
+/* Supporting information — clearly secondary to .sd-move via size and the
+   wider gap above it, not via a container or a dimmer colour that would
+   hurt first-run legibility. */
 .sd-because {
-  margin-top: 14px;
+  margin-top: 16px;
   color: var(--text-soft);
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   line-height: 1.55;
 }
 
@@ -628,10 +638,13 @@ body {
   line-height: 1.45;
 }
 
+/* Controls sit in their own zone, visually separated from the move/because
+   block above so they read as "what to do about it" rather than competing
+   with the prediction itself for attention. */
 .sd-act {
   display: grid;
   gap: 8px;
-  margin-top: 20px;
+  margin-top: 26px;
 }
 
 .sd-act-primary button {
