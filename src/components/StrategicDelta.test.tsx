@@ -105,7 +105,10 @@ describe('StrategicDelta', () => {
 
     expect(await screen.findByText(/Name the one outcome that matters most/)).toBeTruthy()
     expect(screen.getByLabelText('Strategic Delta').getAttribute('data-provenance')).toBe('insufficient_context')
-    expect(screen.getByText('Not enough state to predict from')).toBeTruthy()
+    // First-run copy is presentation-only and deliberately avoids
+    // implementation language ("mission state", "predict from") for a
+    // visitor who has never used the product before.
+    expect(screen.getByText('This is your own space — nothing here is shared.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Do this' })).toBeNull()
     // Nothing to correct when nothing was predicted.
     expect((screen.getByRole('button', { name: 'Not right' }) as HTMLButtonElement).disabled).toBe(true)

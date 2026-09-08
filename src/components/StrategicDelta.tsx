@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DeltaCandidate, DeltaCorrection, EvidenceRecord, Mission, StrategicDelta as Delta } from '@/types'
 import { candidateTargetsClause, operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
 import { ActionBtn, ActionChip, Textarea } from '@/components/ui'
+import CognitionField from '@/components/CognitionField'
 
 // Phases are derived from work that is actually pending — anonymous
 // sign-in, then the missions/evidence read. Nothing here runs on a timer
@@ -286,6 +287,13 @@ export default function StrategicDelta({
   const canCorrect = Boolean(delta?.missionId)
   const accepted = delta !== null && acceptedMove === delta.move
   const latestCorrection = corrections[corrections.length - 1] ?? null
+  // The true first-run state: no mission has ever existed yet, so this is
+  // the actual new-visitor entry surface (a stuck clause on an existing
+  // mission is also insufficient_context, but that's a returning user who
+  // already knows the product). Presentation-only — the underlying delta
+  // and its `because`/provenance fields are untouched for tests and for
+  // returning users; only what's displayed for a first-time visitor changes.
+  const isFirstRun = delta?.provenance === 'insufficient_context' && !delta?.missionId
 
   const cognition: Cognition = persistError || operationError
     ? 'failed'
@@ -316,11 +324,7 @@ export default function StrategicDelta({
       aria-busy={reconstructing || recording}
       aria-label="Strategic Delta"
     >
-      <div className="sd-field" aria-hidden="true">
-        <span className="sd-field-specks" />
-        <span className="sd-field-ring" />
-        <span className="sd-field-core" />
-      </div>
+      <CognitionField />
 
       <p className="sd-eyebrow">{eyebrowFor(cognition, pendingRead)}</p>
 
@@ -332,7 +336,11 @@ export default function StrategicDelta({
         <>
           <p className="sd-move" key={delta.move} aria-live="polite">{delta.move}</p>
 
-          <p className="sd-because">{delta.because}</p>
+          <p className="sd-because">
+            {isFirstRun
+              ? 'Nothing to go on yet — tell it what actually matters right now, and it will ask for more only when it needs to.'
+              : delta.because}
+          </p>
 
           {/* Missing-input controls belong only to the true no-mission
               state. A clause the engine can't derive an operation for is
@@ -409,7 +417,7 @@ export default function StrategicDelta({
           </div>
 
           <p className="sd-provenance">
-            {PROVENANCE_LABEL[delta.provenance]}
+            {isFirstRun ? "This is your own space — nothing here is shared." : PROVENANCE_LABEL[delta.provenance]}
           </p>
 
           {open === 'why' && (
