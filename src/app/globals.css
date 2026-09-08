@@ -706,9 +706,12 @@ body {
   to { transform: scale(1); }
 }
 
+/* The move resolving into place. Opacity + transform only: animating a
+   blur filter repaints the (large) headline every frame, which is exactly
+   the kind of paint cost the field is designed to avoid. */
 @keyframes sdConverge {
-  from { opacity: 0; filter: blur(8px); transform: translateY(6px); }
-  to   { opacity: 1; filter: blur(0);   transform: translateY(0); }
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes sdWhyIn {
