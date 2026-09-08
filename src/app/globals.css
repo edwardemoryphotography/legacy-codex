@@ -768,6 +768,7 @@ body {
 .sd-steps li[data-selected] .sd-step-tag {
   border-color: var(--teal);
   color: var(--teal);
+}
 
 /* Mission front door: quiet navigation, one focal surface, progressive detail. */
 .codex-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 24px; }
@@ -798,5 +799,4 @@ body {
   .codex-header p { display: none; }
   .mission-space { gap: 24px; }
   .session-status { max-width: 100%; }
-}
 }
