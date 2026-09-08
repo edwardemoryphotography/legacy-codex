@@ -276,6 +276,25 @@ body {
   margin-bottom: 4px;
 }
 
+/* Ambient wash behind the orb. Sized as a percentage of .sd-field's own
+   (bounded) width so it can never cause horizontal overflow, and allowed
+   to bleed vertically into the surrounding negative space — that bleed is
+   the point: this is the field the hero sits inside, not a card. Colour
+   interpolates with the same cognition states as the core/ring below; no
+   keyframe animation here, so reduced-motion users still get the state
+   change, just without continuous motion. */
+.sd-field::before {
+  content: '';
+  position: absolute;
+  inset: -70px 15% auto;
+  height: 210px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--sd-cyan) 16%, transparent) 0%, transparent 70%);
+  opacity: 0.5;
+  pointer-events: none;
+  transition: background 700ms ease, opacity 700ms ease;
+}
+
 .sd-field-core,
 .sd-field-ring,
 .sd-field-specks {
@@ -378,6 +397,37 @@ body {
 .sd[data-provenance="model"][data-cognition="settled"] .sd-field-core {
   background: var(--sd-violet);
   box-shadow: 0 0 18px 6px color-mix(in srgb, var(--sd-violet) 40%, transparent);
+}
+
+/* Ambient wash — same states as the core/ring above, at hero scale.
+   Insufficient context reads as literally less certain: lower opacity,
+   more of the surrounding negative space left alone. Settled/accepted
+   stay quiet on purpose — confidence here is calm, not a celebration. */
+.sd[data-cognition="reconstructing"] .sd-field::before,
+.sd[data-cognition="correcting"] .sd-field::before,
+.sd[data-cognition="deriving"] .sd-field::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--sd-violet) 20%, transparent) 0%, color-mix(in srgb, var(--sd-cyan) 12%, transparent) 45%, transparent 72%);
+  opacity: 0.75;
+}
+
+.sd[data-cognition="settled"] .sd-field::before,
+.sd[data-cognition="accepted"] .sd-field::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--teal) 14%, transparent) 0%, transparent 70%);
+  opacity: 0.4;
+}
+
+.sd[data-cognition="insufficient"] .sd-field::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--amber) 9%, transparent) 0%, transparent 74%);
+  opacity: 0.25;
+}
+
+.sd[data-cognition="failed"] .sd-field::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--error) 15%, transparent) 0%, transparent 70%);
+  opacity: 0.45;
+}
+
+.sd[data-provenance="model"][data-cognition="settled"] .sd-field::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--sd-violet) 15%, transparent) 0%, transparent 70%);
 }
 
 @keyframes sdPulse {
