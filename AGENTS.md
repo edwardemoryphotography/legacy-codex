@@ -1,10 +1,35 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code), Claude Code, Cursor, Grok Build, and any other AI coding agent working with this repository.
+This file provides guidance to Codex (Codex.ai/code), Claude Code, Cursor, Grok Build, OpenAI coding agents, and any other AI coding agent working with this repository.
+
+## Authority model
+
+**CURRENT USER INTENT HAS AUTHORITY.** Within repository guidance, Eddie's current explicit instructions outrank historical freezes, conservative defaults, coordination records, shared standards, and tool run cards. Platform/system safety requirements and actual access controls remain binding.
+
+1. An explicit implementation, redesign, repair, refactor, completion, debugging, deployment, or other coding request authorizes the reversible application changes reasonably necessary to accomplish it, including `src/app/`, `src/components/`, `src/lib/`, and `src/hooks/`. No magic phrase or second go-ahead is required.
+2. This file canonically owns repo-local agent behavior, commands, and architecture. `CLAUDE.md` imports it and adds only tool-specific notes. Applicable shared standards supply the baseline; the Goose Cookbook supplies doctrine. `STATE.md`, task queues, inventories, handoffs, and historical records supply knowledge and coordination, not additional authorization gates. Read them to preserve product direction, ownership, deployment facts, and lessons.
+3. Infer routine implementation details from the repository and current product direction, state consequential assumptions briefly, and proceed autonomously with reversible changes, investigation, debugging, refactoring, documentation, testing, and verification. Use the smallest sufficient solution; a broader change is appropriate when the requested outcome requires it. Do not reopen unrelated completed work.
+4. Ask only when a missing decision materially changes the intended product, credentials or access genuinely prevent progress, or the next action needs human authorization under point 5. Complete the safe authorized work first; identify the specific blocked action and needed decision. Ordinary uncertainty is a reason to investigate, not automatically to stop.
+5. **Human authorization boundaries.** Destructive or irreversible actions, destructive production-data changes, credential creation/rotation or disclosure, purchases, billing/plan changes and spend commitments, project/deployment deletion, DNS/alias changes, and shared-history rewrites require specific authorization covering the target and consequences. A broad coding request does not supply that authorization. Check the current session first: specific authorization already given need not be requested again, unless scope or consequences change or a platform approval is mandatory. Never expose secrets in code, logs, commits, or chat, and never bypass access controls. Routine commits, branch pushes, PRs, and deployments within an explicitly requested release are not gated merely because they occur outside a checkout. Verify deployment targets and respect repository protections.
+6. Run proportional verification that establishes the result and required repository gates. Repeat checks only after relevant changes, to resolve a concrete remaining risk, or to satisfy a required gate.
+7. Own the task through its requested finish line. Continue through merge, deployment, and runtime verification when those are part of the requested outcome and authorized; a plan, commit, PR, or green build alone does not establish that outcome. Report **Merged → Deployed → Runtime Verified → Live** separately, supported by evidence; mark stages that do not apply (such as runtime checks for instruction-only changes) explicitly.
+
+### History: what this replaces
+
+This file and `STATE.md` previously required Eddie to say the literal phrase "REWRITE THE APP CODE" before any agent could touch `src/app/`, `src/components/`, `src/lib/`, or `src/hooks/`. That blanket gate is retired: it didn't distinguish a routine bug fix from an actual ground-up redesign, and it silently overrode explicit task authorization in exactly the way point 2 above forbids. The underlying intent — don't casually rewrite working application code — is preserved as ordinary engineering judgment (smallest sufficient solution, per RULES below), not as a permission gate. See `STATE.md` Repo-local notes for the retirement note and its history.
+
+### Definition of done
+
+For coding tasks, "done" means the requested end state is actually reached — not merely planned, committed, or partially evidenced:
+
+- A bug-fix request is done when the bug is fixed and verified, not when a diff exists.
+- A redesign/implementation request is done when the implementation is complete and verified, not when a plan is written.
+- A "deploy and verify" request is done only after runtime verification; a successful build alone is not done.
+- A PR, commit, build, or deployment is evidence of progress toward the outcome the user asked for, not a substitute for it, unless a PR/commit/build was literally all that was asked for.
 
 ## Cross-repo engineering standards
 
-The Legacy Codex Standards Kit (product definition, task lifecycle, design tokens, intelligence governance, SHIPPED ladder) is governed from `codex-control-panel/standards/` (Standards Kit 2.1.0) — this repo is named in Master Charter §1 but does not implement most of it: no Liquid Intelligence design system (this app is dark-only, its own established design) and no AI task-routing/lifecycle surface (the one real AI integration is `/api/analyze`, already following §5.4's server-only-key rule). What does apply: §9 discovery-before-modification, and `standards/AGENT-BEHAVIOR.md`'s baseline conduct (think-before-coding, simplicity, surgical changes, verification) underneath the doctrine below — the doctrine and sanity gate here are repo-specific and take precedence over generic guidance where they overlap.
+The Legacy Codex Standards Kit (product definition, task lifecycle, design tokens, intelligence governance, SHIPPED ladder) is governed from `codex-control-panel/standards/` (Standards Kit 2.2.0) — this repo is named in Master Charter §1 but does not implement most of it: no Liquid Intelligence design system (this app is dark-only, its own established design) and no AI task-routing/lifecycle surface (the one real AI integration is `/api/analyze`, already following §5.4's server-only-key rule). What does apply: §9 discovery-before-modification, and `standards/AGENT-BEHAVIOR.md`'s baseline conduct (think-before-coding, simplicity, surgical changes, verification) underneath the doctrine below — the doctrine and sanity gate here are repo-specific and take precedence over generic guidance where they overlap.
 
 ## Mandatory cognitive doctrine
 
@@ -35,16 +60,14 @@ Repeated Supabase/Vercel configuration rediscovery is a system failure. Before c
 
 ## Workspace coordination
 
-Read this file first, then `STATE.md` for the latest project status, then `TODOS.md` for the approved task queue. Coordination docs are docs/coordination only — they do not authorize application, external-system, or production-data changes.
-
-**Never touch legacy-codex application source without an explicit go-ahead.** See `STATE.md` § FROZEN.
+Read this file first, then `STATE.md` for the latest project status, then `TODOS.md` for queued work. An empty queue does not block the current explicit request. Coordination docs are docs/coordination only — they describe state, they do not themselves authorize application, external-system, or production-data changes; the user's explicit request does that (see Authority model above).
 
 ### RULES
 
-1. **Verify before claiming done.** Run or otherwise check your work; don't report success on an unverified change.
+1. **Verify before claiming done, proportionally.** Run or otherwise check your work — the checks that actually establish the result (tests, lint, `tsc --noEmit`, a build, a manual check for UI work). Don't report success on an unverified change, and don't loop through redundant re-checks once the appropriate one has already passed.
 2. **Keep `STATE.md` current.** Update its shipped / blocked / next lines after any session that changes them, per its own Update Protocol.
-3. **Record only durable lessons.** Append to `STATE.md` § LESSONS only when a repository-specific improvement is worth preserving.
-4. **Smallest safe patch, always.** Prefer the minimal change that satisfies the request over a broader rewrite.
+3. **Record only durable lessons.** Append to `STATE.md` Repo-local notes only when a repository-specific improvement is worth preserving.
+4. **Smallest sufficient solution.** Make the changes needed to fully satisfy the outcome; do not let a preference for a tiny patch cause under-delivery or add unrelated scope.
 
 ## Commands
 
@@ -159,14 +182,28 @@ This is the single type source for the whole project. Key exports: `TabId` (unio
 
 The layout sets `robots: noindex, nofollow` — this is a private operational dashboard. Most routes are prerendered as static content (`○` in build output), but the app is **not** a pure static export: `next.config.mjs` no longer sets `output: 'export'`, because `/api/analyze` (see below) is a real server-side Route Handler that must run as a Vercel Function. Deploying to a static host (Netlify, GitHub Pages, etc.) would silently drop that route — Vercel (or another Next.js-aware host that provisions serverless functions) is required. This is in addition to the client-side Supabase dependency noted above.
 
-### Codex integration (`/api/analyze`)
+### Claude integration (`/api/analyze`)
 
-`src/app/api/analyze/route.ts` is a Next.js Route Handler that proxies artifact analysis requests to the Codex API using `@anthropic-ai/sdk`. `ANTHROPIC_API_KEY` is read server-side only (`process.env.ANTHROPIC_API_KEY`, no `NEXT_PUBLIC_` prefix) and is never sent to the browser — this is deliberate: unlike some other providers, Anthropic's API refuses direct browser calls by default because a client-exposed key lets anyone burn arbitrary spend on the account, and this app has no login (only `noindex`).
+`src/app/api/analyze/route.ts` is a Next.js Route Handler that proxies artifact analysis requests to the Claude API using `@anthropic-ai/sdk`. `ANTHROPIC_API_KEY` is read server-side only (`process.env.ANTHROPIC_API_KEY`, no `NEXT_PUBLIC_` prefix) and is never sent to the browser — this is deliberate: unlike some other providers, Anthropic's API refuses direct browser calls by default because a client-exposed key lets anyone burn arbitrary spend on the account, and this app has no login (only `noindex`).
 
 - `GET /api/analyze` returns `{ configured: boolean }` so the client can show/hide the analysis UI without ever seeing the key itself.
-- `POST /api/analyze` accepts `multipart/form-data` (`instruction` + one or more `files`), converts each file to an Anthropic content block (PDF → `document`, images → `image`, text/md/csv/json → inline `text`), and calls `client.messages.create` with `model: "Codex-opus-5"`. Unsupported file types (e.g. `.docx`, video) are rejected with a 400 — Codex's Messages API doesn't accept them the way Gemini's `inlineData` did, so `ConstraintValidatorTab`'s accepted-file list was narrowed accordingly.
+- `POST /api/analyze` accepts `multipart/form-data` (`instruction` + one or more `files`), converts each file to an Anthropic content block (PDF → `document`, images → `image`, text/md/csv/json → inline `text`), and calls `client.messages.create` with the `MODEL` constant (`src/app/api/analyze/route.ts`, currently `claude-opus-5`). Unsupported file types (e.g. `.docx`, video) are rejected with a 400 — Claude's Messages API doesn't accept them the way Gemini's `inlineData` did, so `ConstraintValidatorTab`'s accepted-file list was narrowed accordingly.
 
 `ConstraintValidatorTab.tsx` is the only consumer: it checks `/api/analyze` (GET) on mount to enable/disable the Analyze button, then POSTs the selected files as `FormData` on submit.
+
+### Test Coverage
+
+The `vitest` test runner is configured (`npm test`, config in `vitest.config.ts`, `environment: 'jsdom'`). Current and candidate coverage:
+
+| Module | Testable surface | Status |
+|--------|-----------------|--------|
+| `src/lib/biometrics.ts` | `isValidDay()`, `parseTrendPayload()`, `summarize()`, `clamp()`, `avg()` | Covered — see `src/lib/biometrics.test.ts` |
+| `src/lib/codexSearch.ts` | `rankEntries()` | Exported, pure, no test file yet — good next candidate (search-ranking spike for feature #2) |
+| `src/lib/strategicDelta.ts` | `assembleDeltaContext()`, `routeSituation()`, `generateCandidates()`, `inhibit()`, `selectStrategicDelta()`, `predictStrategicDelta()`, `summarizeEvidence()` | Covered — see `src/lib/strategicDelta.test.ts` (engine) and `src/components/StrategicDelta.test.tsx` (UI states) |
+
+Only list functions here that are actually `export`ed from their module — an AI assistant generating tests against an unexported symbol will fail on the import before it ever reaches the assertion.
+
+Server-side, `/api/analyze` verifies the caller's JWT with `@supabase/server/core`'s `verifyAuth(req, { auth: 'user' })` — cryptographic verification against the project's JWKS instead of a round-trip to the Auth API. None of the three server-only Supabase env vars are actually mandatory for this route (`src/app/api/analyze/route.ts`): it resolves the project URL from `SUPABASE_URL`, falling back to the already-public `NEXT_PUBLIC_SUPABASE_URL` when that's unset; it never reads `SUPABASE_PUBLISHABLE_KEY` at all (that variable only matters for `auth: 'publishable'`, a mode this route doesn't use); and when neither `SUPABASE_JWKS` nor `SUPABASE_JWKS_URL` is set, the route derives the HTTPS JWKS endpoint itself from whichever URL it resolved (`<url>/auth/v1/.well-known/jwks.json`, rejecting anything that isn't a bare `https:` URL). In practice `/api/analyze` can authenticate against the same `pkydkbuodikttfeawqsw` project as the browser client above with zero server-only Supabase env vars configured. `SUPABASE_URL`, `SUPABASE_JWKS`, and `SUPABASE_JWKS_URL` (all non-secret; see `.env.local.example`) remain available as explicit overrides for pointing the route somewhere the public URL doesn't cover. No route currently needs `createAdminClient`/`auth: 'secret'`, so `SUPABASE_SECRET_KEY` is intentionally unset — add it only when a route needs to bypass RLS.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

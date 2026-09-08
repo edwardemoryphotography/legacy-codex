@@ -1,6 +1,6 @@
 # TODOS.md
 
-Task queue for approved repository work. See `AGENTS.md` for how this file fits with `STATE.md`. Do not infer personal, publishing, or external-action tasks from conversation history.
+Task queue for repository work. Eddie’s current explicit request authorizes its scope even when it is not listed here. See `AGENTS.md` for how this file fits with `STATE.md`. Do not infer personal, publishing, or external-action tasks from conversation history.
 
 ---
 
