@@ -73,6 +73,13 @@ interface Props {
   /** The move the user has accepted, if any. Compared by value so a
    *  re-prediction that changes the move clears the accepted state. */
   acceptedMove: string | null
+  /** Whether the caller's mission/correction read has actually succeeded
+   *  at least once. `missions: []` is ambiguous on its own — it means
+   *  either a confirmed-empty first-time visitor or a failed read that
+   *  defaulted to empty, and only the caller knows which. First-run copy
+   *  must never show for the latter (AGENTS.md: "Failed evidence reads
+   *  are not empty evidence"). */
+  readAvailable: boolean
   /** Persistence failure for a Delta write. Distinct from a successful
    *  recording — the UI must never look saved when the write was rejected. */
   persistError?: string | null
@@ -96,6 +103,7 @@ export default function StrategicDelta({
   corrections,
   phase,
   acceptedMove,
+  readAvailable,
   persistError = null,
   onAccept,
   onCorrect,
@@ -293,7 +301,10 @@ export default function StrategicDelta({
   // already knows the product). Presentation-only — the underlying delta
   // and its `because`/provenance fields are untouched for tests and for
   // returning users; only what's displayed for a first-time visitor changes.
-  const isFirstRun = delta?.provenance === 'insufficient_context' && !delta?.missionId
+  // Gated on readAvailable: an empty `missions` array from a failed read
+  // looks identical to a confirmed-empty one, and a failed read must never
+  // be presented as "you're a new visitor" reassurance.
+  const isFirstRun = delta?.provenance === 'insufficient_context' && !delta?.missionId && readAvailable
 
   const cognition: Cognition = persistError || operationError
     ? 'failed'

@@ -60,6 +60,15 @@ export default function CognitionField() {
 
     function onPointerLeave() {
       if (!node) return
+      // A pointermove can already have queued paint() for the next frame.
+      // Without cancelling it here, that frame runs after this reset and
+      // repaints the stale pending coordinates — proximity springs back
+      // instead of settling to 0, with no further event to correct it.
+      pending = null
+      if (frame) {
+        cancelAnimationFrame(frame)
+        frame = 0
+      }
       node.style.setProperty('--proximity', '0')
     }
 

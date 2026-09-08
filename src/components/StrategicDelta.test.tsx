@@ -27,6 +27,7 @@ function renderDelta(missions: Mission[], overrides: Partial<React.ComponentProp
     corrections: [],
     phase: 'resolved' as const,
     acceptedMove: null,
+    readAvailable: true,
     persistError: null,
     onAccept: vi.fn(),
     onCorrect: vi.fn(),
@@ -116,6 +117,19 @@ describe('StrategicDelta', () => {
     // inputs in aria-live intercepts focus/typing on Safari/iOS.
     expect(screen.getByLabelText('Strategic Delta').getAttribute('aria-live')).toBeNull()
     expect(screen.getByText(/Name the one outcome that matters most/).getAttribute('aria-live')).toBe('polite')
+  })
+
+  // A failed mission read defaults `missions` to [] the same as a genuinely
+  // new visitor — readAvailable is the only signal that tells them apart,
+  // and a failed read must never be reassured as "nothing here is shared".
+  it('does not show first-run copy when the mission read failed rather than confirmed empty', async () => {
+    renderDelta([], { readAvailable: false })
+
+    expect(await screen.findByText(/Name the one outcome that matters most/)).toBeTruthy()
+    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-provenance')).toBe('insufficient_context')
+    expect(screen.queryByText('This is your own space — nothing here is shared.')).toBeNull()
+    expect(screen.getByText('There is no mission state to predict from. This is the one input that turns everything downstream on.')).toBeTruthy()
+    expect(screen.getByText('Not enough state to predict from')).toBeTruthy()
   })
 
   it('renders insufficient-context children as editable labeled fields that accept typing', async () => {
@@ -326,6 +340,7 @@ describe('StrategicDelta — requestOperation', () => {
         corrections={[]}
         phase="resolved"
         acceptedMove={null}
+        readAvailable
         onAccept={vi.fn()}
         onCorrect={vi.fn()}
         onContextAdded={vi.fn()}
@@ -342,6 +357,7 @@ describe('StrategicDelta — requestOperation', () => {
         corrections={[]}
         phase="resolved"
         acceptedMove={null}
+        readAvailable
         onAccept={vi.fn()}
         onCorrect={vi.fn()}
         onContextAdded={vi.fn()}
@@ -372,6 +388,7 @@ describe('StrategicDelta — requestOperation', () => {
       evidence: [],
       phase: 'resolved' as const,
       acceptedMove: null,
+      readAvailable: true,
       onAccept: vi.fn(),
       onCorrect: vi.fn(),
       onContextAdded: vi.fn(),

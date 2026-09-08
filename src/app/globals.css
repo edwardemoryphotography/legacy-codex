@@ -294,7 +294,8 @@ body {
 .sd[data-cognition="accepted"] { --sd-hue: var(--teal); }
 .sd[data-cognition="insufficient"] { --sd-hue: var(--sd-insufficient); }
 .sd[data-cognition="failed"] { --sd-hue: var(--error); }
-.sd[data-provenance="model"][data-cognition="settled"] { --sd-hue: var(--sd-violet); }
+.sd[data-provenance="model"][data-cognition="settled"],
+.sd[data-provenance="model"][data-cognition="accepted"] { --sd-hue: var(--sd-violet); }
 
 .sd {
   position: relative;
@@ -590,9 +591,20 @@ body {
   opacity: 0.5;
 }
 
-.sd[data-provenance="model"][data-cognition="settled"] .sd-field-core {
+.sd[data-provenance="model"][data-cognition="settled"] .sd-field-core,
+.sd[data-provenance="model"][data-cognition="accepted"] .sd-field-core {
   background: var(--sd-violet);
+}
+
+.sd[data-provenance="model"][data-cognition="settled"] .sd-field-core {
   box-shadow: 0 0 18px 6px color-mix(in srgb, var(--sd-violet) 40%, transparent);
+}
+
+/* Accepted stays quieter than settled even for model provenance — same
+   intensity as the deterministic accepted glow above, just violet instead
+   of teal, so model output never reads as the deterministic colour. */
+.sd[data-provenance="model"][data-cognition="accepted"] .sd-field-core {
+  box-shadow: 0 0 14px 5px color-mix(in srgb, var(--sd-violet) 30%, transparent);
 }
 
 /* Ambient wash — same states as the core/ring above, at hero scale. Each
@@ -646,6 +658,12 @@ body {
 
 .sd[data-provenance="model"][data-cognition="settled"] .sd-field::before {
   --sd-wash-a: color-mix(in srgb, var(--sd-violet) 15%, transparent);
+}
+
+/* Same violet-not-teal correction as the core above, at accepted's quieter
+   11% wash strength rather than settled's 15%. */
+.sd[data-provenance="model"][data-cognition="accepted"] .sd-field::before {
+  --sd-wash-a: color-mix(in srgb, var(--sd-violet) 11%, transparent);
 }
 
 /* Failed: a controlled, one-shot disruption on entering the state — never
