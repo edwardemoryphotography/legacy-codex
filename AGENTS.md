@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code), Claude Code, Cursor, Grok Build, GPT-6 Astra, and any other AI coding agent working with this repository.
+This file provides guidance to Codex (Codex.ai/code), Claude Code, Cursor, Grok Build, OpenAI coding agents, and any other AI coding agent working with this repository.
 
 ## Authority model
 
@@ -12,8 +12,10 @@ This governs how an agent acts on a request in this repo. It supersedes any earl
 4. Ask before proceeding only when:
    - a genuinely missing product decision would materially change the outcome,
    - multiple materially different directions are equally plausible and cannot be inferred from context, or
-   - the action is destructive, irreversible, externally consequential, security-sensitive, financial, credential-related, or otherwise needs human sign-off (see "Always ask first" below).
-5. **Always ask first**, regardless of how the request is phrased: rotating, generating, or exposing secrets/credentials; production data mutation or deletion; deleting a project, branch, or deployment; alias/DNS changes; force-pushes or history rewrites on shared branches; and any other action that is hard to reverse or reaches beyond this checkout.
+   - the action is destructive, irreversible, externally consequential, security-sensitive, financial, credential-related, or otherwise needs human sign-off (see "Ask first" below).
+5. **Ask first — two tiers.** A broad request ("clean things up", "fix the deployment", "build the app") never by itself implies permission for anything in this list; it takes an explicit, specific instruction to unlock either tier.
+   - **Never overridable, no matter how the request is phrased — always ask first, even given an explicit instruction:** rotating, generating, or exposing secrets or credentials; disclosing credentials; financial actions (purchases, billing/plan changes, spend commitments); and destructive production-data changes (mutating or deleting live rows/tables in a production database).
+   - **Ask first by default, but satisfied by a specific explicit authorization in the current request:** deleting a project, branch, or deployment; alias/DNS changes; force-pushes or history rewrites on shared branches; and other actions that are hard to reverse or reach beyond this checkout. If Eddie names the exact action ("delete the `legacy-codex-kappa` Vercel project", "force-push `branch-x` to fix the diverged history"), that authorizes it — don't ask again for the same named action. Infer nothing beyond what was actually named.
 6. Verification is mandatory but proportional to the change (see RULES below) — run the checks that actually establish the result; don't manufacture redundant re-verification once the right check has already passed.
 7. A PR, commit, build, or passing test is evidence of progress, not automatically the finished outcome — see "Definition of done" below.
 
@@ -206,7 +208,7 @@ The `vitest` test runner is configured (`npm test`, config in `vitest.config.ts`
 
 Only list functions here that are actually `export`ed from their module — an AI assistant generating tests against an unexported symbol will fail on the import before it ever reaches the assertion.
 
-Server-side, `/api/analyze` verifies the caller's JWT with `@supabase/server/core`'s `verifyAuth(req, { auth: 'user' })` — cryptographic verification against the project's JWKS instead of a round-trip to the Auth API. This reads `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_JWKS_URL` (all non-secret; see `.env.local.example`) — the same `pkydkbuodikttfeawqsw` project as the browser client above, just server-only env var names (no `NEXT_PUBLIC_` prefix) so `@supabase/server`'s auto-detected env resolution picks them up. No route currently needs `createAdminClient`/`auth: 'secret'`, so `SUPABASE_SECRET_KEY` is intentionally unset — add it only when a route needs to bypass RLS.
+Server-side, `/api/analyze` verifies the caller's JWT with `@supabase/server/core`'s `verifyAuth(req, { auth: 'user' })` — cryptographic verification against the project's JWKS instead of a round-trip to the Auth API. None of the three server-only Supabase env vars are actually mandatory for this route (`src/app/api/analyze/route.ts`): it resolves the project URL from `SUPABASE_URL`, falling back to the already-public `NEXT_PUBLIC_SUPABASE_URL` when that's unset; it never reads `SUPABASE_PUBLISHABLE_KEY` at all (that variable only matters for `auth: 'publishable'`, a mode this route doesn't use); and when neither `SUPABASE_JWKS` nor `SUPABASE_JWKS_URL` is set, the route derives the HTTPS JWKS endpoint itself from whichever URL it resolved (`<url>/auth/v1/.well-known/jwks.json`, rejecting anything that isn't a bare `https:` URL). In practice `/api/analyze` can authenticate against the same `pkydkbuodikttfeawqsw` project as the browser client above with zero server-only Supabase env vars configured. `SUPABASE_URL`, `SUPABASE_JWKS`, and `SUPABASE_JWKS_URL` (all non-secret; see `.env.local.example`) remain available as explicit overrides for pointing the route somewhere the public URL doesn't cover. No route currently needs `createAdminClient`/`auth: 'secret'`, so `SUPABASE_SECRET_KEY` is intentionally unset — add it only when a route needs to bypass RLS.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
