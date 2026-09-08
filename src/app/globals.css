@@ -750,6 +750,7 @@ body {
   margin-top: 12px;
   color: var(--text-soft);
   font-size: 0.95rem;
+  text-wrap: pretty;
 }
 
 /* Supporting information — clearly secondary to .sd-move via size and the
@@ -760,6 +761,7 @@ body {
   color: var(--text-soft);
   font-size: 0.92rem;
   line-height: 1.55;
+  text-wrap: pretty;
 }
 
 .sd-taught {
@@ -1093,6 +1095,58 @@ body {
 .sd-steps li[data-selected] .sd-step-tag {
   border-color: var(--teal);
   color: var(--teal);
+}
+
+/* Desktop spatial polish (1024/1280/1440): the field grows into its hero
+   role, the proximity response reaches further, and the hero sits against
+   more negative space. The composition is unchanged — same field, same
+   move-first hierarchy — only the scale of the space around it. */
+@media (min-width: 1024px) {
+  .sd {
+    max-width: 44rem;
+    padding-top: 12px;
+  }
+  .sd::after {
+    margin-top: 40px;
+  }
+  .sd-field {
+    height: 96px;
+    margin-bottom: 10px;
+    --sd-prox-range: 24px;
+  }
+  .sd-field::before {
+    inset: -110px 18% auto;
+    height: 320px;
+  }
+  .sd-field-core {
+    width: 10px;
+    height: 10px;
+  }
+  .sd-field-ring {
+    width: 48px;
+    height: 48px;
+  }
+  .sd-field-specks {
+    inset: -22px 12% auto;
+    height: 140px;
+  }
+  .sd-move {
+    margin-top: 22px;
+  }
+}
+
+/* Small phones (320/375/390/428): keep the move dominant and the rhythm
+   calm — spacing adjusts, nothing shrinks to "fit". */
+@media (max-width: 600px) {
+  .sd-field {
+    margin-bottom: 8px;
+  }
+  .sd-move {
+    margin-top: 14px;
+  }
+  .sd-act {
+    margin-top: 22px;
+  }
 }
 
 /* Mission front door: quiet navigation, one focal surface, progressive detail. */
