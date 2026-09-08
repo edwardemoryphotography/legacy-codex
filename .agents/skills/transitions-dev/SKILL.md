@@ -103,9 +103,9 @@ The skill exposes four namespaced verbs the agent should recognise in addition t
 
 1. Read context: the currently-open file, the element nearest the cursor, surrounding CSS / JSX. If the user named a transition explicitly (e.g. `transitions apply menu-dropdown`), use it.
 2. Run the decision rules from `## Decision rules` on that context and pick **one** transition. If two could fit, prefer the lower-overhead one (same tie-breaker the existing rules use).
-3. Surface a one-line proposal: "I'd apply **menu-dropdown** here because the element opens from a trigger and is anchored. Confirm to install?".
-4. On confirmation, follow the existing five-step procedure in `## Output format` verbatim (root block, snippet, hooks, reduced-motion guard, JS orchestration if needed).
-5. If the agent can't pick a single transition with confidence, fall back to `transitions reveal` and ask the user to choose.
+3. Briefly state the selected transition and why it fits. An explicit apply/implementation request authorizes the necessary reversible edits under root `AGENTS.md`; do not ask for the same authorization again.
+4. Within the authorized scope, follow the existing five-step procedure in `## Output format` verbatim (root block, snippet, hooks, reduced-motion guard, JS orchestration if needed).
+5. Infer routine choices from the element and established design. Ask only if a remaining choice materially changes the intended product; use `transitions reveal` to make that decision concrete.
 
 ### transitions refine — replace ad-hoc motion with the motion tokens
 

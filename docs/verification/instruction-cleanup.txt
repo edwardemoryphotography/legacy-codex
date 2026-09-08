@@ -1,0 +1,40 @@
+Legacy Codex instruction cleanup — 2026-09-08
+
+1. Inspect actual main, existing PR #82, and recursive governance references.
+2. Reconcile AGENTS/STATE/CLAUDE and shared standards; retain knowledge.
+3. Remove redundant apply/polish confirmations in installed skills.
+4. Review all diffs, verify preserved architecture and lessons, run repository gates.
+5. Publish and integrate the instruction changes; record GitHub evidence.
+
+Scope: instructions and coordination only. No app redesign or product repair.
+Current authority: explicit user intent, bounded by specific sensitive-action
+authorization and platform/access protections. No magic phrase required.
+
+Verification passed (2026-09-08):
+- Legacy Codex: lint (0 errors, 8 pre-existing warnings), TypeScript,
+  173 tests across 14 files, production build.
+- Control Panel: clean lint, TypeScript, 95 tests across 8 files, production build.
+- Full changed-document review and git diff --check passed.
+- Byte comparisons preserved local STATE lessons, prior-PR AGENTS architecture
+  and commands, product/source-graph/data-ownership docs, PROJECT_STATUS,
+  hub analyzer/save-resume evidence, and charter product/security sections.
+- Skill validator: transitions-polish passes; transitions-dev and
+  supabase-server retain the same pre-existing description-length failures
+  confirmed against main (1730/1207 characters; validator limit 1024).
+
+Instruction references inspected: local AGENTS/CLAUDE/STATE/TODOS/README,
+installed skill workflows, architecture and project-status references;
+hub AGENTS/CLAUDE/STATE, charter, behavior, inventory, handoff, run cards,
+SUPERPROMPT and changelogs; architecture repo guidance, Cursor pointer,
+Goose Cookbook and Notion-wiki guidance. Historical upstream attribution
+is not an additional current permission authority.
+
+No application source or database changes. Goose Cookbook and Strategic Delta
+history retained. Read-only review modes remain read-only. Sensitive actions
+still require specific authorization; actual platform controls still apply.
+
+Publication tracking:
+https://github.com/edwardemoryphotography/legacy-codex/pull/82
+https://github.com/edwardemoryphotography/codex-control-panel/tree/codex/current-intent-authority
+Merge evidence is the GitHub PR/commit record; application deployment and
+runtime verification are not applicable to these instruction-only changes.

@@ -4,24 +4,19 @@ This file provides guidance to Codex (Codex.ai/code), Claude Code, Cursor, Grok 
 
 ## Authority model
 
-This governs how an agent acts on a request in this repo. It supersedes any earlier rule in this repo that reads as a blanket freeze or a demand for a magic phrase before ordinary engineering work — see "History" below for what changed.
+**CURRENT USER INTENT HAS AUTHORITY.** Within repository guidance, Eddie's current explicit instructions outrank historical freezes, conservative defaults, coordination records, shared standards, and tool run cards. Platform/system safety requirements and actual access controls remain binding.
 
-1. The user's current explicit request is the highest-level task intent for the session. When Eddie asks for implementation, redesign, repair, completion, debugging, or similar coding work, that request authorizes the reversible source changes reasonably necessary to reach the requested outcome — across `src/app/`, `src/components/`, `src/lib/`, `src/hooks/`, or any other application source — with no separate go-ahead phrase required.
-2. Repository architecture and safety rules (this file, the deployment sanity gate below, the Goose Cookbook doctrine) constrain **how** work is done. They do not silently override a newer, explicit authorization from the user.
-3. Reversible implementation work — edits, refactors, debugging, tests, builds, local verification, documentation updates — proceeds autonomously once it is inside the scope of the request. Do not stop to ask permission for it, and do not stop at a plan when implementation was requested.
-4. Ask before proceeding only when:
-   - a genuinely missing product decision would materially change the outcome,
-   - multiple materially different directions are equally plausible and cannot be inferred from context, or
-   - the action is destructive, irreversible, externally consequential, security-sensitive, financial, credential-related, or otherwise needs human sign-off (see "Ask first" below).
-5. **Ask first — two tiers.** A broad request ("clean things up", "fix the deployment", "build the app") never by itself implies permission for anything in this list; it takes an explicit, specific instruction to unlock either tier.
-   - **Never overridable, no matter how the request is phrased — always ask first, even given an explicit instruction:** rotating, generating, or exposing secrets or credentials; disclosing credentials; financial actions (purchases, billing/plan changes, spend commitments); and destructive production-data changes (mutating or deleting live rows/tables in a production database).
-   - **Ask first by default, but satisfied by a specific explicit authorization in the current request:** deleting a project, branch, or deployment; alias/DNS changes; force-pushes or history rewrites on shared branches; and other actions that are hard to reverse or reach beyond this checkout. If Eddie names the exact action ("delete the `legacy-codex-kappa` Vercel project", "force-push `branch-x` to fix the diverged history"), that authorizes it — don't ask again for the same named action. Infer nothing beyond what was actually named.
-6. Verification is mandatory but proportional to the change (see RULES below) — run the checks that actually establish the result; don't manufacture redundant re-verification once the right check has already passed.
-7. A PR, commit, build, or passing test is evidence of progress, not automatically the finished outcome — see "Definition of done" below.
+1. An explicit implementation, redesign, repair, refactor, completion, debugging, deployment, or other coding request authorizes the reversible application changes reasonably necessary to accomplish it, including `src/app/`, `src/components/`, `src/lib/`, and `src/hooks/`. No magic phrase or second go-ahead is required.
+2. This file canonically owns repo-local agent behavior, commands, and architecture. `CLAUDE.md` imports it and adds only tool-specific notes. Applicable shared standards supply the baseline; the Goose Cookbook supplies doctrine. `STATE.md`, task queues, inventories, handoffs, and historical records supply knowledge and coordination, not additional authorization gates. Read them to preserve product direction, ownership, deployment facts, and lessons.
+3. Infer routine implementation details from the repository and current product direction, state consequential assumptions briefly, and proceed autonomously with reversible changes, investigation, debugging, refactoring, documentation, testing, and verification. Use the smallest sufficient solution; a broader change is appropriate when the requested outcome requires it. Do not reopen unrelated completed work.
+4. Ask only when a missing decision materially changes the intended product, credentials or access genuinely prevent progress, or the next action needs human authorization under point 5. Complete the safe authorized work first; identify the specific blocked action and needed decision. Ordinary uncertainty is a reason to investigate, not automatically to stop.
+5. **Human authorization boundaries.** Destructive or irreversible actions, destructive production-data changes, credential creation/rotation or disclosure, purchases, billing/plan changes and spend commitments, project/deployment deletion, DNS/alias changes, and shared-history rewrites require specific authorization covering the target and consequences. A broad coding request does not supply that authorization. Check the current session first: specific authorization already given need not be requested again, unless scope or consequences change or a platform approval is mandatory. Never expose secrets in code, logs, commits, or chat, and never bypass access controls. Routine commits, branch pushes, PRs, and deployments within an explicitly requested release are not gated merely because they occur outside a checkout. Verify deployment targets and respect repository protections.
+6. Run proportional verification that establishes the result and required repository gates. Repeat checks only after relevant changes, to resolve a concrete remaining risk, or to satisfy a required gate.
+7. Own the task through its requested finish line. Continue through merge, deployment, and runtime verification when those are part of the requested outcome and authorized; a plan, commit, PR, or green build alone does not establish that outcome. Report **Merged → Deployed → Runtime Verified → Live** separately, supported by evidence; mark stages that do not apply (such as runtime checks for instruction-only changes) explicitly.
 
 ### History: what this replaces
 
-This file and `STATE.md` previously required Eddie to say the literal phrase "REWRITE THE APP CODE" before any agent could touch `src/app/`, `src/components/`, `src/lib/`, or `src/hooks/`. That blanket gate is retired: it didn't distinguish a routine bug fix from an actual ground-up redesign, and it silently overrode explicit task authorization in exactly the way point 2 above forbids. The underlying intent — don't casually rewrite working application code — is preserved as ordinary engineering judgment (smallest necessary patch, per RULES below), not as a permission gate. See `STATE.md` Repo-local notes for the retirement note and its history.
+This file and `STATE.md` previously required Eddie to say the literal phrase "REWRITE THE APP CODE" before any agent could touch `src/app/`, `src/components/`, `src/lib/`, or `src/hooks/`. That blanket gate is retired: it didn't distinguish a routine bug fix from an actual ground-up redesign, and it silently overrode explicit task authorization in exactly the way point 2 above forbids. The underlying intent — don't casually rewrite working application code — is preserved as ordinary engineering judgment (smallest sufficient solution, per RULES below), not as a permission gate. See `STATE.md` Repo-local notes for the retirement note and its history.
 
 ### Definition of done
 
@@ -34,7 +29,7 @@ For coding tasks, "done" means the requested end state is actually reached — n
 
 ## Cross-repo engineering standards
 
-The Legacy Codex Standards Kit (product definition, task lifecycle, design tokens, intelligence governance, SHIPPED ladder) is governed from `codex-control-panel/standards/` (Standards Kit 2.1.0) — this repo is named in Master Charter §1 but does not implement most of it: no Liquid Intelligence design system (this app is dark-only, its own established design) and no AI task-routing/lifecycle surface (the one real AI integration is `/api/analyze`, already following §5.4's server-only-key rule). What does apply: §9 discovery-before-modification, and `standards/AGENT-BEHAVIOR.md`'s baseline conduct (think-before-coding, simplicity, surgical changes, verification) underneath the doctrine below — the doctrine and sanity gate here are repo-specific and take precedence over generic guidance where they overlap.
+The Legacy Codex Standards Kit (product definition, task lifecycle, design tokens, intelligence governance, SHIPPED ladder) is governed from `codex-control-panel/standards/` (Standards Kit 2.2.0) — this repo is named in Master Charter §1 but does not implement most of it: no Liquid Intelligence design system (this app is dark-only, its own established design) and no AI task-routing/lifecycle surface (the one real AI integration is `/api/analyze`, already following §5.4's server-only-key rule). What does apply: §9 discovery-before-modification, and `standards/AGENT-BEHAVIOR.md`'s baseline conduct (think-before-coding, simplicity, surgical changes, verification) underneath the doctrine below — the doctrine and sanity gate here are repo-specific and take precedence over generic guidance where they overlap.
 
 ## Mandatory cognitive doctrine
 
@@ -65,14 +60,14 @@ Repeated Supabase/Vercel configuration rediscovery is a system failure. Before c
 
 ## Workspace coordination
 
-Read this file first, then `STATE.md` for the latest project status, then `TODOS.md` for the approved task queue. Coordination docs are docs/coordination only — they describe state, they do not themselves authorize application, external-system, or production-data changes; the user's explicit request does that (see Authority model above).
+Read this file first, then `STATE.md` for the latest project status, then `TODOS.md` for queued work. An empty queue does not block the current explicit request. Coordination docs are docs/coordination only — they describe state, they do not themselves authorize application, external-system, or production-data changes; the user's explicit request does that (see Authority model above).
 
 ### RULES
 
 1. **Verify before claiming done, proportionally.** Run or otherwise check your work — the checks that actually establish the result (tests, lint, `tsc --noEmit`, a build, a manual check for UI work). Don't report success on an unverified change, and don't loop through redundant re-checks once the appropriate one has already passed.
 2. **Keep `STATE.md` current.** Update its shipped / blocked / next lines after any session that changes them, per its own Update Protocol.
 3. **Record only durable lessons.** Append to `STATE.md` Repo-local notes only when a repository-specific improvement is worth preserving.
-4. **Smallest necessary patch.** Prefer the least change that fully satisfies the requested outcome over a broader rewrite — this means trimming scope nobody asked for, not stopping short of the outcome that was asked for.
+4. **Smallest sufficient solution.** Make the changes needed to fully satisfy the outcome; do not let a preference for a tiny patch cause under-delivery or add unrelated scope.
 
 ## Commands
 

@@ -198,7 +198,7 @@ Bare `auth: 'secret'` matches only the `default` key. Use `auth: 'secret:name'` 
 
 > **`auth: 'none'` disables all authentication.** The handler runs for every request with no credential checks. Only use it when auth is genuinely unnecessary — health checks, public status pages, or endpoints with no sensitive data and no side effects.
 
-**Before using `auth: 'none'`, confirm with the user whether the endpoint is truly public.** If not, propose an alternative:
+**Before using `auth: 'none'`, establish that the endpoint is intentionally public from the current request and repository contract.** Do not repeat a decision already explicitly authorized. If making it public would change the intended access boundary and is not specifically authorized, ask before that change; retain authentication and continue other safe work. For protected endpoints, use an alternative:
 
 - **Another service or cron job calls this function** — use `auth: 'secret'` or `auth: 'secret:<name>'` instead. The caller sends the secret key in the `apikey` header.
 - **An external webhook provider calls this function** — use `auth: 'secret'` and have the provider send the secret key, or implement the provider's own signature verification inside the handler.
