@@ -692,6 +692,7 @@ export default function MissionTab() {
         corrections={corrections}
         phase={deltaPhase}
         acceptedMove={acceptedMove}
+        readAvailable={loaded && !loadFailed}
         persistError={deltaError}
         onAccept={handleAcceptDelta}
         onCorrect={handleCorrectDelta}

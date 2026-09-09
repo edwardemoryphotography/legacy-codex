@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DeltaCandidate, DeltaCorrection, EvidenceRecord, Mission, StrategicDelta as Delta } from '@/types'
 import { candidateTargetsClause, operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
 import { ActionBtn, ActionChip, Textarea } from '@/components/ui'
+import CognitionField from '@/components/CognitionField'
 
 // Phases are derived from work that is actually pending — anonymous
 // sign-in, then the missions/evidence read. Nothing here runs on a timer
@@ -72,6 +73,13 @@ interface Props {
   /** The move the user has accepted, if any. Compared by value so a
    *  re-prediction that changes the move clears the accepted state. */
   acceptedMove: string | null
+  /** Whether the caller's mission/correction read has actually succeeded
+   *  at least once. `missions: []` is ambiguous on its own — it means
+   *  either a confirmed-empty first-time visitor or a failed read that
+   *  defaulted to empty, and only the caller knows which. First-run copy
+   *  must never show for the latter (AGENTS.md: "Failed evidence reads
+   *  are not empty evidence"). */
+  readAvailable: boolean
   /** Persistence failure for a Delta write. Distinct from a successful
    *  recording — the UI must never look saved when the write was rejected. */
   persistError?: string | null
@@ -95,6 +103,7 @@ export default function StrategicDelta({
   corrections,
   phase,
   acceptedMove,
+  readAvailable,
   persistError = null,
   onAccept,
   onCorrect,
@@ -286,6 +295,21 @@ export default function StrategicDelta({
   const canCorrect = Boolean(delta?.missionId)
   const accepted = delta !== null && acceptedMove === delta.move
   const latestCorrection = corrections[corrections.length - 1] ?? null
+  // The true first-run state: no mission has ever existed yet, so this is
+  // the actual new-visitor entry surface (a stuck clause on an existing
+  // mission is also insufficient_context, but that's a returning user who
+  // already knows the product). Presentation-only — the underlying delta
+  // and its `because`/provenance fields are untouched for tests and for
+  // returning users; only what's displayed for a first-time visitor changes.
+  // Gated on readAvailable: an empty `missions` array from a failed read
+  // looks identical to a confirmed-empty one, and a failed read must never
+  // be presented as "you're a new visitor" reassurance. Also gated on
+  // missions.length === 0: a returning user whose missions are all
+  // completed/paused/abandoned also gets missionId: null (the engine finds
+  // no candidates to generate from), but they are not a new visitor —
+  // `missions` itself, not just the derived delta, is the source of truth
+  // for "has this account ever had a mission".
+  const isFirstRun = delta?.provenance === 'insufficient_context' && !delta?.missionId && readAvailable && missions.length === 0
 
   const cognition: Cognition = persistError || operationError
     ? 'failed'
@@ -316,11 +340,7 @@ export default function StrategicDelta({
       aria-busy={reconstructing || recording}
       aria-label="Strategic Delta"
     >
-      <div className="sd-field" aria-hidden="true">
-        <span className="sd-field-specks" />
-        <span className="sd-field-ring" />
-        <span className="sd-field-core" />
-      </div>
+      <CognitionField />
 
       <p className="sd-eyebrow">{eyebrowFor(cognition, pendingRead)}</p>
 
@@ -332,7 +352,11 @@ export default function StrategicDelta({
         <>
           <p className="sd-move" key={delta.move} aria-live="polite">{delta.move}</p>
 
-          <p className="sd-because">{delta.because}</p>
+          <p className="sd-because">
+            {isFirstRun
+              ? 'Nothing to go on yet — tell it what actually matters right now, and it will ask for more only when it needs to.'
+              : delta.because}
+          </p>
 
           {/* Missing-input controls belong only to the true no-mission
               state. A clause the engine can't derive an operation for is
@@ -409,7 +433,7 @@ export default function StrategicDelta({
           </div>
 
           <p className="sd-provenance">
-            {PROVENANCE_LABEL[delta.provenance]}
+            {isFirstRun ? "This is your own space — nothing here is shared." : PROVENANCE_LABEL[delta.provenance]}
           </p>
 
           {open === 'why' && (
