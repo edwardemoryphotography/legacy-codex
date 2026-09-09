@@ -45,7 +45,7 @@ import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase } from '@/c
 // shapes; the missions/mission_events tables are snake_case. This module is
 // the only place that translates between them.
 
-interface MissionRow {
+export interface MissionRow {
   id: string
   user_id: string
   title: string
@@ -59,7 +59,7 @@ interface MissionRow {
   updated_at: string
 }
 
-interface EvidenceRow {
+export interface EvidenceRow {
   id: string
   mission_id: string | null
   source: string
@@ -70,7 +70,7 @@ interface EvidenceRow {
   fetched_at: string
 }
 
-function rowToMission(row: MissionRow): Mission {
+export function rowToMission(row: MissionRow): Mission {
   return {
     id: row.id,
     title: row.title,
@@ -85,7 +85,7 @@ function rowToMission(row: MissionRow): Mission {
   }
 }
 
-function missionToRow(mission: Mission, userId: string): Omit<MissionRow, 'created_at'> {
+export function missionToRow(mission: Mission, userId: string): Omit<MissionRow, 'created_at'> {
   return {
     id: mission.id,
     user_id: userId,
@@ -100,7 +100,7 @@ function missionToRow(mission: Mission, userId: string): Omit<MissionRow, 'creat
   }
 }
 
-function rowToEvidence(row: EvidenceRow): EvidenceRecord {
+export function rowToEvidence(row: EvidenceRow): EvidenceRecord {
   return {
     id: row.id,
     missionId: row.mission_id,
@@ -117,14 +117,14 @@ function rowToEvidence(row: EvidenceRow): EvidenceRecord {
 // no CHECK constraint, so the append-only ledger already holds predictions,
 // acceptances, and corrections without a migration. `detail` carries the
 // corrected move and the reason together so a correction survives reload.
-interface MissionEventRow {
+export interface MissionEventRow {
   id: string
   mission_id: string
   detail: string
   created_at: string
 }
 
-function rowToCorrection(row: MissionEventRow): DeltaCorrection | null {
+export function rowToCorrection(row: MissionEventRow): DeltaCorrection | null {
   try {
     const parsed = JSON.parse(row.detail) as { move?: unknown; reason?: unknown; candidateId?: unknown }
     if (typeof parsed.move !== 'string' || typeof parsed.reason !== 'string') return null

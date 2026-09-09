@@ -124,8 +124,8 @@ The skill exposes two namespaced verbs. Every command starts with `transitions` 
 **Behaviour:**
 
 1. If the user has not run `transitions review` in this session, run the same scan from **transitions review** first (steps 1–4) to build the change list. If they named a specific file, line, or value, scope the scan to that context.
-2. Surface a short proposal: how many values would change, grouped by file, with one example line. Ask for confirmation before editing.
-3. On confirmation, **apply the token changes** to the source:
+2. Briefly state the scope of refinements. An explicit polish/implementation request authorizes the necessary reversible edits under root `AGENTS.md`; ask only for a missing material product decision.
+3. Within the authorized scope, **apply the token changes** to the source:
    - Replace hardcoded durations/easings/distances/scales/blur with `var(--…)` references where the project's `_root.css` (this skill's [`_root.css`](./_root.css)) is already imported; otherwise write the token's literal value and note that importing `_root.css` would let future tweaks happen in one place.
    - Keep the file's existing unit/format (`0.25s` vs `250ms`) unless switching to `var(--…)`.
    - Touch only the motion values being polished — no reformatting, no unrelated edits.
