@@ -1101,11 +1101,23 @@ body {
 [data-reduced-motion="true"] .sd[data-cognition="reconstructing"] .sd-field-specks,
 [data-reduced-motion="true"] .sd[data-cognition="correcting"] .sd-field-specks,
 [data-reduced-motion="true"] .sd[data-cognition="deriving"] .sd-field-specks {
+  /* The blanket animation:none rule below (line ~1211) stops the pulse, but
+     each pending state also sets a brighter static opacity (0.8/0.85/0.95)
+     alongside its animation for when the animation is running at full
+     intensity. Without this override that brighter resting value is what's
+     left, so reduced motion here would read louder than the system
+     prefers-reduced-motion path, which dims explicitly to 0.55. */
   animation: none;
+  opacity: 0.55;
 }
 [data-reduced-motion="true"] .sd[data-state="resolved"] .sd-move,
 [data-reduced-motion="true"] .sd-why {
   animation: none;
+}
+/* Mirrors the prefers-reduced-motion media query above: the insufficient
+   state's spatial shrink is motion, so the app-level toggle removes it too. */
+[data-reduced-motion="true"] .sd[data-cognition="insufficient"] .sd-field-core {
+  transform: none;
 }
 
 /* The finish line as the sequence of proofs it is, so the current target and
