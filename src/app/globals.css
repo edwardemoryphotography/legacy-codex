@@ -805,7 +805,11 @@ body {
 
 .sd-accepted {
   margin-top: 12px;
-  color: var(--teal);
+  /* Same pattern as .sd-eyebrow: consume the provenance-aware --sd-hue
+     rather than hard-coding the deterministic teal, so accepting a
+     model-generated Delta doesn't reintroduce the deterministic colour
+     into this status text. */
+  color: var(--sd-hue, var(--teal));
   font-size: 0.88rem;
   line-height: 1.45;
 }
