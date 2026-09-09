@@ -1054,11 +1054,14 @@ body {
      transitions on every element. This media query has no such blanket, so
      without this, turning on the system preference would itself animate:
      the insufficient core's transform snapping to none via its existing
-     transform transition, and the wash's transform transition animating
-     back to center when CognitionField's cleanup resets --px/--py/
-     --proximity to their inert defaults as motion becomes disallowed. */
+     transform transition, and the wash and ring's transform transitions
+     animating back to center/scale-1 when CognitionField's cleanup resets
+     --px/--py/--proximity to their inert defaults as motion becomes
+     disallowed — both the wash and the ring derive their transform from
+     those same custom properties. */
   .sd-field-core,
-  .sd-field::before {
+  .sd-field::before,
+  .sd-field-ring {
     transition: none;
   }
   .sd[data-cognition="reconstructing"] .sd-field-core,
