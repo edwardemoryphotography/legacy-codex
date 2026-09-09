@@ -386,7 +386,11 @@ body {
   border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--sd-hue, var(--sd-cyan)) 45%, transparent);
   pointer-events: none;
-  animation: sdTapRipple 760ms var(--sd-ease-settle);
+  /* forwards: without it, the pseudo-element reverts to its base (fully
+     opaque, unscaled) state 760ms after every tap, leaving a static ring
+     visible at the last tap position — the class only gets removed right
+     before the *next* tap replays the animation, not after this one ends. */
+  animation: sdTapRipple 760ms var(--sd-ease-settle) forwards;
 }
 
 .sd-field-core,
@@ -565,6 +569,13 @@ body {
 
 .sd[data-cognition="accepted"] .sd-field-ring {
   opacity: 0.28;
+}
+
+/* The ring had no model-provenance override at all — settled and accepted
+   both kept the deterministic teal border regardless of provenance. */
+.sd[data-provenance="model"][data-cognition="settled"] .sd-field-ring,
+.sd[data-provenance="model"][data-cognition="accepted"] .sd-field-ring {
+  border-color: color-mix(in srgb, var(--sd-violet) 35%, transparent);
 }
 
 /* Insufficient context reads as literally less certain: a desaturated hue,
@@ -1069,6 +1080,13 @@ body {
   .sd-field-tap::after {
     animation: none;
   }
+  /* animation: none above stops the ripple from ever running, which means
+     it never reaches the forwards-held invisible end state either — it
+     would otherwise sit at its opaque, unscaled base state indefinitely.
+     No ripple at all is the more restrained reduced-motion behaviour. */
+  .sd-field-tap::after {
+    opacity: 0;
+  }
 }
 [data-reduced-motion="true"] .sd[data-cognition="reconstructing"] .sd-field-core,
 [data-reduced-motion="true"] .sd[data-cognition="correcting"] .sd-field-core,
@@ -1186,6 +1204,11 @@ body {
 .mission-disclosure > .card { margin-top: 4px; box-shadow: none !important; }
 .mission-space > .card { background: transparent !important; box-shadow: none !important; }
 [data-reduced-motion="true"] *, [data-reduced-motion="true"] *::before, [data-reduced-motion="true"] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+/* The blanket animation:none above also stops the tap ripple from ever
+   reaching its forwards-held invisible end state, same as the
+   prefers-reduced-motion media query above — without this it would sit at
+   its opaque, unscaled base state indefinitely under this toggle too. */
+[data-reduced-motion="true"] .sd-field-tap::after { opacity: 0 !important; }
 @media (min-width: 1024px) {
   .codex-shell { display: grid; grid-template-columns: 190px minmax(0, 1fr); column-gap: 54px; padding: 36px 40px; }
   .codex-header { grid-column: 1 / -1; padding-bottom: 40px; }

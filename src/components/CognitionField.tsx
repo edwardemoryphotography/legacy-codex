@@ -95,6 +95,15 @@ export default function CognitionField() {
       node.removeEventListener('pointerleave', onPointerLeave)
       node.removeEventListener('pointerdown', onPointerDown)
       if (frame) cancelAnimationFrame(frame)
+      // If motion becomes disallowed mid-hover (the user toggles reduced
+      // motion, or the system preference changes), this effect re-runs and
+      // the guard above means no future pointerleave can ever reset these —
+      // reset them here instead, so the field doesn't stay visibly shifted
+      // and scaled for the rest of the reduced-motion session.
+      node.style.removeProperty('--proximity')
+      node.style.removeProperty('--px')
+      node.style.removeProperty('--py')
+      node.classList.remove('sd-field-tap')
     }
   }, [motionAllowed])
 

@@ -303,8 +303,13 @@ export default function StrategicDelta({
   // returning users; only what's displayed for a first-time visitor changes.
   // Gated on readAvailable: an empty `missions` array from a failed read
   // looks identical to a confirmed-empty one, and a failed read must never
-  // be presented as "you're a new visitor" reassurance.
-  const isFirstRun = delta?.provenance === 'insufficient_context' && !delta?.missionId && readAvailable
+  // be presented as "you're a new visitor" reassurance. Also gated on
+  // missions.length === 0: a returning user whose missions are all
+  // completed/paused/abandoned also gets missionId: null (the engine finds
+  // no candidates to generate from), but they are not a new visitor —
+  // `missions` itself, not just the derived delta, is the source of truth
+  // for "has this account ever had a mission".
+  const isFirstRun = delta?.provenance === 'insufficient_context' && !delta?.missionId && readAvailable && missions.length === 0
 
   const cognition: Cognition = persistError || operationError
     ? 'failed'

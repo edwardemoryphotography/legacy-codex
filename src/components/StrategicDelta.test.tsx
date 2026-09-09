@@ -132,6 +132,17 @@ describe('StrategicDelta', () => {
     expect(screen.getByText('Not enough state to predict from')).toBeTruthy()
   })
 
+  // A returning user whose only missions are completed/paused/abandoned
+  // also gets missionId: null (the engine has no active mission to name),
+  // but `missions` itself is nonempty — they are not a first-time visitor.
+  it('does not show first-run copy for a returning user whose missions are all completed', async () => {
+    renderDelta([mission({ id: 'm1', state: 'completed' })])
+
+    expect(await screen.findByText(/Name the one outcome that matters most/)).toBeTruthy()
+    expect(screen.queryByText('This is your own space — nothing here is shared.')).toBeNull()
+    expect(screen.getByText('There is no mission state to predict from. This is the one input that turns everything downstream on.')).toBeTruthy()
+  })
+
   it('renders insufficient-context children as editable labeled fields that accept typing', async () => {
     function Invite() {
       const [outcome, setOutcome] = useState('')
