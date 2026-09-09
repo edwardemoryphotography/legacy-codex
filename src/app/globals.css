@@ -1050,6 +1050,17 @@ body {
 /* Reduced motion: cognition stays legible through colour, copy, and
    opacity. Spatial motion is removed; the field still changes hue. */
 @media (prefers-reduced-motion: reduce) {
+  /* The app-level toggle below (data-reduced-motion="true") blanket-kills
+     transitions on every element. This media query has no such blanket, so
+     without this, turning on the system preference would itself animate:
+     the insufficient core's transform snapping to none via its existing
+     transform transition, and the wash's transform transition animating
+     back to center when CognitionField's cleanup resets --px/--py/
+     --proximity to their inert defaults as motion becomes disallowed. */
+  .sd-field-core,
+  .sd-field::before {
+    transition: none;
+  }
   .sd[data-cognition="reconstructing"] .sd-field-core,
   .sd[data-cognition="correcting"] .sd-field-core,
   .sd[data-cognition="deriving"] .sd-field-core,
