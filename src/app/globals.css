@@ -69,11 +69,8 @@ body {
   bottom: 0;
   left: 0;
   display: grid;
-  grid-auto-columns: minmax(96px, 1fr);
-  grid-auto-flow: column;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
   padding: 8px;
   padding-bottom: calc(8px + var(--safe-bottom));
   border-top: 1px solid var(--line-strong);
@@ -81,26 +78,28 @@ body {
   box-shadow: 0 -14px 36px rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  scrollbar-width: none;
-  scroll-snap-type: x proximity;
-  -webkit-overflow-scrolling: touch;
 }
 
-.codex-tablist::-webkit-scrollbar {
-  display: none;
+/* The tablist role stays on its own element for correct ARIA structure
+   (a real role="tablist" around only the real tabs); display: contents
+   drops it from the box tree so its three buttons sit directly in the
+   parent's 4-column grid, alongside the sibling More button. Four fixed
+   equal columns replace the old 9-item horizontal scroller — that's what
+   clipped "Sprint Linker" at 375px in production. */
+.codex-tablist-primary {
+  display: contents;
 }
 
 .codex-tab {
-  min-width: 96px;
   min-height: 52px;
-  padding: 8px 10px;
+  padding: 8px 6px;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  scroll-snap-align: center;
   color: var(--text-dim);
   font-size: 0.75rem;
   font-weight: 650;
   line-height: 1.25;
+  text-align: center;
   text-wrap: balance;
   transition:
     transform 150ms ease,
@@ -1242,8 +1241,8 @@ body {
 @media (min-width: 1024px) {
   .codex-shell { display: grid; grid-template-columns: 190px minmax(0, 1fr); column-gap: 54px; padding: 36px 40px; }
   .codex-header { grid-column: 1 / -1; padding-bottom: 40px; }
-  .codex-tablist { position: sticky; top: 24px; align-self: start; display: flex; flex-direction: column; gap: 6px; overflow: visible; padding: 0; border: 0; box-shadow: none; background: transparent; backdrop-filter: none; }
-  .codex-tab { width: 100%; min-width: 0; min-height: 44px; text-align: left; padding: 12px 16px; font-size: 13px; font-weight: 500; }
+  .codex-tablist { position: sticky; top: 24px; align-self: start; display: flex; flex-direction: column; gap: 6px; padding: 0; border: 0; box-shadow: none; background: transparent; backdrop-filter: none; }
+  .codex-tab { width: 100%; min-height: 44px; text-align: left; padding: 12px 16px; font-size: 13px; font-weight: 500; }
   .codex-main { max-width: 940px; }
   .codex-footer { grid-column: 2; }
 }
@@ -1252,4 +1251,107 @@ body {
   .codex-header p { display: none; }
   .mission-space { gap: 24px; }
   .session-status { max-width: 100%; }
+}
+
+/* ─── More sheet ──────────────────────────────────────────────────────
+   Bottom sheet on phones, centred dialog from 600px up. Six reference/
+   occasional-use tabs live here instead of in the primary bar. */
+.more-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(4, 5, 9, 0.6);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: moreOverlayIn 180ms ease both;
+}
+
+.more-sheet {
+  width: 100%;
+  max-width: 420px;
+  max-height: min(72vh, 560px);
+  overflow-y: auto;
+  padding: 16px 16px calc(16px + var(--safe-bottom));
+  border: 1px solid var(--line-strong);
+  border-bottom: none;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--surface);
+  box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.4);
+  animation: moreSheetIn 220ms var(--sd-ease-settle, ease) both;
+}
+
+.more-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.more-sheet-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.more-sheet-list {
+  display: grid;
+  gap: 4px;
+}
+
+.more-sheet-item {
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  text-align: left;
+  color: var(--text-soft);
+  font-size: 0.92rem;
+  font-weight: 550;
+}
+
+.more-sheet-item[aria-current="true"] {
+  border-color: var(--teal);
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+
+@keyframes moreOverlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes moreSheetIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (min-width: 600px) {
+  .more-overlay {
+    align-items: center;
+  }
+  .more-sheet {
+    border-radius: var(--radius-lg);
+    border-bottom: 1px solid var(--line-strong);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .more-overlay,
+  .more-sheet {
+    animation: none;
+  }
 }
