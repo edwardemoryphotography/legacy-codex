@@ -6,8 +6,8 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/components/ActivityOrb', () => ({
   default: () => null,
 }))
-import type { Mission, MissionState } from '@/types'
-import { operationCandidateId } from '@/lib/strategicDelta'
+import type { DeltaCandidate, Mission, MissionState } from '@/types'
+import { operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
 import StrategicDelta from './StrategicDelta'
 
 function mission(over: Partial<Mission> & { id: string; state: MissionState }): Mission {
@@ -35,6 +35,8 @@ function renderDelta(missions: Mission[], overrides: Partial<React.ComponentProp
     persistError: null,
     onAccept: vi.fn(),
     onCorrect: vi.fn(),
+    onSupplyStep: vi.fn(),
+    suppliedOperations: [],
     onContextAdded: vi.fn(),
     onRecheck: vi.fn(),
     ...overrides,
@@ -226,39 +228,110 @@ describe('StrategicDelta', () => {
     expect(traceText.filter(t => /Restates the mission, not a move/.test(t))).toHaveLength(2)
   })
 
-  it('does not announce a chosen recommendation when none exists, and drops finish-line shards', async () => {
-    renderDelta([
-      mission({
-        id: 'real',
-        state: 'primary',
-        title: 'Prove the next move',
-        finishLine: 'name one move, accept it, correct it, keep that same action, and reload',
-      }),
-    ])
+  it('does not announce a chosen recommendation when none exists, and lists the clauses the engine targets', async () => {
+    const finishLine = 'name one move, accept it, correct it, keep that same action, and reload'
+    const missionRow = mission({
+      id: 'real',
+      state: 'primary',
+      title: 'Prove the next move',
+      finishLine,
+    })
+    renderDelta([missionRow])
 
     fireEvent.click(await screen.findByRole('button', { name: 'Why this?' }))
 
     expect(screen.getByText(/No recommendation was chosen/)).toBeTruthy()
     expect(screen.queryByText(/This is why it was chosen/)).toBeNull()
-    const steps = [...document.querySelectorAll('.sd-steps li')].map(li => li.textContent ?? '')
-    expect(steps.some(step => step.trim() === 'reload' || step.startsWith('reload'))).toBe(false)
-    expect(steps.some(step => /that same action/.test(step) && !/keep that same action/.test(step))).toBe(false)
-    expect(screen.getByText(/not (a )?separate requirement/)).toBeTruthy()
+    expect(screen.queryByText(/not (a )?separate requirement/)).toBeNull()
+    const predicted = predictStrategicDelta([missionRow], [], [], '2026-09-01T12:00:00.000Z')
+    const steps = [...document.querySelectorAll('.sd-steps li')].map(li => (li.textContent ?? '').replace('aiming here', '').trim())
+    expect(steps).toEqual(predicted.proofSteps.map(step => step.text))
+    const aimed = predicted.proofSteps.find(step => step.selected)
+    expect(aimed).toBeTruthy()
+    expect(document.querySelector('.sd-steps li[data-selected]')?.textContent).toContain(aimed?.text)
     expect(screen.getByText(/does not read them/)).toBeTruthy()
   })
 
-  it('offers one action to name the missing step when a mission has no derivable move', async () => {
-    const props = renderDelta([PRIMARY])
+  it('keeps a restated step on record without offering it as the next move', async () => {
+    const restatement = 'lands on main'
+    renderDelta([PRIMARY], {
+      suppliedOperations: [{
+        id: operationCandidateId('clause:m1:0', restatement),
+        kind: 'supplied_operation',
+        move: restatement,
+        missionId: 'm1',
+        targetId: 'clause:m1:0',
+        rank: 0,
+      }],
+    })
+
+    expect(await screen.findByText('Needs a concrete step')).toBeTruthy()
+    expect(screen.getByText(/Kept: lands on main/)).toBeTruthy()
+    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-provenance')).toBe('insufficient_context')
+    expect(screen.queryByRole('button', { name: 'Accept this move' })).toBeNull()
+  })
+
+  it('records a supplied step as a step, then shows it once it is on record', async () => {
+    const step = 'Open the live page and write down the first broken sentence'
+    const onCorrect = vi.fn()
+    function Harness() {
+      const [supplied, setSupplied] = useState<DeltaCandidate[]>([])
+      return (
+        <StrategicDelta
+          missions={[PRIMARY]}
+          evidence={[]}
+          corrections={[]}
+          suppliedOperations={supplied}
+          phase="resolved"
+          acceptedMove={null}
+          readAvailable
+          onAccept={vi.fn()}
+          onCorrect={onCorrect}
+          onSupplyStep={(delta, text) => {
+            const targetId = delta.candidateId ?? ''
+            setSupplied(current => [...current, {
+              id: operationCandidateId(targetId, text),
+              kind: 'supplied_operation',
+              move: text,
+              missionId: delta.missionId ?? '',
+              targetId,
+              rank: 0,
+            }])
+            return true
+          }}
+          onContextAdded={vi.fn()}
+          onRecheck={vi.fn()}
+        />
+      )
+    }
+    render(<Harness />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Name the concrete step' }))
-    fireEvent.change(screen.getByLabelText(/concrete step/i), { target: { value: 'Open the live page and write down the first broken sentence' } })
+    fireEvent.change(screen.getByLabelText(/concrete step/i), { target: { value: step } })
     fireEvent.click(screen.getByRole('button', { name: 'Record this step' }))
 
-    expect(props.onCorrect).toHaveBeenCalledWith(
-      expect.objectContaining({ provenance: 'insufficient_context', missionId: 'm1' }),
-      'Open the live page and write down the first broken sentence',
-    )
-    expect(screen.queryByRole('button', { name: 'Accept this move' })).toBeNull()
+    expect(await screen.findByText(step)).toBeTruthy()
+    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-provenance')).toBe('supplied')
+    expect(screen.getByText('You supplied this step — not verified')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Accept this move' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Name the concrete step' })).toBeNull()
+    expect(onCorrect).not.toHaveBeenCalled()
+  })
+
+  it('leaves the step unrecorded when the write fails', async () => {
+    const onSupplyStep = vi.fn().mockResolvedValue(false)
+    renderDelta([PRIMARY], { onSupplyStep })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Name the concrete step' }))
+    fireEvent.change(screen.getByLabelText(/concrete step/i), {
+      target: { value: 'Open the live page and write down the first broken sentence' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Record this step' }))
+
+    expect(await screen.findByRole('button', { name: 'Record this step' })).toBeTruthy()
+    expect(screen.getByText('Needs a concrete step')).toBeTruthy()
+    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-provenance')).toBe('insufficient_context')
+    expect(onSupplyStep).toHaveBeenCalledTimes(1)
   })
 
   it('shows which part of the finish line it is aiming at, and which parts were ruled out', async () => {
@@ -396,6 +469,7 @@ describe('StrategicDelta — requestOperation', () => {
         readAvailable
         onAccept={vi.fn()}
         onCorrect={vi.fn()}
+        onSupplyStep={vi.fn()}
         onContextAdded={vi.fn()}
         onRecheck={vi.fn()}
         requestOperation={requestOperation}
@@ -413,6 +487,7 @@ describe('StrategicDelta — requestOperation', () => {
         readAvailable
         onAccept={vi.fn()}
         onCorrect={vi.fn()}
+        onSupplyStep={vi.fn()}
         onContextAdded={vi.fn()}
         onRecheck={vi.fn()}
         requestOperation={requestOperation}
@@ -444,6 +519,7 @@ describe('StrategicDelta — requestOperation', () => {
       readAvailable: true,
       onAccept: vi.fn(),
       onCorrect: vi.fn(),
+      onSupplyStep: vi.fn(),
       onContextAdded: vi.fn(),
       onRecheck: vi.fn(),
       requestOperation,

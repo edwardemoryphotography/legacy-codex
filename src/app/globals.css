@@ -299,6 +299,8 @@ body {
 .sd[data-cognition="failed"] { --sd-hue: var(--error); }
 .sd[data-provenance="model"][data-cognition="settled"],
 .sd[data-provenance="model"][data-cognition="accepted"] { --sd-hue: var(--sd-violet); }
+.sd[data-provenance="supplied"][data-cognition="settled"],
+.sd[data-provenance="supplied"][data-cognition="accepted"] { --sd-hue: var(--sd-cyan); }
 
 .sd {
   position: relative;
@@ -399,15 +401,17 @@ body {
   width: 176px;
   height: 176px;
   margin: 4px auto 0;
+  overflow: hidden;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 42% 38%, color-mix(in srgb, var(--sd-violet) 28%, transparent), transparent 42%),
-    radial-gradient(circle at 62% 68%, color-mix(in srgb, var(--sd-blue) 22%, transparent), transparent 55%),
-    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--sd-indigo) 46%, transparent), transparent 72%);
+    radial-gradient(circle at 28% 32%, color-mix(in srgb, var(--sd-cyan) 18%, transparent), transparent 46%),
+    radial-gradient(circle at 74% 70%, color-mix(in srgb, var(--sd-magenta) 22%, transparent), transparent 48%),
+    radial-gradient(circle at 48% 46%, color-mix(in srgb, var(--sd-indigo) 34%, transparent), transparent 68%);
   box-shadow:
     0 18px 40px rgba(0, 0, 0, 0.42),
-    inset 0 0 36px color-mix(in srgb, var(--sd-indigo) 42%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, var(--sd-cyan) 28%, transparent);
+    inset 0 0 42px color-mix(in srgb, var(--sd-indigo) 36%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--sd-cyan) 55%, transparent),
+    inset 0 0 0 2px color-mix(in srgb, var(--sd-magenta) 18%, transparent);
   /* Written by CognitionField.tsx on pointer move, throttled to one
      write per animation frame and never via React state. Defaults keep
      the field centred/inert until a pointer actually arrives, and touch
@@ -483,9 +487,47 @@ body {
 
 .sd-field-core,
 .sd-field-ring,
-.sd-field-specks {
+.sd-field-specks,
+.sd-field-depth,
+.sd-field-contour {
   position: absolute;
   pointer-events: none;
+}
+
+.sd-field-depth {
+  inset: 6%;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse 78% 52% at 32% 36%, color-mix(in srgb, var(--sd-cyan) 28%, transparent), transparent 64%),
+    radial-gradient(ellipse 62% 74% at 70% 66%, color-mix(in srgb, var(--sd-magenta) 26%, transparent), transparent 66%),
+    radial-gradient(circle at 50% 48%, color-mix(in srgb, var(--sd-violet) 16%, transparent), transparent 72%);
+  opacity: 0.95;
+}
+
+.sd-field-contour {
+  width: 138%;
+  height: 46%;
+  left: -19%;
+  border-radius: 50%;
+  opacity: 0.9;
+}
+
+.sd-field-contour-cyan {
+  top: 22%;
+  --sd-contour-angle: -24deg;
+  transform: rotate(var(--sd-contour-angle));
+  background:
+    radial-gradient(ellipse 48% 70% at 50% 0%, transparent 58%, color-mix(in srgb, var(--sd-cyan) 70%, transparent) 72%, transparent 84%);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--sd-cyan) 55%, transparent));
+}
+
+.sd-field-contour-magenta {
+  top: 46%;
+  --sd-contour-angle: 28deg;
+  transform: rotate(var(--sd-contour-angle));
+  background:
+    radial-gradient(ellipse 52% 80% at 50% 100%, transparent 56%, color-mix(in srgb, var(--sd-magenta) 68%, transparent) 72%, transparent 86%);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--sd-magenta) 45%, transparent));
 }
 
 .sd-field-core {
@@ -496,12 +538,12 @@ body {
   margin: -56px 0 0 -56px;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 34% 30%, color-mix(in srgb, white 72%, var(--sd-violet)) 0%, var(--sd-violet) 22%, var(--sd-blue) 58%, var(--sd-indigo) 100%);
+    radial-gradient(circle at 34% 28%, color-mix(in srgb, white 48%, var(--sd-violet)) 0%, color-mix(in srgb, var(--sd-violet) 72%, transparent) 24%, color-mix(in srgb, var(--sd-blue) 36%, transparent) 58%, transparent 100%);
   box-shadow:
-    0 0 32px 8px color-mix(in srgb, var(--sd-violet) 62%, transparent),
-    0 0 56px 18px color-mix(in srgb, var(--sd-blue) 36%, transparent),
-    0 0 18px 2px color-mix(in srgb, var(--sd-cyan) 40%, transparent),
-    inset 0 0 18px color-mix(in srgb, var(--sd-magenta) 48%, transparent);
+    0 0 28px 6px color-mix(in srgb, var(--sd-violet) 48%, transparent),
+    0 0 48px 16px color-mix(in srgb, var(--sd-blue) 28%, transparent),
+    0 0 16px 2px color-mix(in srgb, var(--sd-cyan) 50%, transparent),
+    inset 0 0 22px color-mix(in srgb, var(--sd-magenta) 55%, transparent);
   transition:
     background var(--sd-dur-state) ease,
     box-shadow var(--sd-dur-state) ease,
@@ -553,6 +595,12 @@ body {
 .sd[data-cognition="correcting"] .sd-field-core,
 .sd[data-cognition="deriving"] .sd-field-core {
   animation: sdPulse 2.6s ease-in-out infinite;
+}
+
+.sd[data-cognition="reconstructing"] .sd-field-contour,
+.sd[data-cognition="correcting"] .sd-field-contour,
+.sd[data-cognition="deriving"] .sd-field-contour {
+  animation: sdContour 12s ease-in-out infinite;
 }
 
 .sd[data-cognition="reconstructing"] .sd-field-ring,
@@ -676,6 +724,14 @@ body {
   border-color: color-mix(in srgb, var(--sd-violet) 35%, transparent);
 }
 
+.sd[data-provenance="supplied"][data-cognition="settled"] .sd-field-ring,
+.sd[data-provenance="supplied"][data-cognition="accepted"] .sd-field-ring {
+  border-color: color-mix(in srgb, var(--sd-cyan) 62%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--sd-magenta) 42%, transparent),
+    0 0 18px color-mix(in srgb, var(--sd-magenta) 28%, transparent);
+}
+
 /* Insufficient context keeps the same material and stays still. Amber is
    reserved for the status word, so the field does not pretend to be thinking
    and does not shrink into a dim marker. */
@@ -776,6 +832,12 @@ body {
   --sd-wash-a: color-mix(in srgb, var(--sd-violet) 11%, transparent);
 }
 
+.sd[data-provenance="supplied"][data-cognition="settled"] .sd-field::before,
+.sd[data-provenance="supplied"][data-cognition="accepted"] .sd-field::before {
+  --sd-wash-a: color-mix(in srgb, var(--sd-cyan) 16%, transparent);
+  --sd-wash-b: color-mix(in srgb, var(--sd-magenta) 12%, transparent);
+}
+
 /* Failed: a controlled, one-shot disruption on entering the state — never
    a loop, never implying the retry itself is exciting. */
 .sd[data-cognition="failed"] .sd-field-core {
@@ -790,6 +852,11 @@ body {
 @keyframes sdRing {
   0% { transform: scale(0.72); opacity: 0.7; }
   100% { transform: scale(1.55); opacity: 0; }
+}
+
+@keyframes sdContour {
+  0%, 100% { transform: rotate(var(--sd-contour-angle)); }
+  50% { transform: rotate(calc(var(--sd-contour-angle) + 10deg)); }
 }
 
 @keyframes sdDrift {
@@ -1216,7 +1283,10 @@ body {
   .sd[data-cognition="deriving"] .sd-field-ring,
   .sd[data-cognition="reconstructing"] .sd-field-specks,
   .sd[data-cognition="correcting"] .sd-field-specks,
-  .sd[data-cognition="deriving"] .sd-field-specks {
+  .sd[data-cognition="deriving"] .sd-field-specks,
+  .sd[data-cognition="reconstructing"] .sd-field-contour,
+  .sd[data-cognition="correcting"] .sd-field-contour,
+  .sd[data-cognition="deriving"] .sd-field-contour {
     animation: none;
     opacity: 0.55;
   }

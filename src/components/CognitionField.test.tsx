@@ -38,6 +38,9 @@ describe('CognitionField', () => {
     expect(container.querySelector('.sd-field-core')).toBeTruthy()
     expect(container.querySelector('.sd-field-ring')).toBeTruthy()
     expect(container.querySelector('.sd-field-specks')).toBeTruthy()
+    expect(container.querySelector('.sd-field-depth')).toBeTruthy()
+    expect(container.querySelector('.sd-field-contour-cyan')).toBeTruthy()
+    expect(container.querySelector('.sd-field-contour-magenta')).toBeTruthy()
   })
 
   it('reports pointer proximity via CSS custom properties, never React state, on pointer move', async () => {

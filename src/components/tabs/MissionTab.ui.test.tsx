@@ -19,6 +19,7 @@ function chain(data: unknown[] = []) {
   const query = {
     select: () => query,
     eq: () => query,
+    in: () => query,
     order: () => query,
     not: () => query,
     then: promise.then.bind(promise),

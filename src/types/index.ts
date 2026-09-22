@@ -158,6 +158,10 @@ export type MissionEventType =
   | 'delta_accepted'
   | 'delta_corrected'
   | 'delta_context_added'
+  // A concrete step the user supplied for an unresolved finish-line clause.
+  // Distinct from delta_corrected: the text is the operation to evaluate,
+  // not a reason for rejecting the fallback.
+  | 'delta_step_supplied'
 
 export interface MissionEvent {
   id: string
@@ -195,7 +199,7 @@ export interface EvidenceRecord {
 // intelligence): a rule-based prediction over real state, a
 // model-generated prediction, and honestly having nothing to predict from.
 // 'model' is reserved and rendered distinctly; no code path produces it yet.
-export type DeltaProvenance = 'deterministic' | 'model' | 'insufficient_context'
+export type DeltaProvenance = 'deterministic' | 'model' | 'supplied' | 'insufficient_context'
 
 // What kind of situation the current state is — historical LAR's job.
 export type DeltaSituation =
@@ -245,6 +249,10 @@ export type DeltaCandidateKind =
   // Runs through the exact same isConcreteMove gate and inhibition as
   // everything else; this only marks where the candidate came from.
   | 'model_suggested'
+  // A concrete step the user wrote for one unresolved clause. Same quality
+  // gate and inhibition as a model suggestion. Never a correction, and never
+  // written to the actions table.
+  | 'supplied_operation'
   // Kept so the human can see it was considered and rejected, never selected.
   | 'whole_mission'
 

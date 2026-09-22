@@ -8,6 +8,7 @@ import { useCapture } from '@/hooks/useCapture'
 import type {
   CapacityLevel,
   ContextAvailability,
+  DeltaCandidate,
   DeltaCorrection,
   EvidenceRecord,
   Mission,
@@ -15,6 +16,7 @@ import type {
   MissionState,
   StrategicDelta as Delta,
 } from '@/types'
+import { operationCandidateId } from '@/lib/strategicDelta'
 import {
   EMPTY_BOARD,
   abandonMission,
@@ -120,6 +122,7 @@ export function rowToEvidence(row: EvidenceRow): EvidenceRecord {
 export interface MissionEventRow {
   id: string
   mission_id: string
+  type?: string
   detail: string
   created_at: string
 }
@@ -143,6 +146,28 @@ export function rowToCorrection(row: MissionEventRow): DeltaCorrection | null {
   }
 }
 
+/** A step the user wrote for one clause. `detail` is `{ step, targetId }`.
+ *  The operation id is derived from those two fields, so a reload selects
+ *  the same candidate the session selected before it. */
+export function rowToSuppliedStep(row: MissionEventRow): DeltaCandidate | null {
+  try {
+    const parsed = JSON.parse(row.detail) as { step?: unknown; targetId?: unknown }
+    if (typeof parsed.step !== 'string' || parsed.step.trim().length === 0) return null
+    if (typeof parsed.targetId !== 'string' || !parsed.targetId.startsWith('clause:')) return null
+    const step = parsed.step.trim()
+    return {
+      id: operationCandidateId(parsed.targetId, step),
+      kind: 'supplied_operation',
+      move: step,
+      missionId: row.mission_id,
+      targetId: parsed.targetId,
+      rank: 0,
+    }
+  } catch {
+    return null
+  }
+}
+
 function newId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
@@ -158,6 +183,7 @@ export default function MissionTab() {
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([])
   const [evidenceStatus, setEvidenceStatus] = useState<ContextAvailability>('loading')
   const [corrections, setCorrections] = useState<DeltaCorrection[]>([])
+  const [suppliedSteps, setSuppliedSteps] = useState<DeltaCandidate[]>([])
   const [acceptedMove, setAcceptedMove] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -211,7 +237,7 @@ export default function MissionTab() {
       const [missionsRes, evidenceRes, correctionsRes] = await Promise.all([
         supabase.from('missions').select('*').eq('user_id', userId),
         supabase.from('evidence_snapshots').select('*'),
-        supabase.from('mission_events').select('*').eq('user_id', userId).eq('type', 'delta_corrected').order('created_at', { ascending: true }),
+        supabase.from('mission_events').select('*').eq('user_id', userId).in('type', ['delta_corrected', 'delta_step_supplied']).order('created_at', { ascending: true }),
       ])
       if (isCancelled()) return
       if (missionsRes.error) throw missionsRes.error
@@ -228,10 +254,18 @@ export default function MissionTab() {
         missions[row.id] = rowToMission(row)
       }
       setBoard({ missions })
+      const eventRows = (correctionsRes.data ?? []) as Array<MissionEventRow & { type?: string }>
       setCorrections(
-        ((correctionsRes.data ?? []) as MissionEventRow[])
+        eventRows
+          .filter(row => row.type === 'delta_corrected')
           .map(rowToCorrection)
           .filter((c): c is DeltaCorrection => c !== null),
+      )
+      setSuppliedSteps(
+        eventRows
+          .filter(row => row.type === 'delta_step_supplied')
+          .map(rowToSuppliedStep)
+          .filter((step): step is DeltaCandidate => step !== null),
       )
 
       if (!evidenceRes.error) {
@@ -438,6 +472,29 @@ export default function MissionTab() {
         createdAt: new Date().toISOString(),
       }
       setCorrections(prev => [...prev, correction])
+      setAcceptedMove(null)
+      return true
+    },
+    [recordDeltaEvent],
+  )
+
+  // The written step is the operation to evaluate, not a rejection of the
+  // fallback sentence. Local state updates only after the write succeeds,
+  // in oldest-first order, matching the reload query.
+  const handleSupplyStep = useCallback(
+    async (delta: Delta, step: string): Promise<boolean> => {
+      if (!delta.missionId || !delta.candidateId?.startsWith('clause:')) return false
+      const detail = JSON.stringify({ step, targetId: delta.candidateId })
+      const ok = await recordDeltaEvent('delta_step_supplied', delta.missionId, detail)
+      if (!ok) return false
+      const supplied = rowToSuppliedStep({
+        id: newId(),
+        mission_id: delta.missionId,
+        type: 'delta_step_supplied',
+        detail,
+        created_at: new Date().toISOString(),
+      })
+      if (supplied) setSuppliedSteps(prev => [...prev, supplied])
       setAcceptedMove(null)
       return true
     },
@@ -737,6 +794,8 @@ export default function MissionTab() {
         persistError={deltaError}
         onAccept={handleAcceptDelta}
         onCorrect={handleCorrectDelta}
+        onSupplyStep={handleSupplyStep}
+        suppliedOperations={suppliedSteps}
         onContextAdded={handleDeltaContext}
         onRecheck={handleDeltaRecheck}
         requestOperation={operationStageConfigured ? handleRequestOperation : undefined}

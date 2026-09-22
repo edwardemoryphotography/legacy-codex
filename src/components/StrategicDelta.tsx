@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DeltaCandidate, DeltaCorrection, EvidenceRecord, Mission, StrategicDelta as Delta } from '@/types'
-import { candidateTargetsClause, operationCandidateId, predictStrategicDelta, standsAsRequirement } from '@/lib/strategicDelta'
+import { candidateTargetsClause, operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
 import { ActionBtn, ActionChip, Textarea } from '@/components/ui'
 import CognitionField from '@/components/CognitionField'
 
@@ -14,6 +14,7 @@ export type DeltaPhase = 'orienting' | 'reading' | 'resolved'
 export type DeltaWrite = (delta: Delta) => void | boolean | Promise<void | boolean>
 export type DeltaCorrect = (delta: Delta, reason: string) => void | boolean | Promise<void | boolean>
 export type DeltaContextWrite = (delta: Delta, note: string) => void | boolean | Promise<void | boolean>
+export type DeltaSupplyStep = (delta: Delta, step: string) => void | boolean | Promise<void | boolean>
 
 // The narrowly bounded model-assist request: one clause in, one operation
 // (or nothing) out. The caller (MissionTab) owns auth and the actual fetch
@@ -38,6 +39,7 @@ const PHASE_TEXT: Record<Exclude<DeltaPhase, 'resolved'>, string> = {
 const PROVENANCE_LABEL: Record<Delta['provenance'], string> = {
   deterministic: 'Predicted from your mission state',
   model: 'Model-generated — not verified',
+  supplied: 'You supplied this step — not verified',
   insufficient_context: 'Not enough state to predict from',
 }
 
@@ -51,6 +53,8 @@ const INHIBITION_LABEL: Record<string, string> = {
   lower_leverage: 'Lower leverage',
   not_a_move: 'Restates the mission, not a move',
 }
+
+const NO_SUPPLIED_STEPS: DeltaCandidate[] = []
 
 type OpenPanel = 'why' | 'correct' | 'changed' | null
 type Cognition = 'reconstructing' | 'correcting' | 'deriving' | 'insufficient' | 'settled' | 'accepted' | 'failed'
@@ -98,6 +102,11 @@ interface Props {
   persistError?: string | null
   onAccept: DeltaWrite
   onCorrect: DeltaCorrect
+  /** Persist a step the user wrote for the unresolved clause, then let the
+   *  engine evaluate it. This is not a correction of the fallback sentence. */
+  onSupplyStep: DeltaSupplyStep
+  /** Steps already on record, including ones restored after reload. */
+  suppliedOperations?: DeltaCandidate[]
   onContextAdded: DeltaContextWrite
   onRecheck: () => void
   /** The narrowly bounded model-assist stage. Called at most once per
@@ -120,6 +129,8 @@ export default function StrategicDelta({
   persistError = null,
   onAccept,
   onCorrect,
+  onSupplyStep,
+  suppliedOperations = NO_SUPPLIED_STEPS,
   onContextAdded,
   onRecheck,
   requestOperation,
@@ -168,11 +179,14 @@ export default function StrategicDelta({
   // structural operation. `delta`, below, is what's actually shown, and
   // includes any model suggestion gathered so far.
   const baseDelta = useMemo(
-    () => (now === null ? null : predictStrategicDelta(missions, evidence, corrections, now, [])),
-    [missions, evidence, corrections, now],
+    () => (now === null ? null : predictStrategicDelta(missions, evidence, corrections, now, suppliedOperations)),
+    [missions, evidence, corrections, now, suppliedOperations],
   )
 
-  const suggestedOperations = useMemo(() => Object.values(modelSuggestions), [modelSuggestions])
+  const suggestedOperations = useMemo(
+    () => [...suppliedOperations, ...Object.values(modelSuggestions)],
+    [modelSuggestions, suppliedOperations],
+  )
 
   const delta = useMemo(
     () => (now === null ? null : predictStrategicDelta(missions, evidence, corrections, now, suggestedOperations)),
@@ -283,6 +297,20 @@ export default function StrategicDelta({
     setCorrecting(false)
   }
 
+  async function submitSuppliedStep() {
+    if (!delta || !correctionReason.trim() || recording) return
+    setRecording(true)
+    const result = await Promise.resolve(onSupplyStep(delta, correctionReason.trim()))
+    setRecording(false)
+    if (result === false) {
+      setOpen('correct')
+      return
+    }
+    setOpen(null)
+    setCorrectionReason('')
+    setNow(new Date().toISOString())
+  }
+
   async function submitChanged() {
     if (!delta || !changedNote.trim() || recording) return
     setRecording(true)
@@ -351,8 +379,10 @@ export default function StrategicDelta({
   const title = delta ? displayTitle(delta, isFirstRun, readAvailable) : null
   const aimedMission = delta?.missionId ? missions.find(mission => mission.id === delta.missionId) ?? null : null
   const finishLine = aimedMission?.finishLine ?? null
-  const requirementSteps = delta?.proofSteps.filter(step => standsAsRequirement(step.text)) ?? []
-  const shardSteps = delta?.proofSteps.filter(step => !standsAsRequirement(step.text)) ?? []
+  const proofSteps = delta?.proofSteps ?? []
+  const retainedStep = delta?.inhibited.find(candidate =>
+    candidate.kind === 'supplied_operation' && candidate.move !== delta.move,
+  ) ?? null
 
   return (
     <section
@@ -391,6 +421,9 @@ export default function StrategicDelta({
       ) : delta && title ? (
         <>
           <p className="sd-move" key={hasRecommendation ? delta.move : title} aria-live={hasRecommendation ? 'polite' : undefined}>{title}</p>
+          {retainedStep && !hasRecommendation && (
+            <p className="sd-taught">Kept: {retainedStep.move}. It stays on record, and it is not the next step.</p>
+          )}
 
           {primaryMission && (
             <p className="sd-commitment-link">
@@ -413,7 +446,7 @@ export default function StrategicDelta({
                   Name the concrete step
                 </ActionBtn>
                 <p className="sd-boundary">
-                  This records the step you supply. It does not save an action, and it is not evidence.
+                  If this step names something to do, it becomes the next move. It does not save an action, and it is not verified evidence.
                 </p>
               </div>
             ) : needsRead ? (
@@ -535,9 +568,9 @@ export default function StrategicDelta({
                 <section>
                   <h3>What your finish line asks you to prove</h3>
                   {finishLine && <p className="sd-finish">{finishLine}</p>}
-                  {requirementSteps.length > 0 && (
+                  {proofSteps.length > 0 && (
                     <ol className="sd-steps">
-                      {requirementSteps.map(step => (
+                      {proofSteps.map(step => (
                         <li
                           key={step.index}
                           data-selected={step.selected || undefined}
@@ -554,14 +587,8 @@ export default function StrategicDelta({
                       ))}
                     </ol>
                   )}
-                  {requirementSteps.length === 0 && finishLine && (
+                  {proofSteps.length === 0 && finishLine && (
                     <p>The finish line does not separate into independent requirements.</p>
-                  )}
-                  {shardSteps.length > 0 && (
-                    <p>
-                      The finish line also contains {shardSteps.map(step => `“${step.text}”`).join(', ')}.
-                      {shardSteps.length === 1 ? ' That phrase is not a separate requirement.' : ' Those phrases are not separate requirements.'}
-                    </p>
                   )}
                 </section>
               )}
@@ -639,7 +666,7 @@ export default function StrategicDelta({
                 textareaRef={correctionRef}
               />
               <div className="sd-controls">
-                <ActionBtn disabled={!correctionReason.trim() || recording} onClick={() => void submitCorrection()}>
+                <ActionBtn disabled={!correctionReason.trim() || recording} onClick={() => void (needsStep ? submitSuppliedStep() : submitCorrection())}>
                   {needsStep ? 'Record this step' : 'Teach it this'}
                 </ActionBtn>
                 <ActionChip variant="ghost" onClick={() => setOpen(null)}>
@@ -648,7 +675,7 @@ export default function StrategicDelta({
               </div>
               <p className="sd-hint">
                 {needsStep
-                  ? 'This records the step against the unresolved state. It does not save an action, it is not verified evidence, and it is not itself a prediction. The previous state stays in your history.'
+                  ? 'This keeps the step and evaluates it for this unresolved part. It does not save an action, and it is not verified evidence. A step that only restates the destination stays on record and is not offered as the next move.'
                   : 'This move stops being recommended and stays in your history as a correction. The previous prediction is kept, not erased.'}
               </p>
             </div>

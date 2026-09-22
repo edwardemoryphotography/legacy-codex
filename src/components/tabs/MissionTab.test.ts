@@ -4,11 +4,13 @@ import {
   rowToCorrection,
   rowToEvidence,
   rowToMission,
+  rowToSuppliedStep,
   type EvidenceRow,
   type MissionEventRow,
   type MissionRow,
 } from './MissionTab'
 import type { Mission } from '@/types'
+import { clauseId, operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
 
 // MissionTab.tsx is the only place that translates between missionLoop's
 // camelCase Mission/MissionEvent domain shapes and the snake_case
@@ -131,6 +133,49 @@ describe('rowToCorrection', () => {
     const detail = JSON.stringify({ move: 'Ping Vaughn', reason: 'stale', candidateId: 42 })
     const parsed = rowToCorrection({ ...base, detail })
     expect(parsed?.candidateId).toBeUndefined()
+  })
+})
+
+describe('rowToSuppliedStep', () => {
+  const step = 'Open the live page and write down the first broken sentence'
+  const targetId = clauseId('m1', 0)
+  const base: MissionEventRow = {
+    id: 'evt-step',
+    mission_id: 'm1',
+    type: 'delta_step_supplied',
+    detail: JSON.stringify({ step, targetId }),
+    created_at: '2026-09-07T12:00:00.000Z',
+  }
+
+  it('rebuilds the same operation a reload would select', () => {
+    const parsed = rowToSuppliedStep(base)
+    expect(parsed).toEqual({
+      id: operationCandidateId(targetId, step),
+      kind: 'supplied_operation',
+      move: step,
+      missionId: 'm1',
+      targetId,
+      rank: 0,
+    })
+
+    const delta = predictStrategicDelta(
+      [{ ...baseMission, finishLine: 'lands on main, deploys to Vercel, and answers without prompting' }],
+      [],
+      [],
+      '2026-09-07T12:00:00.000Z',
+      parsed ? [parsed] : [],
+    )
+    expect(delta.move).toBe(step)
+    expect(delta.candidateId).toBe(parsed?.id)
+    expect(delta.provenance).toBe('supplied')
+  })
+
+  it('returns null for a malformed step, and does not read a correction as a step', () => {
+    expect(rowToSuppliedStep({ ...base, detail: 'not json{' })).toBeNull()
+    expect(rowToSuppliedStep({ ...base, detail: JSON.stringify({ step: '   ', targetId }) })).toBeNull()
+    expect(rowToSuppliedStep({ ...base, detail: JSON.stringify({ step, targetId: 'advance:m1' }) })).toBeNull()
+    expect(rowToSuppliedStep({ ...base, detail: JSON.stringify({ move: step, reason: 'no', candidateId: targetId }) })).toBeNull()
+    expect(rowToCorrection({ ...base, detail: JSON.stringify({ step, targetId }) })).toBeNull()
   })
 })
 

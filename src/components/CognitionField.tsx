@@ -109,6 +109,9 @@ export default function CognitionField() {
 
   return (
     <div className="sd-field" ref={fieldRef} aria-hidden="true">
+      <span className="sd-field-depth" />
+      <span className="sd-field-contour sd-field-contour-cyan" />
+      <span className="sd-field-contour sd-field-contour-magenta" />
       <span className="sd-field-specks" />
       <span className="sd-field-ring" />
       <span className="sd-field-core" />

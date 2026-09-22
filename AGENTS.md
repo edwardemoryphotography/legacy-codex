@@ -150,12 +150,17 @@ Three rules that are load-bearing, not stylistic:
   canonical `actions` table. Recommendation ≠ commitment.
 - **Provenance is a discriminated union** (`DeltaProvenance`), and the status
  word encodes it: spectrum = unresolved cognition, teal = rule-based prediction,
- violet = model-generated, amber = insufficient context. The field itself keeps
- one violet/blue/cyan/magenta material and animates only while work is actually
- pending; insufficient and idle stay still, and amber is the status word rather
- than a shrunken field. The bounded `/api/delta-operation`
- path may produce `'model'` only after its output passes the same deterministic
- quality and inhibition gates; it must never render as teal.
+ cyan = a step the user supplied, violet = model-generated, amber = insufficient
+ context. The field itself keeps one violet/blue/cyan/magenta material — translucent
+ depth, a cyan edge, magenta light, and flowing contours inside that one field —
+ and animates only while work is actually pending; insufficient and idle stay
+ still, and amber is the status word rather than a shrunken field. The bounded
+ `/api/delta-operation` path may produce `'model'` only after its output passes
+ the same deterministic quality and inhibition gates; it must never render as teal.
+ A step the user writes is `delta_step_supplied` (`{ step, targetId }`), not a
+ `delta_corrected` reason. Provenance `'supplied'` means that step passed the same
+ gates; its label is "You supplied this step — not verified", and it must not
+ render as teal or as model violet.
 - **Insufficient context is a first-class path, not a fallback.** With no mission
   state the Delta names the one missing input. It never guesses.
 
