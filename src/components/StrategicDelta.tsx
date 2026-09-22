@@ -392,52 +392,6 @@ export default function StrategicDelta({
         <>
           <p className="sd-move" key={hasRecommendation ? delta.move : title} aria-live={hasRecommendation ? 'polite' : undefined}>{title}</p>
 
-          {!hasRecommendation && delta.move !== title && (
-            <p className="sd-because" aria-live="polite">{delta.move}</p>
-          )}
-          {(isFirstRun || delta.because !== delta.move) && (
-            <p className={hasRecommendation || delta.move === title ? 'sd-because' : 'sd-support'}>
-              {isFirstRun
-                ? 'Write the idea below. The next move is named from those words, and from nothing else.'
-                : delta.because}
-            </p>
-          )}
-
-          {/* Missing-input controls belong only to the true no-mission
-              state. A clause the engine can't derive an operation for is
-              also insufficient_context, but a real mission and finish line
-              already exist there — re-showing the "name your mission" form
-              would be wrong. */}
-          {delta.provenance === 'insufficient_context' && !delta.missionId && children}
-
-          {(correcting || awaitingOperation) && (
-            <p className="sd-phase">{showPhaseText ? phaseCopy : '\u00a0'}</p>
-          )}
-
-          {latestCorrection && (
-            <p className="sd-taught">
-              You taught it: {latestCorrection.reason}
-            </p>
-          )}
-
-          {persistError && (
-            <p className="sd-fail" role="alert">
-              {persistError}
-            </p>
-          )}
-
-          {operationError && (
-            <p className="sd-fail" role="alert">
-              {operationError}
-            </p>
-          )}
-
-          {accepted && (
-            <p className="sd-accepted">
-              Accepted — still a prediction until there&apos;s evidence
-            </p>
-          )}
-
           {primaryMission && (
             <p className="sd-commitment-link">
               <a href="#saved-action">Saved commitment</a>
@@ -502,6 +456,52 @@ export default function StrategicDelta({
               )}
             </div>
           </div>
+
+          {!hasRecommendation && delta.move !== title && (
+            <p className="sd-because" aria-live="polite">{delta.move}</p>
+          )}
+          {(isFirstRun || delta.because !== delta.move) && (
+            <p className={hasRecommendation || delta.move === title ? 'sd-because' : 'sd-support'}>
+              {isFirstRun
+                ? 'Write the idea below. The next move is named from those words, and from nothing else.'
+                : delta.because}
+            </p>
+          )}
+
+          {/* Missing-input controls belong only to the true no-mission
+              state. A clause the engine can't derive an operation for is
+              also insufficient_context, but a real mission and finish line
+              already exist there — re-showing the "name your mission" form
+              would be wrong. */}
+          {delta.provenance === 'insufficient_context' && !delta.missionId && children}
+
+          {(correcting || awaitingOperation) && (
+            <p className="sd-phase">{showPhaseText ? phaseCopy : '\u00a0'}</p>
+          )}
+
+          {latestCorrection && (
+            <p className="sd-taught">
+              You taught it: {latestCorrection.reason}
+            </p>
+          )}
+
+          {persistError && (
+            <p className="sd-fail" role="alert">
+              {persistError}
+            </p>
+          )}
+
+          {operationError && (
+            <p className="sd-fail" role="alert">
+              {operationError}
+            </p>
+          )}
+
+          {accepted && (
+            <p className="sd-accepted">
+              Accepted — still a prediction until there&apos;s evidence
+            </p>
+          )}
 
           <p className="sd-provenance">
             {isFirstRun ? "This is your own space — nothing here is shared." : PROVENANCE_LABEL[delta.provenance]}
