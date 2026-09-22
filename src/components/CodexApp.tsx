@@ -100,8 +100,10 @@ export default function CodexApp() {
   return (
     <div className="codex-shell">
       <header className="codex-header">
-        <h1>Legacy Codex<span className="brand-dot" aria-hidden="true" /></h1>
-        <p>A little clarity. One next move.</p>
+        <div className="codex-brand">
+          <h1>Legacy Codex<span className="brand-dot" aria-hidden="true" /></h1>
+          <p>Turn a real idea into the one next move.</p>
+        </div>
       </header>
 
       {/* Primary nav: the three everyday screens, always visible, plus More. */}

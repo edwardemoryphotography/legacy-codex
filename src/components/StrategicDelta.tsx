@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DeltaCandidate, DeltaCorrection, EvidenceRecord, Mission, StrategicDelta as Delta } from '@/types'
 import { candidateTargetsClause, operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
 import { ActionBtn, ActionChip, Textarea } from '@/components/ui'
+import ActivityOrb from '@/components/ActivityOrb'
 import CognitionField from '@/components/CognitionField'
+import type { OrbState } from 'thinking-orbs'
 
 // Phases are derived from work that is actually pending — anonymous
 // sign-in, then the missions/evidence read. Nothing here runs on a timer
@@ -55,14 +57,22 @@ const INHIBITION_LABEL: Record<string, string> = {
 type OpenPanel = 'why' | 'correct' | 'changed' | null
 type Cognition = 'reconstructing' | 'correcting' | 'deriving' | 'insufficient' | 'settled' | 'accepted' | 'failed'
 
-function eyebrowFor(cognition: Cognition, reasoning: boolean): string {
+function eyebrowFor(cognition: Cognition, reasoning: boolean, firstRun: boolean): string {
   if (cognition === 'failed') return 'This did not record'
   if (cognition === 'correcting') return 'Reconsidering'
   if (cognition === 'deriving') return 'Working out the step'
   if (reasoning) return 'Reconstructing'
+  if (firstRun) return 'Bring one idea'
   if (cognition === 'insufficient') return 'Not enough yet'
   if (cognition === 'accepted') return 'Intending this next'
-  return 'What matters now'
+  return 'Recommendation'
+}
+
+function orbFor(cognition: Cognition): { state: OrbState; active: boolean } {
+  if (cognition === 'correcting') return { state: 'weaving', active: true }
+  if (cognition === 'deriving' || cognition === 'reconstructing') return { state: 'solving', active: true }
+  if (cognition === 'failed') return { state: 'searching', active: false }
+  return { state: 'breathing', active: false }
 }
 
 interface Props {
@@ -337,12 +347,16 @@ export default function StrategicDelta({
       data-state={reconstructing ? 'reasoning' : 'resolved'}
       data-cognition={cognition}
       data-provenance={delta?.provenance ?? 'deterministic'}
+      data-first-run={isFirstRun ? 'true' : undefined}
       aria-busy={reconstructing || recording}
       aria-label="Strategic Delta"
     >
       <CognitionField />
 
-      <p className="sd-eyebrow">{eyebrowFor(cognition, pendingRead)}</p>
+      <div className="sd-kicker">
+        <ActivityOrb state={orbFor(cognition).state} size={20} active={orbFor(cognition).active} />
+        <p className="sd-eyebrow">{eyebrowFor(cognition, pendingRead, isFirstRun)}</p>
+      </div>
 
       {pendingRead ? (
         <p className="sd-phase" aria-live="polite">
@@ -354,7 +368,7 @@ export default function StrategicDelta({
 
           <p className="sd-because">
             {isFirstRun
-              ? 'Nothing to go on yet — tell it what actually matters right now, and it will ask for more only when it needs to.'
+              ? 'Write the idea below. The next move is named from those words, and from nothing else.'
               : delta.because}
           </p>
 
@@ -396,7 +410,10 @@ export default function StrategicDelta({
           <div className="sd-act">
             {delta.provenance === 'insufficient_context' || accepted ? null : (
               <div className="sd-act-primary">
-                <ActionBtn onClick={() => void accept()}>Do this</ActionBtn>
+                <ActionBtn onClick={() => void accept()}>Accept this move</ActionBtn>
+                <p className="sd-boundary">
+                  Accepting records the recommendation. It does not save an action, and it does not prove the work is done.
+                </p>
               </div>
             )}
             <div className="sd-act-secondary">
@@ -406,7 +423,7 @@ export default function StrategicDelta({
                 aria-expanded={open === 'why'}
                 aria-controls="sd-why"
               >
-                Why?
+                Why this?
               </ActionChip>
               <ActionChip
                 disabled={!canCorrect}
@@ -416,7 +433,7 @@ export default function StrategicDelta({
                 aria-controls="sd-correct"
                 title={canCorrect ? undefined : 'Nothing to correct until a mission exists'}
               >
-                Not right
+                Correct this
               </ActionChip>
               <ActionChip
                 disabled={!canCorrect}
@@ -445,6 +462,7 @@ export default function StrategicDelta({
               role="region"
               aria-label="Why this is the move"
             >
+              <p className="sd-why-lead">The move above is the recommendation. This is why it was chosen.</p>
               {delta.missionTitle && (
                 <section>
                   <h3>Mission</h3>

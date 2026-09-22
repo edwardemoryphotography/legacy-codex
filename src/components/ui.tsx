@@ -168,29 +168,41 @@ export function Input({
 /* ─── Textarea ───────────────────────────────────────────────── */
 export function Textarea({
   id,
+  name,
   value,
   onChange,
   placeholder,
   rows = 6,
   compact = false,
+  required,
+  autoComplete,
+  className,
   textareaRef,
 }: {
   id?: string
+  name?: string
   value?: string
   onChange?: (v: string) => void
   placeholder?: string
   rows?: number
   compact?: boolean
+  required?: boolean
+  autoComplete?: string
+  className?: string
   textareaRef?: Ref<HTMLTextAreaElement>
 }) {
   return (
     <textarea
       id={id}
+      name={name}
       ref={textareaRef}
       value={value}
       onChange={e => onChange?.(e.target.value)}
       placeholder={placeholder}
       rows={rows}
+      required={required}
+      autoComplete={autoComplete}
+      className={className}
       style={{
         width: '100%',
         border: '1px solid var(--line-strong)',
