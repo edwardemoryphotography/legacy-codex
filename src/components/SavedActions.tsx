@@ -17,11 +17,23 @@ type SavedAction = {
 
 const fields = 'id,mission_id,action_title,status,resume_note,updated_at,mission:missions!inner(title,state)'
 
-export default function SavedActions({ missionId, onActiveChange }: { missionId?: string; onActiveChange?: (missionId: string, active: boolean) => void }) {
+export default function SavedActions({
+  missionId,
+  suggestedTitle,
+  onActiveChange,
+}: {
+  missionId?: string
+  /** The recommendation the person just accepted, if any. Seeds the
+   *  composer once so the saved action can use the same words. Never
+   *  written for them — saving stays an explicit commitment. */
+  suggestedTitle?: string | null
+  onActiveChange?: (missionId: string, active: boolean) => void
+}) {
   const [actions, setActions] = useState<SavedAction[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [title, setTitle] = useState('')
+  const [titleTouched, setTitleTouched] = useState(false)
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
 
@@ -49,6 +61,14 @@ export default function SavedActions({ missionId, onActiveChange }: { missionId?
   }, [missionId, loading, error, hasOpenAction, onActiveChange])
 
   useEffect(() => {
+    if (!suggestedTitle || titleTouched) return
+    // Seeding the composer from an accepted recommendation is a reaction to
+    // that prop, not a render-time derivation — the field stays editable.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTitle(suggestedTitle)
+  }, [suggestedTitle, titleTouched])
+
+  useEffect(() => {
     let cancelled = false
     // The connection and reads are asynchronous; no state is set on setup.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -74,18 +94,24 @@ export default function SavedActions({ missionId, onActiveChange }: { missionId?
   const openActions = actions.filter(action => action.status !== 'DONE')
   const doneActions = actions.filter(action => action.status === 'DONE')
   return (
-    <section className="space-y-4 mt-6 pt-6" style={{ borderTop: '1px solid var(--line)' }} aria-label="Saved next actions">
-      <h3 className="text-xl font-semibold">{missionId ? 'Your next action' : 'Pick up where you left off'}</h3>
+    <section className="commitment-panel" id="saved-action" aria-label="Saved next actions">
+      <p className="commitment-kicker">Saved action</p>
+      <h3>{missionId ? 'The action you can return to' : 'Pick up where you left off'}</h3>
+      <p className="commitment-lead">
+        {missionId
+          ? 'This is a commitment, separate from the recommendation above. The note stays with the same action when you come back.'
+          : 'These are the actions you saved. Each note is the starting point you left yourself.'}
+      </p>
       {loading ? <p role="status">Reading your saved actions…</p> : error ? (
         <div role="alert"><p>{error}</p><ActionBtn onClick={() => { setLoading(true); void load() }}>Retry saved actions</ActionBtn></div>
       ) : <>
-        {openActions.map(action => <ActionCard key={`${action.id}:${action.updated_at}`} action={action} onSaved={saved => {
+        {openActions.map(action => <ActionCard key={`${action.id}:${action.updated_at}`} action={action} matchesRecommendation={action.action_title === suggestedTitle} onSaved={saved => {
           setActions(previous => previous.map(item => item.id === saved.id ? saved : item))
         }} />)}
         {!openActions.length && (missionId ? <div className="space-y-3">
           <p>Name one concrete step you want to take. Saving it is a commitment, not proof that it is done.</p>
-          <label htmlFor="saved-action-title" className="sr-only">Next action to save</label>
-          <Input id="saved-action-title" value={title} onChange={setTitle} placeholder="What will you do next?" />
+          <label htmlFor="saved-action-title">Name the action to save</label>
+          <Input id="saved-action-title" value={title} onChange={value => { setTitleTouched(true); setTitle(value) }} placeholder="What will you do next?" />
           <ActionBtn disabled={saving || !title.trim()} onClick={saveAction}>{saving ? 'Saving…' : 'Save next action'}</ActionBtn>
         </div> : <p>No unfinished actions are saved. Choose your next action on the Mission screen.</p>)}
         {doneActions.length > 0 && <details><summary>Actions you marked done ({doneActions.length})</summary>
@@ -98,7 +124,7 @@ export default function SavedActions({ missionId, onActiveChange }: { missionId?
   )
 }
 
-function ActionCard({ action, onSaved }: { action: SavedAction; onSaved: (action: SavedAction) => void }) {
+function ActionCard({ action, onSaved, matchesRecommendation }: { action: SavedAction; onSaved: (action: SavedAction) => void; matchesRecommendation?: boolean }) {
   const [note, setNote] = useState(action.resume_note ?? '')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -115,10 +141,11 @@ function ActionCard({ action, onSaved }: { action: SavedAction; onSaved: (action
       setMessage('Could not save this change. Your note is still here. Copy it before refreshing if another tab changed this action.')
     } finally { setBusy(false) }
   }
-  return <article className="space-y-3 rounded-xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
-    <p className="text-sm" style={{ color: 'var(--text-dim)' }}>{action.mission.title} · {action.status === 'IN_PROGRESS' ? 'In progress' : 'Ready to resume'}{action.mission.state !== 'primary' ? ` · Mission ${action.mission.state}` : ''}</p>
-    <h4 className="text-lg font-semibold">{action.action_title}</h4>
-    <label htmlFor={`resume-${action.id}`}>Leave yourself a starting point</label>
+  return <article className="commitment-card">
+    <p className="commitment-meta">{action.mission.title} · {action.status === 'IN_PROGRESS' ? 'In progress' : 'Ready to resume'}{action.mission.state !== 'primary' ? ` · Mission ${action.mission.state}` : ''}</p>
+    <h4 className="commitment-title">{action.action_title}</h4>
+    {matchesRecommendation && <p className="commitment-same">Same words as the recommendation you accepted.</p>}
+    <label htmlFor={`resume-${action.id}`}>Starting point</label>
     <Textarea id={`resume-${action.id}`} value={note} onChange={setNote} rows={3} placeholder="Where did you stop? What should you do when you return?" />
     <div className="flex flex-wrap gap-3">
       {action.status !== 'IN_PROGRESS' && <ActionBtn disabled={busy} onClick={() => update('IN_PROGRESS')}>Start / resume</ActionBtn>}

@@ -2,6 +2,10 @@
 import { useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/components/ActivityOrb', () => ({
+  default: () => null,
+}))
 import type { Mission, MissionState } from '@/types'
 import { operationCandidateId } from '@/lib/strategicDelta'
 import StrategicDelta from './StrategicDelta'
@@ -97,7 +101,7 @@ describe('StrategicDelta', () => {
     expect(screen.queryByText(/^Verify (this|that|it)/i)).toBeNull()
     expect(screen.getByLabelText('Strategic Delta').getAttribute('data-provenance')).toBe('insufficient_context')
     // Insufficient-context still hides "Do this" — there is nothing to accept.
-    expect(screen.queryByRole('button', { name: 'Do this' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Accept this move' })).toBeNull()
   })
 
   // §30 — the UI must never let insufficient context read as intelligence.
@@ -110,9 +114,9 @@ describe('StrategicDelta', () => {
     // implementation language ("mission state", "predict from") for a
     // visitor who has never used the product before.
     expect(screen.getByText('This is your own space — nothing here is shared.')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Do this' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Accept this move' })).toBeNull()
     // Nothing to correct when nothing was predicted.
-    expect((screen.getByRole('button', { name: 'Not right' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Correct this' }) as HTMLButtonElement).disabled).toBe(true)
     // Live region stays on the move copy, never on the section — wrapping
     // inputs in aria-live intercepts focus/typing on Safari/iOS.
     expect(screen.getByLabelText('Strategic Delta').getAttribute('aria-live')).toBeNull()
@@ -204,7 +208,7 @@ describe('StrategicDelta', () => {
       mission({ id: 'm2', state: 'secondary', title: 'Write the docs', finishLine: 'drafts the page, and gets a review' }),
     ])
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Why?' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Why this?' }))
 
     expect(screen.getByText('Current reality')).toBeTruthy()
     expect(screen.getByText('Blocking gap')).toBeTruthy()
@@ -222,7 +226,7 @@ describe('StrategicDelta', () => {
   it('shows which part of the finish line it is aiming at, and which parts were ruled out', async () => {
     renderDelta([PRIMARY])
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Why?' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Why this?' }))
 
     expect(screen.getByText('What your finish line asks you to prove')).toBeTruthy()
     const steps = [...document.querySelectorAll('.sd-steps li')].map(li => li.textContent ?? '')
@@ -243,7 +247,7 @@ describe('StrategicDelta', () => {
 
     const firstMove = (await screen.findByText(/Clear what's blocking/)).textContent ?? ''
 
-    fireEvent.click(screen.getByRole('button', { name: 'Not right' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Correct this' }))
     fireEvent.change(screen.getByLabelText(/isn't right/i), { target: { value: 'Vaughn is out; Beau is available' } })
     fireEvent.click(screen.getByRole('button', { name: 'Teach it this' }))
 
@@ -256,7 +260,7 @@ describe('StrategicDelta', () => {
   it('accepting records agreement without claiming the work is done', async () => {
     const props = renderDelta([BLOCKED])
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Do this' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Accept this move' }))
     expect(props.onAccept).toHaveBeenCalledWith(expect.objectContaining({ missionId: 'm1' }))
   })
 

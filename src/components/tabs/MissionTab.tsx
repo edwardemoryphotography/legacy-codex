@@ -35,7 +35,7 @@ import {
   type PriorityChallenge,
 } from '@/lib/missionLoop'
 import { groupByMission, hasConflict, isStale } from '@/lib/evidence'
-import { ActionBtn, ActionChip, Badge, Card, Input, SectionSubtitle, SectionTitle } from '@/components/ui'
+import { ActionBtn, ActionChip, Badge, Card, Input, SectionSubtitle, SectionTitle, Textarea } from '@/components/ui'
 import NextMovePanel from '@/components/NextMovePanel'
 import SavedActions from '@/components/SavedActions'
 import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase } from '@/components/StrategicDelta'
@@ -178,6 +178,7 @@ export default function MissionTab() {
   const [newWhy, setNewWhy] = useState('')
   const [nameTitle, setNameTitle] = useState('')
   const [nameFinish, setNameFinish] = useState('')
+  const [resumableMissionId, setResumableMissionId] = useState<string | null>(null)
 
   // Capture Idea — shared pipeline with ControlsTab; Mission Screen never
   // renders capture.inbox, only writes through it (spec: no full backlog here)
@@ -460,6 +461,10 @@ export default function MissionTab() {
     if (user) void loadAll(user.id)
   }, [user, loadAll])
 
+  const handleResumableAction = useCallback((missionId: string, active: boolean) => {
+    setResumableMissionId(active ? missionId : null)
+  }, [])
+
   // The narrowly bounded model-assist stage: one clause in, one operation
   // (or null) out. Owns auth and the network call so StrategicDelta.tsx
   // stays Supabase-agnostic, same as every other onXxx prop it takes. Never
@@ -505,6 +510,25 @@ export default function MissionTab() {
   const challengeCandidates = missionList.filter(
     m => (m.state === 'parked' || m.state === 'candidate') && m.finishLine,
   )
+  const sessionReady = loaded && !!user && !loadFailed
+  const confirmedEmpty = sessionReady && missionList.length === 0
+  const stage: 'idea' | 'recommendation' | 'commitment' =
+    sessionReady && primary && resumableMissionId === primary.id
+      ? 'commitment'
+      : sessionReady && primary
+        ? 'recommendation'
+        : 'idea'
+
+  const STATE_LABEL: Record<Mission['state'], string> = {
+    candidate: 'Candidate',
+    parked: 'Parked',
+    primary: 'Primary',
+    secondary: 'Secondary',
+    blocked: 'Blocked',
+    completed: 'Completed',
+    paused: 'Paused',
+    abandoned: 'Abandoned',
+  }
 
   async function handleNewMission() {
     if (!user || !newTitle.trim()) return
@@ -683,6 +707,23 @@ export default function MissionTab() {
         </div>
       )}
 
+      {sessionReady && (
+        <ol className="mission-path" aria-label="From idea to saved action">
+          <li aria-current={stage === 'idea' ? 'step' : undefined}>
+            <span>Idea</span>
+            <small>What you are finishing</small>
+          </li>
+          <li aria-current={stage === 'recommendation' ? 'step' : undefined}>
+            <span>Recommendation</span>
+            <small>A prediction, not a commitment</small>
+          </li>
+          <li aria-current={stage === 'commitment' ? 'step' : undefined}>
+            <span>Saved action</span>
+            <small>What you can resume</small>
+          </li>
+        </ol>
+      )}
+
       {/* The predictive front door: resolves from real state before the
           user types anything, and renders during the load so its reasoning
           state reflects work that is actually pending. */}
@@ -700,7 +741,7 @@ export default function MissionTab() {
         onRecheck={handleDeltaRecheck}
         requestOperation={operationStageConfigured ? handleRequestOperation : undefined}
       >
-        {loaded && missionList.length === 0 ? (
+        {confirmedEmpty ? (
           <form
             className="mission-invite"
             onSubmit={event => {
@@ -709,21 +750,21 @@ export default function MissionTab() {
             }}
           >
             <div className="mission-invite-field">
-              <label htmlFor="mission-outcome">The outcome that matters most</label>
-              <Input
+              <label htmlFor="mission-outcome">Your idea or project</label>
+              <Textarea
                 id="mission-outcome"
                 name="outcome"
                 className="mission-invite-input"
                 autoComplete="off"
-                enterKeyHint="next"
                 required
-                placeholder="A real human outcome"
+                rows={5}
+                placeholder="A real project, in your words"
                 value={nameTitle}
                 onChange={setNameTitle}
               />
             </div>
             <div className="mission-invite-field">
-              <label htmlFor="mission-finish">The finish line that ends it</label>
+              <label htmlFor="mission-finish">How you will know it is done</label>
               <Input
                 id="mission-finish"
                 name="finish_line"
@@ -731,7 +772,7 @@ export default function MissionTab() {
                 autoComplete="off"
                 enterKeyHint="done"
                 required
-                placeholder="The observable condition that makes it complete"
+                placeholder="The observable thing that means it is finished"
                 value={nameFinish}
                 onChange={setNameFinish}
               />
@@ -749,14 +790,50 @@ export default function MissionTab() {
       {/* Accepting a Delta is a prediction, not a commitment — SavedActions
           is where accepting one turns into a tracked, resumable action with
           status and a place to leave yourself a note. */}
-      {loaded && user && !loadFailed && primary && (
-        <SavedActions key={primary.id} missionId={primary.id} />
+      {sessionReady && primary && (
+        <SavedActions
+          key={primary.id}
+          missionId={primary.id}
+          suggestedTitle={acceptedMove}
+          onActiveChange={handleResumableAction}
+        />
       )}
 
       {!loaded ? (
         <p className="mission-status">Loading missions…</p>
+      ) : !sessionReady ? null : confirmedEmpty ? (
+        <details className="mission-disclosure">
+          <summary>Park an idea you are not ready to commit</summary>
+          <div className="mission-park">
+            <p>
+              Parking stores the words without making them the one thing that matters, and without asking for a next move.
+            </p>
+            <div className="mission-invite-field">
+              <label htmlFor="parked-idea">The idea to park</label>
+              <Input id="parked-idea" value={newTitle} onChange={setNewTitle} placeholder="Something to keep, not to start" />
+            </div>
+            <ActionBtn disabled={!newTitle.trim()} onClick={handleNewMission}>Park this idea</ActionBtn>
+            <div className="mission-invite-field">
+              <label htmlFor="capture-idea">Or capture it in a sentence</label>
+              <Input id="capture-idea" value={captureText} onChange={setCaptureText} placeholder="Say it in your own words" />
+            </div>
+            <ActionBtn disabled={!captureText.trim()} onClick={handleCaptureIdea}>Capture</ActionBtn>
+            {capture.status && <p role="status">{capture.status}</p>}
+          </div>
+        </details>
       ) : (
         <>
+          <section className="mission-index" aria-label="Your missions">
+            <h2>Your missions</h2>
+            <ul>
+              {missionList.map(mission => (
+                <li key={mission.id}>
+                  <span className="mission-index-state">{STATE_LABEL[mission.state]}</span>
+                  <span className="mission-index-title">{mission.title}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
           {/* "Right Now" used to live here. The Strategic Delta above states
               the same thing and carries provenance and controls, so keeping
               both showed the user one sentence twice. */}
