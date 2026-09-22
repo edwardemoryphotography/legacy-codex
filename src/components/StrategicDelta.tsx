@@ -2,11 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DeltaCandidate, DeltaCorrection, EvidenceRecord, Mission, StrategicDelta as Delta } from '@/types'
-import { candidateTargetsClause, operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
+import { candidateTargetsClause, operationCandidateId, predictStrategicDelta, standsAsRequirement } from '@/lib/strategicDelta'
 import { ActionBtn, ActionChip, Textarea } from '@/components/ui'
-import ActivityOrb from '@/components/ActivityOrb'
 import CognitionField from '@/components/CognitionField'
-import type { OrbState } from 'thinking-orbs'
 
 // Phases are derived from work that is actually pending — anonymous
 // sign-in, then the missions/evidence read. Nothing here runs on a timer
@@ -68,11 +66,16 @@ function eyebrowFor(cognition: Cognition, reasoning: boolean, firstRun: boolean)
   return 'Recommendation'
 }
 
-function orbFor(cognition: Cognition): { state: OrbState; active: boolean } {
-  if (cognition === 'correcting') return { state: 'weaving', active: true }
-  if (cognition === 'deriving' || cognition === 'reconstructing') return { state: 'solving', active: true }
-  if (cognition === 'failed') return { state: 'searching', active: false }
-  return { state: 'breathing', active: false }
+function displayTitle(delta: Delta, isFirstRun: boolean, readAvailable: boolean): string {
+  if (delta.provenance !== 'insufficient_context') return delta.move
+  if (!delta.missionId) {
+    if (!readAvailable) return 'Not enough to predict'
+    return isFirstRun ? 'Name what matters' : 'Not enough to predict'
+  }
+  if (delta.blockingGap?.startsWith('No concrete operation')) return 'Needs a concrete step'
+  if (delta.blockingGap === 'No part of the finish line is smaller than the finish line.') return 'Needs a smaller step'
+  if (delta.blockingGap === 'The only candidate this mission had was corrected.') return 'Needs another angle'
+  return 'Not enough to predict'
 }
 
 interface Props {
@@ -341,6 +344,16 @@ export default function StrategicDelta({
       ? 'Working out the concrete step…'
       : PHASE_TEXT[phase === 'resolved' ? 'reading' : phase]
 
+  const primaryMission = missions.find(mission => mission.state === 'primary') ?? null
+  const hasRecommendation = delta !== null && delta.provenance !== 'insufficient_context'
+  const needsStep = delta?.provenance === 'insufficient_context' && Boolean(delta.missionId)
+  const needsRead = delta?.provenance === 'insufficient_context' && !delta.missionId && !readAvailable
+  const title = delta ? displayTitle(delta, isFirstRun, readAvailable) : null
+  const aimedMission = delta?.missionId ? missions.find(mission => mission.id === delta.missionId) ?? null : null
+  const finishLine = aimedMission?.finishLine ?? null
+  const requirementSteps = delta?.proofSteps.filter(step => standsAsRequirement(step.text)) ?? []
+  const shardSteps = delta?.proofSteps.filter(step => !standsAsRequirement(step.text)) ?? []
+
   return (
     <section
       className="sd"
@@ -351,26 +364,44 @@ export default function StrategicDelta({
       aria-busy={reconstructing || recording}
       aria-label="Strategic Delta"
     >
+      <div className="sd-stage">
       <CognitionField />
-
-      <div className="sd-kicker">
-        <ActivityOrb state={orbFor(cognition).state} size={20} active={orbFor(cognition).active} />
-        <p className="sd-eyebrow">{eyebrowFor(cognition, pendingRead, isFirstRun)}</p>
-      </div>
+      <div className="sd-copy">
+      <header className="sd-identity">
+        <h2>Strategic Delta</h2>
+        <p className="sd-purpose">Your best next move</p>
+      </header>
+      {!pendingRead && (
+        <p className="sd-mission">
+          {primaryMission ? (
+            <>Primary mission <strong>{primaryMission.title}</strong></>
+          ) : readAvailable ? (
+            'No Primary mission yet'
+          ) : (
+            'Primary mission unavailable'
+          )}
+        </p>
+      )}
+      <p className="sd-status">{eyebrowFor(cognition, pendingRead, isFirstRun)}</p>
 
       {pendingRead ? (
         <p className="sd-phase" aria-live="polite">
           {showPhaseText ? phaseCopy : '\u00a0'}
         </p>
-      ) : delta ? (
+      ) : delta && title ? (
         <>
-          <p className="sd-move" key={delta.move} aria-live="polite">{delta.move}</p>
+          <p className="sd-move" key={hasRecommendation ? delta.move : title} aria-live={hasRecommendation ? 'polite' : undefined}>{title}</p>
 
-          <p className="sd-because">
-            {isFirstRun
-              ? 'Write the idea below. The next move is named from those words, and from nothing else.'
-              : delta.because}
-          </p>
+          {!hasRecommendation && delta.move !== title && (
+            <p className="sd-because" aria-live="polite">{delta.move}</p>
+          )}
+          {(isFirstRun || delta.because !== delta.move) && (
+            <p className={hasRecommendation || delta.move === title ? 'sd-because' : 'sd-support'}>
+              {isFirstRun
+                ? 'Write the idea below. The next move is named from those words, and from nothing else.'
+                : delta.because}
+            </p>
+          )}
 
           {/* Missing-input controls belong only to the true no-mission
               state. A clause the engine can't derive an operation for is
@@ -407,45 +438,68 @@ export default function StrategicDelta({
             </p>
           )}
 
+          {primaryMission && (
+            <p className="sd-commitment-link">
+              <a href="#saved-action">Saved commitment</a>
+              <span>Kept separate from this prediction.</span>
+            </p>
+          )}
+
           <div className="sd-act">
-            {delta.provenance === 'insufficient_context' || accepted ? null : (
+            {hasRecommendation && !accepted ? (
               <div className="sd-act-primary">
                 <ActionBtn onClick={() => void accept()}>Accept this move</ActionBtn>
                 <p className="sd-boundary">
                   Accepting records the recommendation. It does not save an action, and it does not prove the work is done.
                 </p>
               </div>
-            )}
+            ) : needsStep ? (
+              <div className="sd-act-primary">
+                <ActionBtn onClick={() => setOpen(open === 'correct' ? null : 'correct')} aria-expanded={open === 'correct'} aria-controls="sd-correct">
+                  Name the concrete step
+                </ActionBtn>
+                <p className="sd-boundary">
+                  This records the step you supply. It does not save an action, and it is not evidence.
+                </p>
+              </div>
+            ) : needsRead ? (
+              <div className="sd-act-primary">
+                <ActionBtn onClick={recheck}>Check again</ActionBtn>
+                <p className="sd-boundary">
+                  The mission read did not succeed, so there is nothing honest to predict from yet.
+                </p>
+              </div>
+            ) : null}
             <div className="sd-act-secondary">
               <ActionChip
                 onClick={() => setOpen(open === 'why' ? null : 'why')}
-                variant={open === 'why' ? 'primary' : 'secondary'}
+                variant="ghost"
                 aria-expanded={open === 'why'}
                 aria-controls="sd-why"
               >
                 Why this?
               </ActionChip>
-              <ActionChip
-                disabled={!canCorrect}
-                onClick={() => setOpen(open === 'correct' ? null : 'correct')}
-                variant={open === 'correct' ? 'primary' : 'secondary'}
-                aria-expanded={open === 'correct'}
-                aria-controls="sd-correct"
-                title={canCorrect ? undefined : 'Nothing to correct until a mission exists'}
-              >
-                Correct this
-              </ActionChip>
-              <ActionChip
-                disabled={!canCorrect}
-                onClick={() => setOpen(open === 'changed' ? null : 'changed')}
-                variant={open === 'changed' ? 'primary' : 'secondary'}
-                aria-expanded={open === 'changed'}
-                aria-controls="sd-changed"
-                className="sd-act-changed"
-                title={canCorrect ? undefined : 'Nothing to attach a note to until a mission exists'}
-              >
-                Something changed
-              </ActionChip>
+              {hasRecommendation && canCorrect && (
+                <ActionChip
+                  onClick={() => setOpen(open === 'correct' ? null : 'correct')}
+                  variant="secondary"
+                  aria-expanded={open === 'correct'}
+                  aria-controls="sd-correct"
+                >
+                  Correct this
+                </ActionChip>
+              )}
+              {canCorrect && (
+                <ActionChip
+                  onClick={() => setOpen(open === 'changed' ? null : 'changed')}
+                  variant="ghost"
+                  aria-expanded={open === 'changed'}
+                  aria-controls="sd-changed"
+                  className="sd-act-changed"
+                >
+                  Something changed
+                </ActionChip>
+              )}
             </div>
           </div>
 
@@ -460,9 +514,13 @@ export default function StrategicDelta({
               ref={whyRef}
               tabIndex={-1}
               role="region"
-              aria-label="Why this is the move"
+              aria-label={hasRecommendation ? 'Why this is the move' : 'Why no recommendation was chosen'}
             >
-              <p className="sd-why-lead">The move above is the recommendation. This is why it was chosen.</p>
+              <p className="sd-why-lead">
+                {hasRecommendation
+                  ? 'The move above is the recommendation. This is why it was chosen.'
+                  : 'No recommendation was chosen. This is the state the prediction stopped in, and what it was missing.'}
+              </p>
               {delta.missionTitle && (
                 <section>
                   <h3>Mission</h3>
@@ -473,26 +531,38 @@ export default function StrategicDelta({
                 <h3>Current reality</h3>
                 <p>{delta.currentReality}</p>
               </section>
-              {delta.proofSteps.length > 0 && (
+              {(finishLine || delta.proofSteps.length > 0) && (
                 <section>
                   <h3>What your finish line asks you to prove</h3>
-                  <ol className="sd-steps">
-                    {delta.proofSteps.map(step => (
-                      <li
-                        key={step.index}
-                        data-selected={step.selected || undefined}
-                        data-rejected={step.rejectedOperations > 0 || undefined}
-                      >
-                        {step.text}
-                        {step.selected && <span className="sd-step-tag">aiming here</span>}
-                        {step.rejectedOperations > 0 && (
-                          <span className="sd-step-tag">
-                            {step.rejectedOperations} rejected move{step.rejectedOperations === 1 ? '' : 's'}; still unresolved
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ol>
+                  {finishLine && <p className="sd-finish">{finishLine}</p>}
+                  {requirementSteps.length > 0 && (
+                    <ol className="sd-steps">
+                      {requirementSteps.map(step => (
+                        <li
+                          key={step.index}
+                          data-selected={step.selected || undefined}
+                          data-rejected={step.rejectedOperations > 0 || undefined}
+                        >
+                          {step.text}
+                          {step.selected && <span className="sd-step-tag">aiming here</span>}
+                          {step.rejectedOperations > 0 && (
+                            <span className="sd-step-tag">
+                              {step.rejectedOperations} rejected move{step.rejectedOperations === 1 ? '' : 's'}; still unresolved
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                  {requirementSteps.length === 0 && finishLine && (
+                    <p>The finish line does not separate into independent requirements.</p>
+                  )}
+                  {shardSteps.length > 0 && (
+                    <p>
+                      The finish line also contains {shardSteps.map(step => `“${step.text}”`).join(', ')}.
+                      {shardSteps.length === 1 ? ' That phrase is not a separate requirement.' : ' Those phrases are not separate requirements.'}
+                    </p>
+                  )}
                 </section>
               )}
               {delta.blockingGap && (
@@ -507,6 +577,12 @@ export default function StrategicDelta({
                   {delta.evidenceState === 'none'
                     ? 'No evidence is linked to this mission, so nothing here is verified.'
                     : `Evidence on this mission is ${delta.evidenceState}.`}
+                </p>
+              </section>
+              <section>
+                <h3>Saved commitment</h3>
+                <p>
+                  A saved action and its starting-point note are a commitment you recorded. Strategic Delta does not read them. It predicts from the mission, the finish line, linked evidence, and corrections. The note is your report of where you stopped. It is not verified evidence, and it does not become this recommendation.
                 </p>
               </section>
               {delta.inhibited.length > 0 && (
@@ -534,34 +610,46 @@ export default function StrategicDelta({
 
           {open === 'correct' && (
             <div id="sd-correct" className="sd-why sd-teach">
-              <p className="sd-teach-target">
-                <span>Teaching it about</span>
-                {delta.move}
-              </p>
-              <h3>What&apos;s off about this?</h3>
-              <label htmlFor="sd-correction" className="sr-only">
-                Why this move isn&apos;t right
-              </label>
+              {needsStep ? (
+                <>
+                  <h3>What is the concrete step?</h3>
+                  <label htmlFor="sd-correction" className="sr-only">
+                    The concrete step this mission needs
+                  </label>
+                </>
+              ) : (
+                <>
+                  <p className="sd-teach-target">
+                    <span>Teaching it about</span>
+                    {delta.move}
+                  </p>
+                  <h3>What&apos;s off about this?</h3>
+                  <label htmlFor="sd-correction" className="sr-only">
+                    Why this move isn&apos;t right
+                  </label>
+                </>
+              )}
               <Textarea
                 id="sd-correction"
                 rows={3}
                 compact
                 value={correctionReason}
                 onChange={setCorrectionReason}
-                placeholder="Vaughn isn't available this week. Beau is."
+                placeholder={needsStep ? 'The one action that would move this forward.' : "Vaughn isn't available this week. Beau is."}
                 textareaRef={correctionRef}
               />
               <div className="sd-controls">
                 <ActionBtn disabled={!correctionReason.trim() || recording} onClick={() => void submitCorrection()}>
-                  Teach it this
+                  {needsStep ? 'Record this step' : 'Teach it this'}
                 </ActionBtn>
                 <ActionChip variant="ghost" onClick={() => setOpen(null)}>
                   Cancel
                 </ActionChip>
               </div>
               <p className="sd-hint">
-                This move stops being recommended and stays in your history as a correction. The
-                previous prediction is kept, not erased.
+                {needsStep
+                  ? 'This records the step against the unresolved state. It does not save an action, it is not verified evidence, and it is not itself a prediction. The previous state stays in your history.'
+                  : 'This move stops being recommended and stays in your history as a correction. The previous prediction is kept, not erased.'}
               </p>
             </div>
           )}
@@ -601,6 +689,8 @@ export default function StrategicDelta({
           )}
         </>
       ) : null}
+      </div>
+      </div>
     </section>
   )
 }

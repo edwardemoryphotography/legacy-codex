@@ -5,6 +5,7 @@ import {
   candidateTargetsClause,
   clauseId,
   decomposeFinishLine,
+  standsAsRequirement,
   isConcreteMove,
   generateCandidates,
   inhibit,
@@ -575,6 +576,22 @@ describe('isConcreteMove', () => {
 
   it('is not fooled by a morphological variant of the mission\'s own word', () => {
     expect(isConcreteMove('Work on shipping the redesign', m)).toBe(false)
+  })
+})
+
+describe('standsAsRequirement', () => {
+  it('keeps a clause that names its own object', () => {
+    expect(standsAsRequirement('lands on main')).toBe(true)
+    expect(standsAsRequirement('explains why')).toBe(true)
+    expect(standsAsRequirement('accepts one real correction')).toBe(true)
+    expect(standsAsRequirement('preserves that correction after reload')).toBe(true)
+  })
+
+  it('rejects punctuation shards that are not separate requirements', () => {
+    expect(standsAsRequirement('reload')).toBe(false)
+    expect(standsAsRequirement('recomputes')).toBe(false)
+    expect(standsAsRequirement('that same action')).toBe(false)
+    expect(standsAsRequirement('accept it')).toBe(false)
   })
 })
 

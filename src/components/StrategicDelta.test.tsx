@@ -115,8 +115,11 @@ describe('StrategicDelta', () => {
     // visitor who has never used the product before.
     expect(screen.getByText('This is your own space — nothing here is shared.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Accept this move' })).toBeNull()
-    // Nothing to correct when nothing was predicted.
-    expect((screen.getByRole('button', { name: 'Correct this' }) as HTMLButtonElement).disabled).toBe(true)
+    // Nothing to correct when nothing was predicted — the control is absent,
+    // not offered as an equal action that cannot run.
+    expect(screen.queryByRole('button', { name: 'Correct this' })).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Strategic Delta' })).toBeTruthy()
+    expect(screen.getByText('Your best next move')).toBeTruthy()
     // Live region stays on the move copy, never on the section — wrapping
     // inputs in aria-live intercepts focus/typing on Safari/iOS.
     expect(screen.getByLabelText('Strategic Delta').getAttribute('aria-live')).toBeNull()
@@ -221,6 +224,41 @@ describe('StrategicDelta', () => {
     const traceText = [...trace].map(li => li.textContent ?? '')
     expect(traceText.some(t => /Write the docs/.test(t) && /drafts the page/.test(t))).toBe(true)
     expect(traceText.filter(t => /Restates the mission, not a move/.test(t))).toHaveLength(2)
+  })
+
+  it('does not announce a chosen recommendation when none exists, and drops finish-line shards', async () => {
+    renderDelta([
+      mission({
+        id: 'real',
+        state: 'primary',
+        title: 'Prove the next move',
+        finishLine: 'name one move, accept it, correct it, keep that same action, and reload',
+      }),
+    ])
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Why this?' }))
+
+    expect(screen.getByText(/No recommendation was chosen/)).toBeTruthy()
+    expect(screen.queryByText(/This is why it was chosen/)).toBeNull()
+    const steps = [...document.querySelectorAll('.sd-steps li')].map(li => li.textContent ?? '')
+    expect(steps.some(step => step.trim() === 'reload' || step.startsWith('reload'))).toBe(false)
+    expect(steps.some(step => /that same action/.test(step) && !/keep that same action/.test(step))).toBe(false)
+    expect(screen.getByText(/not (a )?separate requirement/)).toBeTruthy()
+    expect(screen.getByText(/does not read them/)).toBeTruthy()
+  })
+
+  it('offers one action to name the missing step when a mission has no derivable move', async () => {
+    const props = renderDelta([PRIMARY])
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Name the concrete step' }))
+    fireEvent.change(screen.getByLabelText(/concrete step/i), { target: { value: 'Open the live page and write down the first broken sentence' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Record this step' }))
+
+    expect(props.onCorrect).toHaveBeenCalledWith(
+      expect.objectContaining({ provenance: 'insufficient_context', missionId: 'm1' }),
+      'Open the live page and write down the first broken sentence',
+    )
+    expect(screen.queryByRole('button', { name: 'Accept this move' })).toBeNull()
   })
 
   it('shows which part of the finish line it is aiming at, and which parts were ruled out', async () => {

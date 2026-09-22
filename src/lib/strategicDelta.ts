@@ -244,6 +244,27 @@ export function decomposeFinishLine(finishLine: string | null): string[] {
   return parts.length > 1 ? parts : []
 }
 
+const REQUIREMENT_OPENERS = new Set(['that', 'this', 'the', 'a', 'an', 'these', 'those', 'same'])
+const REQUIREMENT_PRONOUNS = new Set(['it', 'this', 'that', 'them'])
+
+/**
+ * True when a finish-line fragment can be shown as its own requirement.
+ * `decomposeFinishLine` keeps the human's words and splits on punctuation,
+ * so a tail like "reload" or "that same action" can appear as its own part
+ * without being something the finish line actually asks to prove. This does
+ * not rewrite those words and does not decide which clause the engine aims at.
+ */
+export function standsAsRequirement(text: string): boolean {
+  const words = text.trim().split(/\s+/).filter(Boolean)
+  if (words.length < 2) return false
+  const lexical = (word: string) => word.toLowerCase().replace(/[^a-z]/g, '')
+  const first = lexical(words[0] ?? '')
+  const last = lexical(words[words.length - 1] ?? '')
+  if (words.length === 2 && REQUIREMENT_PRONOUNS.has(last)) return false
+  if (words.length < 4 && REQUIREMENT_OPENERS.has(first)) return false
+  return true
+}
+
 // Bands are spaced so adding steps inside one never reorders another.
 const RANK = {
   reconcileEvidence: 0,

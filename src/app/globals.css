@@ -238,13 +238,14 @@ body {
    field at the apex and encodes cognition, not decoration:
 
      spectrum  → reconstructing / correcting (real pending work)
-     teal      → settled rule-based prediction
-     violet    → model-generated, never verified (reserved)
-     amber     → honest insufficient context — no thinking theater
+     teal      → the provenance label for a settled rule-based prediction
+     violet    → model-generated, never verified, and never painted teal
+     amber     → the insufficient-context status word only
      error     → persistence/network failure, never a success hue
 
-   Motion answers "what changed?" The field activates while work is
-   genuinely pending and settles when it isn't. */
+   The field itself keeps one violet/blue/cyan/magenta material. It
+   animates only while work is genuinely pending. Insufficient and idle
+   states stay still. */
 
 :root {
   --sd-cyan: #35dcd2;
@@ -302,8 +303,85 @@ body {
 .sd {
   position: relative;
   isolation: isolate;
-  padding: 0 2px 4px;
-  max-width: 42rem;
+  max-width: 52rem;
+  padding: 22px 20px 18px;
+  border-radius: 28px;
+  background:
+    radial-gradient(90% 80% at 0% 0%, color-mix(in srgb, var(--sd-indigo) 34%, transparent), transparent 58%),
+    radial-gradient(70% 90% at 100% 10%, color-mix(in srgb, var(--sd-blue) 18%, transparent), transparent 50%),
+    radial-gradient(40% 50% at 80% 100%, color-mix(in srgb, var(--sd-magenta) 12%, transparent), transparent 55%),
+    linear-gradient(180deg, color-mix(in srgb, var(--sd-indigo) 16%, var(--bg)), var(--bg));
+  border: 1px solid color-mix(in srgb, var(--sd-violet) 34%, transparent);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+}
+
+.sd-stage {
+  display: grid;
+  gap: 18px;
+  align-items: center;
+}
+
+.sd-copy {
+  min-width: 0;
+}
+
+.sd-identity h2 {
+  color: var(--text);
+  font-size: clamp(1.35rem, 1.1rem + 1vw, 1.7rem);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.sd-purpose {
+  margin-top: 4px;
+  color: var(--text-soft);
+  font-size: 1.02rem;
+  line-height: 1.4;
+}
+
+.sd-mission {
+  margin-top: 12px;
+  color: var(--text-soft);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.sd-mission strong {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.sd-status {
+  margin-top: 8px;
+  color: var(--sd-hue, var(--text-dim));
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sd-commitment-link {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin-top: 16px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.sd-commitment-link a {
+  color: var(--text-soft);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.sd-finish {
+  margin-bottom: 10px;
 }
 
 .sd::after {
@@ -318,9 +396,15 @@ body {
   position: relative;
   display: grid;
   place-items: center;
-  width: 100%;
-  height: 48px;
-  margin-bottom: 0;
+  width: 148px;
+  height: 148px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--sd-indigo) 32%, transparent), transparent 68%);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.35),
+    inset 0 0 28px color-mix(in srgb, var(--sd-indigo) 28%, transparent);
   /* Written by CognitionField.tsx on pointer move, throttled to one
      write per animation frame and never via React state. Defaults keep
      the field centred/inert until a pointer actually arrives, and touch
@@ -349,8 +433,7 @@ body {
 .sd-field::before {
   content: '';
   position: absolute;
-  inset: -70px 15% auto;
-  height: 210px;
+  inset: 10%;
   border-radius: 50%;
   /* Colours come from the registered --sd-wash-* properties (see @property
      above) so a cognition-state change crossfades the wash rather than
@@ -403,11 +486,18 @@ body {
 }
 
 .sd-field-core {
-  width: 9px;
-  height: 9px;
+  width: 64px;
+  height: 64px;
+  top: 50%;
+  left: 50%;
+  margin: -32px 0 0 -32px;
   border-radius: 50%;
-  background: var(--sd-cyan);
-  box-shadow: 0 0 22px 7px color-mix(in srgb, var(--sd-cyan) 42%, transparent);
+  background:
+    radial-gradient(circle at 34% 30%, color-mix(in srgb, white 72%, var(--sd-violet)) 0%, var(--sd-violet) 26%, var(--sd-blue) 64%, var(--sd-indigo) 100%);
+  box-shadow:
+    0 0 28px 8px color-mix(in srgb, var(--sd-violet) 55%, transparent),
+    0 0 46px 14px color-mix(in srgb, var(--sd-blue) 28%, transparent),
+    inset 0 0 10px color-mix(in srgb, var(--sd-magenta) 40%, transparent);
   transition:
     background var(--sd-dur-state) ease,
     box-shadow var(--sd-dur-state) ease,
@@ -416,11 +506,17 @@ body {
 }
 
 .sd-field-ring {
-  width: 42px;
-  height: 42px;
+  width: 118px;
+  height: 118px;
+  top: 50%;
+  left: 50%;
+  margin: -59px 0 0 -59px;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--sd-cyan) 28%, transparent);
-  opacity: 0.35;
+  border: 1px solid color-mix(in srgb, var(--sd-cyan) 55%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--sd-magenta) 32%, transparent),
+    0 0 18px color-mix(in srgb, var(--sd-magenta) 20%, transparent);
+  opacity: 0.8;
   /* Idle proximity response only — an active cognition state (below) drives
      this same property via the sdRing keyframe instead, which takes over
      transform entirely while it runs. */
@@ -432,8 +528,9 @@ body {
 }
 
 .sd-field-specks {
-  inset: -12px 10% auto;
-  height: 88px;
+  inset: 12%;
+  height: auto;
+  border-radius: 50%;
   opacity: 0;
   background-image:
     radial-gradient(1.4px 1.4px at 18% 42%, rgba(53, 220, 210, 0.85), transparent),
@@ -545,32 +642,27 @@ body {
   animation-duration: 6s;
 }
 
-.sd[data-cognition="settled"] .sd-field-core,
-.sd[data-cognition="accepted"] .sd-field-core {
-  background: var(--teal);
-  box-shadow: 0 0 18px 6px color-mix(in srgb, var(--teal) 38%, transparent);
+.sd[data-cognition="settled"] .sd-field-ring,
+.sd[data-cognition="accepted"] .sd-field-ring {
+  border-color: color-mix(in srgb, var(--sd-cyan) 50%, var(--teal));
+  opacity: 0.75;
 }
 
-/* The prediction just cohered: one quiet settle-in, then stillness. */
+/* The prediction just cohered: one quiet settle-in, then stillness.
+   The orb keeps the spectral material; teal stays on the provenance label
+   so a settled rule is distinguishable without replacing the field. */
 .sd[data-cognition="settled"] .sd-field-core {
   animation: sdSettle 900ms var(--sd-ease-settle) 1;
 }
 
-.sd[data-cognition="settled"] .sd-field-ring,
-.sd[data-cognition="accepted"] .sd-field-ring {
-  border-color: color-mix(in srgb, var(--teal) 35%, transparent);
-  opacity: 0.4;
-}
-
-/* Accepted is quieter than settled — an intention recorded, not a
-   celebration: dimmer halo, fainter ring, a slow breath. */
+/* Accepted is an intention recorded. It stays still — a breath loop would
+   read as reasoning that is not happening. */
 .sd[data-cognition="accepted"] .sd-field-core {
-  box-shadow: 0 0 14px 5px color-mix(in srgb, var(--teal) 30%, transparent);
-  animation: sdBreathe 4.8s ease-in-out infinite;
+  animation: none;
 }
 
 .sd[data-cognition="accepted"] .sd-field-ring {
-  opacity: 0.28;
+  opacity: 0.6;
 }
 
 /* The ring had no model-provenance override at all — settled and accepted
@@ -580,18 +672,17 @@ body {
   border-color: color-mix(in srgb, var(--sd-violet) 35%, transparent);
 }
 
-/* Insufficient context reads as literally less certain: a desaturated hue,
-   a physically smaller core, a fainter ring, and more of the surrounding
-   negative space left alone. */
+/* Insufficient context keeps the same material and stays still. Amber is
+   reserved for the status word, so the field does not pretend to be thinking
+   and does not shrink into a dim marker. */
 .sd[data-cognition="insufficient"] .sd-field-core {
-  background: var(--sd-insufficient);
-  box-shadow: 0 0 14px 4px color-mix(in srgb, var(--amber) 24%, transparent);
-  transform: scale(0.85);
+  animation: none;
+  opacity: 0.92;
 }
 
 .sd[data-cognition="insufficient"] .sd-field-ring {
-  border-color: color-mix(in srgb, var(--amber) 32%, transparent);
-  opacity: 0.35;
+  opacity: 0.7;
+  animation: none;
 }
 
 .sd[data-cognition="failed"] .sd-field-core {
@@ -606,7 +697,9 @@ body {
 
 .sd[data-provenance="model"][data-cognition="settled"] .sd-field-core,
 .sd[data-provenance="model"][data-cognition="accepted"] .sd-field-core {
-  background: var(--sd-violet);
+  box-shadow:
+    0 0 28px 8px color-mix(in srgb, var(--sd-violet) 62%, transparent),
+    0 0 46px 14px color-mix(in srgb, var(--sd-magenta) 24%, transparent);
 }
 
 .sd[data-provenance="model"][data-cognition="settled"] .sd-field-core {
@@ -658,9 +751,9 @@ body {
 }
 
 .sd[data-cognition="insufficient"] .sd-field::before {
-  --sd-wash-a: color-mix(in srgb, var(--amber) 8%, transparent);
-  --sd-wash-b: transparent;
-  opacity: 0.22;
+  --sd-wash-a: color-mix(in srgb, var(--sd-violet) 18%, transparent);
+  --sd-wash-b: color-mix(in srgb, var(--sd-blue) 10%, transparent);
+  opacity: 0.45;
 }
 
 .sd[data-cognition="failed"] .sd-field::before {
@@ -799,13 +892,18 @@ body {
 /* Supporting information — clearly secondary to .sd-move via size and the
    wider gap above it, not via a container or a dimmer colour that would
    hurt first-run legibility. */
-.sd-because {
-  margin-top: 18px;
+.sd-because,
+.sd-support {
+  margin-top: 14px;
   max-width: 38rem;
   color: var(--text-soft);
   font-size: 1.02rem;
   line-height: 1.55;
   text-wrap: pretty;
+}
+
+.sd-support {
+  margin-top: 8px;
 }
 
 .sd-taught {
@@ -860,26 +958,23 @@ body {
 }
 
 .sd-act-secondary {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .sd-act-secondary button {
-  width: 100%;
+  width: auto;
+  min-height: 48px;
 }
 
-.sd-act-secondary .sd-act-changed {
-  grid-column: 1 / -1;
-}
-
-@media (min-width: 480px) {
-  .sd-act-secondary {
-    grid-template-columns: 1fr 1fr 1fr;
-  }
-  .sd-act-secondary .sd-act-changed {
-    grid-column: auto;
-  }
+.sd .sd-act-primary button,
+.sd .mission-invite button {
+  border-color: color-mix(in srgb, var(--sd-blue) 58%, var(--sd-violet)) !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--sd-violet) 32%, transparent), color-mix(in srgb, var(--sd-blue) 16%, transparent)) !important;
+  color: var(--text) !important;
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--sd-indigo) 36%, transparent) !important;
 }
 
 .sd-controls {
@@ -1206,34 +1301,36 @@ body {
    role, the proximity response reaches further, and the hero sits against
    more negative space. The composition is unchanged — same field, same
    move-first hierarchy — only the scale of the space around it. */
-@media (min-width: 1024px) {
-  .sd {
-    max-width: 44rem;
-    padding-top: 0;
-  }
-  .sd::after {
-    margin-top: 40px;
+@media (min-width: 720px) {
+  .sd-stage {
+    grid-template-columns: 188px minmax(0, 1fr);
+    gap: 28px;
   }
   .sd-field {
-    height: 56px;
-    margin-bottom: 0;
-    --sd-prox-range: 24px;
-  }
-  .sd-field::before {
-    inset: -110px 18% auto;
-    height: 320px;
+    width: 188px;
+    height: 188px;
+    margin: 0;
+    --sd-prox-range: 18px;
   }
   .sd-field-core {
-    width: 10px;
-    height: 10px;
+    width: 78px;
+    height: 78px;
+    margin: -39px 0 0 -39px;
   }
   .sd-field-ring {
-    width: 48px;
-    height: 48px;
+    width: 150px;
+    height: 150px;
+    margin: -75px 0 0 -75px;
   }
-  .sd-field-specks {
-    inset: -22px 12% auto;
-    height: 140px;
+}
+
+@media (min-width: 1024px) {
+  .sd {
+    max-width: 56rem;
+    padding: 28px 32px 24px;
+  }
+  .sd::after {
+    margin-top: 28px;
   }
   .sd-move {
     margin-top: 12px;
@@ -1370,10 +1467,10 @@ body {
   gap: 12px;
   max-width: 42rem;
   margin-top: 8px;
-  padding: 22px 20px 18px;
-  border: 1px solid var(--line-strong);
-  border-radius: 20px;
-  background: linear-gradient(180deg, rgba(18, 20, 30, 0.96), rgba(10, 11, 16, 0.96));
+  padding: 18px 18px 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
 }
 
 .commitment-kicker {

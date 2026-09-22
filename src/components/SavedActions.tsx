@@ -95,12 +95,12 @@ export default function SavedActions({
   const doneActions = actions.filter(action => action.status === 'DONE')
   return (
     <section className="commitment-panel" id="saved-action" aria-label="Saved next actions">
-      <p className="commitment-kicker">Saved action</p>
+      <p className="commitment-kicker">Saved commitment</p>
       <h3>{missionId ? 'The action you can return to' : 'Pick up where you left off'}</h3>
       <p className="commitment-lead">
         {missionId
-          ? 'This is a commitment, separate from the recommendation above. The note stays with the same action when you come back.'
-          : 'These are the actions you saved. Each note is the starting point you left yourself.'}
+          ? 'This is a saved commitment, not a new prediction. The note is the starting point you left yourself. It stays with this action and does not become a system recommendation.'
+          : 'These are commitments you saved, not new predictions. Each note is the starting point you left yourself.'}
       </p>
       {loading ? <p role="status">Reading your saved actions…</p> : error ? (
         <div role="alert"><p>{error}</p><ActionBtn onClick={() => { setLoading(true); void load() }}>Retry saved actions</ActionBtn></div>

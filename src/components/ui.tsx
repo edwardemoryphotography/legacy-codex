@@ -260,12 +260,16 @@ export function ActionBtn({
   children,
   variant = 'primary',
   type = 'button',
+  'aria-expanded': ariaExpanded,
+  'aria-controls': ariaControls,
 }: {
   onClick?: () => void
   disabled?: boolean
   children: ReactNode
   variant?: 'primary' | 'secondary'
   type?: 'button' | 'submit'
+  'aria-expanded'?: boolean
+  'aria-controls'?: string
 }) {
   const styles =
     variant === 'primary'
@@ -287,6 +291,8 @@ export function ActionBtn({
       type={type}
       onClick={onClick}
       disabled={disabled}
+      aria-expanded={ariaExpanded}
+      aria-controls={ariaControls}
       className="interactive-control"
       style={{
         ...styles,
