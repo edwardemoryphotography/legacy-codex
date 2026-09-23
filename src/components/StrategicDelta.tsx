@@ -430,15 +430,19 @@ export default function StrategicDelta({
             <p className="sd-taught">Kept: {retainedStep.move}. It stays on record, and it is not the next step.</p>
           )}
 
-          {primaryMission && (
-            <p className="sd-commitment-link">
-              <a href="#saved-action">Saved commitment</a>
-              <span>Kept separate from this prediction.</span>
-            </p>
-          )}
-
           <div className="sd-act">
-            {hasRecommendation && !accepted ? (
+            {hasRecommendation && accepted ? (
+              <div className="sd-act-primary">
+                <p className="sd-accepted">
+                  Accepted — still a prediction until there&apos;s evidence
+                </p>
+                {/* The saved action is a separate, explicit commitment. This
+                    only points at it; nothing is saved from here. */}
+                {primaryMission && delta.missionId === primaryMission.id && (
+                  <a className="sd-next" href="#saved-action">Save it as one action you can return to</a>
+                )}
+              </div>
+            ) : hasRecommendation && !accepted ? (
               <div className="sd-act-primary">
                 <ActionBtn onClick={() => void accept()}>Accept this move</ActionBtn>
                 <p className="sd-boundary">
@@ -532,12 +536,6 @@ export default function StrategicDelta({
           {operationError && (
             <p className="sd-fail" role="alert">
               {operationError}
-            </p>
-          )}
-
-          {accepted && (
-            <p className="sd-accepted">
-              Accepted — still a prediction until there&apos;s evidence
             </p>
           )}
 

@@ -28,6 +28,38 @@
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
+  /* Fixed chrome (bottom tab bar) and the Mission card's drop shadow — the
+     two dark literals the light review theme has to override. */
+  --chrome: rgba(10, 10, 15, 0.96);
+  --card-shadow: 0 24px 60px rgba(0, 0, 0, 0.38);
+}
+
+/* Review-only light presentation (ThemeReview.tsx sets data-theme on
+   non-production hosts). Dark remains the shipped theme until Eddie picks.
+   Only tokens change here; Mission, the shell, the tab bar, saved actions,
+   and the field are tuned for it. Reference tabs with inline colours are
+   not. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f4fa;
+  --surface: #ffffff;
+  --surface-soft: #f0eff7;
+  --surface-strong: #e7e5f2;
+  --line: #e0deec;
+  --line-strong: #cbc8de;
+  --text: #17162b;
+  --text-soft: #46445f;
+  --text-dim: #636180;
+  --teal: #0a7a67;
+  --teal-soft: rgba(10, 122, 103, 0.1);
+  --amber: #9a5b00;
+  --amber-soft: rgba(154, 91, 0, 0.1);
+  --error: #c02b42;
+  --error-soft: rgba(192, 43, 66, 0.08);
+  --success: #1a7f4c;
+  --success-soft: rgba(26, 127, 76, 0.1);
+  --chrome: rgba(250, 249, 253, 0.9);
+  --card-shadow: 0 20px 50px rgba(70, 60, 140, 0.12);
 }
 
 *, *::before, *::after {
@@ -77,7 +109,7 @@ body {
   padding: 8px;
   padding-bottom: calc(8px + var(--safe-bottom));
   border-top: 1px solid var(--line-strong);
-  background: rgba(10, 10, 15, 0.96);
+  background: var(--chrome);
   box-shadow: 0 -14px 36px rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -316,8 +348,19 @@ body {
     linear-gradient(180deg, color-mix(in srgb, var(--sd-indigo) 24%, var(--bg)), var(--bg));
   border: 1px solid color-mix(in srgb, var(--sd-violet) 34%, transparent);
   box-shadow:
-    0 24px 60px rgba(0, 0, 0, 0.38),
+    var(--card-shadow),
     inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+}
+:root[data-theme="light"] .codex-tablist {
+  box-shadow: 0 -10px 30px rgba(70, 60, 140, 0.08);
+}
+:root[data-theme="light"] .sd:not(.sd-orb-host) {
+  background:
+    radial-gradient(90% 80% at 0% 0%, color-mix(in srgb, var(--sd-indigo) 16%, transparent), transparent 58%),
+    radial-gradient(70% 90% at 100% 10%, color-mix(in srgb, var(--sd-blue) 10%, transparent), transparent 52%),
+    radial-gradient(46% 42% at 88% 100%, color-mix(in srgb, var(--sd-magenta) 8%, transparent), transparent 58%),
+    linear-gradient(180deg, #ffffff, color-mix(in srgb, var(--sd-indigo) 5%, #ffffff));
+  border-color: color-mix(in srgb, var(--sd-violet) 18%, transparent);
 }
 
 .sd-stage {
@@ -365,6 +408,33 @@ body {
 }
 .sd.sd-orb-host::after {
   content: none;
+}
+/* The field lights the surface it sits on. Drawn by the host because the
+   field itself clips its paint. Gradient only — no filter — and it rides
+   the same transform as the field, so it costs nothing extra to move. */
+.sd.sd-orb-host::before {
+  content: '';
+  position: absolute;
+  inset: -38%;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--sd-hue, var(--sd-violet)) 30%, transparent) 0%, color-mix(in srgb, var(--sd-indigo) 14%, transparent) 38%, transparent 68%);
+  opacity: 0.85;
+  transition: opacity var(--sd-dur-state) ease;
+}
+/* On a light surface the field's cyan/teal hues are too pale for text;
+   status words keep the hue but lean toward the text colour. */
+:root[data-theme="light"] .sd-status,
+:root[data-theme="light"] .sd-accepted,
+:root[data-theme="light"] .sd-next::after {
+  color: color-mix(in srgb, var(--sd-hue, var(--teal)) 50%, var(--text));
+}
+.sd-orb-host[data-orb="dock"]::before {
+  inset: -22%;
+  opacity: 0.5;
+}
+:root[data-theme="light"] .sd.sd-orb-host::before {
+  opacity: 0.55;
 }
 .sd-orb-host .sd-field {
   width: 100%;
@@ -427,21 +497,23 @@ body {
   text-transform: uppercase;
 }
 
-.sd-commitment-link {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: baseline;
-  margin-top: 16px;
-  color: var(--text-dim);
-  font-size: 0.85rem;
-}
-
-.sd-commitment-link a {
-  color: var(--text-soft);
-  min-height: 44px;
+/* After an accept, the one next step: go save it as an action. A link to
+   the saved-action panel, not a write. */
+.sd-next {
   display: inline-flex;
   align-items: center;
+  min-height: 48px;
+  margin-top: 6px;
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--sd-hue, var(--teal)) 60%, transparent);
+  text-underline-offset: 5px;
+}
+.sd-next::after {
+  content: '\2193';
+  margin-left: 8px;
+  color: var(--sd-hue, var(--teal));
 }
 
 .sd-finish {
@@ -472,10 +544,8 @@ body {
     radial-gradient(circle at 74% 70%, color-mix(in srgb, var(--sd-magenta) 22%, transparent), transparent 48%),
     radial-gradient(circle at 48% 46%, color-mix(in srgb, var(--sd-indigo) 34%, transparent), transparent 68%);
   box-shadow:
-    0 18px 40px rgba(0, 0, 0, 0.42),
     inset 0 0 42px color-mix(in srgb, var(--sd-indigo) 36%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, var(--sd-cyan) 55%, transparent),
-    inset 0 0 0 2px color-mix(in srgb, var(--sd-magenta) 18%, transparent);
+    inset 0 0 0 1px color-mix(in srgb, white 10%, transparent);
   /* Written by CognitionField.tsx on pointer move, throttled to one
      write per animation frame and never via React state. Defaults keep
      the field centred/inert until a pointer actually arrives, and touch
@@ -665,11 +735,10 @@ body {
 .sd-field-ring {
   inset: 6.8%;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--sd-cyan) 55%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--sd-magenta) 32%, transparent),
-    0 0 18px color-mix(in srgb, var(--sd-magenta) 20%, transparent);
-  opacity: 0.8;
+  /* A faint edge of light, not a neon border. */
+  border: 1px solid color-mix(in srgb, var(--sd-cyan) 22%, transparent);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--sd-magenta) 12%, transparent);
+  opacity: 0.6;
   /* Idle proximity response only — an active cognition state (below) drives
      this same property via the sdRing keyframe instead, which takes over
      transform entirely while it runs. */
@@ -1590,12 +1659,12 @@ body {
    move-first hierarchy — only the scale of the space around it. */
 @media (min-width: 720px) {
   .sd-stage {
-    grid-template-columns: 248px minmax(0, 1fr);
+    grid-template-columns: 264px minmax(0, 1fr);
     gap: 28px;
     align-items: start;
   }
   .sd-field-slot {
-    --sd-field-size: 248px;
+    --sd-field-size: 264px;
     margin: 0;
   }
   .sd-orb-host[data-orb="hero"] .sd-field {
@@ -1619,9 +1688,18 @@ body {
 /* Small phones (320/375/390/428): keep the move dominant and the rhythm
    calm — spacing adjusts, nothing shrinks to "fit". */
 @media (max-width: 600px) {
+  /* The field sits beside the heading instead of above it, so the move
+     and its one action stay above the tab bar on a phone. The heading
+     wraps around the field's circle; the field keeps its size. */
+  .sd-stage {
+    display: block;
+  }
   .sd-field-slot {
-    --sd-field-size: 156px;
-    margin: 2px auto 0;
+    --sd-field-size: 148px;
+    float: right;
+    margin: -6px -8px 6px 10px;
+    shape-outside: circle(50%);
+    shape-margin: 8px;
   }
   .sd-move {
     margin-top: 10px;
@@ -1631,6 +1709,12 @@ body {
     margin-top: 16px;
   }
 }
+
+/* Preview-only theme switch (ThemeReview.tsx). Never rendered in production. */
+.theme-review { display: inline-flex; flex: none; align-items: center; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; color: var(--text-dim); font-size: 0.74rem; }
+.theme-review span { padding: 0 6px 0 8px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; font-size: 0.62rem; }
+.theme-review button { min-height: 32px; padding: 0 12px; border-radius: 999px; border: 0; background: transparent; color: var(--text-soft); font: inherit; cursor: pointer; }
+.theme-review button[aria-pressed="true"] { background: var(--surface-strong); color: var(--text); }
 
 /* Mission front door: quiet navigation, one focal surface, progressive detail. */
 .codex-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding-bottom: 16px; }
