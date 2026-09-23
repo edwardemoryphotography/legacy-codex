@@ -213,13 +213,15 @@ export default function StrategicDelta({
     const targetId = baseDelta.candidateId
     if (!targetId || !targetId.startsWith('clause:') || !baseDelta.missionId) return
 
-    const targetCorrections = corrections.filter(c => candidateTargetsClause(c.candidateId, targetId))
-    const attemptKey = `${targetId}:${targetCorrections.map(c => c.id).join(',')}`
-    if (attemptedOperationStates.current.has(attemptKey)) return
-
     const mission = missions.find(m => m.id === baseDelta.missionId)
     const clause = baseDelta.proofSteps.find(s => s.selected)?.text
     if (!mission?.finishLine || !clause) return
+
+    // The clause text is part of the key: a revised finish line is a new
+    // question, even when it lands on the same clause position.
+    const targetCorrections = corrections.filter(c => candidateTargetsClause(c.candidateId, targetId))
+    const attemptKey = `${targetId}:${clause}:${targetCorrections.map(c => c.id).join(',')}`
+    if (attemptedOperationStates.current.has(attemptKey)) return
 
     attemptedOperationStates.current.add(attemptKey)
     let cancelled = false
@@ -251,6 +253,7 @@ export default function StrategicDelta({
               move: operation,
               missionId: mission.id,
               targetId,
+              clause,
               rank: 0,
             },
           }))

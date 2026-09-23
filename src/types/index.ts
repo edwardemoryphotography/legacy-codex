@@ -264,6 +264,11 @@ export interface DeltaCandidate {
   /** Stable proof-target identity for clause-scoped operations. Distinct from
    *  `id`: rejecting one operation must not mark its proof target resolved. */
   targetId?: string
+  /** For a clause operation (supplied or model-derived): the clause text it
+   *  was aimed at, as `decomposeFinishLine` produced it then. The target id
+   *  only names a position; if the finish line is revised, the operation is
+   *  for a goal that no longer exists and is not admitted. */
+  clause?: string
   /** Lower ranks are higher leverage. */
   rank: number
 }

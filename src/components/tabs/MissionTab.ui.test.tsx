@@ -190,3 +190,46 @@ describe('MissionTab failed read recovery', () => {
     expect(screen.queryByText(/Could not load your missions/)).toBeNull()
   })
 })
+
+describe('MissionTab supplied steps across a finish-line revision', () => {
+  const step = 'Export the five print sizes from the pricing spreadsheet into a draft page'
+  const compound: Mission = {
+    id: 'm1',
+    title: 'Publish the print price list',
+    why: '',
+    finishLine: 'The price list is live on the site and linked from the contact page',
+    evidenceRequirement: null,
+    state: 'primary',
+    blocker: null,
+    capacityMismatch: false,
+    createdAt: '2026-09-20T00:00:00.000Z',
+    updatedAt: '2026-09-20T00:00:00.000Z',
+  }
+  const stepRow = (clause: string) => ({
+    id: 's1', mission_id: 'm1', type: 'delta_step_supplied',
+    detail: JSON.stringify({ step, targetId: 'clause:m1:0', clause }), created_at: '2026-09-21T00:00:00.000Z',
+  })
+
+  beforeEach(() => {
+    inserts = []
+    failNext = {}
+    connectMissionSession.mockReset()
+    connectMissionSession.mockResolvedValue({ id: 'user-1' })
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ configured: false }) })))
+    tables = { missions: [{ ...missionToRow(compound, 'user-1'), created_at: compound.createdAt }], evidence_snapshots: [], actions: [] }
+  })
+
+  it('uses a step recorded for the current first clause', async () => {
+    tables.mission_events = [stepRow('The price list is live on the site')]
+    render(<MissionTab />)
+    expect(await screen.findByText(step)).toBeTruthy()
+    expect(await screen.findByText('You supplied this step — not verified')).toBeTruthy()
+  })
+
+  it('ignores a step recorded for a finish line the mission no longer has', async () => {
+    tables.mission_events = [stepRow('The catalogue is printed')]
+    render(<MissionTab />)
+    expect(await screen.findByText('Needs a concrete step')).toBeTruthy()
+    expect(screen.queryByText(step)).toBeNull()
+  })
+})

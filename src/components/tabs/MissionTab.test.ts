@@ -141,11 +141,13 @@ describe('rowToCorrection', () => {
 describe('rowToSuppliedStep', () => {
   const step = 'Open the live page and write down the first broken sentence'
   const targetId = clauseId('m1', 0)
+  const finishLine = 'lands on main, deploys to Vercel, and answers without prompting'
+  const clause = 'lands on main'
   const base: MissionEventRow = {
     id: 'evt-step',
     mission_id: 'm1',
     type: 'delta_step_supplied',
-    detail: JSON.stringify({ step, targetId }),
+    detail: JSON.stringify({ step, targetId, clause }),
     created_at: '2026-09-07T12:00:00.000Z',
   }
 
@@ -157,11 +159,12 @@ describe('rowToSuppliedStep', () => {
       move: step,
       missionId: 'm1',
       targetId,
+      clause,
       rank: 0,
     })
 
     const delta = predictStrategicDelta(
-      [{ ...baseMission, finishLine: 'lands on main, deploys to Vercel, and answers without prompting' }],
+      [{ ...baseMission, finishLine }],
       [],
       [],
       '2026-09-07T12:00:00.000Z',
@@ -170,6 +173,23 @@ describe('rowToSuppliedStep', () => {
     expect(delta.move).toBe(step)
     expect(delta.candidateId).toBe(parsed?.id)
     expect(delta.provenance).toBe('supplied')
+  })
+
+  it('after reload, ignores a step written for a finish line the mission no longer has', () => {
+    const parsed = rowToSuppliedStep(base)
+    const delta = predictStrategicDelta(
+      [{ ...baseMission, finishLine: 'prints the catalogue, mails it, and logs the orders' }],
+      [], [], '2026-09-07T12:00:00.000Z', parsed ? [parsed] : [],
+    )
+    expect(delta.move).not.toBe(step)
+    expect(delta.provenance).not.toBe('supplied')
+  })
+
+  it('reads an older row without a clause, but the engine will not admit it', () => {
+    const parsed = rowToSuppliedStep({ ...base, detail: JSON.stringify({ step, targetId }) })
+    expect(parsed?.clause).toBeUndefined()
+    const delta = predictStrategicDelta([{ ...baseMission, finishLine }], [], [], '2026-09-07T12:00:00.000Z', parsed ? [parsed] : [])
+    expect(delta.move).not.toBe(step)
   })
 
   it('returns null for a malformed step, and does not read a correction as a step', () => {
@@ -244,6 +264,21 @@ describe('liveAcceptances', () => {
       event('c1', 'm1', 'delta_corrected', JSON.stringify({ move: MOVE, reason: 'no' }), '2026-09-20T01:00:00.000Z'),
       event('a1', 'm1', 'delta_accepted', MOVE, '2026-09-20T00:00:00.000Z'),
     ])).toEqual({})
+  })
+
+  it('a later finish_line_set for the mission clears an older plain-text acceptance', () => {
+    expect(liveAcceptances([
+      event('a1', 'm1', 'delta_accepted', MOVE, '2026-09-20T00:00:00.000Z'),
+      event('f1', 'm1', 'finish_line_set', 'a different goal', '2026-09-20T01:00:00.000Z'),
+    ])).toEqual({})
+  })
+
+  it('drops an acceptance recorded under a finish line the mission no longer has, keeps it under the same one', () => {
+    const rows = [event('a1', 'm1', 'delta_accepted', acceptanceDetail(MOVE, 'name-evidence:m1', 'The old goal is met'), '2026-09-20T00:00:00.000Z')]
+    expect(liveAcceptances(rows, { m1: { finishLine: 'A revised goal is met' } })).toEqual({})
+    expect(liveAcceptances(rows, { m1: { finishLine: 'The old goal is met' } })).toEqual({ m1: MOVE })
+    // Older rows carry no finish line and are judged by the ledger alone.
+    expect(liveAcceptances([event('a2', 'm1', 'delta_accepted', MOVE, '2026-09-20T00:00:00.000Z')], { m1: { finishLine: 'Anything' } })).toEqual({ m1: MOVE })
   })
 
   it('ignores an empty acceptance detail', () => {

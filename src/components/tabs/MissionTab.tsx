@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
 import { connectMissionSession, missionConnectionMessage } from '@/lib/supabase/missionSession'
@@ -17,7 +17,7 @@ import type {
   StrategicDelta as Delta,
 } from '@/types'
 import { beginFieldWork, endFieldWork } from '@/lib/cognitionPresence'
-import { operationCandidateId } from '@/lib/strategicDelta'
+import { clauseTextFor, operationCandidateId } from '@/lib/strategicDelta'
 import {
   EMPTY_BOARD,
   abandonMission,
@@ -147,12 +147,16 @@ export function rowToCorrection(row: MissionEventRow): DeltaCorrection | null {
   }
 }
 
-/** A step the user wrote for one clause. `detail` is `{ step, targetId }`.
- *  The operation id is derived from those two fields, so a reload selects
- *  the same candidate the session selected before it. */
+/** A step the user wrote for one clause. `detail` is
+ *  `{ step, targetId, clause }`. The operation id is derived from step and
+ *  target, so a reload selects the same candidate the session selected
+ *  before it; `clause` is the finish-line clause the step was written for,
+ *  which the engine checks against the current finish line. Rows without it
+ *  (written only by pre-merge previews of this feature) read back but are
+ *  never admitted. */
 export function rowToSuppliedStep(row: MissionEventRow): DeltaCandidate | null {
   try {
-    const parsed = JSON.parse(row.detail) as { step?: unknown; targetId?: unknown }
+    const parsed = JSON.parse(row.detail) as { step?: unknown; targetId?: unknown; clause?: unknown }
     if (typeof parsed.step !== 'string' || parsed.step.trim().length === 0) return null
     if (typeof parsed.targetId !== 'string' || !parsed.targetId.startsWith('clause:')) return null
     const step = parsed.step.trim()
@@ -162,6 +166,7 @@ export function rowToSuppliedStep(row: MissionEventRow): DeltaCandidate | null {
       move: step,
       missionId: row.mission_id,
       targetId: parsed.targetId,
+      ...(typeof parsed.clause === 'string' && parsed.clause.trim() ? { clause: parsed.clause } : {}),
       rank: 0,
     }
   } catch {
@@ -171,42 +176,58 @@ export function rowToSuppliedStep(row: MissionEventRow): DeltaCandidate | null {
 
 // An acceptance is agreement with a prediction — never an action and never
 // evidence. Rows written before this helper carry the move as plain text;
-// newer rows are JSON with the candidate id alongside. Both read back as
-// the move, which is what the displayed Delta is compared against.
-export function acceptanceDetail(move: string, candidateId: string | null | undefined): string {
-  return JSON.stringify(candidateId ? { move, candidateId } : { move })
+// newer rows are JSON with the candidate id and the finish line the move was
+// accepted under. All read back as the move, which is what the displayed
+// Delta is compared against.
+export function acceptanceDetail(
+  move: string,
+  candidateId: string | null | undefined,
+  finishLine?: string | null,
+): string {
+  return JSON.stringify({
+    move,
+    ...(candidateId ? { candidateId } : {}),
+    ...(finishLine ? { finishLine } : {}),
+  })
 }
 
-function acceptedMoveFromDetail(detail: string): string | null {
+export interface LedgerAcceptance {
+  move: string
+  /** The finish line in force when it was accepted; absent on older rows. */
+  finishLine?: string
+}
+
+function acceptanceFromDetail(detail: string): LedgerAcceptance | null {
   try {
     const parsed: unknown = JSON.parse(detail)
     if (parsed && typeof parsed === 'object' && typeof (parsed as { move?: unknown }).move === 'string') {
-      const move = (parsed as { move: string }).move
-      return move.trim() ? move : null
+      const { move, finishLine } = parsed as { move: string; finishLine?: unknown }
+      if (!move.trim()) return null
+      return typeof finishLine === 'string' ? { move, finishLine } : { move }
     }
   } catch {
     // Plain prose — the older format.
   }
-  return detail.trim() ? detail : null
+  return detail.trim() ? { move: detail } : null
 }
 
 // Events that change what the Delta is predicting for a mission. A later one
 // means an earlier acceptance was agreement with a prediction that has since
 // been replaced, so it must not come back as "Accepted" after reload.
-const INVALIDATES_ACCEPTANCE = new Set(['delta_corrected', 'delta_step_supplied'])
+// finish_line_set covers older acceptance rows that did not record their
+// finish line (the only in-app way to change a finish line writes it).
+const INVALIDATES_ACCEPTANCE = new Set(['delta_corrected', 'delta_step_supplied', 'finish_line_set'])
 
-/** mission id → the move currently accepted for it. Folds the event ledger
- *  oldest-first: the latest delta_accepted per mission is live unless a
- *  correction or supplied step for that same mission came after it. The UI
- *  still shows "Accepted" only when this equals the Delta it is displaying,
- *  so a re-prediction that changes the move clears it without a write. */
-export function liveAcceptances(rows: MissionEventRow[]): Record<string, string> {
-  const live: Record<string, string> = {}
+/** mission id → the latest acceptance still standing in the event ledger:
+ *  the newest delta_accepted per mission, unless a correction, supplied step
+ *  or finish-line change for that mission came after it. */
+export function acceptanceLedger(rows: MissionEventRow[]): Record<string, LedgerAcceptance> {
+  const live: Record<string, LedgerAcceptance> = {}
   const ordered = [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at))
   for (const row of ordered) {
     if (row.type === 'delta_accepted') {
-      const move = acceptedMoveFromDetail(row.detail)
-      if (move) live[row.mission_id] = move
+      const acceptance = acceptanceFromDetail(row.detail)
+      if (acceptance) live[row.mission_id] = acceptance
     } else if (row.type && INVALIDATES_ACCEPTANCE.has(row.type)) {
       delete live[row.mission_id]
     }
@@ -214,9 +235,34 @@ export function liveAcceptances(rows: MissionEventRow[]): Record<string, string>
   return live
 }
 
-function withoutMission(moves: Record<string, string>, missionId: string): Record<string, string> {
-  if (!(missionId in moves)) return moves
-  const next = { ...moves }
+/** mission id → accepted move, dropping any acceptance recorded under a
+ *  finish line the mission no longer has (a revision made outside this
+ *  screen writes no event this session saw). */
+export function currentAcceptances(
+  ledger: Record<string, LedgerAcceptance>,
+  missions?: Record<string, Pick<Mission, 'finishLine'>>,
+): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [missionId, acceptance] of Object.entries(ledger)) {
+    const mission = missions?.[missionId]
+    if (missions && acceptance.finishLine !== undefined && mission?.finishLine !== acceptance.finishLine) continue
+    out[missionId] = acceptance.move
+  }
+  return out
+}
+
+/** Ledger fold and finish-line check in one step. The UI still shows
+ *  "Accepted" only when the move equals the Delta it is displaying. */
+export function liveAcceptances(
+  rows: MissionEventRow[],
+  missions?: Record<string, Pick<Mission, 'finishLine'>>,
+): Record<string, string> {
+  return currentAcceptances(acceptanceLedger(rows), missions)
+}
+
+function withoutMission<T>(entries: Record<string, T>, missionId: string): Record<string, T> {
+  if (!(missionId in entries)) return entries
+  const next = { ...entries }
   delete next[missionId]
   return next
 }
@@ -237,12 +283,15 @@ export default function MissionTab() {
   const [evidenceStatus, setEvidenceStatus] = useState<ContextAvailability>('loading')
   const [corrections, setCorrections] = useState<DeltaCorrection[]>([])
   const [suppliedSteps, setSuppliedSteps] = useState<DeltaCandidate[]>([])
-  const [acceptedMoves, setAcceptedMoves] = useState<Record<string, string>>({})
+  const [acceptances, setAcceptances] = useState<Record<string, LedgerAcceptance>>({})
+  // Re-derived whenever the board changes, so an acceptance recorded under a
+  // finish line the mission no longer has is dropped in-session too.
+  const acceptedMoves = useMemo(() => currentAcceptances(acceptances, board.missions), [acceptances, board.missions])
   // Accepts in flight, keyed mission+move, so a double tap cannot insert twice
   // before the first write returns.
   const acceptingRef = useRef<Set<string>>(new Set())
   // The accepted move the Delta is actually showing for Primary (reported by
-  // StrategicDelta). Distinct from acceptedMoves, which is the ledger.
+  // StrategicDelta). Distinct from acceptedMoves, which comes from the ledger.
   const [shownAcceptance, setShownAcceptance] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -296,7 +345,7 @@ export default function MissionTab() {
       const [missionsRes, evidenceRes, correctionsRes] = await Promise.all([
         supabase.from('missions').select('*').eq('user_id', userId),
         supabase.from('evidence_snapshots').select('*'),
-        supabase.from('mission_events').select('*').eq('user_id', userId).in('type', ['delta_accepted', 'delta_corrected', 'delta_step_supplied']).order('created_at', { ascending: true }),
+        supabase.from('mission_events').select('*').eq('user_id', userId).in('type', ['delta_accepted', 'delta_corrected', 'delta_step_supplied', 'finish_line_set']).order('created_at', { ascending: true }),
       ])
       if (isCancelled()) return
       if (missionsRes.error) throw missionsRes.error
@@ -326,7 +375,7 @@ export default function MissionTab() {
           .map(rowToSuppliedStep)
           .filter((step): step is DeltaCandidate => step !== null),
       )
-      setAcceptedMoves(liveAcceptances(eventRows))
+      setAcceptances(acceptanceLedger(eventRows))
 
       if (!evidenceRes.error) {
         setEvidence(((evidenceRes.data ?? []) as EvidenceRow[]).map(rowToEvidence))
@@ -457,6 +506,10 @@ export default function MissionTab() {
             return
           }
         }
+        // A finish-line change replaces the goal an earlier acceptance
+        // agreed with; drop it the same way the reload fold does.
+        const changedGoal = result.event?.type === 'finish_line_set' ? result.event.missionId : null
+        if (changedGoal) setAcceptances(prev => withoutMission(prev, changedGoal))
         flash('Saved')
       } catch {
         setBoard(before)
@@ -512,19 +565,20 @@ export default function MissionTab() {
       const missionId = delta.missionId
       if (!missionId) return false
       if (acceptedMoves[missionId] === delta.move) return true
+      const finishLine = board.missions[missionId]?.finishLine ?? null
       const key = `${missionId}\u0000${delta.move}`
       if (acceptingRef.current.has(key)) return false
       acceptingRef.current.add(key)
       try {
-        const ok = await recordDeltaEvent('delta_accepted', missionId, acceptanceDetail(delta.move, delta.candidateId))
+        const ok = await recordDeltaEvent('delta_accepted', missionId, acceptanceDetail(delta.move, delta.candidateId, finishLine))
         if (!ok) return false
-        setAcceptedMoves(prev => ({ ...prev, [missionId]: delta.move }))
+        setAcceptances(prev => ({ ...prev, [missionId]: finishLine ? { move: delta.move, finishLine } : { move: delta.move } }))
         return true
       } finally {
         acceptingRef.current.delete(key)
       }
     },
-    [acceptedMoves, recordDeltaEvent],
+    [acceptedMoves, board, recordDeltaEvent],
   )
 
   // The corrected prediction is kept, never erased: it stays in
@@ -549,7 +603,7 @@ export default function MissionTab() {
         createdAt: new Date().toISOString(),
       }
       setCorrections(prev => [...prev, correction])
-      setAcceptedMoves(prev => withoutMission(prev, correction.missionId))
+      setAcceptances(prev => withoutMission(prev, correction.missionId))
       return true
     },
     [recordDeltaEvent],
@@ -561,7 +615,11 @@ export default function MissionTab() {
   const handleSupplyStep = useCallback(
     async (delta: Delta, step: string): Promise<boolean> => {
       if (!delta.missionId || !delta.candidateId?.startsWith('clause:')) return false
-      const detail = JSON.stringify({ step, targetId: delta.candidateId })
+      // Bind the step to the clause it answers, so a later finish-line
+      // revision cannot revive it for a different goal.
+      const clause = clauseTextFor(board.missions[delta.missionId]?.finishLine ?? null, delta.candidateId)
+      if (!clause) return false
+      const detail = JSON.stringify({ step, targetId: delta.candidateId, clause })
       const ok = await recordDeltaEvent('delta_step_supplied', delta.missionId, detail)
       if (!ok) return false
       const supplied = rowToSuppliedStep({
@@ -573,10 +631,10 @@ export default function MissionTab() {
       })
       if (supplied) setSuppliedSteps(prev => [...prev, supplied])
       const missionId = delta.missionId
-      setAcceptedMoves(prev => withoutMission(prev, missionId))
+      setAcceptances(prev => withoutMission(prev, missionId))
       return true
     },
-    [recordDeltaEvent],
+    [board, recordDeltaEvent],
   )
 
   const handleDeltaContext = useCallback(

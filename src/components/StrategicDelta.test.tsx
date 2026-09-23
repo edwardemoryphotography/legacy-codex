@@ -260,6 +260,7 @@ describe('StrategicDelta', () => {
         move: restatement,
         missionId: 'm1',
         targetId: 'clause:m1:0',
+        clause: 'lands on main',
         rank: 0,
       }],
     })
@@ -293,6 +294,7 @@ describe('StrategicDelta', () => {
               move: text,
               missionId: delta.missionId ?? '',
               targetId,
+              clause: delta.proofSteps.find(s => s.selected)?.text,
               rank: 0,
             }])
             return true
@@ -314,6 +316,26 @@ describe('StrategicDelta', () => {
     expect(screen.getByRole('button', { name: 'Accept this move' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Name the concrete step' })).toBeNull()
     expect(onCorrect).not.toHaveBeenCalled()
+  })
+
+  it('drops a supplied step in-session when the finish line is revised', async () => {
+    const step = 'Open the live page and write down the first broken sentence'
+    const supplied: DeltaCandidate = {
+      id: operationCandidateId('clause:m1:0', step), kind: 'supplied_operation', move: step,
+      missionId: 'm1', targetId: 'clause:m1:0', clause: 'lands on main', rank: 0,
+    }
+    const props = {
+      evidence: [], corrections: [], phase: 'resolved' as const, readAvailable: true, suppliedOperations: [supplied],
+      onAccept: vi.fn(), onCorrect: vi.fn(), onSupplyStep: vi.fn(), onContextAdded: vi.fn(), onRecheck: vi.fn(),
+    }
+    const { rerender } = render(<StrategicDelta {...props} missions={[PRIMARY]} />)
+    expect(await screen.findByText(step)).toBeTruthy()
+
+    const revised = { ...PRIMARY, finishLine: 'prints the catalogue, mails it, and logs the orders' }
+    rerender(<StrategicDelta {...props} missions={[revised]} acceptedMoves={{ m1: step }} />)
+    expect(await screen.findByText('Needs a concrete step')).toBeTruthy()
+    expect(screen.queryByText(step)).toBeNull()
+    expect(screen.queryByText(/still a prediction until there's evidence/)).toBeNull()
   })
 
   it('leaves the step unrecorded when the write fails', async () => {
@@ -550,7 +572,7 @@ describe('StrategicDelta — requestOperation', () => {
     expect((await screen.findByRole('alert')).textContent).toMatch(/Model-assisted operation generation failed/)
 
     const supplied: DeltaCandidate = {
-      id: operationCandidateId('clause:m1:0', step), kind: 'supplied_operation', move: step, missionId: 'm1', targetId: 'clause:m1:0', rank: 0,
+      id: operationCandidateId('clause:m1:0', step), kind: 'supplied_operation', move: step, missionId: 'm1', targetId: 'clause:m1:0', clause: 'lands on main', rank: 0,
     }
     rerender(<StrategicDelta {...props} suppliedOperations={[supplied]} />)
     expect(await screen.findByText(step)).toBeTruthy()

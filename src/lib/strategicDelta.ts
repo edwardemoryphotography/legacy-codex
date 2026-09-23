@@ -93,6 +93,20 @@ export function candidateTargetsClause(candidateId: string | undefined, targetId
   return candidateId === targetId || candidateId?.startsWith(`${targetId}:operation:`) === true
 }
 
+/** The clause a target id points at in `finishLine`, as the engine splits
+ *  it now. Null when the target is not a clause of this finish line. */
+export function clauseTextFor(finishLine: string | null, targetId: string | undefined): string | null {
+  const target = parseClauseId(targetId)
+  if (!target) return null
+  return decomposeFinishLine(finishLine)[target.index] ?? null
+}
+
+/** Same clause, ignoring case, spacing and trailing punctuation only. */
+export function sameClause(a: string, b: string): boolean {
+  const norm = (text: string) => text.toLowerCase().replace(/\s+/g, ' ').replace(/[\s.,;:!?]+$/, '').trim()
+  return norm(a) === norm(b)
+}
+
 function parseClauseId(targetId: string | undefined): { missionId: string; index: number } | null {
   if (!targetId) return null
   const match = /^clause:([^:]+):(\d+)$/.exec(targetId)
@@ -302,7 +316,12 @@ function admitClauseOperation(
   // Until trusted state says a target is resolved, the first target remains
   // unresolved. A new operation may aim at it; it may not silently unlock a
   // later clause.
-  return target.index === 0 && Boolean(clauses[target.index])
+  if (target.index !== 0 || !clauses[target.index]) return false
+  // The target id is only a position. An operation recorded for a finish
+  // line that has since been revised was aimed at a different goal: keep it
+  // in history, never admit it. An operation with no recorded clause cannot
+  // prove which goal it was for, so it is not admitted either.
+  return Boolean(suggestion.clause) && sameClause(suggestion.clause as string, clauses[target.index])
 }
 
 export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {

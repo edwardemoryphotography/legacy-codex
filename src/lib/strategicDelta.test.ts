@@ -59,14 +59,18 @@ function correction(over: Partial<DeltaCorrection> & { correctedMove: string }):
 // A model-derived operation for one clause — what the async model stage
 // hands the engine. Never fabricated by the engine itself; only ever
 // supplied by the caller, exactly like this.
-function suggestion(missionId: string, index: number, move: string): DeltaCandidate {
+// Operations record the clause they were aimed at; by default the first
+// clause of COMPOUND, which is what most missions below use.
+function suggestion(missionId: string, index: number, move: string, finishLine: string = COMPOUND): DeltaCandidate {
   const targetId = clauseId(missionId, index)
-  return { id: operationCandidateId(targetId, move), kind: 'model_suggested', move, missionId, targetId, rank: 0 }
+  const clause = decomposeFinishLine(finishLine)[index]
+  return { id: operationCandidateId(targetId, move), kind: 'model_suggested', move, missionId, targetId, clause, rank: 0 }
 }
 
-function suppliedStep(missionId: string, index: number, move: string): DeltaCandidate {
+function suppliedStep(missionId: string, index: number, move: string, finishLine: string = COMPOUND): DeltaCandidate {
   const targetId = clauseId(missionId, index)
-  return { id: operationCandidateId(targetId, move), kind: 'supplied_operation', move, missionId, targetId, rank: 0 }
+  const clause = decomposeFinishLine(finishLine)[index]
+  return { id: operationCandidateId(targetId, move), kind: 'supplied_operation', move, missionId, targetId, clause, rank: 0 }
 }
 
 describe('summarizeEvidence', () => {
@@ -494,7 +498,7 @@ describe('regression — the real Strategic Delta failed twice', () => {
 
     for (let i = 0; i < 3; i += 1) {
       const delta = predictStrategicDelta(real(), [], corrections, NOW, [
-        suggestion('real', 0, `Open the deployed Delta and record what happens in test pass ${i + 1}`),
+        suggestion('real', 0, `Open the deployed Delta and record what happens in test pass ${i + 1}`, REAL_FINISH),
       ])
       targets.push(delta.candidateId)
       expect(ROUND_2_BAD_MOVES).not.toContain(delta.move)
@@ -528,13 +532,13 @@ describe('regression — the real Strategic Delta failed twice', () => {
   // the same quality bar as everything deterministic.
   it('selects a supplied operation for the first clause when one is available, and still rejects a bad one', () => {
     const good = predictStrategicDelta(real(), [], [], NOW, [
-      suggestion('real', 0, 'Ask Vaughn to test the live Delta and report back within a day'),
+      suggestion('real', 0, 'Ask Vaughn to test the live Delta and report back within a day', REAL_FINISH),
     ])
     expect(good.provenance).toBe('model')
     expect(good.move).toBe('Ask Vaughn to test the live Delta and report back within a day')
 
     const bad = predictStrategicDelta(real(), [], [], NOW, [
-      suggestion('real', 0, 'Verify this part of your finish line'),
+      suggestion('real', 0, 'Verify this part of your finish line', REAL_FINISH),
     ])
     expect(bad.provenance).not.toBe('model')
     expect(ROUND_2_BAD_MOVES).not.toContain(bad.move)
@@ -612,6 +616,28 @@ describe('a step the user supplied', () => {
 
     const blocked = predictStrategicDelta([{ ...primary, blocker: 'Waiting on review' }, secondary], [], [], NOW, [secondaryStep])
     expect(blocked.inhibited.some(c => c.id === secondaryStep.id) || blocked.candidateId === secondaryStep.id).toBe(true)
+  })
+
+  it('does not revive a step recorded for a finish line that has since been revised', () => {
+    const step = suppliedStep('m1', 0, concrete) // recorded against COMPOUND's first clause
+    const revised = [mission({ id: 'm1', state: 'primary', title: 'Ship the Delta', finishLine: 'prints the catalogue, mails it, and logs the orders' })]
+
+    const delta = predictStrategicDelta(revised, [], [], NOW, [step])
+    expect(delta.move).not.toBe(concrete)
+    expect(delta.provenance).not.toBe('supplied')
+    expect(delta.assembledFrom.join(' ')).not.toContain('you supplied')
+  })
+
+  it('still admits the step when only spacing or case in the finish line changed', () => {
+    const step = suppliedStep('m1', 0, concrete)
+    const same = [mission({ id: 'm1', state: 'primary', title: 'Ship the Delta', finishLine: 'Ships the change,  verifies it in production, and records the evidence.' })]
+    expect(predictStrategicDelta(same, [], [], NOW, [step]).move).toBe(concrete)
+  })
+
+  it('does not admit an operation that cannot say which clause it was for', () => {
+    const { clause: _omitted, ...unbound } = suppliedStep('m1', 0, concrete)
+    const delta = predictStrategicDelta(missions, [], [], NOW, [unbound])
+    expect(delta.move).not.toBe(concrete)
   })
 
   it('counts only supplied steps the prediction actually considered', () => {
