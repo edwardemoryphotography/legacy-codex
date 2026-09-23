@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-22T22:45:40.054Z",
+  "generatedAt": "2026-09-23T03:37:16.915Z",
   "records": [
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-88",
@@ -7,9 +7,9 @@
       "source": "github:edwardemoryphotography/legacy-codex#88",
       "kind": "custom",
       "status": "unverified",
-      "claim": "PR #88 \"Give Strategic Delta a named focal presence\" open, not yet merged.",
-      "observedAt": "2026-09-22T20:16:15Z",
-      "fetchedAt": "2026-09-22T22:45:34.919Z"
+      "claim": "PR #88 \"Evaluate a supplied step and refine the Strategic Delta field\" open, not yet merged.",
+      "observedAt": "2026-09-23T03:30:22Z",
+      "fetchedAt": "2026-09-23T03:37:13.129Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-87",
@@ -19,7 +19,7 @@
       "status": "unverified",
       "claim": "PR #87 \"Record why GitHub previews could not open a session\" open, not yet merged.",
       "observedAt": "2026-09-22T18:34:26Z",
-      "fetchedAt": "2026-09-22T22:45:34.920Z"
+      "fetchedAt": "2026-09-23T03:37:13.129Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-86",
@@ -29,7 +29,7 @@
       "status": "verified",
       "claim": "PR #86 \"Make the Mission front door an invitation to one next move\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-22T18:09:19Z",
-      "fetchedAt": "2026-09-22T22:45:35.342Z"
+      "fetchedAt": "2026-09-23T03:37:13.428Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-79",
@@ -39,7 +39,7 @@
       "status": "unverified",
       "claim": "PR #79 \"Claude/orb effect integration b5i8xa\" open, not yet merged.",
       "observedAt": "2026-09-17T07:34:53Z",
-      "fetchedAt": "2026-09-22T22:45:35.342Z"
+      "fetchedAt": "2026-09-23T03:37:13.428Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-81",
@@ -49,7 +49,7 @@
       "status": "verified",
       "claim": "PR #81 \"Strategic Delta: dead-CSS fix, ambient hero field, pointer/touch cognition interaction, typography + first-run audit\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-09T07:35:29Z",
-      "fetchedAt": "2026-09-22T22:45:35.713Z"
+      "fetchedAt": "2026-09-23T03:37:13.726Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-83",
@@ -59,7 +59,7 @@
       "status": "unverified",
       "claim": "PR #83 \"Strategic Delta: deployed interface resolution + neural visual polish\" open, not yet merged.",
       "observedAt": "2026-09-08T23:49:06Z",
-      "fetchedAt": "2026-09-22T22:45:35.713Z"
+      "fetchedAt": "2026-09-23T03:37:13.726Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-84",
@@ -69,7 +69,7 @@
       "status": "unverified",
       "claim": "PR #84 \"Strategic Delta: restore production interface (dead-CSS fix + neural polish)\" open, not yet merged.",
       "observedAt": "2026-09-08T23:48:23Z",
-      "fetchedAt": "2026-09-22T22:45:35.713Z"
+      "fetchedAt": "2026-09-23T03:37:13.726Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-80",
@@ -79,7 +79,7 @@
       "status": "verified",
       "claim": "PR #80 \"Fix broken layout CSS, cover Mission row-mapping tests, record verification gate\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-08T23:42:46Z",
-      "fetchedAt": "2026-09-22T22:45:36.089Z"
+      "fetchedAt": "2026-09-23T03:37:14.024Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-85",
@@ -89,7 +89,7 @@
       "status": "unverified",
       "claim": "PR #85 \"Strategic Delta: restore production interface after main overwrite\" open, not yet merged.",
       "observedAt": "2026-09-08T19:35:49Z",
-      "fetchedAt": "2026-09-22T22:45:36.089Z"
+      "fetchedAt": "2026-09-23T03:37:14.024Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-82",
@@ -99,7 +99,7 @@
       "status": "verified",
       "claim": "PR #82 \"Retire obsolete instruction gates and make current user intent authoritative\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-08T08:16:27Z",
-      "fetchedAt": "2026-09-22T22:45:36.470Z"
+      "fetchedAt": "2026-09-23T03:37:14.329Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-78",
@@ -109,7 +109,7 @@
       "status": "verified",
       "claim": "PR #78 \"Strategic Delta: predictive front door, with two real reasoning bugs fixed\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-08T05:28:50Z",
-      "fetchedAt": "2026-09-22T22:45:36.950Z"
+      "fetchedAt": "2026-09-23T03:37:14.588Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-75",
@@ -119,7 +119,7 @@
       "status": "unverified",
       "claim": "PR #75 \"docs: correct stale Supabase project claim for codex-system-architecture\" open, not yet merged.",
       "observedAt": "2026-09-07T07:40:05Z",
-      "fetchedAt": "2026-09-22T22:45:36.950Z"
+      "fetchedAt": "2026-09-23T03:37:14.588Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-73",
@@ -129,7 +129,7 @@
       "status": "verified",
       "claim": "PR #73 \"Repair PR72 action uniqueness and concurrent saves\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-07T07:30:35Z",
-      "fetchedAt": "2026-09-22T22:45:37.310Z"
+      "fetchedAt": "2026-09-23T03:37:14.894Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-76",
@@ -139,7 +139,7 @@
       "status": "verified",
       "claim": "PR #76 \"fix: restore production analyzer authentication\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-07T07:29:24Z",
-      "fetchedAt": "2026-09-22T22:45:37.666Z"
+      "fetchedAt": "2026-09-23T03:37:15.165Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-77",
@@ -149,7 +149,7 @@
       "status": "verified",
       "claim": "PR #77 \"docs: reconcile verified production workflow\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-07T00:34:34Z",
-      "fetchedAt": "2026-09-22T22:45:38.034Z"
+      "fetchedAt": "2026-09-23T03:37:15.427Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-74",
@@ -159,7 +159,7 @@
       "status": "verified",
       "claim": "PR #74 \"docs: reconcile PROJECT_STATUS.md to 2026-09-06\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-06T19:12:16Z",
-      "fetchedAt": "2026-09-22T22:45:38.365Z"
+      "fetchedAt": "2026-09-23T03:37:15.701Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-69",
@@ -169,7 +169,7 @@
       "status": "verified",
       "claim": "PR #69 \"Add transitions-dev and transitions-polish skills\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-06T06:54:20Z",
-      "fetchedAt": "2026-09-22T22:45:38.813Z"
+      "fetchedAt": "2026-09-23T03:37:15.990Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-67",
@@ -179,7 +179,7 @@
       "status": "verified",
       "claim": "PR #67 \"fix(ci): commit untracked evidence snapshot\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-05T19:20:07Z",
-      "fetchedAt": "2026-09-22T22:45:39.278Z"
+      "fetchedAt": "2026-09-23T03:37:16.323Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-72",
@@ -189,7 +189,7 @@
       "status": "verified",
       "claim": "PR #72 \"Save and resume the same next action across Mission and Resumption Log\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-05T19:09:56Z",
-      "fetchedAt": "2026-09-22T22:45:39.733Z"
+      "fetchedAt": "2026-09-23T03:37:16.638Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-66",
@@ -199,7 +199,7 @@
       "status": "verified",
       "claim": "PR #66 \"Make the home-screen next action bigger\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-05T06:15:58Z",
-      "fetchedAt": "2026-09-22T22:45:40.054Z"
+      "fetchedAt": "2026-09-23T03:37:16.915Z"
     }
   ]
 }
