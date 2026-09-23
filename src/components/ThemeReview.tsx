@@ -12,8 +12,9 @@ function applyTheme(theme: ReviewTheme) {
 /**
  * Review-only light/dark switch. Dark is the shipped theme; this exists so
  * Eddie can compare both presentations against his real content on a
- * preview before choosing. It never renders — and never applies a stored
- * theme — on the production host.
+ * preview before choosing. It renders only when layout.tsx marked the page
+ * as a preview/development build (`data-theme-review="on"`), and never on
+ * the production host.
  *
  * `?theme=light|dark` in the URL also selects and remembers a theme, so a
  * preview link can open straight into one of them.
@@ -22,6 +23,9 @@ export default function ThemeReview() {
   const [theme, setTheme] = useState<ReviewTheme | null>(null)
 
   useEffect(() => {
+    // Enabled by the server layout only on preview/development builds; the
+    // production hostname check is a second guard.
+    if (document.documentElement.dataset.themeReview !== 'on') return
     if (window.location.hostname === PRODUCTION_HOST) return
     const current: ReviewTheme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'
     applyTheme(current)

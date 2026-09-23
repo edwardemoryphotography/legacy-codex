@@ -17,13 +17,20 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 }
 
+// The light/dark review switch exists only on Vercel preview deployments and
+// local development, decided from the deployment's own configuration at
+// build time. Every production deployment — whichever Vercel project or
+// domain serves it — gets neither the switch nor the boot script. If
+// VERCEL_ENV is unavailable the switch is simply absent (fails closed).
+const THEME_REVIEW_ENABLED = process.env.VERCEL_ENV === 'preview' || process.env.NODE_ENV === 'development'
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     // The review theme is applied before paint by the script below, so the
     // server-rendered <html> can legitimately differ on data-theme.
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning data-theme-review={THEME_REVIEW_ENABLED ? 'on' : undefined}>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        {THEME_REVIEW_ENABLED && <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />}
       </head>
       <body>{children}</body>
     </html>
