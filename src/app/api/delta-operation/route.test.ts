@@ -21,7 +21,10 @@ const mocks = vi.hoisted(() => {
 })
 
 vi.mock('@anthropic-ai/sdk', () => ({ default: mocks.FakeAnthropic }))
-vi.mock('@supabase/server/core', () => ({ verifyAuth: mocks.verifyAuth }))
+vi.mock('@supabase/server/core', async importOriginal => ({
+  ...(await importOriginal<typeof import('@supabase/server/core')>()),
+  verifyAuth: mocks.verifyAuth,
+}))
 
 import { GET, POST } from './route'
 
@@ -45,10 +48,37 @@ describe('/api/delta-operation', () => {
     vi.clearAllMocks()
     process.env.ANTHROPIC_API_KEY = 'test-key'
     process.env.DELTA_OPERATION_ALLOWED_USER_ID = 'owner-1'
+    // A Vercel preview's shape: only the public project URL is configured.
+    vi.stubEnv('SUPABASE_URL', '')
+    vi.stubEnv('SUPABASE_JWKS', '')
+    vi.stubEnv('SUPABASE_JWKS_URL', '')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://pkydkbuodikttfeawqsw.supabase.co')
     mocks.verifyAuth.mockResolvedValue({ data: { userClaims: { id: 'owner-1' } }, error: null })
     mocks.createMessage.mockResolvedValue({
       content: [{ type: 'text', text: 'Reload the app and confirm the corrected recommendation remains visible.' }],
     })
+  })
+
+  it('verifies users against the public project URL when SUPABASE_URL is unset (preview shape)', async () => {
+    const response = await GET(new NextRequest('https://preview.example.test/api/delta-operation'))
+    expect(response.status).toBe(200)
+    const options = mocks.verifyAuth.mock.calls[0][1]
+    expect(options.auth).toBe('user')
+    expect(options.env.url).toBe('https://pkydkbuodikttfeawqsw.supabase.co')
+    expect(String(options.env.jwks)).toBe('https://pkydkbuodikttfeawqsw.supabase.co/auth/v1/.well-known/jwks.json')
+  })
+
+  it('still refuses an unauthenticated caller with 401, not a misconfiguration 500', async () => {
+    mocks.verifyAuth.mockResolvedValue({ data: null, error: { status: 401, code: 'INVALID_CREDENTIALS' } })
+    const response = await GET(new NextRequest('https://preview.example.test/api/delta-operation'))
+    expect(response.status).toBe(401)
+  })
+
+  it('reports misconfiguration only when no project URL is set at all', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', '')
+    const response = await GET(new NextRequest('https://preview.example.test/api/delta-operation'))
+    expect(response.status).toBe(500)
+    expect(mocks.verifyAuth).not.toHaveBeenCalled()
   })
 
   it('requires an authenticated owner before reporting capability', async () => {

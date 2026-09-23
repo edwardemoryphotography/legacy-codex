@@ -23,6 +23,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAuth } from '@supabase/server/core'
 import { isConcreteMove } from '@/lib/strategicDelta'
+import { resolveUserAuthEnv } from '@/lib/supabase/userAuthEnv'
 
 export const runtime = 'nodejs'
 
@@ -61,7 +62,14 @@ function isLocalDevelopment(req: NextRequest): boolean {
 }
 
 async function verifyOwner(req: NextRequest): Promise<NextResponse | null> {
-  const { data: auth, error: authError } = await verifyAuth(req, { auth: 'user' })
+  // Same env resolution as /api/analyze: previews may only have the public
+  // project URL. Auth mode and the account allowlist below are unchanged.
+  const resolved = resolveUserAuthEnv()
+  if (!resolved.env) {
+    console.error(`/api/delta-operation auth misconfigured [${resolved.error}]`)
+    return NextResponse.json({ error: 'Server authentication is misconfigured.' }, { status: 500 })
+  }
+  const { data: auth, error: authError } = await verifyAuth(req, { auth: 'user', env: resolved.env })
   if (authError) {
     if (authError.status === 500) {
       console.error(`/api/delta-operation auth misconfigured [${authError.code}]`)
