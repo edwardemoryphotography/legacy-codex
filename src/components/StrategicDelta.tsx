@@ -92,11 +92,13 @@ interface Props {
    *  Compared by value against the Delta on screen, so a re-prediction that
    *  changes the move — or aims at another mission — is not shown accepted. */
   acceptedMoves?: Readonly<Record<string, string>>
-  /** Reports the accepted move currently on screen for the Primary mission,
-   *  or null. The saved-action composer seeds from this, never from the
-   *  ledger alone: an acceptance of a move the Delta no longer predicts must
-   *  not reappear as "the recommendation you accepted". */
-  onShownAcceptance?: (move: string | null) => void
+  /** Reports the accepted move currently on screen and the active mission
+   *  (Primary, or an actionable Secondary) it belongs to, or null. The
+   *  saved-action composer seeds from this, never from the ledger alone: an
+   *  acceptance of a move the Delta no longer predicts must not reappear as
+   *  "the recommendation you accepted", and a Secondary's step must be saved
+   *  against the Secondary. */
+  onShownAcceptance?: (acceptance: { missionId: string; move: string } | null) => void
   /** Whether the caller's mission/correction read has actually succeeded
    *  at least once. `missions: []` is ambiguous on its own — it means
    *  either a confirmed-empty first-time visitor or a failed read that
@@ -387,10 +389,16 @@ export default function StrategicDelta({
       : PHASE_TEXT[phase === 'resolved' ? 'reading' : phase]
 
   const primaryMission = missions.find(mission => mission.state === 'primary') ?? null
-  const shownAcceptance = accepted && delta && primaryMission && delta.missionId === primaryMission.id ? delta.move : null
+  // Actions are saved against an active mission only (Primary or Secondary),
+  // and against the one this Delta is actually aimed at.
+  const committableMission = delta?.missionId
+    ? missions.find(m => m.id === delta.missionId && (m.state === 'primary' || m.state === 'secondary')) ?? null
+    : null
+  const shownMove = accepted && delta && committableMission ? delta.move : null
+  const shownMissionId = shownMove ? committableMission?.id ?? null : null
   useEffect(() => {
-    onShownAcceptance?.(shownAcceptance)
-  }, [onShownAcceptance, shownAcceptance])
+    onShownAcceptance?.(shownMove && shownMissionId ? { missionId: shownMissionId, move: shownMove } : null)
+  }, [onShownAcceptance, shownMove, shownMissionId])
   const hasRecommendation = delta !== null && delta.provenance !== 'insufficient_context'
   // A supplied step is recorded against a clause. Without a clause target
   // (e.g. the only candidate was corrected) there is nothing to aim it at.
@@ -453,7 +461,7 @@ export default function StrategicDelta({
               <div className="sd-act-primary">
                 {/* The saved action is a separate, explicit commitment. This
                     only points at it; nothing is saved from here. */}
-                {primaryMission && delta.missionId === primaryMission.id && (
+                {committableMission && (
                   <a className="sd-next" href="#saved-action">Save it as one action you can return to</a>
                 )}
                 <p className="sd-accepted">

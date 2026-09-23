@@ -752,7 +752,11 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
     // operation. This is the engine's own limit, not missing input from
     // the human — so it says so, rather than asking them to report a
     // change they never made.
-    const clauseNeedsOperation = clauseTexts.length > 0 && targetClauseIndex !== null
+    // A Primary that is blocked or over capacity inhibits every operation
+    // aimed at it, so there is no clause to ask the human (or the model) to
+    // supply a step for — that would only add futile ledger rows.
+    const aimedDeferred = primaryDeferred && aimedAt?.id === ctx.primary?.id
+    const clauseNeedsOperation = !aimedDeferred && clauseTexts.length > 0 && targetClauseIndex !== null
 
     const move = !hadCandidates
       ? INSUFFICIENT_CONTEXT_MOVE

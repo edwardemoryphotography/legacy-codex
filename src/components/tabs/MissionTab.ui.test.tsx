@@ -233,3 +233,41 @@ describe('MissionTab supplied steps across a finish-line revision', () => {
     expect(screen.queryByText(step)).toBeNull()
   })
 })
+
+describe('MissionTab saves an accepted Secondary step against the Secondary', () => {
+  const step = 'Email the framer and ask for the three frame prices today'
+  const base = { why: '', evidenceRequirement: null, blocker: null, createdAt: '2026-09-20T00:00:00.000Z', updatedAt: '2026-09-20T00:00:00.000Z' }
+  const primary: Mission = { ...base, id: 'm1', title: 'Ship the Delta', finishLine: 'It ships, and it is reviewed', state: 'primary', capacityMismatch: true }
+  const secondary: Mission = { ...base, id: 'm2', title: 'Price the frames', finishLine: 'The frame prices are listed and the order is placed', state: 'secondary', capacityMismatch: false }
+
+  beforeEach(() => {
+    inserts = []
+    failNext = {}
+    connectMissionSession.mockReset()
+    connectMissionSession.mockResolvedValue({ id: 'user-1' })
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ configured: false }) })))
+    tables = {
+      missions: [primary, secondary].map(m => ({ ...missionToRow(m, 'user-1'), created_at: m.createdAt })),
+      evidence_snapshots: [],
+      actions: [],
+      mission_events: [
+        { id: 's1', mission_id: 'm2', type: 'delta_step_supplied', detail: JSON.stringify({ step, targetId: 'clause:m2:0', clause: 'The frame prices are listed' }), created_at: '2026-09-21T00:00:00.000Z' },
+        { id: 'a1', mission_id: 'm2', type: 'delta_accepted', detail: JSON.stringify({ move: step, finishLine: secondary.finishLine }), created_at: '2026-09-21T01:00:00.000Z' },
+      ],
+    }
+  })
+
+  it('seeds the composer with the accepted Secondary step and saves it with the Secondary mission id', async () => {
+    render(<MissionTab />)
+    expect(await screen.findByText(/still a prediction until there's evidence/)).toBeTruthy()
+    const composer = await waitFor(() => {
+      const input = document.getElementById('saved-action-title') as HTMLInputElement | null
+      expect(input?.value).toBe(step)
+      return input!
+    })
+    expect(composer).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Save next action' }))
+    await waitFor(() => expect(inserts.some(i => i.table === 'actions')).toBe(true))
+    expect(inserts.find(i => i.table === 'actions')?.row.mission_id).toBe('m2')
+  })
+})

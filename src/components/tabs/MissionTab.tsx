@@ -292,7 +292,7 @@ export default function MissionTab() {
   const acceptingRef = useRef<Set<string>>(new Set())
   // The accepted move the Delta is actually showing for Primary (reported by
   // StrategicDelta). Distinct from acceptedMoves, which comes from the ledger.
-  const [shownAcceptance, setShownAcceptance] = useState<string | null>(null)
+  const [shownAcceptance, setShownAcceptance] = useState<{ missionId: string; move: string } | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
   const [connectionAttempt, setConnectionAttempt] = useState(0)
@@ -1010,11 +1010,13 @@ export default function MissionTab() {
       {/* Accepting a Delta is a prediction, not a commitment — SavedActions
           is where accepting one turns into a tracked, resumable action with
           status and a place to leave yourself a note. */}
+      {/* Bound to the mission of the accepted move on screen — the Primary,
+          or an actionable Secondary when that is what the Delta aimed at. */}
       {sessionReady && primary && (
         <SavedActions
-          key={primary.id}
-          missionId={primary.id}
-          suggestedTitle={shownAcceptance}
+          key={shownAcceptance?.missionId ?? primary.id}
+          missionId={shownAcceptance?.missionId ?? primary.id}
+          suggestedTitle={shownAcceptance?.move ?? null}
           onActiveChange={handleResumableAction}
         />
       )}

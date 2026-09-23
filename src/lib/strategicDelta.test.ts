@@ -587,6 +587,22 @@ describe('isConcreteMove', () => {
   })
 })
 
+describe('a deferred Primary', () => {
+  it('names no clause target when the only mission is over capacity, so no step is asked for', () => {
+    const over = mission({ id: 'm1', state: 'primary', title: 'Ship the Delta', finishLine: COMPOUND, capacityMismatch: true })
+    const delta = predictStrategicDelta([over], [], [], NOW)
+    expect(delta.candidateId).toBeNull()
+  })
+
+  it('names no clause target when a blocked Primary\'s clear-blocker move was corrected', () => {
+    const blocked = mission({ id: 'm1', state: 'primary', title: 'Ship the Delta', finishLine: COMPOUND, blocker: 'Waiting on review' })
+    const first = predictStrategicDelta([blocked], [], [], NOW)
+    expect(first.candidateId).toBe('unblock:m1')
+    const delta = predictStrategicDelta([blocked], [], [correction({ correctedMove: first.move, candidateId: 'unblock:m1' })], NOW)
+    expect(delta.candidateId?.startsWith('clause:') ?? false).toBe(false)
+  })
+})
+
 describe('short finish-line clauses', () => {
   it('keeps every clause of "the build passes, deploy it, and notify them" as a proof step', () => {
     const finishLine = 'the build passes, deploy it, and notify them'
