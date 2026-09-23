@@ -587,6 +587,15 @@ describe('isConcreteMove', () => {
   })
 })
 
+describe('short finish-line clauses', () => {
+  it('keeps every clause of "the build passes, deploy it, and notify them" as a proof step', () => {
+    const finishLine = 'the build passes, deploy it, and notify them'
+    expect(decomposeFinishLine(finishLine)).toEqual(['the build passes', 'deploy it', 'notify them'])
+    const delta = predictStrategicDelta([mission({ id: 'm1', state: 'primary', title: 'Release', finishLine })], [], [], NOW)
+    expect(delta.proofSteps.map(step => step.text)).toEqual(['the build passes', 'deploy it', 'notify them'])
+  })
+})
+
 describe('a step the user supplied', () => {
   const missions = [mission({ id: 'm1', state: 'primary', title: 'Ship the Delta', finishLine: COMPOUND })]
   const concrete = 'Open the live page and write down the first broken sentence'
