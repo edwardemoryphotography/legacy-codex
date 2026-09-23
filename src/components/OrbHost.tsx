@@ -70,11 +70,10 @@ export function PersistentOrb() {
  *  stays inline, so an isolated render still has one orb. */
 export function OrbSlot() {
   const host = useContext(OrbHostContext)
-  const setSlot = useRef(host?.setSlot)
-  setSlot.current = host?.setSlot
+  const publish = host?.setSlot
   const ref = useCallback((node: HTMLDivElement | null) => {
-    setSlot.current?.(node)
-  }, [])
+    publish?.(node)
+  }, [publish])
   if (!host) return <CognitionField />
   return <div className="sd-field-slot" ref={ref} />
 }
@@ -83,24 +82,25 @@ export function OrbSlot() {
  *  Leaving mid-read settles the companion instead of freezing it on work
  *  that is no longer on screen. */
 export function useOrbCognition(next: OrbCognition) {
-  const host = useContext(OrbHostContext)
-  const nextRef = useRef(next)
-  nextRef.current = next
-  const setRef = useRef(host?.setCognition)
-  setRef.current = host?.setCognition
+  const { cognition, provenance, recording } = next
+  const setCognition = useContext(OrbHostContext)?.setCognition
+  const latest = useRef(next)
 
   useEffect(() => {
-    setRef.current?.(nextRef.current)
-  }, [next.cognition, next.provenance, next.recording])
+    const snapshot = { cognition, provenance, recording }
+    latest.current = snapshot
+    setCognition?.(snapshot)
+  }, [setCognition, cognition, provenance, recording])
 
   useEffect(() => {
+    const publish = setCognition
     return () => {
-      const current = nextRef.current
+      const current = latest.current
       const pending = current.recording
         || current.cognition === 'reconstructing'
         || current.cognition === 'deriving'
         || current.cognition === 'correcting'
-      setRef.current?.(pending
+      publish?.(pending
         ? {
             cognition: current.provenance === 'insufficient_context' ? 'insufficient' : 'settled',
             provenance: current.provenance,
@@ -108,5 +108,5 @@ export function useOrbCognition(next: OrbCognition) {
           }
         : current)
     }
-  }, [])
+  }, [setCognition])
 }
