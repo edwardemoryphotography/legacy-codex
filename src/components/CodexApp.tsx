@@ -11,6 +11,7 @@ import BiometricsTab from './tabs/BiometricsTab'
 import ConstraintValidatorTab from './tabs/ConstraintValidatorTab'
 import CodexTab from './tabs/CodexTab'
 import ControlsTab from './tabs/ControlsTab'
+import { OrbHostProvider, PersistentOrb } from './OrbHost'
 
 interface Tab {
   id: TabId
@@ -98,12 +99,14 @@ export default function CodexApp() {
   }
 
   return (
+    <OrbHostProvider placed={activeTab === 'mission'}>
     <div className="codex-shell">
       <header className="codex-header">
         <div className="codex-brand">
           <h1>Legacy Codex<span className="brand-dot" aria-hidden="true" /></h1>
           <p>Turn a real idea into the one next move.</p>
         </div>
+        <PersistentOrb />
       </header>
 
       {/* Primary nav: the three everyday screens, always visible, plus More. */}
@@ -217,5 +220,6 @@ export default function CodexApp() {
         Your context. Your pace.
       </footer>
     </div>
+    </OrbHostProvider>
   )
 }

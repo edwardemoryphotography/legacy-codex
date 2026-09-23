@@ -153,6 +153,8 @@ Three rules that are load-bearing, not stylistic:
  cyan = a step the user supplied, violet = model-generated, amber = insufficient
  context. The field itself keeps one violet/blue/cyan/magenta material — translucent
  depth, a cyan edge, magenta light, and flowing contours inside that one field.
+ There is one field. The shell hosts it: on Mission it sits in the Strategic
+ Delta stage, and on every other screen the same node docks at the top.
  Idle is a slow ambient drift (transform and opacity only). Typing, navigation,
  and mission changes lift that drift. Pending reads, prediction, model requests,
  saves, and corrections deform it further, then it settles back. The core does

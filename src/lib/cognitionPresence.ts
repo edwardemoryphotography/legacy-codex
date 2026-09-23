@@ -34,13 +34,25 @@ function isTextEntry(target: EventTarget | null): boolean {
   return false
 }
 
+const TAB_KEYS = new Set(['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End'])
+
 /** Classify one user event. Anything that is not a real text entry, a
- *  mission select, or a tab/sheet navigation is ignored. */
+ *  mission select, or a tab/sheet navigation is ignored. Arrow keys on the
+ *  tablist count: that is how the primary bar moves without a click. */
 export function presenceForDomEvent(event: Event): FieldActivity | null {
   if (event.type === 'input' && isTextEntry(event.target)) return 'typing'
   if (event.type === 'change' && event.target instanceof HTMLSelectElement) return 'mission'
   if (event.type === 'click' && event.target instanceof Element) {
     if (event.target.closest('[role="tab"], [data-more-item]')) return 'navigating'
+  }
+  if (
+    event.type === 'keydown'
+    && event instanceof KeyboardEvent
+    && TAB_KEYS.has(event.key)
+    && event.target instanceof Element
+    && event.target.closest('[role="tab"], [role="tablist"]')
+  ) {
+    return 'navigating'
   }
   return null
 }
@@ -51,8 +63,8 @@ export function markNavigation(now = Date.now()): void {
 
 /** Milliseconds since the last real tab/sheet navigation, or null when
  *  this document has not navigated yet. The field reads this on mount
- *  because leaving Mission unmounts the orb before the click's presence
- *  can be seen. */
+ *  because moving between the mission slot and the dock remounts it, and
+ *  the click that caused the move can land before that new node exists. */
 export function navigationAge(now = Date.now()): number | null {
   if (lastNavigationAt === 0) return null
   return now - lastNavigationAt

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DeltaCandidate, DeltaCorrection, EvidenceRecord, Mission, StrategicDelta as Delta } from '@/types'
 import { candidateTargetsClause, operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
 import { ActionBtn, ActionChip, Textarea } from '@/components/ui'
-import CognitionField from '@/components/CognitionField'
+import { OrbSlot, useOrbCognition } from '@/components/OrbHost'
 
 // Phases are derived from work that is actually pending — anonymous
 // sign-in, then the missions/evidence read. Nothing here runs on a timer
@@ -383,20 +383,22 @@ export default function StrategicDelta({
   const retainedStep = delta?.inhibited.find(candidate =>
     candidate.kind === 'supplied_operation' && candidate.move !== delta.move,
   ) ?? null
+  const provenance = delta?.provenance ?? 'deterministic'
+  useOrbCognition({ cognition, provenance, recording })
 
   return (
     <section
       className="sd"
       data-state={reconstructing ? 'reasoning' : 'resolved'}
       data-cognition={cognition}
-      data-provenance={delta?.provenance ?? 'deterministic'}
+      data-provenance={provenance}
       data-recording={recording ? 'true' : undefined}
       data-first-run={isFirstRun ? 'true' : undefined}
       aria-busy={reconstructing || recording}
       aria-label="Strategic Delta"
     >
       <div className="sd-stage">
-      <CognitionField />
+      <OrbSlot />
       <div className="sd-copy">
       <header className="sd-identity">
         <h2>Strategic Delta</h2>

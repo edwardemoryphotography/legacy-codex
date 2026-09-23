@@ -148,6 +148,23 @@ describe('CognitionField', () => {
     expect(again.container.querySelector('.sd-field')?.getAttribute('data-presence')).toBe('navigating')
   })
 
+  it('treats a real arrow-key tab change as navigation', () => {
+    setReducedMotion(false)
+    const tab = document.createElement('button')
+    tab.setAttribute('role', 'tab')
+    document.body.appendChild(tab)
+    const { container } = render(<CognitionField />)
+    const field = container.querySelector('.sd-field') as HTMLDivElement
+
+    tab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+    expect(field.getAttribute('data-presence')).toBe('navigating')
+
+    const idea = document.createElement('textarea')
+    document.body.appendChild(idea)
+    idea.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+    expect(field.getAttribute('data-presence')).toBe('navigating')
+  })
+
   it('deforms for a real in-flight write and settles when that write ends', () => {
     vi.useFakeTimers()
     setReducedMotion(false)

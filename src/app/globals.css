@@ -326,6 +326,60 @@ body {
   align-items: start;
 }
 
+/* The shell owns the one field. On Mission the slot is where it sits with
+   the recommendation. On every other screen the same node docks at the
+   top, clear of the tab bar. The host must not grow a second card. */
+.sd-field-slot {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+.sd.sd-orb-host {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  isolation: auto;
+}
+.sd.sd-orb-host::after {
+  content: none;
+}
+.sd-orb-hero {
+  display: contents;
+}
+.sd-orb-dock {
+  position: fixed;
+  z-index: 40;
+  top: max(12px, env(safe-area-inset-top));
+  right: 12px;
+  width: 72px;
+  height: 72px;
+  pointer-events: none;
+}
+.codex-header:has(.sd-orb-dock) {
+  padding-right: 88px;
+}
+.sd-orb-dock .sd-field {
+  width: 72px;
+  height: 72px;
+  margin: 0;
+  pointer-events: auto;
+  --sd-prox-range: 8px;
+}
+.sd-orb-dock .sd-field-core {
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+}
+.sd-orb-dock .sd-field-ring {
+  width: 62px;
+  height: 62px;
+  margin: -31px 0 0 -31px;
+}
+
 .sd-copy {
   min-width: 0;
 }

@@ -47,6 +47,24 @@ describe('presenceForDomEvent', () => {
     expect(presenceForDomEvent(ignored)).toBeNull()
   })
 
+  it('treats arrow keys on a tab as navigation and ignores them elsewhere', () => {
+    const tab = document.createElement('button')
+    tab.setAttribute('role', 'tab')
+    document.body.appendChild(tab)
+    const arrow = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })
+    tab.dispatchEvent(arrow)
+    expect(presenceForDomEvent(arrow)).toBe('navigating')
+
+    const typed = new KeyboardEvent('keydown', { key: 'a', bubbles: true })
+    tab.dispatchEvent(typed)
+    expect(presenceForDomEvent(typed)).toBeNull()
+
+    const field = document.createElement('textarea')
+    const inField = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })
+    field.dispatchEvent(inField)
+    expect(presenceForDomEvent(inField)).toBeNull()
+  })
+
   it('remembers a navigation long enough for the field to remount', () => {
     expect(navigationAge(1_000)).toBeNull()
     markNavigation(1_000)

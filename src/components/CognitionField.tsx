@@ -84,11 +84,13 @@ export default function CognitionField() {
     document.addEventListener('input', onActivity)
     document.addEventListener('change', onActivity)
     document.addEventListener('click', onActivity)
+    document.addEventListener('keydown', onActivity)
     document.addEventListener(FIELD_WORK_EVENT, onWork)
     return () => {
       document.removeEventListener('input', onActivity)
       document.removeEventListener('change', onActivity)
       document.removeEventListener('click', onActivity)
+      document.removeEventListener('keydown', onActivity)
       document.removeEventListener(FIELD_WORK_EVENT, onWork)
       window.clearTimeout(decay)
     }
