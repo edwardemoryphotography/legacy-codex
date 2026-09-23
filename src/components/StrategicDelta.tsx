@@ -92,6 +92,11 @@ interface Props {
    *  Compared by value against the Delta on screen, so a re-prediction that
    *  changes the move — or aims at another mission — is not shown accepted. */
   acceptedMoves?: Readonly<Record<string, string>>
+  /** Reports the accepted move currently on screen for the Primary mission,
+   *  or null. The saved-action composer seeds from this, never from the
+   *  ledger alone: an acceptance of a move the Delta no longer predicts must
+   *  not reappear as "the recommendation you accepted". */
+  onShownAcceptance?: (move: string | null) => void
   /** Whether the caller's mission/correction read has actually succeeded
    *  at least once. `missions: []` is ambiguous on its own — it means
    *  either a confirmed-empty first-time visitor or a failed read that
@@ -127,6 +132,7 @@ export default function StrategicDelta({
   corrections,
   phase,
   acceptedMoves = NO_ACCEPTANCES,
+  onShownAcceptance,
   readAvailable,
   persistError = null,
   onAccept,
@@ -375,6 +381,10 @@ export default function StrategicDelta({
       : PHASE_TEXT[phase === 'resolved' ? 'reading' : phase]
 
   const primaryMission = missions.find(mission => mission.state === 'primary') ?? null
+  const shownAcceptance = accepted && delta && primaryMission && delta.missionId === primaryMission.id ? delta.move : null
+  useEffect(() => {
+    onShownAcceptance?.(shownAcceptance)
+  }, [onShownAcceptance, shownAcceptance])
   const hasRecommendation = delta !== null && delta.provenance !== 'insufficient_context'
   const needsStep = delta?.provenance === 'insufficient_context' && Boolean(delta.missionId)
   const needsRead = delta?.provenance === 'insufficient_context' && !delta.missionId && !readAvailable

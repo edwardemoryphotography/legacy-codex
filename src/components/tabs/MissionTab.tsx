@@ -241,6 +241,9 @@ export default function MissionTab() {
   // Accepts in flight, keyed mission+move, so a double tap cannot insert twice
   // before the first write returns.
   const acceptingRef = useRef<Set<string>>(new Set())
+  // The accepted move the Delta is actually showing for Primary (reported by
+  // StrategicDelta). Distinct from acceptedMoves, which is the ledger.
+  const [shownAcceptance, setShownAcceptance] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
   const [connectionAttempt, setConnectionAttempt] = useState(0)
@@ -877,6 +880,7 @@ export default function MissionTab() {
         corrections={corrections}
         phase={deltaPhase}
         acceptedMoves={acceptedMoves}
+        onShownAcceptance={setShownAcceptance}
         readAvailable={loaded && !loadFailed}
         persistError={deltaError}
         onAccept={handleAcceptDelta}
@@ -940,7 +944,7 @@ export default function MissionTab() {
         <SavedActions
           key={primary.id}
           missionId={primary.id}
-          suggestedTitle={acceptedMoves[primary.id] ?? null}
+          suggestedTitle={shownAcceptance}
           onActiveChange={handleResumableAction}
         />
       )}

@@ -119,6 +119,26 @@ describe('MissionTab acceptance continuity', () => {
     expect(await screen.findByText(/still a prediction until there's evidence/i)).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Accept this move' })).toBeNull()
     expect(inserts).toEqual([])
+    await waitFor(() => expect((document.getElementById('saved-action-title') as HTMLInputElement | null)?.value).toBe(predicted))
+  })
+
+  it('does not seed the saved-action composer with an acceptance the Delta no longer shows', async () => {
+    // Accepted earlier, but the mission state now predicts a different move
+    // (no correction or supplied step in between — e.g. the finish line changed).
+    tables.mission_events = [{
+      id: 'e1', mission_id: 'm1', type: 'delta_accepted', detail: 'An older move that is no longer predicted', created_at: '2026-09-21T00:00:00.000Z',
+    }]
+    render(<MissionTab />)
+
+    expect(await screen.findByRole('button', { name: 'Accept this move' })).toBeTruthy()
+    const composer = await waitFor(() => {
+      const input = document.getElementById('saved-action-title') as HTMLInputElement | null
+      expect(input).toBeTruthy()
+      return input!
+    })
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(composer.value).toBe('')
+    expect(screen.queryByText('Same words as the recommendation you accepted.')).toBeNull()
   })
 
   it('a correction after the acceptance means reload does not show it accepted', async () => {
