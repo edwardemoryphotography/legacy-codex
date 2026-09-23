@@ -393,6 +393,10 @@ body {
    second card. */
 .codex-shell {
   position: relative;
+  /* The field's surface glow reaches past the card; near the right edge it
+     would otherwise widen the page on a phone. clip (not hidden) creates no
+     scroll container, so the sticky desktop sidebar keeps working. */
+  overflow-x: clip;
 }
 .sd-field-slot {
   width: var(--sd-field-size, 176px);
