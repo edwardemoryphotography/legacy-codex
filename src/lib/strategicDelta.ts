@@ -309,6 +309,12 @@ export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
   const out: DeltaCandidate[] = []
   const { primary, secondary, parked } = ctx
   const targetMissionIds = new Set([primary?.id, secondary?.id].filter((id): id is string => Boolean(id)))
+  // Clause operations (supplied or modelled) may aim at the Secondary only
+  // while it is the actionable mission: no Primary, or a Primary that is
+  // blocked or over capacity (spec §5). A step recorded for the Secondary
+  // while the Primary was deferred must not bypass it once it is active.
+  const primaryActionable = Boolean(primary && !primary.blocker && !primary.capacityMismatch)
+  const clauseMissionIds = primaryActionable && primary ? new Set([primary.id]) : targetMissionIds
 
   if (primary) {
     if (summarizeEvidence(ctx.primaryEvidence, ctx.now) === 'conflict') {
@@ -393,7 +399,7 @@ export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
     const suggestion = supplied[index]
     if (!suggestion || seenSupplied.has(suggestion.id)) continue
     seenSupplied.add(suggestion.id)
-    if (!admitClauseOperation(suggestion, primary, secondary, targetMissionIds)) continue
+    if (!admitClauseOperation(suggestion, primary, secondary, clauseMissionIds)) continue
     const fromNewest = seenSupplied.size - 1
     out.push({
       ...suggestion,
@@ -402,7 +408,7 @@ export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
     })
   }
   for (const suggestion of modelled) {
-    if (!admitClauseOperation(suggestion, primary, secondary, targetMissionIds)) continue
+    if (!admitClauseOperation(suggestion, primary, secondary, clauseMissionIds)) continue
     out.push({ ...suggestion, kind: 'model_suggested', rank: RANK.modelSuggestion })
   }
 
@@ -660,7 +666,9 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
   const { surviving, inhibited } = inhibit(candidates, ctx)
   const evidenceState = summarizeEvidence(ctx.primaryEvidence, ctx.now)
 
-  const suppliedCount = ctx.suggestedOperations.filter(candidate => candidate.kind === 'supplied_operation').length
+  // Only steps admitted for this prediction — history for other missions is
+  // not something this Delta read.
+  const suppliedCount = candidates.filter(candidate => candidate.kind === 'supplied_operation').length
   const assembledFrom = [
     ctx.primary ? '1 Primary mission' : 'no Primary mission',
     ctx.secondary ? '1 Secondary mission' : null,

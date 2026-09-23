@@ -600,6 +600,27 @@ describe('a step the user supplied', () => {
     expect(delta.assembledFrom.join(' ')).toContain('1 step you supplied')
   })
 
+  it('keeps a Secondary step behind an active Primary, and admits it again while the Primary is blocked', () => {
+    const secondaryStep = suppliedStep('m2', 0, 'Email the framer and ask for the three frame prices today')
+    const primary = mission({ id: 'm1', state: 'primary', title: 'Ship the Delta', finishLine: COMPOUND })
+    const secondary = mission({ id: 'm2', state: 'secondary', title: 'Price the frames', finishLine: COMPOUND })
+
+    const active = predictStrategicDelta([primary, secondary], [], [], NOW, [secondaryStep])
+    expect(active.missionId).not.toBe('m2')
+    expect(active.move).not.toBe(secondaryStep.move)
+    expect(active.assembledFrom.join(' ')).not.toContain('you supplied')
+
+    const blocked = predictStrategicDelta([{ ...primary, blocker: 'Waiting on review' }, secondary], [], [], NOW, [secondaryStep])
+    expect(blocked.inhibited.some(c => c.id === secondaryStep.id) || blocked.candidateId === secondaryStep.id).toBe(true)
+  })
+
+  it('counts only supplied steps the prediction actually considered', () => {
+    const other = suppliedStep('m-old', 0, 'Call the printer and confirm the paper stock')
+    const step = suppliedStep('m1', 0, concrete)
+    const delta = predictStrategicDelta(missions, [], [], NOW, [other, step])
+    expect(delta.assembledFrom.join(' ')).toContain('1 step you supplied')
+  })
+
   it('keeps a restatement on record and does not offer it as the next move', () => {
     const step = suppliedStep('m1', 0, 'Move “Ship the Delta” toward: ships the change')
     const delta = predictStrategicDelta(missions, [], [], NOW, [step])

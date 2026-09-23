@@ -537,4 +537,37 @@ describe('StrategicDelta — requestOperation', () => {
     expect(screen.getByText(/lands on main/)).toBeTruthy()
     expect(screen.getByLabelText('Strategic Delta').getAttribute('data-cognition')).toBe('failed')
   })
+
+  it('clears a model failure once a supplied step becomes the move', async () => {
+    const requestOperation = vi.fn().mockRejectedValue(new Error('provider unavailable'))
+    const step = 'Open the live page and write down the first broken sentence'
+    const props = {
+      missions: [PRIMARY], evidence: [], corrections: [], phase: 'resolved' as const, readAvailable: true,
+      onAccept: vi.fn(), onCorrect: vi.fn(), onSupplyStep: vi.fn(), onContextAdded: vi.fn(), onRecheck: vi.fn(),
+      requestOperation,
+    }
+    const { rerender } = render(<StrategicDelta {...props} />)
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Model-assisted operation generation failed/)
+
+    const supplied: DeltaCandidate = {
+      id: operationCandidateId('clause:m1:0', step), kind: 'supplied_operation', move: step, missionId: 'm1', targetId: 'clause:m1:0', rank: 0,
+    }
+    rerender(<StrategicDelta {...props} suppliedOperations={[supplied]} />)
+    expect(await screen.findByText(step)).toBeTruthy()
+    expect(screen.queryByText(/Model-assisted operation generation failed/)).toBeNull()
+    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-cognition')).not.toBe('failed')
+  })
+})
+
+describe('StrategicDelta — step entry needs a clause target', () => {
+  it('does not offer "Name the concrete step" when the insufficient Delta has no clause to aim at', async () => {
+    const single = mission({ id: 'm1', state: 'primary', title: 'Write the studio lighting reference', finishLine: 'The lighting reference is posted where the studio can use it' })
+    const first = predictStrategicDelta([single], [], [], '2026-09-01T12:00:00.000Z')
+    expect(first.candidateId).toBe('name-evidence:m1')
+    const corrections = [{ id: 'c1', missionId: 'm1', correctedMove: first.move, candidateId: 'name-evidence:m1', reason: 'Not the point', createdAt: '2026-09-01T12:00:00.000Z' }]
+    renderDelta([single], { corrections })
+
+    expect(await screen.findByRole('button', { name: 'Something changed' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Name the concrete step' })).toBeNull()
+  })
 })

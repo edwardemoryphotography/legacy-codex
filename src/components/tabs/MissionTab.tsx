@@ -592,9 +592,21 @@ export default function MissionTab() {
     [recordDeltaEvent],
   )
 
+  // After a failed read, "Check again" is a reconnect: it resets the failure
+  // state the same way retryConnection does, so a later success does not
+  // render mission data under a stale "Could not load" alert.
   const handleDeltaRecheck = useCallback(() => {
-    if (user) void loadAll(user.id)
-  }, [user, loadAll])
+    if (loadFailed || !user) {
+      setLoaded(false)
+      setLoadFailed(false)
+      setConnectionError('')
+      setAuthStatus('Reconnecting…')
+      setEvidenceStatus('loading')
+      setConnectionAttempt(attempt => attempt + 1)
+      return
+    }
+    void loadAll(user.id)
+  }, [user, loadAll, loadFailed])
 
   const handleResumableAction = useCallback((missionId: string, active: boolean) => {
     setResumableMissionId(active ? missionId : null)

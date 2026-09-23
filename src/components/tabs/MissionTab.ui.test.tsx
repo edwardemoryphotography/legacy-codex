@@ -16,8 +16,8 @@ vi.mock('@/lib/supabase/missionSession', () => ({
   missionConnectionMessage: () => 'This version could not open a session. Use the main Legacy Codex site, then try again.',
 }))
 
-function chain(data: unknown[] = []) {
-  const promise = Promise.resolve({ data, error: null })
+function chain(data: unknown[] = [], error: unknown = null) {
+  const promise = Promise.resolve({ data: error ? null : data, error })
   const query = {
     select: () => query,
     eq: () => query,
@@ -35,7 +35,7 @@ vi.mock('@/lib/supabase/client', () => ({
       getSession: async () => ({ data: { session: { access_token: 'token', user: { id: 'user-1' } } }, error: null }),
     },
     from: (table: string) => ({
-      ...chain(tables[table] ?? []),
+      ...chain(tables[table] ?? [], failNext[table] ? (failNext[table] = false, { message: 'read failed' }) : null),
       insert: (row: Record<string, unknown>) => {
         inserts.push({ table, row })
         return Promise.resolve({ error: null })
@@ -45,6 +45,7 @@ vi.mock('@/lib/supabase/client', () => ({
 }))
 
 let tables: Record<string, unknown[]> = {}
+let failNext: Record<string, boolean> = {}
 let inserts: Array<{ table: string, row: Record<string, unknown> }> = []
 
 describe('MissionTab first-run presentation', () => {
@@ -166,5 +167,26 @@ describe('MissionTab acceptance continuity', () => {
     expect(written.type).toBe('delta_accepted')
     expect(JSON.parse(written.detail as string).move).toBe(predicted)
     expect(inserts.some(i => i.table === 'actions')).toBe(false)
+  })
+})
+
+describe('MissionTab failed read recovery', () => {
+  beforeEach(() => {
+    inserts = []
+    connectMissionSession.mockReset()
+    connectMissionSession.mockResolvedValue({ id: 'user-1' })
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ configured: false }) })))
+    tables = { missions: [], evidence_snapshots: [], actions: [], mission_events: [] }
+    failNext = { missions: true }
+  })
+
+  it('"Check again" after a failed read clears the failure once the read succeeds', async () => {
+    render(<MissionTab />)
+    expect(await screen.findByText(/Could not load your missions/)).toBeTruthy()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Check again' }))
+
+    expect(await screen.findByLabelText('Your idea or project')).toBeTruthy()
+    expect(screen.queryByText(/Could not load your missions/)).toBeNull()
   })
 })

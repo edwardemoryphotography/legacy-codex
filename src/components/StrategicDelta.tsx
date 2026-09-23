@@ -360,7 +360,10 @@ export default function StrategicDelta({
   // for "has this account ever had a mission".
   const isFirstRun = delta?.provenance === 'insufficient_context' && !delta?.missionId && readAvailable && missions.length === 0
 
-  const cognition: Cognition = persistError || operationError
+  // A model failure only describes the Delta while it is still stuck. Once a
+  // supplied step (or anything else) resolves it, the alert would be false.
+  const shownOperationError = delta?.provenance === 'insufficient_context' ? operationError : null
+  const cognition: Cognition = persistError || shownOperationError
     ? 'failed'
     : correcting
       ? 'correcting'
@@ -386,7 +389,9 @@ export default function StrategicDelta({
     onShownAcceptance?.(shownAcceptance)
   }, [onShownAcceptance, shownAcceptance])
   const hasRecommendation = delta !== null && delta.provenance !== 'insufficient_context'
-  const needsStep = delta?.provenance === 'insufficient_context' && Boolean(delta.missionId)
+  // A supplied step is recorded against a clause. Without a clause target
+  // (e.g. the only candidate was corrected) there is nothing to aim it at.
+  const needsStep = delta?.provenance === 'insufficient_context' && Boolean(delta.missionId) && Boolean(delta.candidateId?.startsWith('clause:'))
   const needsRead = delta?.provenance === 'insufficient_context' && !delta.missionId && !readAvailable
   const title = delta ? displayTitle(delta, isFirstRun, readAvailable) : null
   const aimedMission = delta?.missionId ? missions.find(mission => mission.id === delta.missionId) ?? null : null
@@ -543,9 +548,9 @@ export default function StrategicDelta({
             </p>
           )}
 
-          {operationError && (
+          {shownOperationError && (
             <p className="sd-fail" role="alert">
-              {operationError}
+              {shownOperationError}
             </p>
           )}
 
