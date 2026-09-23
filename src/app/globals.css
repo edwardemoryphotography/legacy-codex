@@ -326,15 +326,25 @@ body {
   align-items: start;
 }
 
-/* The shell owns the one field. On Mission the slot is where it sits with
-   the recommendation. On every other screen the same node docks at the
-   top, clear of the tab bar. The host must not grow a second card. */
+/* The shell owns the one field (OrbHost.tsx). It is rendered once, as a
+   direct child of .codex-shell, and never re-parented: on Mission it is
+   positioned over this slot, which only reserves the space; on every other
+   screen the same node docks at the top, clear of the tab bar. It moves
+   between the two with a transform-only glide. The host must not grow a
+   second card. */
+.codex-shell {
+  position: relative;
+}
 .sd-field-slot {
-  display: flex;
-  justify-content: center;
-  min-width: 0;
+  width: var(--sd-field-size, 176px);
+  height: var(--sd-field-size, 176px);
+  margin: 4px auto 0;
+  justify-self: center;
 }
 .sd.sd-orb-host {
+  position: absolute;
+  /* Above the Mission card, below the fixed tab bar (50) and More (60). */
+  z-index: 30;
   max-width: none;
   margin: 0;
   padding: 0;
@@ -343,41 +353,38 @@ body {
   background: none;
   box-shadow: none;
   isolation: auto;
+  pointer-events: none;
+  transform-origin: 0 0;
+  /* Hidden until OrbHost has placed it, then it fades in rather than
+     flying in from a default position on every page load. */
+  opacity: 0;
+  transition: opacity var(--sd-dur-reveal) ease;
+}
+.sd.sd-orb-host[data-orb] {
+  opacity: 1;
 }
 .sd.sd-orb-host::after {
   content: none;
 }
-.sd-orb-hero {
-  display: contents;
+.sd-orb-host .sd-field {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  pointer-events: auto;
 }
-.sd-orb-dock {
+.sd-orb-host[data-orb="dock"] {
   position: fixed;
   z-index: 40;
   top: max(12px, env(safe-area-inset-top));
   right: 12px;
   width: 72px;
   height: 72px;
-  pointer-events: none;
 }
-.codex-header:has(.sd-orb-dock) {
-  padding-right: 88px;
-}
-.sd-orb-dock .sd-field {
-  width: 72px;
-  height: 72px;
-  margin: 0;
-  pointer-events: auto;
+.sd-orb-host[data-orb="dock"] .sd-field {
   --sd-prox-range: 8px;
 }
-.sd-orb-dock .sd-field-core {
-  width: 44px;
-  height: 44px;
-  margin: -22px 0 0 -22px;
-}
-.sd-orb-dock .sd-field-ring {
-  width: 62px;
-  height: 62px;
-  margin: -31px 0 0 -31px;
+.codex-shell:has(> .sd-orb-host[data-orb="dock"]) .codex-header {
+  padding-right: 88px;
 }
 
 .sd-copy {
@@ -637,11 +644,9 @@ body {
 }
 
 .sd-field-core {
-  width: 112px;
-  height: 112px;
-  top: 50%;
-  left: 50%;
-  margin: -56px 0 0 -56px;
+  /* Proportional (112 of 176) so the core keeps its shape at any field
+     size, including mid-glide into the dock. */
+  inset: 18.2%;
   border-radius: 50%;
   background:
     radial-gradient(circle at 34% 28%, color-mix(in srgb, white 48%, var(--sd-violet)) 0%, color-mix(in srgb, var(--sd-violet) 72%, transparent) 24%, color-mix(in srgb, var(--sd-blue) 36%, transparent) 58%, transparent 100%);
@@ -658,11 +663,7 @@ body {
 }
 
 .sd-field-ring {
-  width: 152px;
-  height: 152px;
-  top: 50%;
-  left: 50%;
-  margin: -76px 0 0 -76px;
+  inset: 6.8%;
   border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--sd-cyan) 55%, transparent);
   box-shadow:
@@ -1593,21 +1594,12 @@ body {
     gap: 28px;
     align-items: start;
   }
-  .sd-field {
-    width: 248px;
-    height: 248px;
+  .sd-field-slot {
+    --sd-field-size: 248px;
     margin: 0;
+  }
+  .sd-orb-host[data-orb="hero"] .sd-field {
     --sd-prox-range: 18px;
-  }
-  .sd-field-core {
-    width: 156px;
-    height: 156px;
-    margin: -78px 0 0 -78px;
-  }
-  .sd-field-ring {
-    width: 214px;
-    height: 214px;
-    margin: -107px 0 0 -107px;
   }
 }
 
@@ -1627,20 +1619,9 @@ body {
 /* Small phones (320/375/390/428): keep the move dominant and the rhythm
    calm — spacing adjusts, nothing shrinks to "fit". */
 @media (max-width: 600px) {
-  .sd-field {
-    width: 156px;
-    height: 156px;
+  .sd-field-slot {
+    --sd-field-size: 156px;
     margin: 2px auto 0;
-  }
-  .sd-field-core {
-    width: 100px;
-    height: 100px;
-    margin: -50px 0 0 -50px;
-  }
-  .sd-field-ring {
-    width: 134px;
-    height: 134px;
-    margin: -67px 0 0 -67px;
   }
   .sd-move {
     margin-top: 10px;

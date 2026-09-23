@@ -106,8 +106,10 @@ export default function CodexApp() {
           <h1>Legacy Codex<span className="brand-dot" aria-hidden="true" /></h1>
           <p>Turn a real idea into the one next move.</p>
         </div>
-        <PersistentOrb />
       </header>
+      {/* Rendered once, as a direct child of the shell, so no tab change
+          ever re-parents or remounts it. It positions itself. */}
+      <PersistentOrb />
 
       {/* Primary nav: the three everyday screens, always visible, plus More. */}
       <nav className="codex-tablist" aria-label="Legacy Codex navigation">

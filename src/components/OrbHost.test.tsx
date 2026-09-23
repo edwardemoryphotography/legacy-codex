@@ -27,27 +27,44 @@ const settled: OrbCognition = { cognition: 'settled', provenance: 'deterministic
 const reading: OrbCognition = { cognition: 'reconstructing', provenance: 'insufficient_context', recording: false }
 
 describe('PersistentOrb', () => {
-  it('keeps one field, in the mission slot and then in the dock', () => {
+  it('keeps one field, over the mission slot and then in the dock', () => {
     const { rerender } = render(<Harness mission cognition={settled} />)
-    const field = document.querySelector('.sd-field')
+    const host = document.querySelector('.sd-orb-host')
     expect(document.querySelectorAll('.sd-field')).toHaveLength(1)
-    expect(screen.getByTestId('mission').contains(field)).toBe(true)
-    expect(document.querySelector('.sd-orb-hero.sd')).toBeNull()
-    expect(document.querySelector('.sd-orb-dock')).toBeNull()
+    expect(host?.getAttribute('data-orb')).toBe('hero')
+    expect(host?.getAttribute('data-cognition')).toBe('settled')
+    // The field is never re-parented into the mission section.
+    expect(screen.getByTestId('mission').querySelector('.sd-field')).toBeNull()
+    expect(screen.getByTestId('mission').querySelector('.sd-field-slot')).toBeTruthy()
 
     rerender(<Harness mission={false} cognition={settled} />)
-    const dock = document.querySelector('.sd-orb-dock')
     expect(document.querySelectorAll('.sd-field')).toHaveLength(1)
-    expect(dock?.querySelector('.sd-field')).toBeTruthy()
-    expect(dock?.getAttribute('data-cognition')).toBe('settled')
-    expect(dock?.getAttribute('data-provenance')).toBe('deterministic')
+    expect(host?.getAttribute('data-orb')).toBe('dock')
+    expect(host?.getAttribute('data-cognition')).toBe('settled')
+    expect(host?.getAttribute('data-provenance')).toBe('deterministic')
     expect(screen.queryByTestId('mission')).toBeNull()
+  })
+
+  it('keeps the same field node, under the same parent, across Mission → other tab → Mission', () => {
+    const { rerender } = render(<Harness mission cognition={settled} />)
+    const field = document.querySelector('.sd-field')
+    const parent = field?.parentElement
+    expect(field).toBeTruthy()
+
+    rerender(<Harness mission={false} cognition={settled} />)
+    expect(document.querySelector('.sd-field')).toBe(field)
+    expect(field?.parentElement).toBe(parent)
+
+    rerender(<Harness mission cognition={settled} />)
+    expect(document.querySelector('.sd-field')).toBe(field)
+    expect(field?.parentElement).toBe(parent)
+    expect(document.querySelectorAll('.sd-field')).toHaveLength(1)
   })
 
   it('settles a read that leaves the screen instead of docking on that read', () => {
     const { rerender } = render(<Harness mission cognition={reading} />)
     rerender(<Harness mission={false} cognition={reading} />)
-    const dock = document.querySelector('.sd-orb-dock')
+    const dock = document.querySelector('.sd-orb-host[data-orb="dock"]')
     expect(dock?.getAttribute('data-cognition')).toBe('insufficient')
     expect(dock?.getAttribute('data-recording')).toBeNull()
   })
