@@ -58,7 +58,7 @@
   --error-soft: rgba(192, 43, 66, 0.08);
   --success: #1a7f4c;
   --success-soft: rgba(26, 127, 76, 0.1);
-  --chrome: rgba(250, 249, 253, 0.9);
+  --chrome: rgba(250, 249, 253, 0.98);
   --card-shadow: 0 20px 50px rgba(70, 60, 140, 0.12);
 }
 
@@ -426,7 +426,11 @@ body {
    status words keep the hue but lean toward the text colour. */
 :root[data-theme="light"] .sd-status,
 :root[data-theme="light"] .sd-accepted,
-:root[data-theme="light"] .sd-next::after {
+:root[data-theme="light"] .sd-act-primary .sd-accepted {
+  margin-top: 0;
+  font-size: 0.84rem;
+}
+.sd-next::after {
   color: color-mix(in srgb, var(--sd-hue, var(--teal)) 50%, var(--text));
 }
 .sd-orb-host[data-orb="dock"]::before {
@@ -503,7 +507,6 @@ body {
   display: inline-flex;
   align-items: center;
   min-height: 48px;
-  margin-top: 6px;
   color: var(--text);
   font-weight: 600;
   text-decoration: underline;
@@ -1702,8 +1705,8 @@ body {
     shape-margin: 8px;
   }
   .sd-move {
-    margin-top: 10px;
-    font-size: 1.85rem;
+    margin-top: 8px;
+    font-size: 1.7rem;
   }
   .sd-act {
     margin-top: 16px;
@@ -1908,9 +1911,13 @@ body {
   .codex-shell { padding: 20px 16px calc(106px + var(--safe-bottom)); }
   .codex-header { padding-bottom: 18px; }
   .codex-header p { font-size: 0.95rem; }
-  .mission-space { gap: 22px; }
+  .mission-space { gap: 14px; }
   .session-status { max-width: 100%; }
+  /* A healthy connection is not news on a phone; "Checking…", failures,
+     and reconnecting still show. Space goes to the move and its action. */
+  .session-status:has(.session-dot.connected) { display: none; }
   .mission-path { gap: 8px; }
+  .mission-path li { min-height: 0; padding-top: 7px; }
   .mission-path small { display: none; }
 }
 

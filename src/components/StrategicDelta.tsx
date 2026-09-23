@@ -433,14 +433,14 @@ export default function StrategicDelta({
           <div className="sd-act">
             {hasRecommendation && accepted ? (
               <div className="sd-act-primary">
-                <p className="sd-accepted">
-                  Accepted — still a prediction until there&apos;s evidence
-                </p>
                 {/* The saved action is a separate, explicit commitment. This
                     only points at it; nothing is saved from here. */}
                 {primaryMission && delta.missionId === primaryMission.id && (
                   <a className="sd-next" href="#saved-action">Save it as one action you can return to</a>
                 )}
+                <p className="sd-accepted">
+                  Accepted — still a prediction until there&apos;s evidence
+                </p>
               </div>
             ) : hasRecommendation && !accepted ? (
               <div className="sd-act-primary">
