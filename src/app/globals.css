@@ -30,7 +30,9 @@
   --safe-right: env(safe-area-inset-right, 0px);
   /* Fixed chrome (bottom tab bar) and the Mission card's drop shadow — the
      two dark literals the light review theme has to override. */
-  --chrome: rgba(10, 10, 15, 0.96);
+  /* Opaque: at 96% the page text ghosted through the tab bar on phones. */
+  --chrome: #0a0a0f;
+  --invite-field-bg: rgba(8, 10, 18, 0.98);
   --card-shadow: 0 24px 60px rgba(0, 0, 0, 0.38);
   /* Shared surfaces used by ui.tsx and CodexTab inline styles. */
   --card-bg: linear-gradient(180deg, rgba(23, 26, 40, 0.98), rgba(14, 16, 24, 0.98));
@@ -65,7 +67,8 @@
   --error-soft: rgba(192, 43, 66, 0.08);
   --success: #1a7f4c;
   --success-soft: rgba(26, 127, 76, 0.1);
-  --chrome: rgba(250, 249, 253, 0.98);
+  --chrome: #faf9fd;
+  --invite-field-bg: #ffffff;
   --card-shadow: 0 20px 50px rgba(70, 60, 140, 0.12);
   --card-bg: linear-gradient(180deg, #ffffff, #fbfaff);
   --card-lift: 0 14px 40px rgba(70, 60, 140, 0.08);
@@ -463,8 +466,11 @@ body {
   width: 72px;
   height: 72px;
 }
+/* Docked, the field floats over whatever the screen scrolls beneath it
+   (Codex search, for one). It must never take a tap meant for a control. */
 .sd-orb-host[data-orb="dock"] .sd-field {
   --sd-prox-range: 8px;
+  pointer-events: none;
 }
 .codex-shell:has(> .sd-orb-host[data-orb="dock"]) .codex-header {
   padding-right: 88px;
@@ -1493,7 +1499,7 @@ body {
   touch-action: manipulation;
   font-size: 16px !important;
   border: 1px solid color-mix(in srgb, var(--teal) 32%, var(--line-strong)) !important;
-  background: rgba(8, 10, 18, 0.98) !important;
+  background: var(--invite-field-bg) !important;
   color: var(--text) !important;
 }
 
