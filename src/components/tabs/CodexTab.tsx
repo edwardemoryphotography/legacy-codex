@@ -347,7 +347,7 @@ export default function CodexTab() {
                 className="rounded-[14px] px-3 py-2.5"
                 style={{
                   border: '1px solid var(--line)',
-                  background: 'rgba(10, 12, 19, 0.38)',
+                  background: 'var(--field-bg-soft)',
                 }}
               >
                 <div className="text-[10px] uppercase tracking-[0.24em]" style={{ color: 'var(--text-dim)' }}>
@@ -371,7 +371,7 @@ export default function CodexTab() {
               width: '100%',
               border: '1px solid var(--line-strong)',
               borderRadius: 14,
-              background: 'rgba(13, 15, 24, 0.94)',
+              background: 'var(--field-bg)',
               color: 'var(--text)',
               font: 'inherit',
               padding: '12px 14px',
@@ -491,7 +491,7 @@ function QuickAccessList({
                   border: '1px solid var(--line-strong)',
                   borderRadius: '14px',
                   padding: '10px 12px',
-                  background: 'rgba(14, 16, 24, 0.92)',
+                  background: 'var(--field-bg)',
                   color: 'inherit',
                   cursor: 'pointer',
                 }}
@@ -541,7 +541,7 @@ function SectionGroup({
         border: '1px solid var(--line)',
         borderRadius: '16px',
         overflow: 'hidden',
-        background: 'linear-gradient(180deg, rgba(18, 20, 30, 0.94), rgba(14, 16, 24, 0.96))',
+        background: 'var(--card-bg)',
       }}
     >
       <button
@@ -551,7 +551,7 @@ function SectionGroup({
         style={{
           cursor: 'pointer',
           border: 'none',
-          background: expanded ? `linear-gradient(180deg, ${meta.accent}18, rgba(14, 16, 24, 0.95))` : 'transparent',
+          background: expanded ? `linear-gradient(180deg, ${meta.accent}18, var(--surface))` : 'transparent',
           padding: '12px',
           color: 'inherit',
         }}

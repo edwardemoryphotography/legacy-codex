@@ -49,11 +49,11 @@ export function Card({
     <div
       className={"card " + className}
       style={{
-        background: 'linear-gradient(180deg, rgba(23, 26, 40, 0.98), rgba(14, 16, 24, 0.98))',
+        background: 'var(--card-bg)',
         border: `1px solid ${borderColor}`,
         borderRadius: 'var(--radius-lg)',
         padding: 'var(--nd-card-padding)',
-        boxShadow: '0 18px 50px rgba(0, 0, 0, 0.24)',
+        boxShadow: 'var(--card-lift)',
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
         transition: 'border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease',
@@ -154,7 +154,7 @@ export function Input({
         width: '100%',
         border: '1px solid var(--line-strong)',
         borderRadius: 12,
-        background: 'rgba(13, 15, 24, 0.94)',
+        background: 'var(--field-bg)',
         color: 'var(--text)',
         font: 'inherit',
         padding: '11px 12px',
@@ -207,7 +207,7 @@ export function Textarea({
         width: '100%',
         border: '1px solid var(--line-strong)',
         borderRadius: 12,
-        background: 'rgba(13, 15, 24, 0.94)',
+        background: 'var(--field-bg)',
         color: 'var(--text)',
         font: 'inherit',
         padding: '11px 12px',
@@ -240,7 +240,7 @@ export function Select({
         width: '100%',
         border: '1px solid var(--line-strong)',
         borderRadius: 12,
-        background: 'rgba(13, 15, 24, 0.94)',
+        background: 'var(--field-bg)',
         color: 'var(--text)',
         font: 'inherit',
         padding: '11px 12px',
@@ -281,9 +281,9 @@ export function ActionBtn({
         }
       : {
           border: '1px solid var(--line-strong)',
-          background: 'linear-gradient(180deg, rgba(22, 24, 36, 0.98), rgba(15, 17, 26, 0.98))',
+          background: 'var(--control-bg)',
           color: 'var(--text-soft)',
-          boxShadow: '0 10px 22px rgba(0, 0, 0, 0.18)',
+          boxShadow: 'var(--control-lift)',
         }
 
   return (
