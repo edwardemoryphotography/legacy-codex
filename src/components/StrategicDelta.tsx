@@ -54,6 +54,7 @@ const INHIBITION_LABEL: Record<string, string> = {
   not_a_move: 'Restates the mission, not a move',
 }
 
+const NO_ACCEPTANCES: Readonly<Record<string, string>> = {}
 const NO_SUPPLIED_STEPS: DeltaCandidate[] = []
 
 type OpenPanel = 'why' | 'correct' | 'changed' | null
@@ -87,9 +88,10 @@ interface Props {
   evidence: EvidenceRecord[]
   corrections: DeltaCorrection[]
   phase: DeltaPhase
-  /** The move the user has accepted, if any. Compared by value so a
-   *  re-prediction that changes the move clears the accepted state. */
-  acceptedMove: string | null
+  /** mission id → the move accepted for it, rehydrated from delta_accepted.
+   *  Compared by value against the Delta on screen, so a re-prediction that
+   *  changes the move — or aims at another mission — is not shown accepted. */
+  acceptedMoves?: Readonly<Record<string, string>>
   /** Whether the caller's mission/correction read has actually succeeded
    *  at least once. `missions: []` is ambiguous on its own — it means
    *  either a confirmed-empty first-time visitor or a failed read that
@@ -124,7 +126,7 @@ export default function StrategicDelta({
   evidence,
   corrections,
   phase,
-  acceptedMove,
+  acceptedMoves = NO_ACCEPTANCES,
   readAvailable,
   persistError = null,
   onAccept,
@@ -334,7 +336,7 @@ export default function StrategicDelta({
   // insufficient-context Delta names no mission, so there is nothing to
   // correct yet — say that rather than offering a control that fails.
   const canCorrect = Boolean(delta?.missionId)
-  const accepted = delta !== null && acceptedMove === delta.move
+  const accepted = delta?.missionId != null && acceptedMoves[delta.missionId] === delta.move
   const latestCorrection = corrections[corrections.length - 1] ?? null
   // The true first-run state: no mission has ever existed yet, so this is
   // the actual new-visitor entry surface (a stuck clause on an existing

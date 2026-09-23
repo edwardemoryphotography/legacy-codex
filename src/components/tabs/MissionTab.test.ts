@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  acceptanceDetail,
+  liveAcceptances,
   missionToRow,
   rowToCorrection,
   rowToEvidence,
@@ -185,5 +187,66 @@ describe('missionToRow / rowToMission — MissionRow field naming matches Supaba
     expect(Object.keys(row).sort()).toEqual(
       ['id', 'user_id', 'title', 'why', 'finish_line', 'evidence_requirement', 'state', 'blocker', 'capacity_mismatch', 'updated_at'].sort(),
     )
+  })
+})
+
+describe('liveAcceptances', () => {
+  function event(id: string, missionId: string, type: string, detail: string, createdAt: string): MissionEventRow {
+    return { id, mission_id: missionId, type, detail, created_at: createdAt }
+  }
+  const MOVE = 'Name the evidence that will prove the reference is done.'
+
+  it('rehydrates an accepted move from a delta_accepted row written as plain text (older rows)', () => {
+    const live = liveAcceptances([event('a1', 'm1', 'delta_accepted', MOVE, '2026-09-20T00:00:00.000Z')])
+    expect(live).toEqual({ m1: MOVE })
+  })
+
+  it('reads the newer JSON detail and the plain-text detail as the same move', () => {
+    const detail = acceptanceDetail(MOVE, 'clause:m1:0')
+    expect(JSON.parse(detail)).toEqual({ move: MOVE, candidateId: 'clause:m1:0' })
+    expect(liveAcceptances([event('a1', 'm1', 'delta_accepted', detail, '2026-09-20T00:00:00.000Z')])).toEqual({ m1: MOVE })
+  })
+
+  it('treats prose that happens to parse as JSON (a number, a quoted string) as the move itself', () => {
+    expect(liveAcceptances([event('a1', 'm1', 'delta_accepted', '123', '2026-09-20T00:00:00.000Z')])).toEqual({ m1: '123' })
+    expect(liveAcceptances([event('a2', 'm1', 'delta_accepted', '"x"', '2026-09-20T00:00:00.000Z')])).toEqual({ m1: '"x"' })
+  })
+
+  it('a later correction or supplied step for the same mission clears its acceptance', () => {
+    const accepted = event('a1', 'm1', 'delta_accepted', MOVE, '2026-09-20T00:00:00.000Z')
+    expect(liveAcceptances([
+      accepted,
+      event('c1', 'm1', 'delta_corrected', JSON.stringify({ move: MOVE, reason: 'no' }), '2026-09-20T01:00:00.000Z'),
+    ])).toEqual({})
+    expect(liveAcceptances([
+      accepted,
+      event('s1', 'm1', 'delta_step_supplied', JSON.stringify({ step: 'Do it', targetId: 'clause:m1:0' }), '2026-09-20T01:00:00.000Z'),
+    ])).toEqual({})
+  })
+
+  it('an event on another mission leaves the acceptance alone', () => {
+    expect(liveAcceptances([
+      event('a1', 'm1', 'delta_accepted', MOVE, '2026-09-20T00:00:00.000Z'),
+      event('c1', 'm2', 'delta_corrected', JSON.stringify({ move: 'other', reason: 'no' }), '2026-09-20T01:00:00.000Z'),
+    ])).toEqual({ m1: MOVE })
+  })
+
+  it('an acceptance recorded after a correction is live again, and the latest acceptance wins', () => {
+    expect(liveAcceptances([
+      event('a1', 'm1', 'delta_accepted', 'first move', '2026-09-20T00:00:00.000Z'),
+      event('c1', 'm1', 'delta_corrected', JSON.stringify({ move: 'first move', reason: 'no' }), '2026-09-20T01:00:00.000Z'),
+      event('a2', 'm1', 'delta_accepted', MOVE, '2026-09-20T02:00:00.000Z'),
+    ])).toEqual({ m1: MOVE })
+  })
+
+  it('orders by created_at rather than trusting row order', () => {
+    expect(liveAcceptances([
+      event('c1', 'm1', 'delta_corrected', JSON.stringify({ move: MOVE, reason: 'no' }), '2026-09-20T01:00:00.000Z'),
+      event('a1', 'm1', 'delta_accepted', MOVE, '2026-09-20T00:00:00.000Z'),
+    ])).toEqual({})
+  })
+
+  it('ignores an empty acceptance detail', () => {
+    expect(liveAcceptances([event('a1', 'm1', 'delta_accepted', '  ', '2026-09-20T00:00:00.000Z')])).toEqual({})
   })
 })

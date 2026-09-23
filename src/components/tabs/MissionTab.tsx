@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
 import { connectMissionSession, missionConnectionMessage } from '@/lib/supabase/missionSession'
@@ -169,6 +169,58 @@ export function rowToSuppliedStep(row: MissionEventRow): DeltaCandidate | null {
   }
 }
 
+// An acceptance is agreement with a prediction — never an action and never
+// evidence. Rows written before this helper carry the move as plain text;
+// newer rows are JSON with the candidate id alongside. Both read back as
+// the move, which is what the displayed Delta is compared against.
+export function acceptanceDetail(move: string, candidateId: string | null | undefined): string {
+  return JSON.stringify(candidateId ? { move, candidateId } : { move })
+}
+
+function acceptedMoveFromDetail(detail: string): string | null {
+  try {
+    const parsed: unknown = JSON.parse(detail)
+    if (parsed && typeof parsed === 'object' && typeof (parsed as { move?: unknown }).move === 'string') {
+      const move = (parsed as { move: string }).move
+      return move.trim() ? move : null
+    }
+  } catch {
+    // Plain prose — the older format.
+  }
+  return detail.trim() ? detail : null
+}
+
+// Events that change what the Delta is predicting for a mission. A later one
+// means an earlier acceptance was agreement with a prediction that has since
+// been replaced, so it must not come back as "Accepted" after reload.
+const INVALIDATES_ACCEPTANCE = new Set(['delta_corrected', 'delta_step_supplied'])
+
+/** mission id → the move currently accepted for it. Folds the event ledger
+ *  oldest-first: the latest delta_accepted per mission is live unless a
+ *  correction or supplied step for that same mission came after it. The UI
+ *  still shows "Accepted" only when this equals the Delta it is displaying,
+ *  so a re-prediction that changes the move clears it without a write. */
+export function liveAcceptances(rows: MissionEventRow[]): Record<string, string> {
+  const live: Record<string, string> = {}
+  const ordered = [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at))
+  for (const row of ordered) {
+    if (row.type === 'delta_accepted') {
+      const move = acceptedMoveFromDetail(row.detail)
+      if (move) live[row.mission_id] = move
+    } else if (row.type && INVALIDATES_ACCEPTANCE.has(row.type)) {
+      delete live[row.mission_id]
+    }
+  }
+  return live
+}
+
+function withoutMission(moves: Record<string, string>, missionId: string): Record<string, string> {
+  if (!(missionId in moves)) return moves
+  const next = { ...moves }
+  delete next[missionId]
+  return next
+}
+
 function newId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
@@ -185,7 +237,10 @@ export default function MissionTab() {
   const [evidenceStatus, setEvidenceStatus] = useState<ContextAvailability>('loading')
   const [corrections, setCorrections] = useState<DeltaCorrection[]>([])
   const [suppliedSteps, setSuppliedSteps] = useState<DeltaCandidate[]>([])
-  const [acceptedMove, setAcceptedMove] = useState<string | null>(null)
+  const [acceptedMoves, setAcceptedMoves] = useState<Record<string, string>>({})
+  // Accepts in flight, keyed mission+move, so a double tap cannot insert twice
+  // before the first write returns.
+  const acceptingRef = useRef<Set<string>>(new Set())
   const [loaded, setLoaded] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
   const [connectionAttempt, setConnectionAttempt] = useState(0)
@@ -238,7 +293,7 @@ export default function MissionTab() {
       const [missionsRes, evidenceRes, correctionsRes] = await Promise.all([
         supabase.from('missions').select('*').eq('user_id', userId),
         supabase.from('evidence_snapshots').select('*'),
-        supabase.from('mission_events').select('*').eq('user_id', userId).in('type', ['delta_corrected', 'delta_step_supplied']).order('created_at', { ascending: true }),
+        supabase.from('mission_events').select('*').eq('user_id', userId).in('type', ['delta_accepted', 'delta_corrected', 'delta_step_supplied']).order('created_at', { ascending: true }),
       ])
       if (isCancelled()) return
       if (missionsRes.error) throw missionsRes.error
@@ -268,6 +323,7 @@ export default function MissionTab() {
           .map(rowToSuppliedStep)
           .filter((step): step is DeltaCandidate => step !== null),
       )
+      setAcceptedMoves(liveAcceptances(eventRows))
 
       if (!evidenceRes.error) {
         setEvidence(((evidenceRes.data ?? []) as EvidenceRow[]).map(rowToEvidence))
@@ -444,16 +500,28 @@ export default function MissionTab() {
     [user],
   )
 
+  // Idempotent per (mission, move): accepting what is already the live
+  // acceptance — e.g. after reload, or a second tap — records nothing new.
+  // mission_events has no unique constraint to lean on, so this guard is the
+  // only thing between a repeat tap and a duplicate row.
   const handleAcceptDelta = useCallback(
     async (delta: Delta): Promise<boolean> => {
-      if (delta.missionId) {
-        const ok = await recordDeltaEvent('delta_accepted', delta.missionId, delta.move)
+      const missionId = delta.missionId
+      if (!missionId) return false
+      if (acceptedMoves[missionId] === delta.move) return true
+      const key = `${missionId}\u0000${delta.move}`
+      if (acceptingRef.current.has(key)) return false
+      acceptingRef.current.add(key)
+      try {
+        const ok = await recordDeltaEvent('delta_accepted', missionId, acceptanceDetail(delta.move, delta.candidateId))
         if (!ok) return false
+        setAcceptedMoves(prev => ({ ...prev, [missionId]: delta.move }))
+        return true
+      } finally {
+        acceptingRef.current.delete(key)
       }
-      setAcceptedMove(delta.move)
-      return true
     },
-    [recordDeltaEvent],
+    [acceptedMoves, recordDeltaEvent],
   )
 
   // The corrected prediction is kept, never erased: it stays in
@@ -478,7 +546,7 @@ export default function MissionTab() {
         createdAt: new Date().toISOString(),
       }
       setCorrections(prev => [...prev, correction])
-      setAcceptedMove(null)
+      setAcceptedMoves(prev => withoutMission(prev, correction.missionId))
       return true
     },
     [recordDeltaEvent],
@@ -501,7 +569,8 @@ export default function MissionTab() {
         created_at: new Date().toISOString(),
       })
       if (supplied) setSuppliedSteps(prev => [...prev, supplied])
-      setAcceptedMove(null)
+      const missionId = delta.missionId
+      setAcceptedMoves(prev => withoutMission(prev, missionId))
       return true
     },
     [recordDeltaEvent],
@@ -807,7 +876,7 @@ export default function MissionTab() {
         evidence={evidence}
         corrections={corrections}
         phase={deltaPhase}
-        acceptedMove={acceptedMove}
+        acceptedMoves={acceptedMoves}
         readAvailable={loaded && !loadFailed}
         persistError={deltaError}
         onAccept={handleAcceptDelta}
@@ -871,7 +940,7 @@ export default function MissionTab() {
         <SavedActions
           key={primary.id}
           missionId={primary.id}
-          suggestedTitle={acceptedMove}
+          suggestedTitle={acceptedMoves[primary.id] ?? null}
           onActiveChange={handleResumableAction}
         />
       )}

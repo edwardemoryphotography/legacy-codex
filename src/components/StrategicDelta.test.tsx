@@ -30,7 +30,6 @@ function renderDelta(missions: Mission[], overrides: Partial<React.ComponentProp
     evidence: [],
     corrections: [],
     phase: 'resolved' as const,
-    acceptedMove: null,
     readAvailable: true,
     persistError: null,
     onAccept: vi.fn(),
@@ -283,7 +282,6 @@ describe('StrategicDelta', () => {
           corrections={[]}
           suppliedOperations={supplied}
           phase="resolved"
-          acceptedMove={null}
           readAvailable
           onAccept={vi.fn()}
           onCorrect={onCorrect}
@@ -376,7 +374,7 @@ describe('StrategicDelta', () => {
   })
 
   it('shows an accepted move as still unproven', async () => {
-    renderDelta([BLOCKED], { acceptedMove: BLOCKED_MOVE })
+    renderDelta([BLOCKED], { acceptedMoves: { m1: BLOCKED_MOVE } })
 
     expect(await screen.findByText(/still a prediction until there's evidence/i)).toBeTruthy()
   })
@@ -465,7 +463,6 @@ describe('StrategicDelta — requestOperation', () => {
         evidence={[]}
         corrections={[]}
         phase="resolved"
-        acceptedMove={null}
         readAvailable
         onAccept={vi.fn()}
         onCorrect={vi.fn()}
@@ -483,7 +480,6 @@ describe('StrategicDelta — requestOperation', () => {
         evidence={[]}
         corrections={[]}
         phase="resolved"
-        acceptedMove={null}
         readAvailable
         onAccept={vi.fn()}
         onCorrect={vi.fn()}
@@ -515,8 +511,7 @@ describe('StrategicDelta — requestOperation', () => {
       missions: [PRIMARY],
       evidence: [],
       phase: 'resolved' as const,
-      acceptedMove: null,
-      readAvailable: true,
+        readAvailable: true,
       onAccept: vi.fn(),
       onCorrect: vi.fn(),
       onSupplyStep: vi.fn(),
