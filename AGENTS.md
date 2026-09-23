@@ -29,7 +29,7 @@ For coding tasks, "done" means the requested end state is actually reached — n
 
 ## Cross-repo engineering standards
 
-The Legacy Codex Standards Kit (product definition, task lifecycle, design tokens, intelligence governance, SHIPPED ladder) is governed from `codex-control-panel/standards/` (Standards Kit 2.2.0) — this repo is named in Master Charter §1 but does not implement most of it: no Liquid Intelligence design system (this app is dark-only, its own established design) and no AI task-routing/lifecycle surface (the one real AI integration is `/api/analyze`, already following §5.4's server-only-key rule). What does apply: §9 discovery-before-modification, and `standards/AGENT-BEHAVIOR.md`'s baseline conduct (think-before-coding, simplicity, surgical changes, verification) underneath the doctrine below — the doctrine and sanity gate here are repo-specific and take precedence over generic guidance where they overlap.
+The Legacy Codex Standards Kit (product definition, task lifecycle, design tokens, intelligence governance, SHIPPED ladder) is governed from `codex-control-panel/standards/` (Standards Kit 2.2.0) — this repo is named in Master Charter §1 but does not implement most of it: no Liquid Intelligence design system (this app ships dark, its own established design; a light variant exists for preview review only) and no AI task-routing/lifecycle surface (the one real AI integration is `/api/analyze`, already following §5.4's server-only-key rule). What does apply: §9 discovery-before-modification, and `standards/AGENT-BEHAVIOR.md`'s baseline conduct (think-before-coding, simplicity, surgical changes, verification) underneath the doctrine below — the doctrine and sanity gate here are repo-specific and take precedence over generic guidance where they overlap.
 
 ## Mandatory cognitive doctrine
 
@@ -148,11 +148,27 @@ Three rules that are load-bearing, not stylistic:
 - **A Delta is a prediction, never automatically an Action.** Accepting one
   records `delta_accepted` in `mission_events`; it must not write to the
   canonical `actions` table. Recommendation ≠ commitment.
-- **Provenance is a discriminated union** (`DeltaProvenance`), and colour encodes
-  it: spectrum = unresolved cognition, teal = rule-based prediction, violet =
-  model-generated, amber = insufficient context. The bounded `/api/delta-operation`
-  path may produce `'model'` only after its output passes the same deterministic
-  quality and inhibition gates; it must never render as teal.
+- **Provenance is a discriminated union** (`DeltaProvenance`), and the status
+ word encodes it: spectrum = unresolved cognition, teal = rule-based prediction,
+ cyan = a step the user supplied, violet = model-generated, amber = insufficient
+ context. The field itself keeps one violet/blue/cyan/magenta material — translucent
+ depth, a cyan edge, magenta light, and flowing contours inside that one field.
+ There is one field. The shell hosts it: on Mission it sits in the Strategic
+ Delta stage, and on every other screen the same node docks at the top.
+ Idle is a slow ambient drift (transform and opacity only). Typing, navigation,
+ and mission changes lift that drift. Pending reads, prediction, model requests,
+ saves, and corrections deform it further, then it settles back. The core does
+ not pulse while context is insufficient, and nothing in the field invents
+ progress. Amber is the status word rather than a shrunken field. Model-assisted
+ work is the faster violet-weighted drift (`data-cognition="deriving"` and
+ provenance `model`); a settled rule stays slower and cyan-weighted, never teal
+ fill. The bounded
+ `/api/delta-operation` path may produce `'model'` only after its output passes
+ the same deterministic quality and inhibition gates; it must never render as teal.
+ A step the user writes is `delta_step_supplied` (`{ step, targetId }`), not a
+ `delta_corrected` reason. Provenance `'supplied'` means that step passed the same
+ gates; its label is "You supplied this step — not verified", and it must not
+ render as teal or as model violet.
 - **Insufficient context is a first-class path, not a fallback.** With no mission
   state the Delta names the one missing input. It never guesses.
 
@@ -166,7 +182,7 @@ that control rather than failing at runtime.
 
 ### Styling system
 
-The design uses CSS custom properties defined in `src/app/globals.css` as the single source of truth for colour, surface, and radius tokens. These are mirrored into the Tailwind theme in `tailwind.config.ts` under shortened aliases (`bg`, `surface`, `tx`, `teal`, `amber`, `error`, `success`, `line`, `codex`/`codex-sm`/`codex-lg` border-radius). Inline `style` props use `var(--*)` directly for values that would be verbose as utility classes. The app is dark-only — there is no light-mode variant.
+The design uses CSS custom properties defined in `src/app/globals.css` as the single source of truth for colour, surface, and radius tokens. These are mirrored into the Tailwind theme in `tailwind.config.ts` under shortened aliases (`bg`, `surface`, `tx`, `teal`, `amber`, `error`, `success`, `line`, `codex`/`codex-sm`/`codex-lg` border-radius). Inline `style` props use `var(--*)` directly for values that would be verbose as utility classes. The app ships dark. A light token set under `:root[data-theme="light"]` exists for review only: `ThemeReview.tsx` renders a switch (and honours `?theme=`) only when `layout.tsx` marks the build as `VERCEL_ENV === 'preview'` or local development (`data-theme-review="on"`), never on a production deployment. Eddie reviewed both on 2026-09-23 and chose **dark** for production; light stays a preview-only option. Fixed chrome and the Mission card shadow read `--chrome` / `--card-shadow` so both themes can set them.
 
 ### Types (`src/types/index.ts`)
 

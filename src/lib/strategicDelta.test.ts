@@ -59,9 +59,18 @@ function correction(over: Partial<DeltaCorrection> & { correctedMove: string }):
 // A model-derived operation for one clause — what the async model stage
 // hands the engine. Never fabricated by the engine itself; only ever
 // supplied by the caller, exactly like this.
-function suggestion(missionId: string, index: number, move: string): DeltaCandidate {
+// Operations record the clause they were aimed at; by default the first
+// clause of COMPOUND, which is what most missions below use.
+function suggestion(missionId: string, index: number, move: string, finishLine: string = COMPOUND): DeltaCandidate {
   const targetId = clauseId(missionId, index)
-  return { id: operationCandidateId(targetId, move), kind: 'model_suggested', move, missionId, targetId, rank: 0 }
+  const clause = decomposeFinishLine(finishLine)[index]
+  return { id: operationCandidateId(targetId, move), kind: 'model_suggested', move, missionId, targetId, clause, rank: 0 }
+}
+
+function suppliedStep(missionId: string, index: number, move: string, finishLine: string = COMPOUND): DeltaCandidate {
+  const targetId = clauseId(missionId, index)
+  const clause = decomposeFinishLine(finishLine)[index]
+  return { id: operationCandidateId(targetId, move), kind: 'supplied_operation', move, missionId, targetId, clause, rank: 0 }
 }
 
 describe('summarizeEvidence', () => {
@@ -489,7 +498,7 @@ describe('regression — the real Strategic Delta failed twice', () => {
 
     for (let i = 0; i < 3; i += 1) {
       const delta = predictStrategicDelta(real(), [], corrections, NOW, [
-        suggestion('real', 0, `Open the deployed Delta and record what happens in test pass ${i + 1}`),
+        suggestion('real', 0, `Open the deployed Delta and record what happens in test pass ${i + 1}`, REAL_FINISH),
       ])
       targets.push(delta.candidateId)
       expect(ROUND_2_BAD_MOVES).not.toContain(delta.move)
@@ -523,13 +532,13 @@ describe('regression — the real Strategic Delta failed twice', () => {
   // the same quality bar as everything deterministic.
   it('selects a supplied operation for the first clause when one is available, and still rejects a bad one', () => {
     const good = predictStrategicDelta(real(), [], [], NOW, [
-      suggestion('real', 0, 'Ask Vaughn to test the live Delta and report back within a day'),
+      suggestion('real', 0, 'Ask Vaughn to test the live Delta and report back within a day', REAL_FINISH),
     ])
     expect(good.provenance).toBe('model')
     expect(good.move).toBe('Ask Vaughn to test the live Delta and report back within a day')
 
     const bad = predictStrategicDelta(real(), [], [], NOW, [
-      suggestion('real', 0, 'Verify this part of your finish line'),
+      suggestion('real', 0, 'Verify this part of your finish line', REAL_FINISH),
     ])
     expect(bad.provenance).not.toBe('model')
     expect(ROUND_2_BAD_MOVES).not.toContain(bad.move)
@@ -575,6 +584,147 @@ describe('isConcreteMove', () => {
 
   it('is not fooled by a morphological variant of the mission\'s own word', () => {
     expect(isConcreteMove('Work on shipping the redesign', m)).toBe(false)
+  })
+})
+
+describe('a deferred Primary', () => {
+  it('names no clause target when the only mission is over capacity, so no step is asked for', () => {
+    const over = mission({ id: 'm1', state: 'primary', title: 'Ship the Delta', finishLine: COMPOUND, capacityMismatch: true })
+    const delta = predictStrategicDelta([over], [], [], NOW)
+    expect(delta.candidateId).toBeNull()
+  })
+
+  it('names no clause target when a blocked Primary\'s clear-blocker move was corrected', () => {
+    const blocked = mission({ id: 'm1', state: 'primary', title: 'Ship the Delta', finishLine: COMPOUND, blocker: 'Waiting on review' })
+    const first = predictStrategicDelta([blocked], [], [], NOW)
+    expect(first.candidateId).toBe('unblock:m1')
+    const delta = predictStrategicDelta([blocked], [], [correction({ correctedMove: first.move, candidateId: 'unblock:m1' })], NOW)
+    expect(delta.candidateId?.startsWith('clause:') ?? false).toBe(false)
+  })
+})
+
+describe('short finish-line clauses', () => {
+  it('keeps every clause of "the build passes, deploy it, and notify them" as a proof step', () => {
+    const finishLine = 'the build passes, deploy it, and notify them'
+    expect(decomposeFinishLine(finishLine)).toEqual(['the build passes', 'deploy it', 'notify them'])
+    const delta = predictStrategicDelta([mission({ id: 'm1', state: 'primary', title: 'Release', finishLine })], [], [], NOW)
+    expect(delta.proofSteps.map(step => step.text)).toEqual(['the build passes', 'deploy it', 'notify them'])
+  })
+})
+
+describe('a step the user supplied', () => {
+  const missions = [mission({ id: 'm1', state: 'primary', title: 'Ship the Delta', finishLine: COMPOUND })]
+  const concrete = 'Open the live page and write down the first broken sentence'
+  const older = 'Ask Beau to read the deployed page aloud today'
+
+  it('selects a concrete step for the first clause and labels it as supplied', () => {
+    const step = suppliedStep('m1', 0, concrete)
+    const delta = predictStrategicDelta(missions, [], [], NOW, [step])
+
+    expect(delta.provenance).toBe('supplied')
+    expect(delta.move).toBe(concrete)
+    expect(delta.candidateId).toBe(step.id)
+    expect(delta.proofSteps.find(s => s.index === 0)?.selected).toBe(true)
+    expect(delta.because).toContain('You supplied this step')
+    expect(delta.assembledFrom.join(' ')).toContain('1 step you supplied')
+  })
+
+  it('keeps a Secondary step behind an active Primary, and admits it again while the Primary is blocked', () => {
+    const secondaryStep = suppliedStep('m2', 0, 'Email the framer and ask for the three frame prices today')
+    const primary = mission({ id: 'm1', state: 'primary', title: 'Ship the Delta', finishLine: COMPOUND })
+    const secondary = mission({ id: 'm2', state: 'secondary', title: 'Price the frames', finishLine: COMPOUND })
+
+    const active = predictStrategicDelta([primary, secondary], [], [], NOW, [secondaryStep])
+    expect(active.missionId).not.toBe('m2')
+    expect(active.move).not.toBe(secondaryStep.move)
+    expect(active.assembledFrom.join(' ')).not.toContain('you supplied')
+
+    const blocked = predictStrategicDelta([{ ...primary, blocker: 'Waiting on review' }, secondary], [], [], NOW, [secondaryStep])
+    expect(blocked.inhibited.some(c => c.id === secondaryStep.id) || blocked.candidateId === secondaryStep.id).toBe(true)
+  })
+
+  it('does not revive a step recorded for a finish line that has since been revised', () => {
+    const step = suppliedStep('m1', 0, concrete) // recorded against COMPOUND's first clause
+    const revised = [mission({ id: 'm1', state: 'primary', title: 'Ship the Delta', finishLine: 'prints the catalogue, mails it, and logs the orders' })]
+
+    const delta = predictStrategicDelta(revised, [], [], NOW, [step])
+    expect(delta.move).not.toBe(concrete)
+    expect(delta.provenance).not.toBe('supplied')
+    expect(delta.assembledFrom.join(' ')).not.toContain('you supplied')
+  })
+
+  it('still admits the step when only spacing or case in the finish line changed', () => {
+    const step = suppliedStep('m1', 0, concrete)
+    const same = [mission({ id: 'm1', state: 'primary', title: 'Ship the Delta', finishLine: 'Ships the change,  verifies it in production, and records the evidence.' })]
+    expect(predictStrategicDelta(same, [], [], NOW, [step]).move).toBe(concrete)
+  })
+
+  it('does not admit an operation that cannot say which clause it was for', () => {
+    const { clause: _omitted, ...unbound } = suppliedStep('m1', 0, concrete)
+    const delta = predictStrategicDelta(missions, [], [], NOW, [unbound])
+    expect(delta.move).not.toBe(concrete)
+  })
+
+  it('counts only supplied steps the prediction actually considered', () => {
+    const other = suppliedStep('m-old', 0, 'Call the printer and confirm the paper stock')
+    const step = suppliedStep('m1', 0, concrete)
+    const delta = predictStrategicDelta(missions, [], [], NOW, [other, step])
+    expect(delta.assembledFrom.join(' ')).toContain('1 step you supplied')
+  })
+
+  it('keeps a restatement on record and does not offer it as the next move', () => {
+    const step = suppliedStep('m1', 0, 'Move “Ship the Delta” toward: ships the change')
+    const delta = predictStrategicDelta(missions, [], [], NOW, [step])
+
+    expect(delta.provenance).toBe('insufficient_context')
+    expect(delta.move).not.toBe(step.move)
+    expect(delta.inhibited.find(c => c.id === step.id)?.reason).toBe('not_a_move')
+  })
+
+  it('lets the newest distinct step outrank an older one, and a correction retire that operation', () => {
+    const first = suppliedStep('m1', 0, older)
+    const second = suppliedStep('m1', 0, concrete)
+    const delta = predictStrategicDelta(missions, [], [], NOW, [first, second])
+    expect(delta.move).toBe(concrete)
+    expect(delta.provenance).toBe('supplied')
+
+    const corrected = predictStrategicDelta(
+      missions,
+      [],
+      [correction({ missionId: 'm1', correctedMove: concrete, candidateId: second.id, reason: 'already written down' })],
+      NOW,
+      [first, second],
+    )
+    expect(corrected.move).toBe(older)
+    expect(corrected.candidateId).toBe(first.id)
+    expect(corrected.inhibited.find(c => c.id === second.id)?.reason).toBe('corrected')
+  })
+
+  it('loses to a blocker and outranks a model suggestion without taking the model label', () => {
+    const blocked = [
+      mission({ id: 'm1', state: 'primary', title: 'Ship it', finishLine: COMPOUND, blocker: 'Waiting on Vaughn' }),
+    ]
+    const step = suppliedStep('m1', 0, concrete)
+    const held = predictStrategicDelta(blocked, [], [], NOW, [step])
+    expect(held.provenance).toBe('deterministic')
+    expect(held.move).toContain('Clear what')
+    expect(held.inhibited.find(c => c.id === step.id)?.reason).toBe('blocked')
+
+    const alongside = predictStrategicDelta(missions, [], [], NOW, [
+      suggestion('m1', 0, 'Draft a checklist and send it to the reviewer'),
+      step,
+    ])
+    expect(alongside.provenance).toBe('supplied')
+    expect(alongside.move).toBe(concrete)
+    expect(alongside.provenance).not.toBe('model')
+  })
+
+  it('does not unlock a later clause', () => {
+    const later = suppliedStep('m1', 1, concrete)
+    const delta = predictStrategicDelta(missions, [], [], NOW, [later])
+    expect(delta.provenance).toBe('insufficient_context')
+    expect(delta.move).not.toBe(concrete)
+    expect(delta.candidateId).toBe(clauseId('m1', 0))
   })
 })
 

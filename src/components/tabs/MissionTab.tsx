@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
 import { connectMissionSession, missionConnectionMessage } from '@/lib/supabase/missionSession'
@@ -8,6 +8,7 @@ import { useCapture } from '@/hooks/useCapture'
 import type {
   CapacityLevel,
   ContextAvailability,
+  DeltaCandidate,
   DeltaCorrection,
   EvidenceRecord,
   Mission,
@@ -15,6 +16,8 @@ import type {
   MissionState,
   StrategicDelta as Delta,
 } from '@/types'
+import { beginFieldWork, endFieldWork } from '@/lib/cognitionPresence'
+import { clauseTextFor, operationCandidateId } from '@/lib/strategicDelta'
 import {
   EMPTY_BOARD,
   abandonMission,
@@ -120,6 +123,7 @@ export function rowToEvidence(row: EvidenceRow): EvidenceRecord {
 export interface MissionEventRow {
   id: string
   mission_id: string
+  type?: string
   detail: string
   created_at: string
 }
@@ -143,6 +147,126 @@ export function rowToCorrection(row: MissionEventRow): DeltaCorrection | null {
   }
 }
 
+/** A step the user wrote for one clause. `detail` is
+ *  `{ step, targetId, clause }`. The operation id is derived from step and
+ *  target, so a reload selects the same candidate the session selected
+ *  before it; `clause` is the finish-line clause the step was written for,
+ *  which the engine checks against the current finish line. Rows without it
+ *  (written only by pre-merge previews of this feature) read back but are
+ *  never admitted. */
+export function rowToSuppliedStep(row: MissionEventRow): DeltaCandidate | null {
+  try {
+    const parsed = JSON.parse(row.detail) as { step?: unknown; targetId?: unknown; clause?: unknown }
+    if (typeof parsed.step !== 'string' || parsed.step.trim().length === 0) return null
+    if (typeof parsed.targetId !== 'string' || !parsed.targetId.startsWith('clause:')) return null
+    const step = parsed.step.trim()
+    return {
+      id: operationCandidateId(parsed.targetId, step),
+      kind: 'supplied_operation',
+      move: step,
+      missionId: row.mission_id,
+      targetId: parsed.targetId,
+      ...(typeof parsed.clause === 'string' && parsed.clause.trim() ? { clause: parsed.clause } : {}),
+      rank: 0,
+    }
+  } catch {
+    return null
+  }
+}
+
+// An acceptance is agreement with a prediction — never an action and never
+// evidence. Rows written before this helper carry the move as plain text;
+// newer rows are JSON with the candidate id and the finish line the move was
+// accepted under. All read back as the move, which is what the displayed
+// Delta is compared against.
+export function acceptanceDetail(
+  move: string,
+  candidateId: string | null | undefined,
+  finishLine?: string | null,
+): string {
+  return JSON.stringify({
+    move,
+    ...(candidateId ? { candidateId } : {}),
+    ...(finishLine ? { finishLine } : {}),
+  })
+}
+
+export interface LedgerAcceptance {
+  move: string
+  /** The finish line in force when it was accepted; absent on older rows. */
+  finishLine?: string
+}
+
+function acceptanceFromDetail(detail: string): LedgerAcceptance | null {
+  try {
+    const parsed: unknown = JSON.parse(detail)
+    if (parsed && typeof parsed === 'object' && typeof (parsed as { move?: unknown }).move === 'string') {
+      const { move, finishLine } = parsed as { move: string; finishLine?: unknown }
+      if (!move.trim()) return null
+      return typeof finishLine === 'string' ? { move, finishLine } : { move }
+    }
+  } catch {
+    // Plain prose — the older format.
+  }
+  return detail.trim() ? { move: detail } : null
+}
+
+// Events that change what the Delta is predicting for a mission. A later one
+// means an earlier acceptance was agreement with a prediction that has since
+// been replaced, so it must not come back as "Accepted" after reload.
+// finish_line_set covers older acceptance rows that did not record their
+// finish line (the only in-app way to change a finish line writes it).
+const INVALIDATES_ACCEPTANCE = new Set(['delta_corrected', 'delta_step_supplied', 'finish_line_set'])
+
+/** mission id → the latest acceptance still standing in the event ledger:
+ *  the newest delta_accepted per mission, unless a correction, supplied step
+ *  or finish-line change for that mission came after it. */
+export function acceptanceLedger(rows: MissionEventRow[]): Record<string, LedgerAcceptance> {
+  const live: Record<string, LedgerAcceptance> = {}
+  const ordered = [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at))
+  for (const row of ordered) {
+    if (row.type === 'delta_accepted') {
+      const acceptance = acceptanceFromDetail(row.detail)
+      if (acceptance) live[row.mission_id] = acceptance
+    } else if (row.type && INVALIDATES_ACCEPTANCE.has(row.type)) {
+      delete live[row.mission_id]
+    }
+  }
+  return live
+}
+
+/** mission id → accepted move, dropping any acceptance recorded under a
+ *  finish line the mission no longer has (a revision made outside this
+ *  screen writes no event this session saw). */
+export function currentAcceptances(
+  ledger: Record<string, LedgerAcceptance>,
+  missions?: Record<string, Pick<Mission, 'finishLine'>>,
+): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [missionId, acceptance] of Object.entries(ledger)) {
+    const mission = missions?.[missionId]
+    if (missions && acceptance.finishLine !== undefined && mission?.finishLine !== acceptance.finishLine) continue
+    out[missionId] = acceptance.move
+  }
+  return out
+}
+
+/** Ledger fold and finish-line check in one step. The UI still shows
+ *  "Accepted" only when the move equals the Delta it is displaying. */
+export function liveAcceptances(
+  rows: MissionEventRow[],
+  missions?: Record<string, Pick<Mission, 'finishLine'>>,
+): Record<string, string> {
+  return currentAcceptances(acceptanceLedger(rows), missions)
+}
+
+function withoutMission<T>(entries: Record<string, T>, missionId: string): Record<string, T> {
+  if (!(missionId in entries)) return entries
+  const next = { ...entries }
+  delete next[missionId]
+  return next
+}
+
 function newId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
@@ -158,7 +282,17 @@ export default function MissionTab() {
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([])
   const [evidenceStatus, setEvidenceStatus] = useState<ContextAvailability>('loading')
   const [corrections, setCorrections] = useState<DeltaCorrection[]>([])
-  const [acceptedMove, setAcceptedMove] = useState<string | null>(null)
+  const [suppliedSteps, setSuppliedSteps] = useState<DeltaCandidate[]>([])
+  const [acceptances, setAcceptances] = useState<Record<string, LedgerAcceptance>>({})
+  // Re-derived whenever the board changes, so an acceptance recorded under a
+  // finish line the mission no longer has is dropped in-session too.
+  const acceptedMoves = useMemo(() => currentAcceptances(acceptances, board.missions), [acceptances, board.missions])
+  // Accepts in flight, keyed mission+move, so a double tap cannot insert twice
+  // before the first write returns.
+  const acceptingRef = useRef<Set<string>>(new Set())
+  // The accepted move the Delta is actually showing for Primary (reported by
+  // StrategicDelta). Distinct from acceptedMoves, which comes from the ledger.
+  const [shownAcceptance, setShownAcceptance] = useState<{ missionId: string; move: string } | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
   const [connectionAttempt, setConnectionAttempt] = useState(0)
@@ -211,7 +345,7 @@ export default function MissionTab() {
       const [missionsRes, evidenceRes, correctionsRes] = await Promise.all([
         supabase.from('missions').select('*').eq('user_id', userId),
         supabase.from('evidence_snapshots').select('*'),
-        supabase.from('mission_events').select('*').eq('user_id', userId).eq('type', 'delta_corrected').order('created_at', { ascending: true }),
+        supabase.from('mission_events').select('*').eq('user_id', userId).in('type', ['delta_accepted', 'delta_corrected', 'delta_step_supplied', 'finish_line_set']).order('created_at', { ascending: true }),
       ])
       if (isCancelled()) return
       if (missionsRes.error) throw missionsRes.error
@@ -228,11 +362,20 @@ export default function MissionTab() {
         missions[row.id] = rowToMission(row)
       }
       setBoard({ missions })
+      const eventRows = (correctionsRes.data ?? []) as Array<MissionEventRow & { type?: string }>
       setCorrections(
-        ((correctionsRes.data ?? []) as MissionEventRow[])
+        eventRows
+          .filter(row => row.type === 'delta_corrected')
           .map(rowToCorrection)
           .filter((c): c is DeltaCorrection => c !== null),
       )
+      setSuppliedSteps(
+        eventRows
+          .filter(row => row.type === 'delta_step_supplied')
+          .map(rowToSuppliedStep)
+          .filter((step): step is DeltaCandidate => step !== null),
+      )
+      setAcceptances(acceptanceLedger(eventRows))
 
       if (!evidenceRes.error) {
         setEvidence(((evidenceRes.data ?? []) as EvidenceRow[]).map(rowToEvidence))
@@ -321,7 +464,7 @@ export default function MissionTab() {
         return
       }
       setBoard(result.board)
-
+      beginFieldWork()
       try {
         const rows = affectedIds.map(id => missionToRow(result.board.missions[id], user.id))
         const { error: upsertError } = await supabase.from('missions').upsert(rows, { onConflict: 'id' })
@@ -363,10 +506,16 @@ export default function MissionTab() {
             return
           }
         }
+        // A finish-line change replaces the goal an earlier acceptance
+        // agreed with; drop it the same way the reload fold does.
+        const changedGoal = result.event?.type === 'finish_line_set' ? result.event.missionId : null
+        if (changedGoal) setAcceptances(prev => withoutMission(prev, changedGoal))
         flash('Saved')
       } catch {
         setBoard(before)
         setError('Write failed — change was not saved. Nothing changed; try again.')
+      } finally {
+        endFieldWork()
       }
     },
     [board, user, flash],
@@ -383,6 +532,7 @@ export default function MissionTab() {
         setDeltaError('Could not record that against your history — it was not saved.')
         return false
       }
+      beginFieldWork()
       try {
         const { error: writeError } = await supabase.from('mission_events').insert({
           id: newId(),
@@ -399,21 +549,36 @@ export default function MissionTab() {
       } catch {
         setDeltaError('Could not record that against your history — it was not saved.')
         return false
+      } finally {
+        endFieldWork()
       }
     },
     [user],
   )
 
+  // Idempotent per (mission, move): accepting what is already the live
+  // acceptance — e.g. after reload, or a second tap — records nothing new.
+  // mission_events has no unique constraint to lean on, so this guard is the
+  // only thing between a repeat tap and a duplicate row.
   const handleAcceptDelta = useCallback(
     async (delta: Delta): Promise<boolean> => {
-      if (delta.missionId) {
-        const ok = await recordDeltaEvent('delta_accepted', delta.missionId, delta.move)
+      const missionId = delta.missionId
+      if (!missionId) return false
+      if (acceptedMoves[missionId] === delta.move) return true
+      const finishLine = board.missions[missionId]?.finishLine ?? null
+      const key = `${missionId}\u0000${delta.move}`
+      if (acceptingRef.current.has(key)) return false
+      acceptingRef.current.add(key)
+      try {
+        const ok = await recordDeltaEvent('delta_accepted', missionId, acceptanceDetail(delta.move, delta.candidateId, finishLine))
         if (!ok) return false
+        setAcceptances(prev => ({ ...prev, [missionId]: finishLine ? { move: delta.move, finishLine } : { move: delta.move } }))
+        return true
+      } finally {
+        acceptingRef.current.delete(key)
       }
-      setAcceptedMove(delta.move)
-      return true
     },
-    [recordDeltaEvent],
+    [acceptedMoves, board, recordDeltaEvent],
   )
 
   // The corrected prediction is kept, never erased: it stays in
@@ -438,10 +603,38 @@ export default function MissionTab() {
         createdAt: new Date().toISOString(),
       }
       setCorrections(prev => [...prev, correction])
-      setAcceptedMove(null)
+      setAcceptances(prev => withoutMission(prev, correction.missionId))
       return true
     },
     [recordDeltaEvent],
+  )
+
+  // The written step is the operation to evaluate, not a rejection of the
+  // fallback sentence. Local state updates only after the write succeeds,
+  // in oldest-first order, matching the reload query.
+  const handleSupplyStep = useCallback(
+    async (delta: Delta, step: string): Promise<boolean> => {
+      if (!delta.missionId || !delta.candidateId?.startsWith('clause:')) return false
+      // Bind the step to the clause it answers, so a later finish-line
+      // revision cannot revive it for a different goal.
+      const clause = clauseTextFor(board.missions[delta.missionId]?.finishLine ?? null, delta.candidateId)
+      if (!clause) return false
+      const detail = JSON.stringify({ step, targetId: delta.candidateId, clause })
+      const ok = await recordDeltaEvent('delta_step_supplied', delta.missionId, detail)
+      if (!ok) return false
+      const supplied = rowToSuppliedStep({
+        id: newId(),
+        mission_id: delta.missionId,
+        type: 'delta_step_supplied',
+        detail,
+        created_at: new Date().toISOString(),
+      })
+      if (supplied) setSuppliedSteps(prev => [...prev, supplied])
+      const missionId = delta.missionId
+      setAcceptances(prev => withoutMission(prev, missionId))
+      return true
+    },
+    [board, recordDeltaEvent],
   )
 
   const handleDeltaContext = useCallback(
@@ -457,9 +650,21 @@ export default function MissionTab() {
     [recordDeltaEvent],
   )
 
+  // After a failed read, "Check again" is a reconnect: it resets the failure
+  // state the same way retryConnection does, so a later success does not
+  // render mission data under a stale "Could not load" alert.
   const handleDeltaRecheck = useCallback(() => {
-    if (user) void loadAll(user.id)
-  }, [user, loadAll])
+    if (loadFailed || !user) {
+      setLoaded(false)
+      setLoadFailed(false)
+      setConnectionError('')
+      setAuthStatus('Reconnecting…')
+      setEvidenceStatus('loading')
+      setConnectionAttempt(attempt => attempt + 1)
+      return
+    }
+    void loadAll(user.id)
+  }, [user, loadAll, loadFailed])
 
   const handleResumableAction = useCallback((missionId: string, active: boolean) => {
     setResumableMissionId(active ? missionId : null)
@@ -539,6 +744,7 @@ export default function MissionTab() {
       return
     }
     setBoard(result.board)
+    beginFieldWork()
     try {
       const { error: missionError } = await supabase.from('missions').insert(missionToRow(result.board.missions[id], user.id))
       if (missionError) throw missionError
@@ -575,6 +781,8 @@ export default function MissionTab() {
     } catch {
       setBoard(board)
       setError('Could not save the new mission — nothing was created. Try again.')
+    } finally {
+      endFieldWork()
     }
   }
 
@@ -601,6 +809,7 @@ export default function MissionTab() {
     const before = board
     setBoard(promoted.board)
     setError('')
+    beginFieldWork()
     try {
       const { error: missionError } = await supabase
         .from('missions')
@@ -644,15 +853,23 @@ export default function MissionTab() {
     } catch {
       setBoard(before)
       setError('Could not save the new mission — nothing was created. Try again.')
+    } finally {
+      endFieldWork()
     }
   }
 
-  function handleCaptureIdea() {
+  async function handleCaptureIdea() {
     const text = captureText.trim()
     if (!text || !user) return
-    capture.capture(text)
-    setCaptureText('')
-    flash('Captured — Parked in your inbox')
+    beginFieldWork()
+    try {
+      const saved = capture.capture(text)
+      setCaptureText('')
+      flash('Captured — Parked in your inbox')
+      await saved
+    } finally {
+      endFieldWork()
+    }
   }
 
   function requestChallenge() {
@@ -732,11 +949,14 @@ export default function MissionTab() {
         evidence={evidence}
         corrections={corrections}
         phase={deltaPhase}
-        acceptedMove={acceptedMove}
+        acceptedMoves={acceptedMoves}
+        onShownAcceptance={setShownAcceptance}
         readAvailable={loaded && !loadFailed}
         persistError={deltaError}
         onAccept={handleAcceptDelta}
         onCorrect={handleCorrectDelta}
+        onSupplyStep={handleSupplyStep}
+        suppliedOperations={suppliedSteps}
         onContextAdded={handleDeltaContext}
         onRecheck={handleDeltaRecheck}
         requestOperation={operationStageConfigured ? handleRequestOperation : undefined}
@@ -790,11 +1010,13 @@ export default function MissionTab() {
       {/* Accepting a Delta is a prediction, not a commitment — SavedActions
           is where accepting one turns into a tracked, resumable action with
           status and a place to leave yourself a note. */}
+      {/* Bound to the mission of the accepted move on screen — the Primary,
+          or an actionable Secondary when that is what the Delta aimed at. */}
       {sessionReady && primary && (
         <SavedActions
-          key={primary.id}
-          missionId={primary.id}
-          suggestedTitle={acceptedMove}
+          key={shownAcceptance?.missionId ?? primary.id}
+          missionId={shownAcceptance?.missionId ?? primary.id}
+          suggestedTitle={shownAcceptance?.move ?? null}
           onActiveChange={handleResumableAction}
         />
       )}

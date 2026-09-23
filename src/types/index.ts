@@ -158,6 +158,10 @@ export type MissionEventType =
   | 'delta_accepted'
   | 'delta_corrected'
   | 'delta_context_added'
+  // A concrete step the user supplied for an unresolved finish-line clause.
+  // Distinct from delta_corrected: the text is the operation to evaluate,
+  // not a reason for rejecting the fallback.
+  | 'delta_step_supplied'
 
 export interface MissionEvent {
   id: string
@@ -195,7 +199,7 @@ export interface EvidenceRecord {
 // intelligence): a rule-based prediction over real state, a
 // model-generated prediction, and honestly having nothing to predict from.
 // 'model' is reserved and rendered distinctly; no code path produces it yet.
-export type DeltaProvenance = 'deterministic' | 'model' | 'insufficient_context'
+export type DeltaProvenance = 'deterministic' | 'model' | 'supplied' | 'insufficient_context'
 
 // What kind of situation the current state is — historical LAR's job.
 export type DeltaSituation =
@@ -245,6 +249,10 @@ export type DeltaCandidateKind =
   // Runs through the exact same isConcreteMove gate and inhibition as
   // everything else; this only marks where the candidate came from.
   | 'model_suggested'
+  // A concrete step the user wrote for one unresolved clause. Same quality
+  // gate and inhibition as a model suggestion. Never a correction, and never
+  // written to the actions table.
+  | 'supplied_operation'
   // Kept so the human can see it was considered and rejected, never selected.
   | 'whole_mission'
 
@@ -256,6 +264,11 @@ export interface DeltaCandidate {
   /** Stable proof-target identity for clause-scoped operations. Distinct from
    *  `id`: rejecting one operation must not mark its proof target resolved. */
   targetId?: string
+  /** For a clause operation (supplied or model-derived): the clause text it
+   *  was aimed at, as `decomposeFinishLine` produced it then. The target id
+   *  only names a position; if the finish line is revised, the operation is
+   *  for a goal that no longer exists and is not admitted. */
+  clause?: string
   /** Lower ranks are higher leverage. */
   rank: number
 }

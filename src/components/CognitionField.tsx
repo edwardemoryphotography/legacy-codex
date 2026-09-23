@@ -2,27 +2,99 @@
 
 import { useEffect, useRef } from 'react'
 import { useMotionAllowed } from '@/hooks/useMotionAllowed'
+import {
+  FIELD_WORK_EVENT,
+  markNavigation,
+  navigationAge,
+  presenceForDomEvent,
+  type FieldWorkPhase,
+} from '@/lib/cognitionPresence'
+
+const TYPING_MS = 800
+const ACTIVITY_MS = 1000
+const SETTLE_MS = 900
+const NAV_REMEMBER_MS = 1200
 
 /**
- * The ambient cognition field's pointer/touch presence.
+ * One cognition field. Colour and pending-work state come from the
+ * ancestor `.sd[data-cognition]` / `[data-provenance]` / `[data-recording]`
+ * selectors. This component only reports pointer presence and real user
+ * activity, written onto the field node — never React state — so typing,
+ * navigating, or a save cannot re-render the tree on every event.
  *
- * Purely a rendering + interaction layer — colour and cognition state come
- * entirely from the ancestor `.sd[data-cognition]` selectors already in
- * globals.css. This component never reads delta state; it only reports
- * where the pointer is.
+ * Pointer position and tap location are CSS custom properties, throttled
+ * to one write per animation frame. Touch never drives proximity; a tap of
+ * any pointer type fires one ripple. Nothing here calls preventDefault.
  *
- * Pointer position and tap location are written straight to CSS custom
- * properties on the field's own DOM node, throttled to one write per
- * animation frame — never React state — so hovering or dragging over the
- * field cannot trigger a re-render. Touch never drives the proximity
- * effect (that stays a desktop, hover-shaped interaction); a tap of any
- * pointer type instead fires a single restrained ripple. Nothing here
- * calls preventDefault, so vertical scroll is untouched even mid-gesture
- * over the field.
+ * Idle motion is CSS. Activity (`data-presence`) and genuine in-flight
+ * work only change which motion the stylesheet is allowed to play.
  */
 export default function CognitionField() {
   const fieldRef = useRef<HTMLDivElement>(null)
   const motionAllowed = useMotionAllowed()
+
+  useEffect(() => {
+    const node = fieldRef.current
+    if (!node) return
+
+    let decay = 0
+    let work = 0
+
+    function paintPresence(value: string) {
+      node?.setAttribute('data-presence', value)
+    }
+
+    function hold(value: 'typing' | 'navigating' | 'mission', ms: number) {
+      if (work > 0) return
+      paintPresence(value)
+      window.clearTimeout(decay)
+      decay = window.setTimeout(() => {
+        if (work === 0) paintPresence('ambient')
+      }, ms)
+    }
+
+    const age = navigationAge()
+    if (age !== null && age < NAV_REMEMBER_MS) hold('navigating', NAV_REMEMBER_MS - age)
+
+    function onActivity(event: Event) {
+      const activity = presenceForDomEvent(event)
+      if (!activity || work > 0) return
+      if (activity === 'navigating') markNavigation()
+      hold(activity, activity === 'typing' ? TYPING_MS : ACTIVITY_MS)
+    }
+
+    function onWork(event: Event) {
+      const phase = (event as CustomEvent<{ phase?: FieldWorkPhase }>).detail?.phase
+      if (phase === 'start') {
+        work += 1
+        window.clearTimeout(decay)
+        paintPresence('working')
+        return
+      }
+      if (phase !== 'end') return
+      work = Math.max(0, work - 1)
+      if (work > 0) return
+      paintPresence('settling')
+      window.clearTimeout(decay)
+      decay = window.setTimeout(() => {
+        if (work === 0) paintPresence('ambient')
+      }, SETTLE_MS)
+    }
+
+    document.addEventListener('input', onActivity)
+    document.addEventListener('change', onActivity)
+    document.addEventListener('click', onActivity)
+    document.addEventListener('keydown', onActivity)
+    document.addEventListener(FIELD_WORK_EVENT, onWork)
+    return () => {
+      document.removeEventListener('input', onActivity)
+      document.removeEventListener('change', onActivity)
+      document.removeEventListener('click', onActivity)
+      document.removeEventListener('keydown', onActivity)
+      document.removeEventListener(FIELD_WORK_EVENT, onWork)
+      window.clearTimeout(decay)
+    }
+  }, [])
 
   useEffect(() => {
     const node = fieldRef.current
@@ -108,7 +180,13 @@ export default function CognitionField() {
   }, [motionAllowed])
 
   return (
-    <div className="sd-field" ref={fieldRef} aria-hidden="true">
+    <div className="sd-field" ref={fieldRef} data-presence="ambient" aria-hidden="true">
+      <span className="sd-field-depth" />
+      <span className="sd-blob sd-blob-a" />
+      <span className="sd-blob sd-blob-b" />
+      <span className="sd-blob sd-blob-c" />
+      <span className="sd-field-contour sd-field-contour-cyan" />
+      <span className="sd-field-contour sd-field-contour-magenta" />
       <span className="sd-field-specks" />
       <span className="sd-field-ring" />
       <span className="sd-field-core" />

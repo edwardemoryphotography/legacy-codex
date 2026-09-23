@@ -93,6 +93,20 @@ export function candidateTargetsClause(candidateId: string | undefined, targetId
   return candidateId === targetId || candidateId?.startsWith(`${targetId}:operation:`) === true
 }
 
+/** The clause a target id points at in `finishLine`, as the engine splits
+ *  it now. Null when the target is not a clause of this finish line. */
+export function clauseTextFor(finishLine: string | null, targetId: string | undefined): string | null {
+  const target = parseClauseId(targetId)
+  if (!target) return null
+  return decomposeFinishLine(finishLine)[target.index] ?? null
+}
+
+/** Same clause, ignoring case, spacing and trailing punctuation only. */
+export function sameClause(a: string, b: string): boolean {
+  const norm = (text: string) => text.toLowerCase().replace(/\s+/g, ' ').replace(/[\s.,;:!?]+$/, '').trim()
+  return norm(a) === norm(b)
+}
+
 function parseClauseId(targetId: string | undefined): { missionId: string; index: number } | null {
   if (!targetId) return null
   const match = /^clause:([^:]+):(\d+)$/.exec(targetId)
@@ -252,6 +266,10 @@ const RANK = {
   // mission's single-clause evidence framing (a genuinely derivable
   // operation for a *specific* unresolved part outranks a generic one for
   // the whole mission) but never beats reconciling evidence or a blocker.
+  // A step the user wrote for the unresolved clause. It outranks a model
+  // suggestion for that same clause and still loses to a blocker or to
+  // reconciling contradictory evidence.
+  suppliedOperation: 140,
   modelSuggestion: 150,
   primaryEvidence: 300,
   promoteToPrimary: 500,
@@ -284,10 +302,38 @@ function evidenceCandidate(mission: Mission, band: number): DeltaCandidate | nul
       }
 }
 
+function admitClauseOperation(
+  suggestion: DeltaCandidate,
+  primary: Mission | null,
+  secondary: Mission | null,
+  targetMissionIds: Set<string>,
+): boolean {
+  if (!suggestion.missionId || !targetMissionIds.has(suggestion.missionId)) return false
+  const target = parseClauseId(suggestion.targetId)
+  if (!target || target.missionId !== suggestion.missionId) return false
+  const owner = [primary, secondary].find(m => m?.id === suggestion.missionId)
+  const clauses = decomposeFinishLine(owner?.finishLine ?? null)
+  // Until trusted state says a target is resolved, the first target remains
+  // unresolved. A new operation may aim at it; it may not silently unlock a
+  // later clause.
+  if (target.index !== 0 || !clauses[target.index]) return false
+  // The target id is only a position. An operation recorded for a finish
+  // line that has since been revised was aimed at a different goal: keep it
+  // in history, never admit it. An operation with no recorded clause cannot
+  // prove which goal it was for, so it is not admitted either.
+  return Boolean(suggestion.clause) && sameClause(suggestion.clause as string, clauses[target.index])
+}
+
 export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
   const out: DeltaCandidate[] = []
   const { primary, secondary, parked } = ctx
   const targetMissionIds = new Set([primary?.id, secondary?.id].filter((id): id is string => Boolean(id)))
+  // Clause operations (supplied or modelled) may aim at the Secondary only
+  // while it is the actionable mission: no Primary, or a Primary that is
+  // blocked or over capacity (spec §5). A step recorded for the Secondary
+  // while the Primary was deferred must not bypass it once it is active.
+  const primaryActionable = Boolean(primary && !primary.blocker && !primary.capacityMismatch)
+  const clauseMissionIds = primaryActionable && primary ? new Set([primary.id]) : targetMissionIds
 
   if (primary) {
     if (summarizeEvidence(ctx.primaryEvidence, ctx.now) === 'conflict') {
@@ -359,21 +405,29 @@ export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
     }
   })
 
-  // Model-derived operations for a specific clause. Trusted no further than
-  // any deterministic candidate: same rank tier applied uniformly here
-  // (the caller's own rank is ignored) regardless of what the caller set,
-  // and every one of these still has to survive `inhibit` — including the
-  // `isConcreteMove` gate — like everything else in `out`.
-  for (const suggestion of ctx.suggestedOperations) {
-    if (!suggestion.missionId || !targetMissionIds.has(suggestion.missionId)) continue
-    const target = parseClauseId(suggestion.targetId)
-    if (!target || target.missionId !== suggestion.missionId) continue
-    const owner = [primary, secondary].find(m => m?.id === suggestion.missionId)
-    const clauses = decomposeFinishLine(owner?.finishLine ?? null)
-    // Until trusted state says a target is resolved, the first target remains
-    // unresolved. A rejected operation may generate a new candidate for it;
-    // it may not silently unlock a later clause.
-    if (target.index !== 0 || !clauses[target.index]) continue
+  // Clause operations handed in by the caller: a model suggestion, or a step
+  // the user wrote. Trusted no further than any deterministic candidate.
+  // The caller's rank is ignored. Every one still has to survive `inhibit`,
+  // including the `isConcreteMove` gate.
+  const supplied = ctx.suggestedOperations.filter(suggestion => suggestion.kind === 'supplied_operation')
+  const modelled = ctx.suggestedOperations.filter(suggestion => suggestion.kind !== 'supplied_operation')
+  const seenSupplied = new Set<string>()
+  // Oldest first in, so a repeated step keeps the newest copy and the newest
+  // distinct step outranks an earlier one without leaving the supplied band.
+  for (let index = supplied.length - 1; index >= 0; index -= 1) {
+    const suggestion = supplied[index]
+    if (!suggestion || seenSupplied.has(suggestion.id)) continue
+    seenSupplied.add(suggestion.id)
+    if (!admitClauseOperation(suggestion, primary, secondary, clauseMissionIds)) continue
+    const fromNewest = seenSupplied.size - 1
+    out.push({
+      ...suggestion,
+      kind: 'supplied_operation',
+      rank: RANK.suppliedOperation + fromNewest * 0.01,
+    })
+  }
+  for (const suggestion of modelled) {
+    if (!admitClauseOperation(suggestion, primary, secondary, clauseMissionIds)) continue
     out.push({ ...suggestion, kind: 'model_suggested', rank: RANK.modelSuggestion })
   }
 
@@ -590,9 +644,12 @@ function describeBecause(
   // When the move is a concrete operation for one clause of the finish
   // line, the useful explanation is which clause it targets and why that
   // one — not why the mission matters in general.
-  if (winner?.kind === 'model_suggested' && winner.missionId) {
+  if ((winner?.kind === 'model_suggested' || winner?.kind === 'supplied_operation') && winner.missionId) {
     const owner = [ctx.primary, ctx.secondary].find(m => m?.id === winner.missionId)
     const total = decomposeFinishLine(owner?.finishLine ?? null).length
+    if (winner.kind === 'supplied_operation') {
+      return `You supplied this step for the first of ${total} things your finish line names. It passed the same bar as any other move: it names something to do. It is not a rule-derived prediction, and it is not verified evidence.`
+    }
     const targeted = rejectedOperations > 0
       ? `you rejected ${rejectedOperations === 1 ? 'one earlier operation' : `${rejectedOperations} earlier operations`} for the first target, so this is another attempt at that same unresolved condition`
       : 'no trusted state says the first target is resolved, so this aims there'
@@ -628,6 +685,9 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
   const { surviving, inhibited } = inhibit(candidates, ctx)
   const evidenceState = summarizeEvidence(ctx.primaryEvidence, ctx.now)
 
+  // Only steps admitted for this prediction — history for other missions is
+  // not something this Delta read.
+  const suppliedCount = candidates.filter(candidate => candidate.kind === 'supplied_operation').length
   const assembledFrom = [
     ctx.primary ? '1 Primary mission' : 'no Primary mission',
     ctx.secondary ? '1 Secondary mission' : null,
@@ -635,6 +695,9 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
     `${ctx.primaryEvidence.length} evidence record${ctx.primaryEvidence.length === 1 ? '' : 's'}`,
     ctx.corrections.length > 0
       ? `${ctx.corrections.length} correction${ctx.corrections.length === 1 ? '' : 's'} you recorded`
+      : null,
+    suppliedCount > 0
+      ? `${suppliedCount} step${suppliedCount === 1 ? '' : 's'} you supplied`
       : null,
   ].filter((x): x is string => x !== null)
 
@@ -656,7 +719,9 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
   const aimedAt =
     winnerMission ?? (primaryDeferred ? ctx.secondary ?? ctx.primary : ctx.primary ?? ctx.secondary) ?? null
   const clauseTexts = decomposeFinishLine(aimedAt?.finishLine ?? null)
-  const winnerTarget = winner?.kind === 'model_suggested' ? parseClauseId(winner.targetId) : null
+  const winnerTarget = winner?.kind === 'model_suggested' || winner?.kind === 'supplied_operation'
+    ? parseClauseId(winner.targetId)
+    : null
   const targetClauseIndex = winner
     ? winnerTarget?.index ?? null
     : clauseTexts.length > 0
@@ -687,7 +752,11 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
     // operation. This is the engine's own limit, not missing input from
     // the human — so it says so, rather than asking them to report a
     // change they never made.
-    const clauseNeedsOperation = clauseTexts.length > 0 && targetClauseIndex !== null
+    // A Primary that is blocked or over capacity inhibits every operation
+    // aimed at it, so there is no clause to ask the human (or the model) to
+    // supply a step for — that would only add futile ledger rows.
+    const aimedDeferred = primaryDeferred && aimedAt?.id === ctx.primary?.id
+    const clauseNeedsOperation = !aimedDeferred && clauseTexts.length > 0 && targetClauseIndex !== null
 
     const move = !hadCandidates
       ? INSUFFICIENT_CONTEXT_MOVE
@@ -745,7 +814,11 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
   return {
     move: winner.move,
     candidateId: winner.id,
-    provenance: winner.kind === 'model_suggested' ? 'model' : 'deterministic',
+    provenance: winner.kind === 'model_suggested'
+      ? 'model'
+      : winner.kind === 'supplied_operation'
+        ? 'supplied'
+        : 'deterministic',
     situation,
     missionId: winner.missionId,
     missionTitle: mission?.title ?? null,

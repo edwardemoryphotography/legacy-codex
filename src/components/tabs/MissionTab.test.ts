@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import {
+  acceptanceDetail,
+  liveAcceptances,
   missionToRow,
   rowToCorrection,
   rowToEvidence,
   rowToMission,
+  rowToSuppliedStep,
   type EvidenceRow,
   type MissionEventRow,
   type MissionRow,
 } from './MissionTab'
 import type { Mission } from '@/types'
+import { clauseId, operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
 
 // MissionTab.tsx is the only place that translates between missionLoop's
 // camelCase Mission/MissionEvent domain shapes and the snake_case
@@ -134,11 +138,150 @@ describe('rowToCorrection', () => {
   })
 })
 
+describe('rowToSuppliedStep', () => {
+  const step = 'Open the live page and write down the first broken sentence'
+  const targetId = clauseId('m1', 0)
+  const finishLine = 'lands on main, deploys to Vercel, and answers without prompting'
+  const clause = 'lands on main'
+  const base: MissionEventRow = {
+    id: 'evt-step',
+    mission_id: 'm1',
+    type: 'delta_step_supplied',
+    detail: JSON.stringify({ step, targetId, clause }),
+    created_at: '2026-09-07T12:00:00.000Z',
+  }
+
+  it('rebuilds the same operation a reload would select', () => {
+    const parsed = rowToSuppliedStep(base)
+    expect(parsed).toEqual({
+      id: operationCandidateId(targetId, step),
+      kind: 'supplied_operation',
+      move: step,
+      missionId: 'm1',
+      targetId,
+      clause,
+      rank: 0,
+    })
+
+    const delta = predictStrategicDelta(
+      [{ ...baseMission, finishLine }],
+      [],
+      [],
+      '2026-09-07T12:00:00.000Z',
+      parsed ? [parsed] : [],
+    )
+    expect(delta.move).toBe(step)
+    expect(delta.candidateId).toBe(parsed?.id)
+    expect(delta.provenance).toBe('supplied')
+  })
+
+  it('after reload, ignores a step written for a finish line the mission no longer has', () => {
+    const parsed = rowToSuppliedStep(base)
+    const delta = predictStrategicDelta(
+      [{ ...baseMission, finishLine: 'prints the catalogue, mails it, and logs the orders' }],
+      [], [], '2026-09-07T12:00:00.000Z', parsed ? [parsed] : [],
+    )
+    expect(delta.move).not.toBe(step)
+    expect(delta.provenance).not.toBe('supplied')
+  })
+
+  it('reads an older row without a clause, but the engine will not admit it', () => {
+    const parsed = rowToSuppliedStep({ ...base, detail: JSON.stringify({ step, targetId }) })
+    expect(parsed?.clause).toBeUndefined()
+    const delta = predictStrategicDelta([{ ...baseMission, finishLine }], [], [], '2026-09-07T12:00:00.000Z', parsed ? [parsed] : [])
+    expect(delta.move).not.toBe(step)
+  })
+
+  it('returns null for a malformed step, and does not read a correction as a step', () => {
+    expect(rowToSuppliedStep({ ...base, detail: 'not json{' })).toBeNull()
+    expect(rowToSuppliedStep({ ...base, detail: JSON.stringify({ step: '   ', targetId }) })).toBeNull()
+    expect(rowToSuppliedStep({ ...base, detail: JSON.stringify({ step, targetId: 'advance:m1' }) })).toBeNull()
+    expect(rowToSuppliedStep({ ...base, detail: JSON.stringify({ move: step, reason: 'no', candidateId: targetId }) })).toBeNull()
+    expect(rowToCorrection({ ...base, detail: JSON.stringify({ step, targetId }) })).toBeNull()
+  })
+})
+
 describe('missionToRow / rowToMission — MissionRow field naming matches Supabase snake_case', () => {
   it('produces exactly the columns the missions table expects, no more, no less', () => {
     const row = missionToRow(baseMission, 'user-1') as MissionRow
     expect(Object.keys(row).sort()).toEqual(
       ['id', 'user_id', 'title', 'why', 'finish_line', 'evidence_requirement', 'state', 'blocker', 'capacity_mismatch', 'updated_at'].sort(),
     )
+  })
+})
+
+describe('liveAcceptances', () => {
+  function event(id: string, missionId: string, type: string, detail: string, createdAt: string): MissionEventRow {
+    return { id, mission_id: missionId, type, detail, created_at: createdAt }
+  }
+  const MOVE = 'Name the evidence that will prove the reference is done.'
+
+  it('rehydrates an accepted move from a delta_accepted row written as plain text (older rows)', () => {
+    const live = liveAcceptances([event('a1', 'm1', 'delta_accepted', MOVE, '2026-09-20T00:00:00.000Z')])
+    expect(live).toEqual({ m1: MOVE })
+  })
+
+  it('reads the newer JSON detail and the plain-text detail as the same move', () => {
+    const detail = acceptanceDetail(MOVE, 'clause:m1:0')
+    expect(JSON.parse(detail)).toEqual({ move: MOVE, candidateId: 'clause:m1:0' })
+    expect(liveAcceptances([event('a1', 'm1', 'delta_accepted', detail, '2026-09-20T00:00:00.000Z')])).toEqual({ m1: MOVE })
+  })
+
+  it('treats prose that happens to parse as JSON (a number, a quoted string) as the move itself', () => {
+    expect(liveAcceptances([event('a1', 'm1', 'delta_accepted', '123', '2026-09-20T00:00:00.000Z')])).toEqual({ m1: '123' })
+    expect(liveAcceptances([event('a2', 'm1', 'delta_accepted', '"x"', '2026-09-20T00:00:00.000Z')])).toEqual({ m1: '"x"' })
+  })
+
+  it('a later correction or supplied step for the same mission clears its acceptance', () => {
+    const accepted = event('a1', 'm1', 'delta_accepted', MOVE, '2026-09-20T00:00:00.000Z')
+    expect(liveAcceptances([
+      accepted,
+      event('c1', 'm1', 'delta_corrected', JSON.stringify({ move: MOVE, reason: 'no' }), '2026-09-20T01:00:00.000Z'),
+    ])).toEqual({})
+    expect(liveAcceptances([
+      accepted,
+      event('s1', 'm1', 'delta_step_supplied', JSON.stringify({ step: 'Do it', targetId: 'clause:m1:0' }), '2026-09-20T01:00:00.000Z'),
+    ])).toEqual({})
+  })
+
+  it('an event on another mission leaves the acceptance alone', () => {
+    expect(liveAcceptances([
+      event('a1', 'm1', 'delta_accepted', MOVE, '2026-09-20T00:00:00.000Z'),
+      event('c1', 'm2', 'delta_corrected', JSON.stringify({ move: 'other', reason: 'no' }), '2026-09-20T01:00:00.000Z'),
+    ])).toEqual({ m1: MOVE })
+  })
+
+  it('an acceptance recorded after a correction is live again, and the latest acceptance wins', () => {
+    expect(liveAcceptances([
+      event('a1', 'm1', 'delta_accepted', 'first move', '2026-09-20T00:00:00.000Z'),
+      event('c1', 'm1', 'delta_corrected', JSON.stringify({ move: 'first move', reason: 'no' }), '2026-09-20T01:00:00.000Z'),
+      event('a2', 'm1', 'delta_accepted', MOVE, '2026-09-20T02:00:00.000Z'),
+    ])).toEqual({ m1: MOVE })
+  })
+
+  it('orders by created_at rather than trusting row order', () => {
+    expect(liveAcceptances([
+      event('c1', 'm1', 'delta_corrected', JSON.stringify({ move: MOVE, reason: 'no' }), '2026-09-20T01:00:00.000Z'),
+      event('a1', 'm1', 'delta_accepted', MOVE, '2026-09-20T00:00:00.000Z'),
+    ])).toEqual({})
+  })
+
+  it('a later finish_line_set for the mission clears an older plain-text acceptance', () => {
+    expect(liveAcceptances([
+      event('a1', 'm1', 'delta_accepted', MOVE, '2026-09-20T00:00:00.000Z'),
+      event('f1', 'm1', 'finish_line_set', 'a different goal', '2026-09-20T01:00:00.000Z'),
+    ])).toEqual({})
+  })
+
+  it('drops an acceptance recorded under a finish line the mission no longer has, keeps it under the same one', () => {
+    const rows = [event('a1', 'm1', 'delta_accepted', acceptanceDetail(MOVE, 'name-evidence:m1', 'The old goal is met'), '2026-09-20T00:00:00.000Z')]
+    expect(liveAcceptances(rows, { m1: { finishLine: 'A revised goal is met' } })).toEqual({})
+    expect(liveAcceptances(rows, { m1: { finishLine: 'The old goal is met' } })).toEqual({ m1: MOVE })
+    // Older rows carry no finish line and are judged by the ledger alone.
+    expect(liveAcceptances([event('a2', 'm1', 'delta_accepted', MOVE, '2026-09-20T00:00:00.000Z')], { m1: { finishLine: 'Anything' } })).toEqual({ m1: MOVE })
+  })
+
+  it('ignores an empty acceptance detail', () => {
+    expect(liveAcceptances([event('a1', 'm1', 'delta_accepted', '  ', '2026-09-20T00:00:00.000Z')])).toEqual({})
   })
 })
