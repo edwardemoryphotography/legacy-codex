@@ -426,11 +426,7 @@ body {
    status words keep the hue but lean toward the text colour. */
 :root[data-theme="light"] .sd-status,
 :root[data-theme="light"] .sd-accepted,
-:root[data-theme="light"] .sd-act-primary .sd-accepted {
-  margin-top: 0;
-  font-size: 0.84rem;
-}
-.sd-next::after {
+:root[data-theme="light"] .sd-next::after {
   color: color-mix(in srgb, var(--sd-hue, var(--teal)) 50%, var(--text));
 }
 .sd-orb-host[data-orb="dock"]::before {
@@ -512,6 +508,10 @@ body {
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, var(--sd-hue, var(--teal)) 60%, transparent);
   text-underline-offset: 5px;
+}
+.sd-act-primary .sd-accepted {
+  margin-top: 0;
+  font-size: 0.84rem;
 }
 .sd-next::after {
   content: '\2193';
