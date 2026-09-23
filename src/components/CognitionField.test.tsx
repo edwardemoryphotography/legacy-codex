@@ -2,6 +2,7 @@
 import { render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import CognitionField from './CognitionField'
+import { beginFieldWork, clearNavigationMark, endFieldWork, markNavigation } from '@/lib/cognitionPresence'
 
 // jsdom reports a zero-size rect by default; the component intentionally
 // bails out on a zero-size rect (nothing to compute proximity against), so
@@ -27,7 +28,10 @@ function setReducedMotion(matches: boolean) {
 
 describe('CognitionField', () => {
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
+    clearNavigationMark()
+    document.body.querySelectorAll('input, textarea, button, select').forEach(node => node.remove())
   })
 
   it('renders the core/ring/specks structure as a decorative, hidden field', () => {
@@ -41,6 +45,8 @@ describe('CognitionField', () => {
     expect(container.querySelector('.sd-field-depth')).toBeTruthy()
     expect(container.querySelector('.sd-field-contour-cyan')).toBeTruthy()
     expect(container.querySelector('.sd-field-contour-magenta')).toBeTruthy()
+    expect(container.querySelectorAll('.sd-blob')).toHaveLength(3)
+    expect(field?.getAttribute('data-presence')).toBe('ambient')
   })
 
   it('reports pointer proximity via CSS custom properties, never React state, on pointer move', async () => {
@@ -103,5 +109,75 @@ describe('CognitionField', () => {
 
     expect(field.style.getPropertyValue('--px')).toBe('')
     expect(field.style.getPropertyValue('--proximity')).toBe('')
+  })
+
+  it('lifts presence while a real text field is being typed, then returns to ambient', () => {
+    vi.useFakeTimers()
+    setReducedMotion(false)
+    const { container } = render(<CognitionField />)
+    const field = container.querySelector('.sd-field') as HTMLDivElement
+    const idea = document.createElement('textarea')
+    document.body.appendChild(idea)
+
+    idea.dispatchEvent(new InputEvent('input', { bubbles: true, data: 'a' }))
+    expect(field.getAttribute('data-presence')).toBe('typing')
+
+    const box = document.createElement('input')
+    box.type = 'checkbox'
+    document.body.appendChild(box)
+    box.dispatchEvent(new InputEvent('input', { bubbles: true }))
+    expect(field.getAttribute('data-presence')).toBe('typing')
+
+    vi.advanceTimersByTime(800)
+    expect(field.getAttribute('data-presence')).toBe('ambient')
+  })
+
+  it('treats a tab click as navigation and shows it again when the field remounts', () => {
+    setReducedMotion(false)
+    const tab = document.createElement('button')
+    tab.setAttribute('role', 'tab')
+    document.body.appendChild(tab)
+    const { container, unmount } = render(<CognitionField />)
+    const field = container.querySelector('.sd-field') as HTMLDivElement
+
+    tab.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(field.getAttribute('data-presence')).toBe('navigating')
+    unmount()
+
+    const again = render(<CognitionField />)
+    expect(again.container.querySelector('.sd-field')?.getAttribute('data-presence')).toBe('navigating')
+  })
+
+  it('deforms for a real in-flight write and settles when that write ends', () => {
+    vi.useFakeTimers()
+    setReducedMotion(false)
+    const { container } = render(<CognitionField />)
+    const field = container.querySelector('.sd-field') as HTMLDivElement
+    const idea = document.createElement('textarea')
+    document.body.appendChild(idea)
+
+    beginFieldWork()
+    expect(field.getAttribute('data-presence')).toBe('working')
+    idea.dispatchEvent(new InputEvent('input', { bubbles: true, data: 'a' }))
+    expect(field.getAttribute('data-presence')).toBe('working')
+
+    endFieldWork()
+    expect(field.getAttribute('data-presence')).toBe('settling')
+    vi.advanceTimersByTime(900)
+    expect(field.getAttribute('data-presence')).toBe('ambient')
+  })
+
+  it('shows a mission-select change, and a recent navigation on first mount', () => {
+    setReducedMotion(false)
+    markNavigation(Date.now())
+    const { container } = render(<CognitionField />)
+    const field = container.querySelector('.sd-field') as HTMLDivElement
+    expect(field.getAttribute('data-presence')).toBe('navigating')
+
+    clearNavigationMark()
+    const select = document.createElement('select')
+    document.body.appendChild(select)
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+    expect(field.getAttribute('data-presence')).toBe('mission')
   })
 })

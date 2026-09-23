@@ -16,6 +16,7 @@ import type {
   MissionState,
   StrategicDelta as Delta,
 } from '@/types'
+import { beginFieldWork, endFieldWork } from '@/lib/cognitionPresence'
 import { operationCandidateId } from '@/lib/strategicDelta'
 import {
   EMPTY_BOARD,
@@ -355,7 +356,7 @@ export default function MissionTab() {
         return
       }
       setBoard(result.board)
-
+      beginFieldWork()
       try {
         const rows = affectedIds.map(id => missionToRow(result.board.missions[id], user.id))
         const { error: upsertError } = await supabase.from('missions').upsert(rows, { onConflict: 'id' })
@@ -401,6 +402,8 @@ export default function MissionTab() {
       } catch {
         setBoard(before)
         setError('Write failed — change was not saved. Nothing changed; try again.')
+      } finally {
+        endFieldWork()
       }
     },
     [board, user, flash],
@@ -417,6 +420,7 @@ export default function MissionTab() {
         setDeltaError('Could not record that against your history — it was not saved.')
         return false
       }
+      beginFieldWork()
       try {
         const { error: writeError } = await supabase.from('mission_events').insert({
           id: newId(),
@@ -433,6 +437,8 @@ export default function MissionTab() {
       } catch {
         setDeltaError('Could not record that against your history — it was not saved.')
         return false
+      } finally {
+        endFieldWork()
       }
     },
     [user],
@@ -596,6 +602,7 @@ export default function MissionTab() {
       return
     }
     setBoard(result.board)
+    beginFieldWork()
     try {
       const { error: missionError } = await supabase.from('missions').insert(missionToRow(result.board.missions[id], user.id))
       if (missionError) throw missionError
@@ -632,6 +639,8 @@ export default function MissionTab() {
     } catch {
       setBoard(board)
       setError('Could not save the new mission — nothing was created. Try again.')
+    } finally {
+      endFieldWork()
     }
   }
 
@@ -658,6 +667,7 @@ export default function MissionTab() {
     const before = board
     setBoard(promoted.board)
     setError('')
+    beginFieldWork()
     try {
       const { error: missionError } = await supabase
         .from('missions')
@@ -701,15 +711,23 @@ export default function MissionTab() {
     } catch {
       setBoard(before)
       setError('Could not save the new mission — nothing was created. Try again.')
+    } finally {
+      endFieldWork()
     }
   }
 
-  function handleCaptureIdea() {
+  async function handleCaptureIdea() {
     const text = captureText.trim()
     if (!text || !user) return
-    capture.capture(text)
-    setCaptureText('')
-    flash('Captured — Parked in your inbox')
+    beginFieldWork()
+    try {
+      const saved = capture.capture(text)
+      setCaptureText('')
+      flash('Captured — Parked in your inbox')
+      await saved
+    } finally {
+      endFieldWork()
+    }
   }
 
   function requestChallenge() {

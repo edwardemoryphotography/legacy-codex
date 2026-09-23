@@ -243,9 +243,10 @@ body {
      amber     → the insufficient-context status word only
      error     → persistence/network failure, never a success hue
 
-   The field itself keeps one violet/blue/cyan/magenta material. It
-   animates only while work is genuinely pending. Insufficient and idle
-   states stay still. */
+   The field itself keeps one violet/blue/cyan/magenta material. Idle is a
+   slow ambient drift. Typing, navigation, and mission changes lift that
+   drift. Pending reads, prediction, model requests, saves, and corrections
+   deform it further, then it settles. It does not invent progress. */
 
 :root {
   --sd-cyan: #35dcd2;
@@ -402,7 +403,9 @@ body {
   height: 176px;
   margin: 4px auto 0;
   overflow: hidden;
+  contain: paint;
   border-radius: 50%;
+  --sd-energy: 1;
   background:
     radial-gradient(circle at 28% 32%, color-mix(in srgb, var(--sd-cyan) 18%, transparent), transparent 46%),
     radial-gradient(circle at 74% 70%, color-mix(in srgb, var(--sd-magenta) 22%, transparent), transparent 48%),
@@ -502,6 +505,56 @@ body {
     radial-gradient(ellipse 62% 74% at 70% 66%, color-mix(in srgb, var(--sd-magenta) 26%, transparent), transparent 66%),
     radial-gradient(circle at 50% 48%, color-mix(in srgb, var(--sd-violet) 16%, transparent), transparent 72%);
   opacity: 0.95;
+  animation: sdBreathe 9s ease-in-out infinite;
+}
+
+/* Three soft masses inside the one field. Transform and opacity only —
+   no filters, no blend modes — so the drift stays cheap on a phone.
+   --sd-energy scales the same paths from idle through real work. */
+.sd-blob {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  will-change: transform;
+  animation: sdFlow 20s ease-in-out infinite;
+}
+
+.sd-blob-a {
+  width: 78%;
+  height: 72%;
+  left: -6%;
+  top: 6%;
+  --sd-dx: 7px;
+  --sd-dy: -5px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--sd-cyan) 58%, transparent), transparent 68%);
+  opacity: 0.55;
+  animation-duration: 18s;
+}
+
+.sd-blob-b {
+  width: 74%;
+  height: 80%;
+  right: -8%;
+  bottom: -4%;
+  --sd-dx: -8px;
+  --sd-dy: 6px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--sd-magenta) 50%, transparent), transparent 70%);
+  opacity: 0.48;
+  animation-duration: 22s;
+  animation-delay: -6s;
+}
+
+.sd-blob-c {
+  width: 62%;
+  height: 62%;
+  left: 18%;
+  top: 16%;
+  --sd-dx: 5px;
+  --sd-dy: 8px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--sd-violet) 46%, transparent), transparent 72%);
+  opacity: 0.42;
+  animation-duration: 16s;
+  animation-delay: -3s;
 }
 
 .sd-field-contour {
@@ -510,6 +563,7 @@ body {
   left: -19%;
   border-radius: 50%;
   opacity: 0.9;
+  animation: sdContour 18s ease-in-out infinite;
 }
 
 .sd-field-contour-cyan {
@@ -518,7 +572,6 @@ body {
   transform: rotate(var(--sd-contour-angle));
   background:
     radial-gradient(ellipse 48% 70% at 50% 0%, transparent 58%, color-mix(in srgb, var(--sd-cyan) 70%, transparent) 72%, transparent 84%);
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--sd-cyan) 55%, transparent));
 }
 
 .sd-field-contour-magenta {
@@ -527,7 +580,6 @@ body {
   transform: rotate(var(--sd-contour-angle));
   background:
     radial-gradient(ellipse 52% 80% at 50% 100%, transparent 56%, color-mix(in srgb, var(--sd-magenta) 68%, transparent) 72%, transparent 86%);
-  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--sd-magenta) 45%, transparent));
 }
 
 .sd-field-core {
@@ -599,8 +651,10 @@ body {
 
 .sd[data-cognition="reconstructing"] .sd-field-contour,
 .sd[data-cognition="correcting"] .sd-field-contour,
-.sd[data-cognition="deriving"] .sd-field-contour {
-  animation: sdContour 12s ease-in-out infinite;
+.sd[data-cognition="deriving"] .sd-field-contour,
+.sd[data-recording="true"] .sd-field-contour,
+.sd-field[data-presence="working"] .sd-field-contour {
+  animation-duration: 7.5s;
 }
 
 .sd[data-cognition="reconstructing"] .sd-field-ring,
@@ -700,9 +754,9 @@ body {
   opacity: 0.75;
 }
 
-/* The prediction just cohered: one quiet settle-in, then stillness.
-   The orb keeps the spectral material; teal stays on the provenance label
-   so a settled rule is distinguishable without replacing the field. */
+/* The prediction just cohered: the core settles once. The masses keep a
+   slow ambient drift. Teal stays on the provenance label so a settled rule
+   is distinguishable without replacing the field. */
 .sd[data-cognition="settled"] .sd-field-core {
   animation: sdSettle 900ms var(--sd-ease-settle) 1;
 }
@@ -732,9 +786,9 @@ body {
     0 0 18px color-mix(in srgb, var(--sd-magenta) 28%, transparent);
 }
 
-/* Insufficient context keeps the same material and stays still. Amber is
-   reserved for the status word, so the field does not pretend to be thinking
-   and does not shrink into a dim marker. */
+/* Insufficient context keeps the same material. The core does not pulse —
+   that would pretend a prediction is being worked — while the masses keep
+   the idle drift. Amber is the status word, not the field. */
 .sd[data-cognition="insufficient"] .sd-field-core {
   animation: none;
   opacity: 0.92;
@@ -867,6 +921,103 @@ body {
 @keyframes sdBreathe {
   0%, 100% { opacity: 0.82; }
   50% { opacity: 1; }
+}
+
+@keyframes sdFlow {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% {
+    transform:
+      translate3d(calc(var(--sd-dx) * var(--sd-energy, 1)), calc(var(--sd-dy) * var(--sd-energy, 1)), 0)
+      scale(calc(1 + 0.045 * var(--sd-energy, 1)));
+  }
+}
+
+/* A settled rule rests. A settled model result keeps a violet-weighted,
+   slightly quicker drift. Activity and in-flight work come after these
+   and match them in specificity so a keystroke or a real save still lifts
+   a prediction that has already cohered. */
+.sd[data-provenance="deterministic"][data-cognition="settled"] .sd-field,
+.sd[data-provenance="deterministic"][data-cognition="accepted"] .sd-field {
+  --sd-energy: 0.85;
+}
+.sd[data-provenance="deterministic"][data-cognition="settled"] .sd-blob,
+.sd[data-provenance="deterministic"][data-cognition="accepted"] .sd-blob {
+  animation-duration: 20s;
+}
+.sd[data-provenance="deterministic"] .sd-blob-a { opacity: 0.62; }
+.sd[data-provenance="deterministic"] .sd-blob-c { opacity: 0.34; }
+
+.sd[data-provenance="model"][data-cognition="settled"] .sd-field,
+.sd[data-provenance="model"][data-cognition="accepted"] .sd-field {
+  --sd-energy: 1.3;
+}
+.sd[data-provenance="model"][data-cognition="settled"] .sd-blob,
+.sd[data-provenance="model"][data-cognition="accepted"] .sd-blob {
+  animation-duration: 11s;
+}
+.sd[data-provenance="model"] .sd-blob-a { opacity: 0.3; }
+.sd[data-provenance="model"] .sd-blob-c { opacity: 0.78; }
+
+.sd[data-provenance="supplied"] .sd-blob-a { opacity: 0.72; }
+.sd[data-provenance="supplied"] .sd-blob-c { opacity: 0.28; }
+
+.sd[data-cognition] .sd-field[data-presence="typing"],
+.sd[data-cognition] .sd-field[data-presence="navigating"],
+.sd[data-cognition] .sd-field[data-presence="mission"] {
+  --sd-energy: 1.65;
+}
+.sd[data-cognition] .sd-field[data-presence="typing"] .sd-blob,
+.sd[data-cognition] .sd-field[data-presence="navigating"] .sd-blob,
+.sd[data-cognition] .sd-field[data-presence="mission"] .sd-blob {
+  animation-duration: 7s;
+}
+.sd[data-cognition] .sd-field[data-presence="settling"] {
+  --sd-energy: 1.25;
+}
+.sd[data-cognition] .sd-field[data-presence="settling"] .sd-blob {
+  animation-duration: 6.5s;
+}
+
+.sd[data-recording="true"][data-cognition] .sd-field[data-presence],
+.sd[data-cognition="reconstructing"] .sd-field[data-presence],
+.sd[data-cognition="correcting"] .sd-field[data-presence],
+.sd[data-cognition] .sd-field[data-presence="working"] {
+  --sd-energy: 2.5;
+}
+.sd[data-recording="true"][data-cognition] .sd-field[data-presence] .sd-blob,
+.sd[data-cognition="reconstructing"] .sd-field[data-presence] .sd-blob,
+.sd[data-cognition="correcting"] .sd-field[data-presence] .sd-blob,
+.sd[data-cognition] .sd-field[data-presence="working"] .sd-blob {
+  animation-duration: 2.4s;
+}
+.sd[data-cognition="reconstructing"] .sd-blob,
+.sd[data-recording="true"][data-cognition] .sd-blob,
+.sd[data-cognition="correcting"] .sd-blob {
+  opacity: 0.72;
+}
+.sd[data-recording="true"] .sd-field-depth,
+.sd[data-cognition="reconstructing"] .sd-field-depth,
+.sd[data-cognition="correcting"] .sd-field-depth,
+.sd[data-cognition="deriving"] .sd-field-depth,
+.sd-field[data-presence="working"] .sd-field-depth {
+  animation-duration: 1.8s;
+}
+
+.sd[data-cognition="deriving"] .sd-field[data-presence] {
+  --sd-energy: 2.9;
+}
+.sd[data-cognition="deriving"] .sd-field[data-presence] .sd-blob {
+  animation-duration: 1.6s;
+}
+.sd[data-cognition="deriving"] .sd-blob-a { opacity: 0.34; }
+.sd[data-cognition="deriving"] .sd-blob-c { opacity: 0.9; }
+
+.sd[data-cognition="failed"] .sd-field[data-presence] {
+  --sd-energy: 0.5;
+}
+.sd[data-cognition="failed"] .sd-field[data-presence] .sd-blob {
+  animation-duration: 24s;
+  opacity: 0.32;
 }
 
 /* Correcting: the ambient wash loosens outward past its resting scale,
@@ -1286,9 +1437,15 @@ body {
   .sd[data-cognition="deriving"] .sd-field-specks,
   .sd[data-cognition="reconstructing"] .sd-field-contour,
   .sd[data-cognition="correcting"] .sd-field-contour,
-  .sd[data-cognition="deriving"] .sd-field-contour {
+  .sd[data-cognition="deriving"] .sd-field-contour,
+  .sd-field-contour,
+  .sd-blob,
+  .sd-field-depth {
     animation: none;
     opacity: 0.55;
+  }
+  .sd-blob {
+    will-change: auto;
   }
   /* The insufficient state keeps its lower certainty through hue and
      opacity alone — the spatial shrink is motion, so it goes. */

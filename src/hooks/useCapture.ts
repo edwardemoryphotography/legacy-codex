@@ -102,12 +102,15 @@ export function useCapture(user: User | null) {
     }
     setInbox(prev => [item, ...prev].slice(0, 12))
     flash('Captured to inbox')
-    void syncToSupabase([item])
+    return syncToSupabase([item])
       .then(() => {
         if (user?.id) flash('Saved to Supabase')
+        return item
       })
-      .catch(() => flash('Capture sync failed (RLS?)'))
-    return item
+      .catch(() => {
+        flash('Capture sync failed (RLS?)')
+        return item
+      })
   }, [setInbox, syncToSupabase, user, flash])
 
   const removeItem = useCallback(async (id: string) => {

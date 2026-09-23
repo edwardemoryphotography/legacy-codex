@@ -390,6 +390,7 @@ export default function StrategicDelta({
       data-state={reconstructing ? 'reasoning' : 'resolved'}
       data-cognition={cognition}
       data-provenance={delta?.provenance ?? 'deterministic'}
+      data-recording={recording ? 'true' : undefined}
       data-first-run={isFirstRun ? 'true' : undefined}
       aria-busy={reconstructing || recording}
       aria-label="Strategic Delta"

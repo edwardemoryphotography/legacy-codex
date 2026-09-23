@@ -152,9 +152,15 @@ Three rules that are load-bearing, not stylistic:
  word encodes it: spectrum = unresolved cognition, teal = rule-based prediction,
  cyan = a step the user supplied, violet = model-generated, amber = insufficient
  context. The field itself keeps one violet/blue/cyan/magenta material — translucent
- depth, a cyan edge, magenta light, and flowing contours inside that one field —
- and animates only while work is actually pending; insufficient and idle stay
- still, and amber is the status word rather than a shrunken field. The bounded
+ depth, a cyan edge, magenta light, and flowing contours inside that one field.
+ Idle is a slow ambient drift (transform and opacity only). Typing, navigation,
+ and mission changes lift that drift. Pending reads, prediction, model requests,
+ saves, and corrections deform it further, then it settles back. The core does
+ not pulse while context is insufficient, and nothing in the field invents
+ progress. Amber is the status word rather than a shrunken field. Model-assisted
+ work is the faster violet-weighted drift (`data-cognition="deriving"` and
+ provenance `model`); a settled rule stays slower and cyan-weighted, never teal
+ fill. The bounded
  `/api/delta-operation` path may produce `'model'` only after its output passes
  the same deterministic quality and inhibition gates; it must never render as teal.
  A step the user writes is `delta_step_supplied` (`{ step, targetId }`), not a
