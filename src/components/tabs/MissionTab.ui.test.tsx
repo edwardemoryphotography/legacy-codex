@@ -57,10 +57,20 @@ vi.mock('@/lib/supabase/client', () => ({
       getSession: async () => ({ data: { session: { access_token: 'token', user: { id: 'user-1' } } }, error: null }),
     },
     from: (table: string) => ({
-      ...chain(tables[table] ?? [], failNext[table] ? (failNext[table] = false, { message: 'read failed' }) : null),
+      ...chain(readQueue[table]?.shift() ?? tables[table] ?? [], failNext[table] ? (failNext[table] = false, { message: 'read failed' }) : null),
       insert: (row: Record<string, unknown>) => {
         inserts.push({ table, row })
-        return Promise.resolve({ error: null })
+        // Actions come back like the real insert(...).select(join).single():
+        // with an id, the trigger's updated_at, and the mission join; and
+        // stay in the table for the next read.
+        const mission = (tables.missions as Array<Record<string, unknown>> | undefined)?.find(m => m.id === row.mission_id)
+        const stored = table === 'actions'
+          ? { id: `action-${inserts.length}`, resume_note: null, updated_at: '2026-09-24T12:00:00.000Z', ...row, mission: { title: mission?.title, state: mission?.state } }
+          : row
+        if (table === 'actions') (tables.actions ??= []).push(stored)
+        return Object.assign(Promise.resolve({ error: null }), {
+          select: () => ({ single: async () => ({ data: structuredClone(stored), error: null }) }),
+        })
       },
       update: (values: Record<string, unknown>) => updateChain(table, values),
     }),
@@ -69,6 +79,9 @@ vi.mock('@/lib/supabase/client', () => ({
 
 let tables: Record<string, unknown[]> = {}
 let failNext: Record<string, boolean> = {}
+// Per-read overrides, consumed in order: lets a test give MissionTab's read
+// and the lower SavedActions read different answers.
+let readQueue: Record<string, unknown[][]> = {}
 let inserts: Array<{ table: string, row: Record<string, unknown> }> = []
 let updates: Array<{ table: string, values: Record<string, unknown>, filters: Record<string, unknown> }> = []
 
@@ -324,6 +337,7 @@ describe('MissionTab return-to-action', () => {
     inserts = []
     updates = []
     failNext = {}
+    readQueue = {}
     connectMissionSession.mockReset()
     connectMissionSession.mockResolvedValue({ id: 'user-1' })
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ configured: false }) })))
@@ -426,6 +440,55 @@ describe('MissionTab return-to-action', () => {
     expect(screen.queryByText('Where you left off')).toBeNull()
     expect(await screen.findByRole('button', { name: 'Save next action' })).toBeTruthy()
     expect(screen.getByText('Your best next move')).toBeTruthy()
+  })
+
+  it('saving from the composer moves the action into the front-door card at once, without a reload', async () => {
+    tables.actions = []
+    const first = render(<MissionTab />)
+    const composer = await waitFor(() => {
+      const input = document.getElementById('saved-action-title') as HTMLInputElement | null
+      expect(input).toBeTruthy()
+      return input!
+    })
+    fireEvent.change(composer, { target: { value: 'Draft the key-light section' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save next action' }))
+
+    const card = await screen.findByRole('region', { name: 'Draft the key-light section' })
+    expect(card.textContent).toContain('Saved — it will be here when you return')
+    expect(card.textContent).toContain(mission.title)
+    expect(screen.getByRole('button', { name: 'Resume: Draft the key-light section' })).toBeTruthy()
+    expect(document.getElementById('saved-action-title')).toBeNull()
+    expect(document.getElementById('saved-action')).toBeNull()
+    expect(screen.getAllByText('Draft the key-light section')).toHaveLength(1)
+    expect(document.activeElement?.id).toBe('resume-action-title')
+    expect(screen.getByText('Reconsider your next move')).toBeTruthy()
+    expect(inserts.filter(i => i.table === 'actions')).toHaveLength(1)
+    expect(updates).toEqual([])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resume: Draft the key-light section' }))
+    await screen.findByLabelText('Starting point')
+    const savedId = (tables.actions[0] as { id: string }).id
+    expect(updates).toHaveLength(1)
+    expect(updates[0].filters.id).toBe(savedId)
+    expect(inserts.filter(i => i.table === 'actions')).toHaveLength(1)
+    first.unmount()
+
+    render(<MissionTab />)
+    const returned = await screen.findByRole('region', { name: 'Draft the key-light section' })
+    expect(returned.textContent).toContain('Where you left off')
+    expect(returned.textContent).toContain('In progress')
+    expect(tables.actions).toHaveLength(1)
+  })
+
+  it('an unfinished action the lower panel reads, but Mission\'s read missed, moves to the front door too', async () => {
+    readQueue = { actions: [[]] }
+    render(<MissionTab />)
+    const card = await screen.findByRole('region', { name: 'Draft the key-light section' })
+    expect(card.textContent).toContain('Where you left off')
+    expect(document.getElementById('saved-action-title')).toBeNull()
+    expect(screen.getAllByText('Draft the key-light section')).toHaveLength(1)
+    expect(inserts).toEqual([])
+    expect(updates).toEqual([])
   })
 
   it('a first-time visitor still gets idea capture, with no resume card', async () => {

@@ -309,6 +309,10 @@ export default function MissionTab() {
   // read is 'unavailable', never an empty list.
   const [openActions, setOpenActions] = useState<SavedAction[]>([])
   const [actionsStatus, setActionsStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading')
+  // An action handed over by the lower panel leads the front door this
+  // session, even when another mission's action would rank above it.
+  const [preferredActionId, setPreferredActionId] = useState<string | null>(null)
+  const [justSavedActionId, setJustSavedActionId] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
   const [connectionAttempt, setConnectionAttempt] = useState(0)
@@ -710,12 +714,22 @@ export default function MissionTab() {
   // back. DONE leaves the front door — it is the person's report, not
   // verified evidence that the mission's finish line is met.
   const handleResumeSaved = useCallback((saved: SavedAction) => {
+    setJustSavedActionId(null)
     setOpenActions(prev =>
       saved.status === 'DONE' ? prev.filter(a => a.id !== saved.id) : prev.map(a => (a.id === saved.id ? saved : a)),
     )
     if (saved.status === 'DONE') flash('Marked done — your report, not verified evidence')
     else if (saved.status === 'TODO') flash('Paused — your note is saved')
   }, [flash])
+
+  // The lower composer saved an action, or its read found one this screen
+  // had not: fold it into the one list the front-door card reads, so the
+  // commitment moves there now rather than on the next load.
+  const handleCommitment = useCallback((action: SavedAction, origin: 'saved' | 'read') => {
+    setOpenActions(prev => (prev.some(a => a.id === action.id) ? prev : [action, ...prev]))
+    setPreferredActionId(action.id)
+    if (origin === 'saved') setJustSavedActionId(action.id)
+  }, [])
 
   // The narrowly bounded model-assist stage: one clause in, one operation
   // (or null) out. Owns auth and the network call so StrategicDelta.tsx
@@ -765,7 +779,9 @@ export default function MissionTab() {
   const sessionReady = loaded && !!user && !loadFailed
   const confirmedEmpty = sessionReady && missionList.length === 0
   const resumable = resumableActions(openActions, board.missions)
-  const frontAction = sessionReady && actionsStatus === 'ready' ? resumable[0] ?? null : null
+  const frontAction = sessionReady && actionsStatus === 'ready'
+    ? resumable.find(a => a.id === preferredActionId) ?? resumable[0] ?? null
+    : null
   const savedActionsMissionId = shownAcceptance?.missionId ?? primary?.id ?? null
   const savedActionMissionIds = openActions.map(a => a.mission_id).concat(resumableMissionId ?? [])
   const stage: 'idea' | 'recommendation' | 'commitment' =
@@ -1000,6 +1016,7 @@ export default function MissionTab() {
           key={frontAction.id}
           action={frontAction}
           otherCount={resumable.length - 1}
+          justSaved={frontAction.id === justSavedActionId}
           onSaved={handleResumeSaved}
         />
       )}
@@ -1097,6 +1114,7 @@ export default function MissionTab() {
           missionId={savedActionsMissionId}
           suggestedTitle={shownAcceptance?.move ?? null}
           onActiveChange={handleResumableAction}
+          onCommitment={handleCommitment}
         />
       )}
 

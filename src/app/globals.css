@@ -1929,6 +1929,11 @@ body {
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   box-shadow: var(--card-shadow, none);
+  scroll-margin-top: 16px;
+}
+
+.resume-card[data-just-saved] {
+  animation: resumeReveal var(--sd-dur-reveal) var(--sd-ease-settle) both;
 }
 
 .resume-title {
@@ -2023,7 +2028,8 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .resume-work { animation: none; }
+  .resume-work,
+  .resume-card[data-just-saved] { animation: none; }
 }
 
 @media (max-width: 600px) {

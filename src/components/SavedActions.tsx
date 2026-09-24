@@ -14,6 +14,7 @@ export default function SavedActions({
   missionId,
   suggestedTitle,
   onActiveChange,
+  onCommitment,
 }: {
   missionId?: string
   /** The recommendation the person just accepted, if any. Seeds the
@@ -21,6 +22,10 @@ export default function SavedActions({
    *  written for them — saving stays an explicit commitment. */
   suggestedTitle?: string | null
   onActiveChange?: (missionId: string, active: boolean) => void
+  /** Hands an unfinished action to the host — one this panel just saved, or
+   *  one its read found — so Mission keeps a single list and shows it in the
+   *  front-door card instead of here. */
+  onCommitment?: (action: SavedAction, origin: 'saved' | 'read') => void
 }) {
   const [actions, setActions] = useState<SavedAction[]>([])
   const [loading, setLoading] = useState(true)
@@ -40,13 +45,15 @@ export default function SavedActions({
       if (!cancelled()) {
         const saved = (data ?? []) as unknown as SavedAction[]
         setActions(saved); setError('')
+        const open = saved.find(action => action.status !== 'DONE')
+        if (open) onCommitment?.(open, 'read')
       }
     } catch {
       if (!cancelled()) setError('Could not read your saved actions. Your work has not been changed.')
     } finally {
       if (!cancelled()) setLoading(false)
     }
-  }, [missionId])
+  }, [missionId, onCommitment])
 
   const hasOpenAction = actions.some(action => action.status !== 'DONE')
   useEffect(() => {
@@ -77,8 +84,10 @@ export default function SavedActions({
         mission_id: missionId, action_title: title.trim(), status: 'TODO', is_next_action: true,
       }).select(fields).single()
       if (writeError || !data) throw writeError ?? new Error('No saved action returned')
-      setActions(previous => [data as unknown as SavedAction, ...previous])
+      const saved = data as unknown as SavedAction
+      setActions(previous => [saved, ...previous])
       setTitle(''); setNotice('Next action saved. It will be here when you return.')
+      onCommitment?.(saved, 'saved')
     } catch {
       setNotice('Could not save. Keep your text and retry. If another tab saved an action, refresh the list first.')
     } finally { setSaving(false) }
@@ -124,11 +133,15 @@ export default function SavedActions({
 export function ResumeAction({
   action,
   otherCount = 0,
+  justSaved = false,
   onSaved,
 }: {
   action: SavedAction
   /** Other unfinished actions not shown here. */
   otherCount?: number
+  /** Saved moments ago from the composer below: the card says so and takes
+   *  focus, so the commitment visibly moves to where it will be on return. */
+  justSaved?: boolean
   onSaved: (action: SavedAction) => void
 }) {
   const [working, setWorking] = useState(false)
@@ -147,6 +160,15 @@ export function ResumeAction({
     wasOpen.current = open
     headingRef.current?.focus({ preventScroll: true })
   }, [open])
+
+  useEffect(() => {
+    const heading = headingRef.current
+    if (!justSaved || !heading) return
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      || document.documentElement.dataset.reducedMotion === 'true'
+    heading.closest('section')?.scrollIntoView?.({ block: 'start', behavior: reduce ? 'auto' : 'smooth' })
+    heading.focus({ preventScroll: true })
+  }, [justSaved])
 
   async function resume() {
     if (busy) return
@@ -170,8 +192,8 @@ export function ResumeAction({
   const note = action.resume_note?.trim() ?? ''
   const ago = savedAgo(action.updated_at, Math.max(now, Date.parse(action.updated_at) || 0))
   return (
-    <section className="resume-card" id="resume-action" aria-labelledby="resume-action-title" data-open={open || undefined}>
-      <p className="commitment-kicker">{open ? 'Resumed — your saved action' : 'Where you left off'}</p>
+    <section className="resume-card" id="resume-action" aria-labelledby="resume-action-title" data-open={open || undefined} data-just-saved={justSaved || undefined}>
+      <p className="commitment-kicker">{open ? 'Resumed — your saved action' : justSaved ? 'Saved — it will be here when you return' : 'Where you left off'}</p>
       <h2 id="resume-action-title" className="resume-title" ref={headingRef} tabIndex={-1}>{action.action_title}</h2>
       <p className="resume-meta">
         <span className="resume-meta-label">Mission</span> {action.mission.title}
