@@ -189,8 +189,8 @@ export function ResumeAction({
             <blockquote>{note || 'No starting point saved yet. Add one when you resume.'}</blockquote>
           </figure>
           <div className="resume-go">
-            <ActionBtn onClick={() => void resume()} disabled={busy}>
-              {busy ? 'Resuming…' : <>Resume<span className="sr-only">: {action.action_title}</span></>}
+            <ActionBtn onClick={() => void resume()} disabled={busy} aria-label={busy ? undefined : `Resume: ${action.action_title}`}>
+              {busy ? 'Resuming…' : 'Resume'}
             </ActionBtn>
           </div>
           {message && <p role="alert">{message}</p>}
