@@ -8,6 +8,7 @@
 //   npm i --prefix /tmp/pw playwright@1.63.0 && npx --prefix /tmp/pw playwright install --with-deps webkit
 //   NODE_PATH=/tmp/pw/node_modules [RECORD_VIDEO=1] node scripts/local-supabase/walkthrough-return-to-action.mjs
 import fs from 'node:fs'
+import path from 'node:path'
 import { execFileSync, execSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
@@ -15,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 // Playwright is not a repo dependency; NODE_PATH points at a scratch install.
 const { webkit, devices } = createRequire(import.meta.url)('playwright')
 
-const REPO = fileURLToPath(new URL('../..', import.meta.url))
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const git = (...args) => execFileSync('git', ['-C', REPO, ...args]).toString().trim()
 const COMMIT = git('rev-parse', '--short', 'HEAD') + (git('status', '--porcelain') ? ' + uncommitted changes' : '')
 
