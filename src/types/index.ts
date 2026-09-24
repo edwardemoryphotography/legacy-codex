@@ -138,6 +138,19 @@ export interface Mission {
   updatedAt: string
 }
 
+/** A mission-linked row of the canonical `actions` table, as SavedActions
+ *  selects it. A saved action is an explicit commitment — not a prediction,
+ *  and DONE is the person's report, not verified mission evidence. */
+export interface SavedAction {
+  id: string
+  mission_id: string
+  action_title: string
+  status: 'TODO' | 'IN_PROGRESS' | 'DONE'
+  resume_note: string | null
+  updated_at: string
+  mission: { title: string; state: string }
+}
+
 export type MissionEventType =
   | 'captured'
   | 'finish_line_set'

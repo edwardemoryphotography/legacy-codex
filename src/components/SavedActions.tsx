@@ -1,21 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { connectMissionSession } from '@/lib/supabase/missionSession'
+import { actionStatusLabel, savedAgo } from '@/lib/resumeAction'
+import type { SavedAction } from '@/types'
 import { ActionBtn, Input, Textarea } from '@/components/ui'
 
-type SavedAction = {
-  id: string
-  mission_id: string
-  action_title: string
-  status: 'TODO' | 'IN_PROGRESS' | 'DONE'
-  resume_note: string | null
-  updated_at: string
-  mission: { title: string; state: string }
-}
-
-const fields = 'id,mission_id,action_title,status,resume_note,updated_at,mission:missions!inner(title,state)'
+export const SAVED_ACTION_FIELDS = 'id,mission_id,action_title,status,resume_note,updated_at,mission:missions!inner(title,state)'
+const fields = SAVED_ACTION_FIELDS
 
 export default function SavedActions({
   missionId,
@@ -124,7 +117,101 @@ export default function SavedActions({
   )
 }
 
-function ActionCard({ action, onSaved, matchesRecommendation }: { action: SavedAction; onSaved: (action: SavedAction) => void; matchesRecommendation?: boolean }) {
+/** The Mission front door for a returning person: the unfinished action
+ *  they saved, its mission, and the note they left, with one Resume. Resume
+ *  moves this same row to IN_PROGRESS (or, if it already is, just opens it)
+ *  and keeps the note and the controls here. It never inserts a row. */
+export function ResumeAction({
+  action,
+  otherCount = 0,
+  onSaved,
+}: {
+  action: SavedAction
+  /** Other unfinished actions not shown here. */
+  otherCount?: number
+  onSaved: (action: SavedAction) => void
+}) {
+  const [working, setWorking] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [now] = useState(() => Date.now())
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  // Pausing (TODO) or another tab's change closes the working view on its own.
+  const open = working && action.status === 'IN_PROGRESS'
+  const wasOpen = useRef(open)
+
+  // The note and controls replace the summary in place. Focus follows the
+  // heading so it is not lost with the button that was pressed.
+  useEffect(() => {
+    if (wasOpen.current === open) return
+    wasOpen.current = open
+    headingRef.current?.focus({ preventScroll: true })
+  }, [open])
+
+  async function resume() {
+    if (busy) return
+    setMessage('')
+    if (action.status === 'IN_PROGRESS') {
+      setWorking(true)
+      return
+    }
+    setBusy(true)
+    try {
+      const { data, error } = await supabase.from('actions').update({ status: 'IN_PROGRESS', is_next_action: true })
+        .eq('id', action.id).eq('updated_at', action.updated_at).select(fields).single()
+      if (error || !data) throw error ?? new Error('No updated row')
+      onSaved(data as unknown as SavedAction)
+      setWorking(true)
+    } catch {
+      setMessage('Could not resume. Nothing changed. Try again, or refresh if another tab changed this action.')
+    } finally { setBusy(false) }
+  }
+
+  const note = action.resume_note?.trim() ?? ''
+  const ago = savedAgo(action.updated_at, Math.max(now, Date.parse(action.updated_at) || 0))
+  return (
+    <section className="resume-card" id="resume-action" aria-labelledby="resume-action-title" data-open={open || undefined}>
+      <p className="commitment-kicker">{open ? 'Resumed — your saved action' : 'Where you left off'}</p>
+      <h2 id="resume-action-title" className="resume-title" ref={headingRef} tabIndex={-1}>{action.action_title}</h2>
+      <p className="resume-meta">
+        <span className="resume-meta-label">Mission</span> {action.mission.title}
+        {action.mission.state !== 'primary' && <> · {action.mission.state}</>}
+      </p>
+      <p className="resume-meta">{actionStatusLabel(action)}{ago && <> · saved {ago}</>}</p>
+      {open ? (
+        <div className="resume-work">
+          <ActionCard key={`${action.id}:${action.updated_at}`} action={action} onSaved={onSaved} compact />
+        </div>
+      ) : (
+        <>
+          <figure className="resume-note">
+            <figcaption>Your starting point</figcaption>
+            <blockquote>{note || 'No starting point saved yet. Add one when you resume.'}</blockquote>
+          </figure>
+          <div className="resume-go">
+            <ActionBtn onClick={() => void resume()} disabled={busy}>
+              {busy ? 'Resuming…' : <>Resume<span className="sr-only">: {action.action_title}</span></>}
+            </ActionBtn>
+          </div>
+          {message && <p role="alert">{message}</p>}
+        </>
+      )}
+      {otherCount > 0 && (
+        <p className="resume-others">
+          You also have {otherCount} other unfinished action{otherCount === 1 ? '' : 's'}. {otherCount === 1 ? 'It is' : 'They are'} in Resumption Log, under More.
+        </p>
+      )}
+    </section>
+  )
+}
+
+export function ActionCard({ action, onSaved, matchesRecommendation, compact = false }: {
+  action: SavedAction
+  onSaved: (action: SavedAction) => void
+  matchesRecommendation?: boolean
+  /** The parent already shows the mission, status and title. */
+  compact?: boolean
+}) {
   const [note, setNote] = useState(action.resume_note ?? '')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -141,9 +228,11 @@ function ActionCard({ action, onSaved, matchesRecommendation }: { action: SavedA
       setMessage('Could not save this change. Your note is still here. Copy it before refreshing if another tab changed this action.')
     } finally { setBusy(false) }
   }
-  return <article className="commitment-card">
-    <p className="commitment-meta">{action.mission.title} · {action.status === 'IN_PROGRESS' ? 'In progress' : 'Ready to resume'}{action.mission.state !== 'primary' ? ` · Mission ${action.mission.state}` : ''}</p>
-    <h4 className="commitment-title">{action.action_title}</h4>
+  return <article className="commitment-card" data-compact={compact || undefined}>
+    {!compact && <>
+      <p className="commitment-meta">{action.mission.title} · {action.status === 'IN_PROGRESS' ? 'In progress' : 'Ready to resume'}{action.mission.state !== 'primary' ? ` · Mission ${action.mission.state}` : ''}</p>
+      <h4 className="commitment-title">{action.action_title}</h4>
+    </>}
     {matchesRecommendation && <p className="commitment-same">Same words as the recommendation you accepted.</p>}
     <label htmlFor={`resume-${action.id}`}>Starting point</label>
     <Textarea id={`resume-${action.id}`} value={note} onChange={setNote} rows={3} placeholder="Where did you stop? What should you do when you return?" />

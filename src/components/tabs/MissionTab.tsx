@@ -14,6 +14,7 @@ import type {
   Mission,
   MissionEventType,
   MissionState,
+  SavedAction,
   StrategicDelta as Delta,
 } from '@/types'
 import { beginFieldWork, endFieldWork } from '@/lib/cognitionPresence'
@@ -40,7 +41,8 @@ import {
 import { groupByMission, hasConflict, isStale } from '@/lib/evidence'
 import { ActionBtn, ActionChip, Badge, Card, Input, SectionSubtitle, SectionTitle, Textarea } from '@/components/ui'
 import NextMovePanel from '@/components/NextMovePanel'
-import SavedActions from '@/components/SavedActions'
+import SavedActions, { ResumeAction, SAVED_ACTION_FIELDS } from '@/components/SavedActions'
+import { resumableActions } from '@/lib/resumeAction'
 import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase } from '@/components/StrategicDelta'
 
 // ─── Supabase row <-> domain mapping ────────────────────────────────────
@@ -275,6 +277,15 @@ function newId(): string {
 
 const CAPACITY_LEVELS: CapacityLevel[] = ['low', 'medium', 'high']
 
+function readOpenActions() {
+  return supabase
+    .from('actions')
+    .select(SAVED_ACTION_FIELDS)
+    .not('mission_id', 'is', null)
+    .neq('status', 'DONE')
+    .order('updated_at', { ascending: false })
+}
+
 export default function MissionTab() {
   const [user, setUser] = useState<User | null>(null)
   const [authStatus, setAuthStatus] = useState('Checking session…')
@@ -293,6 +304,11 @@ export default function MissionTab() {
   // The accepted move the Delta is actually showing for Primary (reported by
   // StrategicDelta). Distinct from acceptedMoves, which comes from the ledger.
   const [shownAcceptance, setShownAcceptance] = useState<{ missionId: string; move: string } | null>(null)
+  // Unfinished saved actions, read with the missions so the first screen
+  // after load already knows whether there is something to resume. A failed
+  // read is 'unavailable', never an empty list.
+  const [openActions, setOpenActions] = useState<SavedAction[]>([])
+  const [actionsStatus, setActionsStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [loaded, setLoaded] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
   const [connectionAttempt, setConnectionAttempt] = useState(0)
@@ -342,10 +358,11 @@ export default function MissionTab() {
   const loadAll = useCallback(async (userId: string, isCancelled: () => boolean = () => false) => {
     setEvidenceStatus('loading')
     try {
-      const [missionsRes, evidenceRes, correctionsRes] = await Promise.all([
+      const [missionsRes, evidenceRes, correctionsRes, actionsRes] = await Promise.all([
         supabase.from('missions').select('*').eq('user_id', userId),
         supabase.from('evidence_snapshots').select('*'),
         supabase.from('mission_events').select('*').eq('user_id', userId).in('type', ['delta_accepted', 'delta_corrected', 'delta_step_supplied', 'finish_line_set']).order('created_at', { ascending: true }),
+        readOpenActions(),
       ])
       if (isCancelled()) return
       if (missionsRes.error) throw missionsRes.error
@@ -377,6 +394,13 @@ export default function MissionTab() {
       )
       setAcceptances(acceptanceLedger(eventRows))
 
+      if (actionsRes.error) {
+        setActionsStatus('unavailable')
+      } else {
+        setOpenActions((actionsRes.data ?? []) as unknown as SavedAction[])
+        setActionsStatus('ready')
+      }
+
       if (!evidenceRes.error) {
         setEvidence(((evidenceRes.data ?? []) as EvidenceRow[]).map(rowToEvidence))
         setEvidenceStatus('ready')
@@ -388,6 +412,7 @@ export default function MissionTab() {
     } catch {
       if (isCancelled()) return
       setEvidenceStatus('unavailable')
+      setActionsStatus('unavailable')
       setLoadFailed(true)
       setConnectionError('Could not load your missions. Try again; your saved work has not changed.')
       setLoaded(true)
@@ -670,6 +695,28 @@ export default function MissionTab() {
     setResumableMissionId(active ? missionId : null)
   }, [])
 
+  const retryOpenActions = useCallback(async () => {
+    setActionsStatus('loading')
+    const { data, error: readError } = await readOpenActions()
+    if (readError) {
+      setActionsStatus('unavailable')
+      return
+    }
+    setOpenActions((data ?? []) as unknown as SavedAction[])
+    setActionsStatus('ready')
+  }, [])
+
+  // The resume card writes the row itself; this only mirrors the row it got
+  // back. DONE leaves the front door — it is the person's report, not
+  // verified evidence that the mission's finish line is met.
+  const handleResumeSaved = useCallback((saved: SavedAction) => {
+    setOpenActions(prev =>
+      saved.status === 'DONE' ? prev.filter(a => a.id !== saved.id) : prev.map(a => (a.id === saved.id ? saved : a)),
+    )
+    if (saved.status === 'DONE') flash('Marked done — your report, not verified evidence')
+    else if (saved.status === 'TODO') flash('Paused — your note is saved')
+  }, [flash])
+
   // The narrowly bounded model-assist stage: one clause in, one operation
   // (or null) out. Owns auth and the network call so StrategicDelta.tsx
   // stays Supabase-agnostic, same as every other onXxx prop it takes. Never
@@ -717,8 +764,12 @@ export default function MissionTab() {
   )
   const sessionReady = loaded && !!user && !loadFailed
   const confirmedEmpty = sessionReady && missionList.length === 0
+  const resumable = resumableActions(openActions, board.missions)
+  const frontAction = sessionReady && actionsStatus === 'ready' ? resumable[0] ?? null : null
+  const savedActionsMissionId = shownAcceptance?.missionId ?? primary?.id ?? null
+  const savedActionMissionIds = openActions.map(a => a.mission_id).concat(resumableMissionId ?? [])
   const stage: 'idea' | 'recommendation' | 'commitment' =
-    sessionReady && primary && resumableMissionId === primary.id
+    sessionReady && primary && savedActionMissionIds.includes(primary.id)
       ? 'commitment'
       : sessionReady && primary
         ? 'recommendation'
@@ -941,10 +992,34 @@ export default function MissionTab() {
         </ol>
       )}
 
+      {/* A returning person's saved commitment comes first: it answers
+          "where was I?" before the Delta offers a prediction to weigh
+          against it. The Delta stays below, unchanged, for reconsidering. */}
+      {frontAction && (
+        <ResumeAction
+          key={frontAction.id}
+          action={frontAction}
+          otherCount={resumable.length - 1}
+          onSaved={handleResumeSaved}
+        />
+      )}
+      {sessionReady && actionsStatus === 'unavailable' && (
+        <section className="resume-card" aria-labelledby="resume-unavailable-title">
+          <p className="commitment-kicker" id="resume-unavailable-title">Where you left off</p>
+          <div role="alert">
+            <p>Could not read your saved actions, so this screen cannot tell whether one is waiting for you. Nothing was changed.</p>
+          </div>
+          <div className="resume-go">
+            <ActionBtn onClick={() => void retryOpenActions()}>Read saved actions again</ActionBtn>
+          </div>
+        </section>
+      )}
+
       {/* The predictive front door: resolves from real state before the
           user types anything, and renders during the load so its reasoning
           state reflects work that is actually pending. */}
       <StrategicDelta
+        savedActionMissionIds={savedActionMissionIds}
         missions={Object.values(board.missions)}
         evidence={evidence}
         corrections={corrections}
@@ -1012,10 +1087,14 @@ export default function MissionTab() {
           status and a place to leave yourself a note. */}
       {/* Bound to the mission of the accepted move on screen — the Primary,
           or an actionable Secondary when that is what the Delta aimed at. */}
-      {sessionReady && primary && (
+      {/* Only when the resume card is not already holding this mission's
+          unfinished action — one card per action, never two sets of
+          controls for the same row. */}
+      {sessionReady && primary && savedActionsMissionId && actionsStatus === 'ready'
+        && !openActions.some(a => a.mission_id === savedActionsMissionId) && (
         <SavedActions
-          key={shownAcceptance?.missionId ?? primary.id}
-          missionId={shownAcceptance?.missionId ?? primary.id}
+          key={savedActionsMissionId}
+          missionId={savedActionsMissionId}
           suggestedTitle={shownAcceptance?.move ?? null}
           onActiveChange={handleResumableAction}
         />
