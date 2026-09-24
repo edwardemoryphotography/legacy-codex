@@ -8,11 +8,16 @@
 //   npm i --prefix /tmp/pw playwright@1.63.0 && npx --prefix /tmp/pw playwright install --with-deps webkit
 //   NODE_PATH=/tmp/pw/node_modules [RECORD_VIDEO=1] node scripts/local-supabase/walkthrough-return-to-action.mjs
 import fs from 'node:fs'
-import { execSync } from 'node:child_process'
+import { execFileSync, execSync } from 'node:child_process'
 import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 
 // Playwright is not a repo dependency; NODE_PATH points at a scratch install.
 const { webkit, devices } = createRequire(import.meta.url)('playwright')
+
+const REPO = fileURLToPath(new URL('../..', import.meta.url))
+const git = (...args) => execFileSync('git', ['-C', REPO, ...args]).toString().trim()
+const COMMIT = git('rev-parse', '--short', 'HEAD') + (git('status', '--porcelain') ? ' + uncommitted changes' : '')
 
 const ART = process.env.ARTIFACTS_DIR || '/tmp/return-to-action-walkthrough'
 const SHOTS = `${ART}/screenshots`
@@ -74,7 +79,7 @@ async function contrast(page) {
 
 ;(async () => {
   log(`Return-to-Action walkthrough — ${new Date().toISOString()}`)
-  log(`Commit under test: ${execSync('git -C /workspace rev-parse --short HEAD').toString().trim()} · app http://localhost:3000 (next start) · data: local Supabase stack`)
+  log(`Commit under test: ${COMMIT} (${REPO}) · app http://localhost:3000 (next start) · data: local Supabase stack`)
 
   // ── First-time visitor ────────────────────────────────────────────────
   let ctx = await open(FRESH)
