@@ -44,3 +44,22 @@ Status
    anonymous production user. No production records were created or modified.
    Eddie's own iPhone session was not verified.
 5. Production live — no. Not merged, not promoted, no alias change.
+
+AFTER-SAVE HANDOFF — 2026-09-24 (review finding on PR #89)
+Gap: the front-door card read MissionTab's list; the lower SavedActions kept its
+own, so an action saved from the composer stayed below until Mission reloaded.
+Fix (6fa9fa9): SavedActions reports an unfinished action it saves or reads
+(onCommitment); MissionTab folds it into the one list; the lower panel steps
+aside; the card says "Saved — it will be here when you return", scrolls into
+view (instant under reduced motion) and takes focus. No extra write: the handoff
+uses the row the insert already returned.
+Checks: 269 vitest (two new tests fail without the wiring and pass with it), tsc,
+lint (0 errors), production build. Local-stack WebKit walkthrough at 4b1f524:
+49/49, including: card visible immediately after save without reload, no second
+card or composer, card top 10px and Resume bottom 331px < tab bar 590px at
+390×664, focus on the action heading, Resume starts the same row and creates
+nothing. One intermittent harness miss (a Delta click during a layout shift,
+seen only with slowMo + video) was fixed in the script by waiting for
+aria-busy="false"; four consecutive runs then passed with no retry.
+Unchanged boundary: still no browser session on the preview or production, and
+Eddie's own iPhone session is not verified.

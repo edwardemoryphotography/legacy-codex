@@ -178,7 +178,9 @@ A returning person's saved commitment comes before the Delta. `MissionTab.loadAl
 reads unfinished mission-linked `actions` with the missions, and `ResumeAction`
 (`SavedActions.tsx`) shows the best one (`resumableActions()` in
 `src/lib/resumeAction.ts`: Primary first) as "Where you left off" with one
-Resume. Resume updates that same row to `IN_PROGRESS` and never inserts one. A
+Resume. Resume updates that same row to `IN_PROGRESS` and never inserts one. The
+lower `SavedActions` passes any unfinished action it saves or reads to Mission
+through `onCommitment`, so Mission keeps one list and one card. A
 failed actions read renders an alert with a retry, never the empty composer. The
 Delta's `savedActionMissionIds` prop only changes presentation (the "Reconsider"
 copy and a secondary Accept); it is not a prediction input.
