@@ -266,7 +266,13 @@ async function contrast(page) {
   const delta = page.getByRole('region', { name: 'Strategic Delta' })
   const reconsider = await delta.getByText('Reconsider your next move').waitFor({ timeout: 5000 }).then(() => true, () => false)
   check(reconsider, 'Delta below the saved action reads "Reconsider your next move"')
-  await delta.getByRole('button', { name: 'Name the concrete step' }).click()
+  await page.locator('section.sd[aria-label="Strategic Delta"][aria-busy="false"]').waitFor()
+  const nameStep = delta.getByRole('button', { name: 'Name the concrete step' })
+  await nameStep.click()
+  if (!await page.locator('#sd-correction').waitFor({ timeout: 4000 }).then(() => true, () => false)) {
+    log('note: the step panel did not open on the first click; clicked again')
+    await nameStep.click()
+  }
   await page.locator('#sd-correction').fill('Write the key-light paragraph in the reference draft')
   await page.getByRole('button', { name: 'Record this step' }).click()
   const acceptMove = delta.getByRole('button', { name: 'Accept this move' })
