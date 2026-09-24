@@ -1,0 +1,46 @@
+RETURN-TO-ACTION UX — 2026-09-24
+
+Repo: edwardemoryphotography/legacy-codex · PR #89 (branch cursor/return-to-action-e212)
+Application code verified at e17c830 (3773458 feature + a11y fix). Later commits on
+the branch add only this note, docs, and scripts/local-supabase; no app source.
+
+What changed
+- Mission reads unfinished mission-linked actions in loadAll (same Promise.all as
+  missions). A returning person sees "Where you left off" above Strategic Delta:
+  action title, mission, status + when saved, the last starting-point note, Resume.
+- Resume updates the same actions row to IN_PROGRESS (.eq id + updated_at), or only
+  opens it if it already is. It never inserts an action or a delta_accepted event.
+  Note / Save & pause / Mark done reuse ActionCard in place.
+- A failed actions read shows its own alert + "Read saved actions again"; it never
+  falls back to the empty composer.
+- Strategic Delta stays below for reconsidering. savedActionMissionIds is
+  display-only (purpose "Reconsider your next move", Accept stepped down to the
+  secondary style, no "Save it as one action" link). Prediction inputs unchanged.
+
+Status
+1. Implemented — yes.
+2. Automated tests — 267 vitest (22 in MissionTab.ui + resumeAction), tsc, lint
+   (0 errors; 8 pre-existing warnings), production build: pass. CI verify: pass.
+3. Preview deployed — Vercel project frontend (prj_irrXhfz1elCLhO1Pdgd0ffM4wfz2),
+   deployment dpl_GmGGthvrrXWXTczFoqDpR5EPbZAx at e17c830, READY, protected by
+   Vercel Authentication. Its JS contains the resume card and targets Supabase
+   pkydkbuodikttfeawqsw (checked with `vercel curl` using the project's existing
+   automation bypass; no bypass secret was created).
+4. Browser runtime verified — in a real persistent WebKit session at iPhone sizes,
+   against a local Supabase-compatible stack built from supabase/migrations
+   (scripts/local-supabase/start.sh + walkthrough-return-to-action.mjs), with a
+   production build of this branch. 44/44 checks: first visit; create a mission;
+   save exactly one action; start; note; pause; reload; leave to Codex and back;
+   close the browser and reopen (same anonymous user); Resume keeps the same id and
+   mission, writes no row and no acceptance; note update + pause + reload persists;
+   Resume above the tab bar at 390×664 (bottom 479 < bar 595) and 430×739; no
+   horizontal scroll; controls 46px; focus to the heading, Tab to the note;
+   reduced motion disables the reveal; dark/light text contrast ≥ 5.26:1; injected
+   failed actions read shows the alert, retry restores the card; accepting a Delta
+   below the commitment writes one delta_accepted and leaves the action row
+   byte-for-byte unchanged.
+   NOT verified in a browser on the preview or production: every Vercel preview and
+   production write to pkydkbuodikttfeawqsw, and even opening the page mints an
+   anonymous production user. No production records were created or modified.
+   Eddie's own iPhone session was not verified.
+5. Production live — no. Not merged, not promoted, no alias change.
