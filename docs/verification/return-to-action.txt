@@ -63,3 +63,27 @@ seen only with slowMo + video) was fixed in the script by waiting for
 aria-busy="false"; four consecutive runs then passed with no retry.
 Unchanged boundary: still no browser session on the preview or production, and
 Eddie's own iPhone session is not verified.
+
+WALKTHROUGH REPO ROOT — 2026-09-24 (Codex review on PR #89)
+Gap: the walkthrough logged its commit with `git -C /workspace`. From a checkout
+at /workspace/legacy-codex, where /workspace is not a Git repository, that threw
+before WebKit launched and no check ran. Where /workspace is a different
+repository, it would record the wrong commit.
+Fix (1fd4246, f092eb0): the script resolves the repo root from its own location
+(path.resolve(dirname(import.meta.url), '../..'), as start.sh does) and appends
+"+ uncommitted changes" to the recorded commit when the tree is dirty. Scripts
+only; no app source changed since 6fa9fa9.
+Tested commit: f092eb01fd89c048d69293862fd2293b36fbf0b4 (f092eb0), a clean
+detached checkout at /workspace/legacy-codex. The app was built there with the
+local stack's env.local and served by `next start` on :3000.
+Run 1 used the documented command from that checkout:
+  NODE_PATH=/tmp/pw/node_modules node scripts/local-supabase/walkthrough-return-to-action.mjs
+  → "Commit under test: f092eb0 (/workspace/legacy-codex)", 49/49 PASS, exit 0.
+Run 2 used the same script by absolute path with cwd /tmp: the same root and
+commit, 49/49 PASS, exit 0.
+Measurements match the earlier run: after-save card top 10px, Resume bottom
+331px < tab bar 590px at 390×664, and focus on the action heading.
+Also run in that checkout: npm run lint (0 errors, 8 pre-existing warnings, none
+in the script), npm test (269/269), and a production build.
+Unchanged boundary: still no browser session on the preview or production, and
+Eddie's own iPhone session is not verified.
