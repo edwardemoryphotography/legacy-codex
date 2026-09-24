@@ -107,17 +107,34 @@ async function contrast(page) {
   const composer = page.locator('#saved-action-title')
   await composer.fill('Draft the key-light section of the lighting reference')
   await page.getByRole('button', { name: 'Save next action' }).click()
-  await page.getByRole('button', { name: 'Start / resume' }).waitFor()
+
+  // ── After save: the commitment moves to the front door, no reload ────
+  const savedCard = page.getByRole('region', { name: 'Draft the key-light section of the lighting reference' })
+  await savedCard.waitFor()
   const actionId = sql(`select id from actions where mission_id = '${missionId}'`)
   check(sql(`select count(*) from actions where mission_id = '${missionId}'`) === '1', `exactly one mission-linked action saved (${actionId})`)
+  check((await savedCard.textContent()).includes('Saved — it will be here when you return'), 'after save: the front-door card shows it at once, without a reload')
+  check(await page.locator('#saved-action-title').count() === 0 && await page.locator('#saved-action').count() === 0, 'after save: the lower panel hands off (no second card or composer)')
+  await page.waitForTimeout(900)
+  const handoff = await page.evaluate(() => {
+    const r = document.getElementById('resume-action').getBoundingClientRect()
+    const bar = document.querySelector('.codex-tablist').getBoundingClientRect().top
+    const resume = [...document.querySelectorAll('#resume-action button')].find(b => b.textContent.trim() === 'Resume').getBoundingClientRect()
+    return { cardTop: Math.round(r.top), resumeBottom: Math.round(resume.bottom), tabBarTop: Math.round(bar), focused: document.activeElement?.id }
+  })
+  log(`after-save handoff @ 390x664: ${JSON.stringify(handoff)}`)
+  check(handoff.cardTop >= 0 && handoff.resumeBottom < handoff.tabBarTop, 'after save: the card and its Resume are scrolled into view above the tab bar')
+  check(handoff.focused === 'resume-action-title', 'after save: focus moves to the saved action heading')
+  await page.screenshot({ path: `${SHOTS}/00-after-save-handoff-iphone-390.png` })
 
-  await page.getByRole('button', { name: 'Start / resume' }).click()
+  await page.getByRole('button', { name: 'Resume: Draft the key-light section of the lighting reference' }).click()
   await page.getByRole('button', { name: 'Save & pause' }).waitFor()
-  check(sql(`select status from actions where id = '${actionId}'`) === 'IN_PROGRESS', 'action started (IN_PROGRESS)')
+  check(sql(`select status from actions where id = '${actionId}'`) === 'IN_PROGRESS', 'action started from the card (same row, IN_PROGRESS)')
+  check(sql(`select count(*) from actions where mission_id = '${missionId}'`) === '1', 'starting created nothing')
   const firstNote = 'Stopped after the softbox diagram. Next: write the fill-light paragraph and caption the bounce-card photo.'
   await page.getByLabel('Starting point').fill(firstNote)
   await page.getByRole('button', { name: 'Save & pause' }).click()
-  await page.getByRole('button', { name: 'Start / resume' }).waitFor()
+  await page.getByRole('button', { name: /^Resume/ }).waitFor()
   log(`after pause: ${sql(`select id, status, resume_note from actions where id = '${actionId}'`)}`)
   check(sql(`select status from actions where id = '${actionId}'`) === 'TODO', 'paused (TODO) with the note saved')
   const acceptedBefore = sql(`select count(*) from mission_events where mission_id = '${missionId}' and type = 'delta_accepted'`)
