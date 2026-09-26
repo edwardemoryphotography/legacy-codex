@@ -262,6 +262,7 @@ export function ActionBtn({
   type = 'button',
   'aria-expanded': ariaExpanded,
   'aria-controls': ariaControls,
+  'aria-label': ariaLabel,
 }: {
   onClick?: () => void
   disabled?: boolean
@@ -270,6 +271,8 @@ export function ActionBtn({
   type?: 'button' | 'submit'
   'aria-expanded'?: boolean
   'aria-controls'?: string
+  /** Must start with the visible label (WCAG 2.5.3, label in name). */
+  'aria-label'?: string
 }) {
   const styles =
     variant === 'primary'
@@ -293,6 +296,7 @@ export function ActionBtn({
       disabled={disabled}
       aria-expanded={ariaExpanded}
       aria-controls={ariaControls}
+      aria-label={ariaLabel}
       className="interactive-control"
       style={{
         ...styles,
