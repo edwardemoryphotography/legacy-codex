@@ -93,6 +93,9 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       )
     }
+    // Binary blocks carry bytes, not the browser's filename. Keep a source
+    // label adjacent to every attachment so attribution never has to guess.
+    content.push({ type: 'text', text: `Attachment filename: ${JSON.stringify(file.name)}` })
     content.push(block)
   }
   content.push({ type: 'text', text: instruction || ARTIFACT_ANALYSIS_DEFAULT_INSTRUCTION })
