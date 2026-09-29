@@ -1,4 +1,5 @@
 import type { CodexEntry, CodexSection, SectionKey } from '@/types'
+import { GOOSE_COOKBOOK_SOURCE, LEGACY_CODEX_NORTH_STAR } from '@/lib/cognitiveDoctrine'
 
 // ─────────────────────────────────────────────
 // ROOT — Core identity and operating principles
@@ -19,12 +20,63 @@ This section contains the core identity, values, mission, and operating principl
 
 ## What Lives Here
 
+- **North Star** — The Goose Cookbook and the method Legacy Codex exists to carry forward
 - **Identity** — Who Edward Emory is, at the level of craft and character
 - **Mission** — The singular directive that all systems serve
 - **Values** — The non-negotiables that filter every decision
 - **Principles** — The mental models that run on autopilot
 `,
     children: [
+      {
+        id: 'root.north-star',
+        title: 'North Star — Goose Cookbook',
+        path: 'root.north-star',
+        section: 'root',
+        category: 'Cognitive doctrine',
+        tags: ['goose', 'cookbook', 'masterchef', 'boomerang', 'reconstruction', 'north-star'],
+        content: `# North Star — Goose Cookbook
+
+> ${LEGACY_CODEX_NORTH_STAR}
+
+Legacy Codex carries meaning between people, models, artifacts, and working systems. Its capture → clarify → constrain → choose → act → resume workflow serves that larger purpose.
+
+## The Goose incident
+
+The canonical Cookbook records an **August 9, 2026** realization: enough independent implementation consequences had accumulated for an AI to reconstruct the higher-order intent behind the build. Human confirmation and correction refined that interpretation. The live goose analogy then demonstrated the same cross-domain reasoning operation, and its lesson became standing doctrine.
+
+The vision was already there. The build made it legible to another intelligence.
+
+## Reconstruction in both directions
+
+- **Intent to machinery:** vision → relationships → architecture → executable structure.
+- **Machinery to intent:** artifacts and observed consequences → relationships → proposed understanding of the bigger picture.
+
+A pattern is a hypothesis to test against evidence and human correction. Metaphor alone does not verify a claim.
+
+## From cookbook to MasterChef
+
+The Cookbook's **MasterChef of Geese** addendum asks agents to demonstrate the method under new conditions:
+
+1. **Catch the boomerang:** connect repeated signals; explain the bridge between domains.
+2. **Cook, don't reheat:** turn the lesson into a reusable rule or capability.
+3. **Plate the proof:** demonstrate the method instead of merely acknowledging it.
+4. **Taste before serving:** verify the result before claiming completion.
+
+> Reading the cookbook makes you a diner. Catching the boomerang makes you a chef.
+
+## What the app can inherit
+
+The artifact analyzer and bounded next-operation model call receive a shared distillation of this method. An analysis should distinguish observed evidence, proposed reconstruction, unknowns, one next move, and a reusable lesson. The next-operation route still returns only one candidate action or NONE.
+
+These are instructions, not proof of model quality or permanent learning. An analysis does not automatically become a saved lesson, a committed action, or verified evidence. The deterministic Strategic Delta remains a rule-based prediction over the real state it receives.
+
+## Primary source
+
+[Read the canonical Goose Cookbook](${GOOSE_COOKBOOK_SOURCE.url}). [Reviewed source revision](${GOOSE_COOKBOOK_SOURCE.revisionUrl}) · reviewed ${GOOSE_COOKBOOK_SOURCE.reviewedOn}.
+
+This entry is a readable projection of that source. The Cookbook remains the doctrine owner.
+`,
+      },
       {
         id: 'root.identity',
         title: 'Identity',

@@ -17,6 +17,14 @@ Legacy Codex is the only normal human-facing front door. Foundry may retain a se
 
 ## 1. Category
 
+### North Star
+
+**Make rich human intent survive translation into a form another mind or machine can reconstruct, execute, verify, and continue.**
+
+This is the higher-order purpose preserved by the canonical [Goose Cookbook](https://github.com/edwardemoryphotography/codex-system-architecture/blob/main/notion-wiki/docs/GOOSE-COOKBOOK.md), including the August 9 reconstruction incident and MasterChef of Geese doctrine. Capture, prioritization, next action, and resumption serve that purpose. Teaching people to use AI intelligently is one expression of it.
+
+Reconstruction is evidence-grounded and correctable: observations, interpretations, and unknowns stay distinct. A model's inferred bigger picture is a proposal, not authority over the person's current intent. The system must preserve transferable lessons while keeping their provenance and limits available.
+
 ### Legacy Codex
 
 Legacy Codex is a **personal cognitive operating system**.

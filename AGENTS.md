@@ -45,6 +45,8 @@ Core rules even if the canonical file is temporarily unavailable:
 - **Make the idea representable across different kinds of minds.** Preserve meaning across human narrative, machine-readable structure, and executable software.
 - Before closing a task ask: **What did this interaction teach the system that the next instance should not have to rediscover?** If it matters, encode it durably.
 
+Runtime models do not automatically inherit this file. `src/lib/cognitiveDoctrine.ts` is the reviewed Cookbook projection consumed by `/api/analyze` and `/api/delta-operation`; Codex → Root → North Star is its readable source-linked counterpart. Preserve this connection when changing model calls. Review projections against the canonical source rather than promoting a local prompt into a new doctrine owner. Verify reasoning quality with real supplied artifacts; prompt wiring alone does not establish it.
+
 ## Deployment / environment sanity gate
 
 Repeated Supabase/Vercel configuration rediscovery is a system failure. Before changing deployment code or secrets:

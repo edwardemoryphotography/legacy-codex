@@ -269,7 +269,7 @@ export default function ConstraintValidatorTab() {
           Artifact Analyzer
         </h3>
         <p className="text-sm mb-3" style={{ color: 'var(--text-soft)' }}>
-          Upload real files and generate a structured analysis via Claude. The directive field is optional and becomes the prompt.
+          Bring real artifacts. Trace what they show, reconstruct the bigger picture, and find one grounded next move. Add a directive to focus the analysis.
         </p>
 
         <div

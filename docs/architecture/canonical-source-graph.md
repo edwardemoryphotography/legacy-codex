@@ -31,6 +31,12 @@ flowchart TD
 | What is the canonical user URL? | `https://legacy-codex.vercel.app` | Runtime health without direct verification |
 | What is currently merged, deployed, or blocked? | `PROJECT_STATUS.md`, rechecked against GitHub, Vercel, and runtime | Future state |
 
+## Doctrine in the application
+
+`src/lib/cognitiveDoctrine.ts` is a reviewed runtime distillation of the canonical Cookbook, with a pinned source revision. Both existing model calls (`/api/analyze` and `/api/delta-operation`) receive it as system instructions. Codex → Root → North Star makes the doctrine and original source readable in the product. These are projections, not new doctrine owners.
+
+The analyzer reconstructs only from supplied artifacts and the directive; it does not automatically retrieve repository history or other missions, and it does not persist lessons. The bounded operation route retains its one-sentence-or-NONE contract and existing deterministic gates. Passing source/build checks establishes wiring, not model reasoning quality or live deployment.
+
 ## Surface classification
 
 | Surface | Classification | Current decision |
