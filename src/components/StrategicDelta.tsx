@@ -216,14 +216,15 @@ export default function StrategicDelta({
     () => [
       ...suppliedOperations,
       ...(reviewedOperation ? [reviewedOperation] : []),
-      // A project review supersedes clause-only model proposals for the
+      // A completed review, including a grounded no-move result, supersedes
+      // clause-only model proposals for the
       // same mission. Keep human-supplied steps and other missions intact;
       // the engine still applies its correction, evidence, and capacity gates.
       ...Object.values(modelSuggestions).filter(
-        candidate => !reviewedOperation || candidate.missionId !== reviewedOperation.missionId,
+        candidate => !projectReview || candidate.missionId !== projectReview.missionId,
       ),
     ],
-    [modelSuggestions, suppliedOperations, reviewedOperation],
+    [modelSuggestions, suppliedOperations, reviewedOperation, projectReview],
   )
 
   const delta = useMemo(
