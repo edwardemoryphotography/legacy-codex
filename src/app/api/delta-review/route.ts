@@ -42,7 +42,7 @@ async function cachedReview(client: ReturnType<typeof projectUserClient>, userId
 function reviewable(context: Context): boolean {
   return ['primary', 'secondary'].includes(context.mission.state) &&
     Boolean(context.mission.finish_line) && !context.mission.blocker && !context.mission.capacity_mismatch &&
-    !context.sources.some(s => s.kind === 'evidence' && s.status === 'conflict')
+    !context.hasEvidenceConflict
 }
 
 // Rehydration reads the existing proposal only; opening/reloading the page

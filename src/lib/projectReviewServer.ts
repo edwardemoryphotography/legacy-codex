@@ -49,11 +49,15 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
     client.from('actions').select('id,action_title,status,resume_note,updated_at').eq('mission_id', missionId).order('updated_at', { ascending: false }).limit(8),
     client.from('mission_events').select('id,type,detail,created_at').eq('user_id', userId).eq('mission_id', missionId).in('type', ['delta_context_added', 'delta_step_supplied', 'finish_line_set']).order('created_at', { ascending: false }).limit(24),
     client.from('mission_events').select('id,type,detail,created_at').eq('user_id', userId).eq('mission_id', missionId).eq('type', 'delta_corrected').order('created_at', { ascending: false }).limit(100),
+    // Safety state must cover every linked row, even when source excerpts
+    // are bounded. In particular, a Secondary cannot inherit the Primary's gate.
+    client.from('evidence_snapshots').select('id', { count: 'exact', head: true }).eq('mission_id', missionId).eq('status', 'conflict'),
   ])
   // An unavailable read is not an empty set. Do not call the model on a
   // deceptively complete context packet.
   if (results.some(r => r.error)) throw new Error('Could not read all project context. Your saved work is unchanged.')
-  const [missions, evidence, actions, events, corrections] = results
+  const [missions, evidence, actions, events, corrections, conflicts] = results
+  const hasEvidenceConflict = (conflicts.count ?? 0) > 0
   const sources: ProjectSource[] = [{ id: `mission:${target.data.id}`, label: target.data.title, kind: 'mission', status: 'human-defined outcome', ...boundSourceText(JSON.stringify(target.data), 4_000) }]
   for (const row of missions.data ?? []) sources.push({ id: `mission:${row.id}`, label: row.title, kind: 'mission', status: 'other human-defined project; relevance is proposed', ...boundSourceText(JSON.stringify(row), 2_000) })
   for (const row of evidence.data ?? []) sources.push({ id: `evidence:${row.id}`, label: row.source, kind: 'evidence', status: row.status, ...boundSourceText(JSON.stringify(row), 2_000) })
@@ -77,6 +81,6 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
     return { ...source, ...cut, truncated: Boolean(source.truncated || cut.truncated) }
   }).filter(source => source.text.length)
   if (bounded.length !== sources.length) warnings.push(`${sources.length - bounded.length} sources were omitted by the total context limit.`)
-  const contextKey = createHash('sha256').update(JSON.stringify({ version: 1, target: target.data, sources: bounded, warnings })).digest('hex')
-  return { mission: target.data, sources: bounded, warnings, contextKey }
+  const contextKey = createHash('sha256').update(JSON.stringify({ version: 2, target: target.data, sources: bounded, warnings, hasEvidenceConflict })).digest('hex')
+  return { mission: target.data, sources: bounded, warnings, contextKey, hasEvidenceConflict }
 }
