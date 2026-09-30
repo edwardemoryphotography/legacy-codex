@@ -213,7 +213,16 @@ export default function StrategicDelta({
   }, [projectReview])
 
   const suggestedOperations = useMemo(
-    () => [...suppliedOperations, ...(reviewedOperation ? [reviewedOperation] : []), ...Object.values(modelSuggestions)],
+    () => [
+      ...suppliedOperations,
+      ...(reviewedOperation ? [reviewedOperation] : []),
+      // A project review supersedes clause-only model proposals for the
+      // same mission. Keep human-supplied steps and other missions intact;
+      // the engine still applies its correction, evidence, and capacity gates.
+      ...Object.values(modelSuggestions).filter(
+        candidate => !reviewedOperation || candidate.missionId !== reviewedOperation.missionId,
+      ),
+    ],
     [modelSuggestions, suppliedOperations, reviewedOperation],
   )
 
