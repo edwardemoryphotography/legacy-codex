@@ -1,0 +1,89 @@
+RETURN-TO-ACTION UX — 2026-09-24
+
+Repo: edwardemoryphotography/legacy-codex · PR #89 (branch cursor/return-to-action-e212)
+Application code verified at e17c830 (3773458 feature + a11y fix). Later commits on
+the branch add only this note, docs, and scripts/local-supabase; no app source.
+
+What changed
+- Mission reads unfinished mission-linked actions in loadAll (same Promise.all as
+  missions). A returning person sees "Where you left off" above Strategic Delta:
+  action title, mission, status + when saved, the last starting-point note, Resume.
+- Resume updates the same actions row to IN_PROGRESS (.eq id + updated_at), or only
+  opens it if it already is. It never inserts an action or a delta_accepted event.
+  Note / Save & pause / Mark done reuse ActionCard in place.
+- A failed actions read shows its own alert + "Read saved actions again"; it never
+  falls back to the empty composer.
+- Strategic Delta stays below for reconsidering. savedActionMissionIds is
+  display-only (purpose "Reconsider your next move", Accept stepped down to the
+  secondary style, no "Save it as one action" link). Prediction inputs unchanged.
+
+Status
+1. Implemented — yes.
+2. Automated tests — 267 vitest (22 in MissionTab.ui + resumeAction), tsc, lint
+   (0 errors; 8 pre-existing warnings), production build: pass. CI verify: pass.
+3. Preview deployed — Vercel project frontend (prj_irrXhfz1elCLhO1Pdgd0ffM4wfz2),
+   deployment dpl_GmGGthvrrXWXTczFoqDpR5EPbZAx at e17c830, READY, protected by
+   Vercel Authentication. Its JS contains the resume card and targets Supabase
+   pkydkbuodikttfeawqsw (checked with `vercel curl` using the project's existing
+   automation bypass; no bypass secret was created).
+4. Browser runtime verified — in a real persistent WebKit session at iPhone sizes,
+   against a local Supabase-compatible stack built from supabase/migrations
+   (scripts/local-supabase/start.sh + walkthrough-return-to-action.mjs), with a
+   production build of this branch. 44/44 checks: first visit; create a mission;
+   save exactly one action; start; note; pause; reload; leave to Codex and back;
+   close the browser and reopen (same anonymous user); Resume keeps the same id and
+   mission, writes no row and no acceptance; note update + pause + reload persists;
+   Resume above the tab bar at 390×664 (bottom 479 < bar 595) and 430×739; no
+   horizontal scroll; controls 46px; focus to the heading, Tab to the note;
+   reduced motion disables the reveal; dark/light text contrast ≥ 5.26:1; injected
+   failed actions read shows the alert, retry restores the card; accepting a Delta
+   below the commitment writes one delta_accepted and leaves the action row
+   byte-for-byte unchanged.
+   NOT verified in a browser on the preview or production: every Vercel preview and
+   production write to pkydkbuodikttfeawqsw, and even opening the page mints an
+   anonymous production user. No production records were created or modified.
+   Eddie's own iPhone session was not verified.
+5. Production live — no. Not merged, not promoted, no alias change.
+
+AFTER-SAVE HANDOFF — 2026-09-24 (review finding on PR #89)
+Gap: the front-door card read MissionTab's list; the lower SavedActions kept its
+own, so an action saved from the composer stayed below until Mission reloaded.
+Fix (6fa9fa9): SavedActions reports an unfinished action it saves or reads
+(onCommitment); MissionTab folds it into the one list; the lower panel steps
+aside; the card says "Saved — it will be here when you return", scrolls into
+view (instant under reduced motion) and takes focus. No extra write: the handoff
+uses the row the insert already returned.
+Checks: 269 vitest (two new tests fail without the wiring and pass with it), tsc,
+lint (0 errors), production build. Local-stack WebKit walkthrough at 4b1f524:
+49/49, including: card visible immediately after save without reload, no second
+card or composer, card top 10px and Resume bottom 331px < tab bar 590px at
+390×664, focus on the action heading, Resume starts the same row and creates
+nothing. One intermittent harness miss (a Delta click during a layout shift,
+seen only with slowMo + video) was fixed in the script by waiting for
+aria-busy="false"; four consecutive runs then passed with no retry.
+Unchanged boundary: still no browser session on the preview or production, and
+Eddie's own iPhone session is not verified.
+
+WALKTHROUGH REPO ROOT — 2026-09-24 (Codex review on PR #89)
+Gap: the walkthrough logged its commit with `git -C /workspace`. From a checkout
+at /workspace/legacy-codex, where /workspace is not a Git repository, that threw
+before WebKit launched and no check ran. Where /workspace is a different
+repository, it would record the wrong commit.
+Fix (1fd4246, f092eb0): the script resolves the repo root from its own location
+(path.resolve(dirname(import.meta.url), '../..'), as start.sh does) and appends
+"+ uncommitted changes" to the recorded commit when the tree is dirty. Scripts
+only; no app source changed since 6fa9fa9.
+Tested commit: f092eb01fd89c048d69293862fd2293b36fbf0b4 (f092eb0), a clean
+detached checkout at /workspace/legacy-codex. The app was built there with the
+local stack's env.local and served by `next start` on :3000.
+Run 1 used the documented command from that checkout:
+  NODE_PATH=/tmp/pw/node_modules node scripts/local-supabase/walkthrough-return-to-action.mjs
+  → "Commit under test: f092eb0 (/workspace/legacy-codex)", 49/49 PASS, exit 0.
+Run 2 used the same script by absolute path with cwd /tmp: the same root and
+commit, 49/49 PASS, exit 0.
+Measurements match the earlier run: after-save card top 10px, Resume bottom
+331px < tab bar 590px at 390×664, and focus on the action heading.
+Also run in that checkout: npm run lint (0 errors, 8 pre-existing warnings, none
+in the script), npm test (269/269), and a production build.
+Unchanged boundary: still no browser session on the preview or production, and
+Eddie's own iPhone session is not verified.

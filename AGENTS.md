@@ -81,6 +81,8 @@ npm test         # Vitest suite
 
 Run `npx tsc --noEmit` to check types in isolation.
 
+For a real persistent browser session that must not write to production (every preview uses `pkydkbuodikttfeawqsw`), run `scripts/local-supabase/start.sh`, then build with its `env.local` and run `scripts/local-supabase/walkthrough-return-to-action.mjs`. Usage is in each file's header.
+
 The root app uses Next.js 16.3.0 and `next.config.mjs`. Do not create a competing root Next config.
 
 ## Architecture
@@ -172,6 +174,17 @@ Three rules that are load-bearing, not stylistic:
 - **Insufficient context is a first-class path, not a fallback.** With no mission
   state the Delta names the one missing input. It never guesses.
 
+A returning person's saved commitment comes before the Delta. `MissionTab.loadAll`
+reads unfinished mission-linked `actions` with the missions, and `ResumeAction`
+(`SavedActions.tsx`) shows the best one (`resumableActions()` in
+`src/lib/resumeAction.ts`: Primary first) as "Where you left off" with one
+Resume. Resume updates that same row to `IN_PROGRESS` and never inserts one. The
+lower `SavedActions` passes any unfinished action it saves or reads to Mission
+through `onCommitment`, so Mission keeps one list and one card. A
+failed actions read renders an alert with a retry, never the empty composer. The
+Delta's `savedActionMissionIds` prop only changes presentation (the "Reconsider"
+copy and a secondary Accept); it is not a prediction input.
+
 Corrections ("Not right") persist as `delta_corrected` rows in `mission_events`
 — that table's `type` column has no CHECK constraint, so new event types need no
 migration — and feed back in as an inhibition input. The corrected move stops
@@ -216,6 +229,7 @@ The `vitest` test runner is configured (`npm test`, config in `vitest.config.ts`
 | `src/lib/biometrics.ts` | `isValidDay()`, `parseTrendPayload()`, `summarize()`, `clamp()`, `avg()` | Covered — see `src/lib/biometrics.test.ts` |
 | `src/lib/codexSearch.ts` | `rankEntries()` | Exported, pure, no test file yet — good next candidate (search-ranking spike for feature #2) |
 | `src/lib/strategicDelta.ts` | `assembleDeltaContext()`, `routeSituation()`, `generateCandidates()`, `inhibit()`, `selectStrategicDelta()`, `predictStrategicDelta()`, `summarizeEvidence()` | Covered — see `src/lib/strategicDelta.test.ts` (engine) and `src/components/StrategicDelta.test.tsx` (UI states) |
+| `src/lib/resumeAction.ts` | `resumableActions()`, `actionStatusLabel()`, `savedAgo()` | Covered — see `src/lib/resumeAction.test.ts`; the resume flow is in `src/components/tabs/MissionTab.ui.test.tsx` |
 
 Only list functions here that are actually `export`ed from their module — an AI assistant generating tests against an unexported symbol will fail on the import before it ever reaches the assertion.
 

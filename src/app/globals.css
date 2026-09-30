@@ -1917,6 +1917,127 @@ body {
   text-transform: uppercase;
 }
 
+/* Return-to-action: the saved commitment a returning person resumes. It
+   sits above the Strategic Delta and reuses the commitment tokens; the one
+   teal control on the first screen is Resume. */
+.resume-card {
+  display: grid;
+  gap: 10px;
+  max-width: 42rem;
+  padding: 18px 18px 16px;
+  border: 1px solid color-mix(in srgb, var(--teal) 34%, var(--line));
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: var(--card-shadow, none);
+  scroll-margin-top: 16px;
+}
+
+.resume-card[data-just-saved] {
+  animation: resumeReveal var(--sd-dur-reveal) var(--sd-ease-settle) both;
+}
+
+.resume-title {
+  font-size: 1.45rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.22;
+  overflow-wrap: anywhere;
+}
+
+.resume-title:focus { outline: none; }
+.resume-title:focus-visible { outline: 2px solid var(--teal); outline-offset: 4px; border-radius: 4px; }
+
+.resume-meta {
+  color: var(--text-soft);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.resume-meta-label {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.resume-note {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  border-left: 2px solid color-mix(in srgb, var(--teal) 55%, var(--line));
+  border-radius: 0 10px 10px 0;
+  background: var(--surface-soft);
+}
+
+.resume-note figcaption {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.resume-note blockquote {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  /* A long note must not push Resume under the tab bar; the whole note is
+     in the field once resumed, and screen readers get all of it here. */
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.resume-go { margin-top: 4px; }
+.resume-go button { min-height: 48px; min-width: 9rem; }
+
+.resume-others {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.resume-work {
+  animation: resumeReveal var(--sd-dur-react) var(--sd-ease-settle) both;
+}
+
+.resume-card .commitment-card[data-compact] {
+  padding-top: 4px;
+  border-top: 0;
+}
+
+.resume-card .commitment-card label {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.resume-card .commitment-card button { min-height: 48px; }
+
+@keyframes resumeReveal {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .resume-work,
+  .resume-card[data-just-saved] { animation: none; }
+}
+
+@media (max-width: 600px) {
+  .resume-card { padding: 16px 16px 14px; }
+  .resume-title { font-size: 1.3rem; }
+  .resume-go button { width: 100%; }
+}
+
 .sd-act-secondary button {
   min-height: 48px;
 }

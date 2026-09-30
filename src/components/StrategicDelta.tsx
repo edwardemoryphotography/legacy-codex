@@ -56,6 +56,7 @@ const INHIBITION_LABEL: Record<string, string> = {
 
 const NO_ACCEPTANCES: Readonly<Record<string, string>> = {}
 const NO_SUPPLIED_STEPS: DeltaCandidate[] = []
+const NO_SAVED_ACTIONS: readonly string[] = []
 
 type OpenPanel = 'why' | 'correct' | 'changed' | null
 type Cognition = 'reconstructing' | 'correcting' | 'deriving' | 'insufficient' | 'settled' | 'accepted' | 'failed'
@@ -123,6 +124,11 @@ interface Props {
    *  exhausted structural signal for it. Omit to run deterministic-only —
    *  that is a fully honest configuration, not a degraded one. */
   requestOperation?: DeltaRequestOperation
+  /** Missions that already hold an unfinished saved action. Presentation
+   *  only — never a prediction input: when the Delta aims at one of them it
+   *  is offered for reconsidering, and accepting cannot read as replacing
+   *  the commitment. */
+  savedActionMissionIds?: readonly string[]
   /** Missing-input controls for insufficient context. Rendered inside the
    *  hero, not below it — and never inside the live region. */
   children?: ReactNode
@@ -144,6 +150,7 @@ export default function StrategicDelta({
   onContextAdded,
   onRecheck,
   requestOperation,
+  savedActionMissionIds = NO_SAVED_ACTIONS,
   children,
 }: Props) {
   // Set after mount so server and client never disagree about the clock.
@@ -394,6 +401,7 @@ export default function StrategicDelta({
   const committableMission = delta?.missionId
     ? missions.find(m => m.id === delta.missionId && (m.state === 'primary' || m.state === 'secondary')) ?? null
     : null
+  const hasSavedAction = committableMission ? savedActionMissionIds.includes(committableMission.id) : false
   const shownMove = accepted && delta && committableMission ? delta.move : null
   const shownMissionId = shownMove ? committableMission?.id ?? null : null
   useEffect(() => {
@@ -430,7 +438,7 @@ export default function StrategicDelta({
       <div className="sd-copy">
       <header className="sd-identity">
         <h2>Strategic Delta</h2>
-        <p className="sd-purpose">Your best next move</p>
+        <p className="sd-purpose">{hasSavedAction ? 'Reconsider your next move' : 'Your best next move'}</p>
       </header>
       {!pendingRead && (
         <p className="sd-mission">
@@ -461,18 +469,23 @@ export default function StrategicDelta({
               <div className="sd-act-primary">
                 {/* The saved action is a separate, explicit commitment. This
                     only points at it; nothing is saved from here. */}
-                {committableMission && (
+                {committableMission && !hasSavedAction && (
                   <a className="sd-next" href="#saved-action">Save it as one action you can return to</a>
                 )}
                 <p className="sd-accepted">
                   Accepted — still a prediction until there&apos;s evidence
                 </p>
+                {hasSavedAction && (
+                  <p className="sd-boundary">Your saved action is unchanged. Accepting records an intention; it does not replace the action.</p>
+                )}
               </div>
             ) : hasRecommendation && !accepted ? (
               <div className="sd-act-primary">
-                <ActionBtn onClick={() => void accept()}>Accept this move</ActionBtn>
+                <ActionBtn variant={hasSavedAction ? 'secondary' : 'primary'} onClick={() => void accept()}>Accept this move</ActionBtn>
                 <p className="sd-boundary">
-                  Accepting records the recommendation. It does not save an action, and it does not prove the work is done.
+                  {hasSavedAction
+                    ? 'Accepting records the recommendation. It does not replace your saved action, and it does not prove the work is done.'
+                    : 'Accepting records the recommendation. It does not save an action, and it does not prove the work is done.'}
                 </p>
               </div>
             ) : needsStep ? (
