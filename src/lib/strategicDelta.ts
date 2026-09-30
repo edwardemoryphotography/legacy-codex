@@ -309,6 +309,11 @@ function admitClauseOperation(
   targetMissionIds: Set<string>,
 ): boolean {
   if (!suggestion.missionId || !targetMissionIds.has(suggestion.missionId)) return false
+  const projectOwner = [primary, secondary].find(m => m?.id === suggestion.missionId)
+  if (suggestion.targetId === `project:${suggestion.missionId}`) {
+    return suggestion.kind === 'model_suggested' && Boolean(projectOwner?.finishLine) &&
+      suggestion.projectFinishLine === projectOwner?.finishLine
+  }
   const target = parseClauseId(suggestion.targetId)
   if (!target || target.missionId !== suggestion.missionId) return false
   const owner = [primary, secondary].find(m => m?.id === suggestion.missionId)
@@ -465,7 +470,8 @@ export function inhibit(candidates: DeltaCandidate[], ctx: DeltaContext): Inhibi
     //    prose otherwise, so corrections recorded before ids existed still
     //    match and a later copy change cannot silently orphan them.
     const correction = ctx.corrections.find(c =>
-      c.candidateId ? c.candidateId === candidate.id : c.correctedMove === candidate.move,
+      c.missionId === candidate.missionId &&
+      (c.candidateId === candidate.id || normalize(c.correctedMove) === normalize(candidate.move)),
     )
     if (correction) {
       inhibited.push(kill(candidate, 'corrected', `You said this isn't right: ${correction.reason}`))
@@ -645,6 +651,7 @@ function describeBecause(
   // line, the useful explanation is which clause it targets and why that
   // one — not why the mission matters in general.
   if ((winner?.kind === 'model_suggested' || winner?.kind === 'supplied_operation') && winner.missionId) {
+    if (winner.projectFinishLine) return 'Proposed from your saved project context, then critiqued once against its sources and your corrections. Open Why this? to inspect the evidence and uncertainties.'
     const owner = [ctx.primary, ctx.secondary].find(m => m?.id === winner.missionId)
     const total = decomposeFinishLine(owner?.finishLine ?? null).length
     if (winner.kind === 'supplied_operation') {

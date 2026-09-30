@@ -45,7 +45,7 @@ Core rules even if the canonical file is temporarily unavailable:
 - **Make the idea representable across different kinds of minds.** Preserve meaning across human narrative, machine-readable structure, and executable software.
 - Before closing a task ask: **What did this interaction teach the system that the next instance should not have to rediscover?** If it matters, encode it durably.
 
-Runtime models do not automatically inherit this file. `src/lib/cognitiveDoctrine.ts` is the reviewed Cookbook projection consumed by `/api/analyze` and `/api/delta-operation`; Codex → Root → North Star is its readable source-linked counterpart. Preserve this connection when changing model calls. Review projections against the canonical source rather than promoting a local prompt into a new doctrine owner. Verify reasoning quality with real supplied artifacts; prompt wiring alone does not establish it.
+Runtime models do not automatically inherit this file. `src/lib/cognitiveDoctrine.ts` is the reviewed Cookbook projection consumed by `/api/analyze`, `/api/delta-operation`, and `/api/delta-review`; Codex → Root → North Star is its readable source-linked counterpart. Preserve this connection when changing model calls. Review projections against the canonical source rather than promoting a local prompt into a new doctrine owner. Verify reasoning quality with real supplied artifacts; prompt wiring alone does not establish it.
 
 ## Deployment / environment sanity gate
 
@@ -181,6 +181,24 @@ being recommended; the prior prediction stays in history rather than being erase
 Because `mission_events.mission_id` is `not null`, an insufficient-context Delta
 cannot be corrected (there is no mission to attach it to), and the UI disables
 that control rather than failing at runtime.
+
+**Project reconstruction:** `Review project` explicitly calls `/api/delta-review`
+for an actionable saved project, including single-clause finish lines. The
+server reads that authenticated account's mission, related missions, evidence
+read model, canonical commitments and notes/corrections through RLS; no admin
+key is used. It reads at most two public GitHub text files explicitly linked
+in project notes. A bounded proposal → critique loop returns a source-attributed
+candidate, proposed bigger picture, overlooked connection, self-check and
+unknowns. The candidate still passes the engine's quality, priority, blocker,
+capacity and correction gates. It is bound to the complete finish line.
+
+`delta_reviewed` stores the proposal in the existing transitional mission UI
+ledger; it is not canonical evidence, an action, or permanent learning. GET
+restores a matching cached proposal without a model call. Notes, corrections,
+commitments, source revisions, mission changes and one-hour expiry invalidate
+the cache. POST checks context again after reasoning before saving. The current
+owner allowlist is preserved; sharing the app does not enable a new visitor's
+model access or transfer Eddie's anonymous identity.
 
 ### Styling system
 

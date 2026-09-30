@@ -2050,3 +2050,19 @@ body {
     animation: none;
   }
 }
+
+.sd-source-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  max-height: 18rem;
+  overflow: auto;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+}
+.sd-project-review details { margin: 0.65rem 0; }
+.sd-project-review summary { cursor: pointer; overflow-wrap: anywhere; }
+.sd-project-review h3 { margin-top: 1rem; }

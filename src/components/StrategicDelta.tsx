@@ -5,6 +5,7 @@ import type { DeltaCandidate, DeltaCorrection, EvidenceRecord, Mission, Strategi
 import { candidateTargetsClause, operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
 import { ActionBtn, ActionChip, Textarea } from '@/components/ui'
 import { OrbSlot, useOrbCognition } from '@/components/OrbHost'
+import type { ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
 
 // Phases are derived from work that is actually pending — anonymous
 // sign-in, then the missions/evidence read. Nothing here runs on a timer
@@ -123,6 +124,10 @@ interface Props {
    *  exhausted structural signal for it. Omit to run deterministic-only —
    *  that is a fully honest configuration, not a degraded one. */
   requestOperation?: DeltaRequestOperation
+  projectReview?: ProjectReview | null
+  projectReviewBusy?: boolean
+  projectReviewError?: string | null
+  requestProjectReview?: (request: ProjectReviewRequest) => Promise<void>
   /** Missing-input controls for insufficient context. Rendered inside the
    *  hero, not below it — and never inside the live region. */
   children?: ReactNode
@@ -144,6 +149,10 @@ export default function StrategicDelta({
   onContextAdded,
   onRecheck,
   requestOperation,
+  projectReview = null,
+  projectReviewBusy = false,
+  projectReviewError = null,
+  requestProjectReview,
   children,
 }: Props) {
   // Set after mount so server and client never disagree about the clock.
@@ -171,7 +180,7 @@ export default function StrategicDelta({
   }, [])
 
   const pendingRead = phase !== 'resolved' || now === null
-  const reconstructing = pendingRead || correcting || awaitingOperation
+  const reconstructing = pendingRead || correcting || awaitingOperation || projectReviewBusy
 
   // A sub-150ms read should not flash a reasoning state at the user; a
   // real one always exceeds this.
@@ -193,9 +202,19 @@ export default function StrategicDelta({
     [missions, evidence, corrections, now, suppliedOperations],
   )
 
+  const reviewedOperation = useMemo<DeltaCandidate | null>(() => {
+    if (!projectReview?.operation) return null
+    return {
+      id: `project-operation:${projectReview.missionId}:${encodeURIComponent(projectReview.operation)}`,
+      targetId: `project:${projectReview.missionId}`,
+      kind: 'model_suggested', missionId: projectReview.missionId,
+      move: projectReview.operation, projectFinishLine: projectReview.finishLine, rank: 0,
+    }
+  }, [projectReview])
+
   const suggestedOperations = useMemo(
-    () => [...suppliedOperations, ...Object.values(modelSuggestions)],
-    [modelSuggestions, suppliedOperations],
+    () => [...suppliedOperations, ...(reviewedOperation ? [reviewedOperation] : []), ...Object.values(modelSuggestions)],
+    [modelSuggestions, suppliedOperations, reviewedOperation],
   )
 
   const delta = useMemo(
@@ -368,13 +387,13 @@ export default function StrategicDelta({
   // A model failure only describes the Delta while it is still stuck. Once a
   // supplied step (or anything else) resolves it, the alert would be false.
   const shownOperationError = delta?.provenance === 'insufficient_context' ? operationError : null
-  const cognition: Cognition = persistError || shownOperationError
+  const cognition: Cognition = persistError || shownOperationError || projectReviewError
     ? 'failed'
     : correcting
       ? 'correcting'
       : pendingRead
         ? 'reconstructing'
-        : awaitingOperation
+        : awaitingOperation || projectReviewBusy
           ? 'deriving'
           : delta?.provenance === 'insufficient_context'
             ? 'insufficient'
@@ -384,8 +403,10 @@ export default function StrategicDelta({
 
   const phaseCopy = correcting
     ? 'Reconsidering from what you just taught it…'
-    : awaitingOperation
-      ? 'Working out the concrete step…'
+    : projectReviewBusy
+      ? 'Reading your project, proposing a move, then checking it against the sources…'
+      : awaitingOperation
+        ? 'Working out the concrete step…'
       : PHASE_TEXT[phase === 'resolved' ? 'reading' : phase]
 
   const primaryMission = missions.find(mission => mission.state === 'primary') ?? null
@@ -407,6 +428,9 @@ export default function StrategicDelta({
   const title = delta ? displayTitle(delta, isFirstRun, readAvailable) : null
   const aimedMission = delta?.missionId ? missions.find(mission => mission.id === delta.missionId) ?? null : null
   const finishLine = aimedMission?.finishLine ?? null
+  const reviewTarget = primaryMission && !primaryMission.blocker && !primaryMission.capacityMismatch
+    ? primaryMission
+    : missions.find(m => m.state === 'secondary' && !m.blocker && !m.capacityMismatch) ?? null
   const proofSteps = delta?.proofSteps ?? []
   const retainedStep = delta?.inhibited.find(candidate =>
     candidate.kind === 'supplied_operation' && candidate.move !== delta.move,
@@ -522,6 +546,15 @@ export default function StrategicDelta({
                   Something changed
                 </ActionChip>
               )}
+              {readAvailable && reviewTarget?.finishLine && requestProjectReview && (
+                <ActionChip
+                  disabled={projectReviewBusy || recording}
+                  onClick={() => void requestProjectReview({ missionId: reviewTarget.id, finishLine: reviewTarget.finishLine! })}
+                  variant="secondary"
+                >
+                  {projectReviewBusy ? 'Reviewing project…' : 'Review project'}
+                </ActionChip>
+              )}
             </div>
           </div>
 
@@ -543,7 +576,7 @@ export default function StrategicDelta({
               would be wrong. */}
           {delta.provenance === 'insufficient_context' && !delta.missionId && children}
 
-          {(correcting || awaitingOperation) && (
+          {(correcting || awaitingOperation || projectReviewBusy) && (
             <p className="sd-phase">{showPhaseText ? phaseCopy : '\u00a0'}</p>
           )}
 
@@ -562,6 +595,13 @@ export default function StrategicDelta({
           {shownOperationError && (
             <p className="sd-fail" role="alert">
               {shownOperationError}
+            </p>
+          )}
+          {projectReviewError && <p className="sd-fail" role="alert">{projectReviewError}</p>}
+          {projectReview && !projectReviewBusy && (
+            <p className="sd-support">
+              Project review saved. Open Why this? for the proposed bigger picture, self-check and sources.
+              {!projectReview.operation && ' No grounded next move was returned; its missing inputs are listed there.'}
             </p>
           )}
 
@@ -638,9 +678,32 @@ export default function StrategicDelta({
               <section>
                 <h3>Saved commitment</h3>
                 <p>
-                  A saved action and its starting-point note are a commitment you recorded. Strategic Delta does not read them. It predicts from the mission, the finish line, linked evidence, and corrections. The note is your report of where you stopped. It is not verified evidence, and it does not become this recommendation.
+                  A saved action and its starting-point note are a commitment you recorded. The rule-based prediction does not read them. Project review reads these to avoid proposing an existing commitment as a discovery. A progress note is your report, and does not prove completion.
                 </p>
               </section>
+              {projectReview && (
+                <section className="sd-project-review" aria-label="Project reconstruction">
+                  <h3>Bigger picture — proposed</h3>
+                  <p>{projectReview.biggerPicture}</p>
+                  <h3>Why this advances the goal</h3>
+                  <p>{projectReview.why}</p>
+                  <h3>Overlooked connection — proposed</h3>
+                  <p>{projectReview.overlooked}</p>
+                  <h3>Self-check — still a model proposal</h3>
+                  <p>{projectReview.selfCheck}</p>
+                  {projectReview.unknowns.length > 0 && <><h3>What remains unknown</h3><ul>{projectReview.unknowns.map((unknown, index) => <li key={index}>{unknown}</li>)}</ul></>}
+                  <h3>Sources behind the proposal</h3>
+                  {projectReview.sources.filter(source => projectReview.sourceIds.includes(source.id)).map(source => (
+                    <details key={source.id}>
+                      <summary>{source.label} — {source.status}{source.truncated ? ' (excerpt)' : ''}</summary>
+                      {source.url && <a href={source.url} target="_blank" rel="noopener noreferrer">Open original source</a>}
+                      <pre className="sd-source-text">{source.text}</pre>
+                    </details>
+                  ))}
+                  <p className="sd-hint">Two passes: proposal, then critique. This checks the recommendation against supplied context; it does not verify the underlying claims or change application code.</p>
+                  {projectReview.warnings.map((warning, index) => <p className="sd-hint" key={index}>{warning}</p>)}
+                </section>
+              )}
               {delta.inhibited.length > 0 && (
                 <section>
                   <h3>Alternatives inhibited</h3>
@@ -712,7 +775,7 @@ export default function StrategicDelta({
 
           {open === 'changed' && (
             <div id="sd-changed" className="sd-why">
-              <h3>What changed?</h3>
+              <h3>Add project context or report a change</h3>
               <label htmlFor="sd-changed-note" className="sr-only">
                 What changed
               </label>
@@ -722,9 +785,10 @@ export default function StrategicDelta({
                 compact
                 value={changedNote}
                 onChange={setChangedNote}
-                placeholder="The staging deploy finished."
+                placeholder="What is actually happening? Add a real project note or a public GitHub file link."
                 textareaRef={changedRef}
               />
+              <p className="sd-hint">Saved to this project for its next review. GitHub links must point to public text files. Notes remain human reports until supported by evidence.</p>
               <div className="sd-controls">
                 <ActionBtn disabled={!changedNote.trim() || recording} onClick={() => void submitChanged()}>
                   Record and recheck
