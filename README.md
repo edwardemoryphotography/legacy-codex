@@ -20,6 +20,8 @@ Foundry is the builder and operations environment behind Legacy Codex. Routing, 
 
 The cross-system cognitive doctrine remains the Goose Cookbook in `edwardemoryphotography/codex-system-architecture/notion-wiki/docs/GOOSE-COOKBOOK.md`.
 
+Its North Star is **preserving human intent so another intelligence can reconstruct, execute, verify, and continue it**. The reviewed runtime projection is `src/lib/cognitiveDoctrine.ts`, consumed by both existing model routes. In the app, open **Codex → Root → North Star — Goose Cookbook**, or search **Goose**, to read the origin lesson, MasterChef method, primary source, and current capability limits.
+
 ## Local development
 
 ```bash

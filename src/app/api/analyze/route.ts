@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveEnv, verifyAuth } from '@supabase/server/core'
+import { ARTIFACT_ANALYSIS_DEFAULT_INSTRUCTION, ARTIFACT_ANALYSIS_SYSTEM_PROMPT } from '@/lib/cognitiveDoctrine'
 
 export const runtime = 'nodejs'
 
@@ -11,8 +12,6 @@ const MODEL = 'claude-opus-5'
 // instruction field, and measure the whole upload — the limit applies to the
 // combined body, not to each file individually.
 const MAX_TOTAL_BYTES = 4 * 1024 * 1024
-const DEFAULT_INSTRUCTION =
-  'Analyze the attached artifacts and return: 1) concise summary, 2) key signals, 3) risks, 4) action checklist, 5) next single step.'
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 
@@ -94,15 +93,19 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       )
     }
+    // Binary blocks carry bytes, not the browser's filename. Keep a source
+    // label adjacent to every attachment so attribution never has to guess.
+    content.push({ type: 'text', text: `Attachment filename: ${JSON.stringify(file.name)}` })
     content.push(block)
   }
-  content.push({ type: 'text', text: instruction || DEFAULT_INSTRUCTION })
+  content.push({ type: 'text', text: instruction || ARTIFACT_ANALYSIS_DEFAULT_INSTRUCTION })
 
   try {
     const client = new Anthropic()
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 4096,
+      system: ARTIFACT_ANALYSIS_SYSTEM_PROMPT,
       messages: [{ role: 'user', content }],
     })
 

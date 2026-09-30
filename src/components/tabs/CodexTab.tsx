@@ -94,11 +94,11 @@ export default function CodexTab() {
   const trimmed = search.trim().toLowerCase()
 
   const filteredSections = useMemo(() => {
-    if (!trimmed) return CODEX_SECTIONS
-
+    // Normalize once. Re-flattening a filtered parent with its matching
+    // child duplicates that child and brings non-matches back into search.
     return CODEX_SECTIONS.map(section => {
       const entries = flattenEntries(section.entries).filter(entry =>
-        entry.title.toLowerCase().includes(trimmed) || entry.content.toLowerCase().includes(trimmed)
+        !trimmed || entry.title.toLowerCase().includes(trimmed) || entry.content.toLowerCase().includes(trimmed)
       )
       return { ...section, entries }
     }).filter(section => section.entries.length > 0)
@@ -412,7 +412,7 @@ export default function CodexTab() {
               <SectionGroup
                 key={section.key}
                 section={section}
-                entries={flattenEntries(section.entries)}
+                entries={section.entries}
                 activeId={activeEntry?.id ?? null}
                 expanded={activeSection === section.key}
                 onToggle={() => setActiveSection(v => (v === section.key ? null : section.key))}

@@ -24,6 +24,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyAuth } from '@supabase/server/core'
 import { isConcreteMove } from '@/lib/strategicDelta'
 import { resolveUserAuthEnv } from '@/lib/supabase/userAuthEnv'
+import { DELTA_OPERATION_SYSTEM_PROMPT } from '@/lib/cognitiveDoctrine'
 
 export const runtime = 'nodejs'
 
@@ -35,15 +36,6 @@ const MAX_FINISH_LINE_CHARS = 2_000
 const MAX_CLAUSE_CHARS = 1_000
 const MAX_REJECTED_OPERATIONS = 8
 const MAX_CORRECTION_REASON_CHARS = 500
-
-const SYSTEM_PROMPT = `You turn one unresolved sentence from a person's own finish line into ONE concrete action they can perform right now to test or advance it.
-
-Rules:
-- Output exactly one sentence. No preamble, no numbering, no quotes around it.
-- Name a real, physical or observable action: an executable verb plus a specific object. "Reload the app and check whether X survived", "Call the reviewer and ask Y", "Open the feature and confirm Z" are the right shape.
-- Never restate the mission or the finish line back. Never use only "verify", "check", "confirm", or "review" as your entire new content — those words are fine alongside a real object, never alone.
-- Never invent facts you were not given. If you cannot ground a concrete action in what you were told, output exactly: NONE
-- Do not explain your reasoning. Output only the action, or NONE.`
 
 interface RequestBody {
   missionTitle?: unknown
@@ -169,7 +161,7 @@ export async function POST(req: NextRequest) {
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 200,
-      system: SYSTEM_PROMPT,
+      system: DELTA_OPERATION_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userText }],
     })
 

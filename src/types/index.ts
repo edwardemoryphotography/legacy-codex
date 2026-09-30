@@ -158,6 +158,7 @@ export type MissionEventType =
   | 'delta_accepted'
   | 'delta_corrected'
   | 'delta_context_added'
+  | 'delta_reviewed'
   // A concrete step the user supplied for an unresolved finish-line clause.
   // Distinct from delta_corrected: the text is the operation to evaluate,
   // not a reason for rejecting the fallback.
@@ -269,6 +270,8 @@ export interface DeltaCandidate {
    *  only names a position; if the finish line is revised, the operation is
    *  for a goal that no longer exists and is not admitted. */
   clause?: string
+  /** A source-grounded project review is bound to the complete finish line. */
+  projectFinishLine?: string
   /** Lower ranks are higher leverage. */
   rank: number
 }

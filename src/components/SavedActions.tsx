@@ -58,7 +58,9 @@ export default function SavedActions({
   const hasOpenAction = actions.some(action => action.status !== 'DONE')
   useEffect(() => {
     if (missionId && !loading && !error) onActiveChange?.(missionId, hasOpenAction)
-  }, [missionId, loading, error, hasOpenAction, onActiveChange])
+  // A changed note/status must also invalidate a cached project review,
+  // even when the number of open commitments did not change.
+  }, [missionId, loading, error, hasOpenAction, actions, onActiveChange])
 
   useEffect(() => {
     if (!suggestedTitle || titleTouched) return

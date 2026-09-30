@@ -42,6 +42,7 @@ import { ActionBtn, ActionChip, Badge, Card, Input, SectionSubtitle, SectionTitl
 import NextMovePanel from '@/components/NextMovePanel'
 import SavedActions from '@/components/SavedActions'
 import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase } from '@/components/StrategicDelta'
+import type { ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
 
 // ─── Supabase row <-> domain mapping ────────────────────────────────────
 // missionLoop.ts operates on the camelCase Mission/MissionEvent domain
@@ -305,6 +306,12 @@ export default function MissionTab() {
   // reason: an unconfigured server should never even attempt the call, not
   // just fail it gracefully.
   const [operationStageConfigured, setOperationStageConfigured] = useState(false)
+  const [projectReview, setProjectReview] = useState<ProjectReview | null>(null)
+  const [projectReviewBusy, setProjectReviewBusy] = useState(false)
+  const [projectReviewError, setProjectReviewError] = useState<string | null>(null)
+  const [reviewRevision, setReviewRevision] = useState(0)
+  const reviewGeneration = useRef(0)
+  const reviewInFlight = useRef(false)
 
   // New-mission form
   const [showNewMission, setShowNewMission] = useState(false)
@@ -345,7 +352,7 @@ export default function MissionTab() {
       const [missionsRes, evidenceRes, correctionsRes] = await Promise.all([
         supabase.from('missions').select('*').eq('user_id', userId),
         supabase.from('evidence_snapshots').select('*'),
-        supabase.from('mission_events').select('*').eq('user_id', userId).in('type', ['delta_accepted', 'delta_corrected', 'delta_step_supplied', 'finish_line_set']).order('created_at', { ascending: true }),
+        supabase.from('mission_events').select('*').eq('user_id', userId).in('type', ['delta_accepted', 'delta_corrected', 'delta_step_supplied', 'finish_line_set', 'delta_context_added']).order('created_at', { ascending: true }),
       ])
       if (isCancelled()) return
       if (missionsRes.error) throw missionsRes.error
@@ -376,6 +383,7 @@ export default function MissionTab() {
           .filter((step): step is DeltaCandidate => step !== null),
       )
       setAcceptances(acceptanceLedger(eventRows))
+      setReviewRevision(value => value + 1)
 
       if (!evidenceRes.error) {
         setEvidence(((evidenceRes.data ?? []) as EvidenceRow[]).map(rowToEvidence))
@@ -645,7 +653,17 @@ export default function MissionTab() {
       // rather than pretending the note was saved; the control itself is
       // disabled for the same reason, this is defense in depth.
       if (!delta.missionId) return false
-      return recordDeltaEvent('delta_context_added', delta.missionId, note)
+      if (note.length > 6_000) {
+        setDeltaError('Keep each project note under 6,000 characters. Add another note for more context.')
+        return false
+      }
+      const saved = await recordDeltaEvent('delta_context_added', delta.missionId, note)
+      if (saved) {
+        reviewGeneration.current += 1
+        setProjectReview(null)
+        setReviewRevision(value => value + 1)
+      }
+      return saved
     },
     [recordDeltaEvent],
   )
@@ -668,7 +686,72 @@ export default function MissionTab() {
 
   const handleResumableAction = useCallback((missionId: string, active: boolean) => {
     setResumableMissionId(active ? missionId : null)
+    setReviewRevision(value => value + 1)
   }, [])
+
+  const handleProjectReview = useCallback(async (request: ProjectReviewRequest) => {
+    if (reviewInFlight.current) return
+    reviewInFlight.current = true
+    const generation = ++reviewGeneration.current
+    setProjectReviewBusy(true)
+    setProjectReview(null)
+    setProjectReviewError(null)
+    beginFieldWork()
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) throw new Error('Your session is unavailable. Reconnect without clearing your saved work.')
+      const response = await fetch('/api/delta-review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify(request),
+      })
+      const data = await response.json() as { review?: ProjectReview | null; error?: string }
+      if (!response.ok) throw new Error(data.error || 'Project review could not complete.')
+      if (generation === reviewGeneration.current) setProjectReview(data.review ?? null)
+    } catch (failure) {
+      if (generation === reviewGeneration.current) setProjectReviewError(failure instanceof Error ? failure.message : 'Project review could not complete.')
+    } finally {
+      reviewInFlight.current = false
+      setProjectReviewBusy(false)
+      endFieldWork()
+    }
+  }, [])
+
+  // Restore only a cached proposal that the server has checked against
+  // current account-scoped notes, corrections, evidence and commitments.
+  // Reading a page never initiates a provider call.
+  useEffect(() => {
+    const generation = ++reviewGeneration.current
+    // Hide the external cached proposal as soon as its inputs change.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setProjectReview(null)
+    setProjectReviewError(null)
+    const primary = findByState(board, 'primary')
+    const secondary = findByState(board, 'secondary')
+    const target = primary && !primary.blocker && !primary.capacityMismatch ? primary : secondary
+    if (!operationStageConfigured || !loaded || loadFailed || !user || !target?.finishLine) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        if (sessionError || !session) throw new Error('Session unavailable.')
+        const response = await fetch(`/api/delta-review?missionId=${encodeURIComponent(target.id)}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+        const data = await response.json() as { review?: ProjectReview | null; error?: string }
+        if (!response.ok) throw new Error(data.error || 'Could not restore the project review.')
+        if (!cancelled && generation === reviewGeneration.current) setProjectReview(data.review ?? null)
+      } catch {
+        if (!cancelled && generation === reviewGeneration.current) setProjectReviewError('Could not restore the project review. Your saved work is unchanged; try Review project again.')
+      }
+    })()
+    return () => { cancelled = true }
+  }, [board, corrections, suppliedSteps, operationStageConfigured, loaded, loadFailed, user, reviewRevision])
+
+  useEffect(() => {
+    if (!projectReview) return
+    const remaining = Date.parse(projectReview.reviewedAt) + 3_600_000 - Date.now()
+    const timer = setTimeout(() => setProjectReview(null), Number.isFinite(remaining) ? Math.max(0, remaining) : 0)
+    return () => clearTimeout(timer)
+  }, [projectReview])
 
   // The narrowly bounded model-assist stage: one clause in, one operation
   // (or null) out. Owns auth and the network call so StrategicDelta.tsx
@@ -960,6 +1043,10 @@ export default function MissionTab() {
         onContextAdded={handleDeltaContext}
         onRecheck={handleDeltaRecheck}
         requestOperation={operationStageConfigured ? handleRequestOperation : undefined}
+        projectReview={projectReview}
+        projectReviewBusy={projectReviewBusy}
+        projectReviewError={projectReviewError}
+        requestProjectReview={operationStageConfigured ? handleProjectReview : undefined}
       >
         {confirmedEmpty ? (
           <form
