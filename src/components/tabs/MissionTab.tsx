@@ -716,7 +716,10 @@ export default function MissionTab() {
       })
       const data = await response.json() as { review?: ProjectReview | null; lessons?: ConfirmedLesson[]; error?: string }
       if (!response.ok) throw new Error(data.error || 'Project review could not complete.')
-      if (generation === reviewGeneration.current) setProjectReview(data.review ?? null)
+      if (generation === reviewGeneration.current) {
+        setProjectReview(data.review ?? null)
+        setConfirmedLessons(data.lessons ?? [])
+      }
     } catch (failure) {
       if (generation === reviewGeneration.current) setProjectReviewError(failure instanceof Error ? failure.message : 'Project review could not complete.')
     } finally {
@@ -739,7 +742,9 @@ export default function MissionTab() {
     const primary = findByState(board, 'primary')
     const secondary = findByState(board, 'secondary')
     const target = primary && !primary.blocker && !primary.capacityMismatch ? primary : secondary
-    if (!operationStageConfigured || !loaded || loadFailed || !user || !target?.finishLine) return
+    // Cached reasoning and human-confirmed lessons need no provider key.
+    // Keep reading/retirement available when generation is unavailable.
+    if (!loaded || loadFailed || !user || !target) return
     let cancelled = false
     void (async () => {
       try {
@@ -757,7 +762,7 @@ export default function MissionTab() {
       }
     })()
     return () => { cancelled = true }
-  }, [board, corrections, suppliedSteps, operationStageConfigured, loaded, loadFailed, user, reviewRevision])
+  }, [board, corrections, suppliedSteps, loaded, loadFailed, user, reviewRevision])
 
   useEffect(() => {
     if (!projectReview) return

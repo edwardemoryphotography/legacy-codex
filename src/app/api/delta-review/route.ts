@@ -63,10 +63,10 @@ export async function POST(req: NextRequest) {
     const context = await loadProjectContext(client, owner.userId, body.missionId)
     if (context.mission.finish_line !== body.finishLine) return NextResponse.json({ error: 'The finish line changed. Refresh your project before reviewing.' }, { status: 409 })
     if (!projectIsReviewable(context)) {
-      return NextResponse.json({ operation: null, review: null })
+      return NextResponse.json({ operation: null, review: null, lessons: context.lessons })
     }
     const cached = await cachedProjectReview(client, owner.userId, context)
-    if (cached) return NextResponse.json({ operation: cached.operation, review: cached })
+    if (cached) return NextResponse.json({ operation: cached.operation, review: cached, lessons: context.lessons })
     const model = new Anthropic({ maxRetries: 0, timeout: 40_000 })
     // Lesson content is already represented once in the bounded sources.
     // Do not resend the full UI lesson objects outside the excerpt budget.
@@ -95,10 +95,10 @@ export async function POST(req: NextRequest) {
     const saved = await client.from('mission_events').insert({ user_id: owner.userId, mission_id: body.missionId, type: 'delta_reviewed', detail: JSON.stringify(review), idempotency_key: `review:${context.contextKey}:${Math.floor(Date.parse(review.reviewedAt) / 3_600_000)}` })
     if (saved.error?.code === '23505') {
       const winner = await cachedProjectReview(client, owner.userId, context)
-      if (winner) return NextResponse.json({ operation: winner.operation, review: winner })
+      if (winner) return NextResponse.json({ operation: winner.operation, review: winner, lessons: context.lessons })
     }
     if (saved.error) return NextResponse.json({ error: 'The review could not be saved. Your commitments are unchanged.' }, { status: 503 })
-    return NextResponse.json({ operation: review.operation, review })
+    return NextResponse.json({ operation: review.operation, review, lessons: context.lessons })
   } catch (error) {
     const providerStatus = error instanceof Anthropic.APIError ? error.status : undefined
     console.error('/api/delta-review failed', { stage, providerStatus })
