@@ -5,7 +5,8 @@ import type { DeltaCandidate, DeltaCorrection, EvidenceRecord, Mission, Strategi
 import { candidateTargetsClause, operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
 import { ActionBtn, ActionChip, Textarea } from '@/components/ui'
 import { OrbSlot, useOrbCognition } from '@/components/OrbHost'
-import type { ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
+import ProjectLearning, { type ConfirmLesson, type RetireLesson } from '@/components/ProjectLearning'
+import type { ConfirmedLesson, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
 
 // Phases are derived from work that is actually pending — anonymous
 // sign-in, then the missions/evidence read. Nothing here runs on a timer
@@ -124,6 +125,11 @@ interface Props {
    *  exhausted structural signal for it. Omit to run deterministic-only —
    *  that is a fully honest configuration, not a degraded one. */
   requestOperation?: DeltaRequestOperation
+  confirmedLessons?: ConfirmedLesson[]
+  onConfirmLesson?: ConfirmLesson
+  onRetireLesson?: RetireLesson
+  projectReviewAccessError?: string | null
+  projectReviewAvailable?: boolean
   projectReview?: ProjectReview | null
   projectReviewBusy?: boolean
   projectReviewError?: string | null
@@ -149,6 +155,11 @@ export default function StrategicDelta({
   onContextAdded,
   onRecheck,
   requestOperation,
+  confirmedLessons = [],
+  onConfirmLesson,
+  onRetireLesson,
+  projectReviewAccessError = null,
+  projectReviewAvailable = true,
   projectReview = null,
   projectReviewBusy = false,
   projectReviewError = null,
@@ -558,7 +569,7 @@ export default function StrategicDelta({
               )}
               {readAvailable && reviewTarget?.finishLine && requestProjectReview && (
                 <ActionChip
-                  disabled={projectReviewBusy || recording}
+                  disabled={!projectReviewAvailable || projectReviewBusy || recording}
                   onClick={() => void requestProjectReview({ missionId: reviewTarget.id, finishLine: reviewTarget.finishLine! })}
                   variant="secondary"
                 >
@@ -618,6 +629,7 @@ export default function StrategicDelta({
               {shownOperationError}
             </p>
           )}
+          {projectReviewAccessError && <p className="sd-hint" role="status">{projectReviewAccessError}</p>}
           {projectReviewError && <p className="sd-fail" role="alert">{projectReviewError}</p>}
           {projectReview && !projectReviewBusy && (
             <p className="sd-support">
@@ -725,6 +737,7 @@ export default function StrategicDelta({
                   {projectReview.warnings.map((warning, index) => <p className="sd-hint" key={index}>{warning}</p>)}
                 </section>
               )}
+              {(projectReview || confirmedLessons.length > 0) && <ProjectLearning review={projectReview} lessons={confirmedLessons} onConfirm={onConfirmLesson} onRetire={onRetireLesson} />}
               {delta.inhibited.length > 0 && (
                 <section>
                   <h3>Alternatives inhibited</h3>
