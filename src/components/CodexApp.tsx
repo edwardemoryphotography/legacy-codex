@@ -41,6 +41,44 @@ const PRIMARY_TAB_IDS: TabId[] = ['mission', 'codex', 'controls']
 const PRIMARY_TABS = TABS.filter(tab => PRIMARY_TAB_IDS.includes(tab.id))
 const MORE_TABS = TABS.filter(tab => !PRIMARY_TAB_IDS.includes(tab.id))
 
+function TabIcon({ tab }: { tab: TabId | 'more' }) {
+  return (
+    <svg
+      className="codex-tab-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {tab === 'mission' && <path d="m12 3 8 9-8 9-8-9 8-9Zm0 5-3 7 6-3-3-4Z" />}
+      {tab === 'codex' && (
+        <>
+          <path d="M12 6c-3-2-6-2-9-1v14c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1Z" />
+          <path d="M12 6v14" />
+        </>
+      )}
+      {tab === 'controls' && (
+        <>
+          <path d="M4 7h3m4 0h9M4 17h9m4 0h3" />
+          <circle cx="9" cy="7" r="2" />
+          <circle cx="15" cy="17" r="2" />
+        </>
+      )}
+      {tab === 'more' && (
+        <>
+          <circle cx="7" cy="7" r="2" />
+          <circle cx="17" cy="7" r="2" />
+          <circle cx="7" cy="17" r="2" />
+          <circle cx="17" cy="17" r="2" />
+        </>
+      )}
+    </svg>
+  )
+}
+
 export default function CodexApp() {
   const [activeTab, setActiveTab] = useState<TabId>('mission')
   const [moreOpen, setMoreOpen] = useState(false)
@@ -104,8 +142,24 @@ export default function CodexApp() {
     <div className="codex-shell">
       <header className="codex-header">
         <div className="codex-brand">
-          <h1>Legacy Codex<span className="brand-dot" aria-hidden="true" /></h1>
-          <p>Turn a real idea into the one next move.</p>
+          <svg
+            className="codex-brandmark"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="m12 2 10 10-10 10L2 12 12 2Z" />
+            <path d="m15.5 8.5-2 5-5 2 2-5 5-2Z" />
+          </svg>
+          <div className="codex-brand-copy">
+            <span className="codex-brand-eyebrow">Personal workspace</span>
+            <h1>Legacy Codex</h1>
+            <p>Keep the thread. Find your next move.</p>
+          </div>
         </div>
         <ThemeReview />
       </header>
@@ -128,13 +182,9 @@ export default function CodexApp() {
               onClick={() => selectTab(tab.id)}
               onKeyDown={event => handleTabKeyDown(event, index)}
               className="codex-tab interactive-control"
-              style={{
-                border: activeTab === tab.id ? '1px solid var(--teal)' : '1px solid transparent',
-                background: activeTab === tab.id ? 'var(--teal-soft)' : 'transparent',
-                color: activeTab === tab.id ? 'var(--teal)' : 'var(--text-dim)',
-              }}
             >
-              {tab.label}
+              <TabIcon tab={tab.id} />
+              <span className="codex-tab-label">{tab.label}</span>
             </button>
           ))}
         </div>
@@ -144,16 +194,13 @@ export default function CodexApp() {
           id="tab-more"
           aria-haspopup="dialog"
           aria-expanded={moreOpen}
+          data-secondary-active={activeIsSecondary}
           aria-controls="more-sheet"
           onClick={() => setMoreOpen(open => !open)}
           className="codex-tab interactive-control"
-          style={{
-            border: moreOpen || activeIsSecondary ? '1px solid var(--teal)' : '1px solid transparent',
-            background: moreOpen || activeIsSecondary ? 'var(--teal-soft)' : 'transparent',
-            color: moreOpen || activeIsSecondary ? 'var(--teal)' : 'var(--text-dim)',
-          }}
         >
-          {activeIsSecondary ? activeTabMeta?.label ?? 'More' : 'More'}
+          <TabIcon tab="more" />
+          <span className="codex-tab-label">{activeIsSecondary ? activeTabMeta?.label ?? 'More' : 'More'}</span>
         </button>
       </nav>
 
@@ -189,7 +236,7 @@ export default function CodexApp() {
                   onClick={() => selectTab(tab.id)}
                   className="more-sheet-item interactive-control"
                 >
-                  {tab.label}
+                  <span className="codex-tab-label">{tab.label}</span>
                 </button>
               ))}
             </div>

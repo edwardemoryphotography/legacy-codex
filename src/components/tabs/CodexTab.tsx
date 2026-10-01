@@ -112,12 +112,6 @@ export default function CodexTab() {
   const sectionCount = CODEX_SECTIONS.length
   const totalEntries = allEntries.length
 
-  const activeSectionData = activeSection
-    ? filteredSections.find(section => section.key === activeSection) ??
-      CODEX_SECTIONS.find(section => section.key === activeSection) ??
-      null
-    : null
-
   const bookmarkedEntries = useMemo(
     () => bookmarks.map(id => entryMap.get(id)).filter(Boolean) as CodexEntry[],
     [bookmarks, entryMap]
@@ -139,11 +133,11 @@ export default function CodexTab() {
       if (data && data.length) {
         const ids = data.map((r: { entry_id: string }) => r.entry_id)
         setBookmarks(ids)
-        setSbStatus('Bookmarks loaded from Supabase')
+        setSbStatus('Bookmarks loaded from your account')
         setTimeout(() => setSbStatus(''), 700)
       }
     } catch {
-      setSbStatus('Bookmark load skipped (RLS/user row)')
+      setSbStatus('Account bookmarks could not be loaded. Your local pins are kept.')
       setTimeout(() => setSbStatus(''), 1200)
     }
   }, [setBookmarks])
@@ -162,7 +156,7 @@ export default function CodexTab() {
           const key = (supabase as unknown as { supabaseKey?: string })?.supabaseKey || ''
           if (key && !key.includes('your-anon')) {
             setSbConnected(false)
-            setSbStatus('Sign in from Controls tab to persist bookmarks to Supabase')
+            setSbStatus('Sign in from Controls to sync bookmarks')
           }
         }
       } catch {}
@@ -179,10 +173,10 @@ export default function CodexTab() {
       } else {
         await supabase.from('nd_codex_bookmarks').delete().eq('user_id', sbUser.id).eq('entry_id', entryId)
       }
-      setSbStatus(isAdd ? 'Pinned to Supabase' : 'Unpinned from Supabase')
+      setSbStatus(isAdd ? 'Pinned to your account' : 'Unpinned from your account')
       setTimeout(() => setSbStatus(''), 600)
     } catch {
-      setSbStatus('Supabase bookmark sync failed')
+      setSbStatus('Account bookmark sync failed')
       setTimeout(() => setSbStatus(''), 1200)
     } finally {
       setSbSyncing(false)
@@ -196,7 +190,7 @@ export default function CodexTab() {
       return
     }
     setSbSyncing(true)
-    setSbStatus('Force syncing bookmarks...')
+    setSbStatus('Syncing bookmarks…')
     try {
       // push current local bookmarks
       if (bookmarks.length > 0) {
@@ -303,70 +297,30 @@ export default function CodexTab() {
   }
 
   return (
-    <section className="space-y-6">
+    <section className="codex-library">
       <div className="space-y-2">
+        <p className="library-eyebrow">Your reference library</p>
         <SectionTitle>Codex</SectionTitle>
         <SectionSubtitle>
-          Knowledge graph — the systematic record of Edward Emory Photography&apos;s operating principles, creative frameworks, and strategic decisions. Bookmarks now persist to Supabase (user scoped) when signed in.
+          The ideas, principles, and decisions you can come back to.
         </SectionSubtitle>
       </div>
 
-      <Card highlight="teal" style={{ padding: '18px' }}>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <div className="flex flex-wrap gap-2 mb-3">
-              <Badge tone="teal">{sectionCount} sections</Badge>
-              <Badge tone="amber">{totalEntries} entries</Badge>
-              <Badge tone="success">{bookmarkedEntries.length} pinned</Badge>
-              <Badge tone="muted">{recentEntries.length} recent</Badge>
-              {sbConnected && <Badge tone="teal">Supabase bookmarks</Badge>}
-              {sbSyncing && <Badge tone="teal">syncing…</Badge>}
-            </div>
-            <h3 className="text-2xl font-black tracking-tight" style={{ letterSpacing: '-0.04em' }}>
-              Browse the system, pin what matters, and keep every entry linkable.
-            </h3>
-            <p className="mt-2 text-sm sm:text-[0.95rem]" style={{ color: 'var(--text-soft)', lineHeight: 1.65 }}>
-              Search the graph, open a section, pin load-bearing entries, and copy either the markdown or a deep link to the current card.
-            </p>
-            {sbStatus && <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: 6 }}>{sbStatus}</div>}
-            <div className="mt-2">
-              <ActionChip onClick={forceSyncBookmarks} disabled={sbSyncing || !sbUser}>
-                {sbUser ? 'Force sync bookmarks' : 'Sign in (Controls) to enable Supabase bookmarks'}
-              </ActionChip>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full lg:w-auto">
-            {[
-              { label: 'Visible', value: trimmed ? String(visibleEntries.length) : String(totalEntries) },
-              { label: 'Section', value: activeSectionData?.label ?? 'root' },
-              { label: 'Entry', value: activeEntry?.title ?? 'root' },
-              { label: 'Mode', value: trimmed ? 'filtered' : 'all' },
-            ].map(stat => (
-              <div
-                key={stat.label}
-                className="rounded-[14px] px-3 py-2.5"
-                style={{
-                  border: '1px solid var(--line)',
-                  background: 'var(--field-bg-soft)',
-                }}
-              >
-                <div className="text-[10px] uppercase tracking-[0.24em]" style={{ color: 'var(--text-dim)' }}>
-                  {stat.label}
-                </div>
-                <div className="mt-1 text-sm font-semibold" style={{ color: 'var(--text)' }}>
-                  {stat.value}
-                </div>
-              </div>
-            ))}
-          </div>
+      <Card className="library-search">
+        <p>Search your system. Keep what matters close.</p>
+        <div className="library-counts">
+          <span>{sectionCount} sections</span>
+          <span>{totalEntries} entries</span>
+          <span>{bookmarkedEntries.length} pinned</span>
+          {sbSyncing && <span>syncing…</span>}
         </div>
-
-        <div className="mt-4">
+        <div>
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search codex entries…"
+            aria-label="Search codex entries"
             style={{
               width: '100%',
               border: '1px solid var(--line-strong)',
@@ -379,33 +333,32 @@ export default function CodexTab() {
             }}
           />
         </div>
+        <ActionChip onClick={forceSyncBookmarks} disabled={sbSyncing || !sbUser}>
+          {sbUser ? 'Sync bookmarks' : 'Sign in from Controls to sync bookmarks'}
+        </ActionChip>
+        {sbStatus && <p className="library-sync-status">{sbStatus}</p>}
       </Card>
 
-      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <Card style={{ padding: '14px' }}>
-          <div className="mb-3 flex flex-wrap gap-2">
-            <Badge tone="muted">sections</Badge>
-            <Badge tone="muted">nested entries</Badge>
-          </div>
-
-          <div className="grid gap-3 mb-4">
-            <QuickAccessList
+      <div className="library-layout">
+        <Card className="library-sidebar">
+          {(bookmarkedEntries.length > 0 || recentEntries.length > 0) && <div className="grid gap-3 mb-4">
+            {bookmarkedEntries.length > 0 && <QuickAccessList
               title="Pinned"
               items={bookmarkedEntries}
-              emptyMessage="Pin load-bearing entries from the active card. Synced to Supabase when signed in."
+              emptyMessage="Pin an entry to keep it close. Sign in to sync your pins."
               onOpen={entry => selectEntry(entry, { clearSearch: true })}
               onAction={toggleBookmark}
               actionLabel={() => 'Unpin'}
-            />
-            <QuickAccessList
+            />}
+            {recentEntries.length > 0 && <QuickAccessList
               title="Recent"
               items={recentEntries}
               emptyMessage="Recent selections will appear here automatically."
               onOpen={entry => selectEntry(entry, { clearSearch: true })}
               onAction={entry => toggleBookmark(entry)}
               actionLabel={entry => (bookmarks.includes(entry.id) ? 'Unpin' : 'Pin')}
-            />
-          </div>
+            />}
+          </div>}
 
           <nav className="grid gap-2" aria-label="Codex sections">
             {filteredSections.map(section => (
@@ -427,7 +380,7 @@ export default function CodexTab() {
           </nav>
         </Card>
 
-        <Card style={{ padding: '18px', minHeight: 460 }}>
+        <Card className="library-article">
           {activeEntry ? (
             <CodexContent
               entry={activeEntry}
@@ -441,7 +394,7 @@ export default function CodexTab() {
             <div className="flex flex-col items-center justify-center h-64 text-center">
               <div className="text-4xl mb-4 opacity-20" style={{ color: 'var(--teal)' }}>◈</div>
               <p className="text-sm" style={{ color: 'var(--text-dim)' }}>
-                Select an entry from the sidebar or search to jump straight into the graph.
+                Select an entry or search to find what you need.
               </p>
             </div>
           )}
@@ -449,7 +402,7 @@ export default function CodexTab() {
       </div>
 
       <HelperLine variant={status.includes('unavailable') ? 'error' : status ? 'success' : undefined}>
-        {status || (sbConnected ? 'Pinned entries persist locally + Supabase (user_id + RLS). Use Force sync bookmarks.' : 'Pinned entries persist locally, and entry links remain copyable without a backend. Sign in via Controls for Supabase sync.')}
+        {status || (sbConnected ? 'Your pins are kept on this device. Sync bookmarks to keep them with your account.' : 'Your pins are kept on this device. Sign in from Controls to sync them to your account.')}
       </HelperLine>
     </section>
   )
@@ -679,7 +632,7 @@ function CodexContent({
 
       <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--line)' }}>
         <HelperLine>
-          Pinned entries persist locally + Supabase (when signed in). Force sync available above.
+          Pins stay on this device. Sign in to sync them with your account.
         </HelperLine>
       </div>
     </div>
