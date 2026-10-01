@@ -11,6 +11,7 @@ import BiometricsTab from './tabs/BiometricsTab'
 import ConstraintValidatorTab from './tabs/ConstraintValidatorTab'
 import CodexTab from './tabs/CodexTab'
 import ControlsTab from './tabs/ControlsTab'
+import BriefTab from './tabs/BriefTab'
 import { OrbHostProvider, PersistentOrb } from './OrbHost'
 import ThemeReview from './ThemeReview'
 
@@ -29,6 +30,7 @@ const TABS: Tab[] = [
   { id: 'constraint-validator',  label: 'Constraint Validator' },
   { id: 'codex',                 label: 'Codex' },
   { id: 'controls',             label: 'Controls' },
+  { id: 'brief',                 label: 'Brief' },
 ]
 
 // Everyday screens live in the primary bar so they're always one tap away,
@@ -264,6 +266,7 @@ export default function CodexApp() {
           {activeTab === 'constraint-validator' && <ConstraintValidatorTab />}
           {activeTab === 'codex'                && <CodexTab />}
           {activeTab === 'controls'             && <ControlsTab />}
+          {activeTab === 'brief'                 && <BriefTab />}
         </div>
       </main>
 
