@@ -1044,7 +1044,8 @@ export default function MissionTab() {
         <div className="mission-status" role="alert">
           <p>{connectionError}</p>
           <div className="flex flex-wrap items-center gap-4 mt-3">
-            <ActionBtn onClick={retryConnection}>Try connection again</ActionBtn>
+            {/* The Strategic Delta offers the same retry under its title once a read has failed; one label, one button. */}
+            {!(loaded && loadFailed) && <ActionBtn onClick={retryConnection}>Check again</ActionBtn>}
             <a href="https://legacy-codex.vercel.app">Open main Legacy Codex site</a>
           </div>
         </div>
