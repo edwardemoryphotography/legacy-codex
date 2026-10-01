@@ -68,9 +68,10 @@ export async function POST(req: NextRequest) {
     const cached = await cachedProjectReview(client, owner.userId, context)
     if (cached) return NextResponse.json({ operation: cached.operation, review: cached, lessons: context.lessons })
     const model = new Anthropic({ maxRetries: 0, timeout: 40_000 })
-    // Lesson content is already represented once in the bounded sources.
-    // Do not resend the full UI lesson objects outside the excerpt budget.
-    const packet = JSON.stringify({ mission: context.mission, sources: context.sources, warnings: context.warnings })
+    // Full mission/lesson content is represented in the bounded sources.
+    // Only identify the target here; do not bypass excerpts with raw records.
+    const packet = JSON.stringify({ mission: { id: context.mission.id, title: context.mission.title.slice(0, 160),
+      finishLine: body.finishLine, state: context.mission.state }, sources: context.sources, warnings: context.warnings })
     stage = 'draft'
     const draft = await model.messages.create({ model: 'claude-opus-5', max_tokens: 1_400, system: RULES, messages: [{ role: 'user', content: `Reconstruct and propose from this context:\n${packet}` }] })
     const draftText = draft.content.filter(b => b.type === 'text').map(b => b.text).join('\n')
