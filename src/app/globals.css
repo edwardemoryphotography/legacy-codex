@@ -2080,6 +2080,18 @@ body {
 .sd-project-review details { margin: 0.65rem 0; }
 .sd-project-review summary { cursor: pointer; overflow-wrap: anywhere; }
 .sd-project-review h3 { margin-top: 1rem; }
+.sd-project-review label { display: block; margin: 12px 0 6px; }
+.sd-project-review textarea {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--line-strong);
+  border-radius: 10px; background: var(--field-bg); color: var(--text); font: inherit;
+  font-size: 16px; resize: vertical;
+}
+.sd-project-review button {
+  margin: 10px 0; min-height: 44px; padding: 10px 14px; border-radius: 10px;
+  border: 1px solid var(--line-strong); background: var(--control-bg); color: var(--text);
+}
+.sd-project-review button:disabled { opacity: .55; }
+.sd-project-review input[type="checkbox"] { margin-right: 8px; accent-color: var(--teal); }
 
 /* The reference library shares Mission's quiet surfaces, with the reading
    pane visible without scrolling through the whole catalogue on a phone. */
