@@ -468,23 +468,23 @@ export default function StrategicDelta({
       data-recording={recording ? 'true' : undefined}
       data-first-run={isFirstRun ? 'true' : undefined}
       aria-busy={reconstructing || recording}
-      aria-label="Strategic Delta"
+      aria-label="Your next move"
     >
       <div className="sd-stage">
       <OrbSlot />
       <div className="sd-copy">
       <header className="sd-identity">
-        <h2>Strategic Delta</h2>
-        <p className="sd-purpose">Your best next move</p>
+        <h2>Your next move</h2>
+        <p className="sd-purpose">Only from what you have told Codex</p>
       </header>
       {!pendingRead && (
         <p className="sd-mission">
           {primaryMission ? (
-            <>Primary mission <strong>{primaryMission.title}</strong></>
+            <>Working on <strong>{primaryMission.title}</strong></>
           ) : readAvailable ? (
-            'No Primary mission yet'
+            'Nothing captured yet'
           ) : (
-            'Primary mission unavailable'
+            'Your missions could not be loaded'
           )}
         </p>
       )}
@@ -578,6 +578,51 @@ export default function StrategicDelta({
               )}
             </div>
           </div>}
+
+          {aimedMission && (
+            <section className="sd-known" aria-label="What Codex has from you">
+              <h3 className="sd-known-title">What Codex has from you</h3>
+              <dl>
+                <div>
+                  <dt>What you are finishing</dt>
+                  <dd>{aimedMission.title}</dd>
+                </div>
+                <div>
+                  <dt>How you will know it is done</dt>
+                  <dd>{finishLine ?? 'Not set yet — add a finish line to get a concrete step.'}</dd>
+                </div>
+                {proofSteps.length > 1 && (
+                  <div>
+                    <dt>What that asks you to prove</dt>
+                    <dd>
+                      <ul>
+                        {proofSteps.map(step => (
+                          <li key={step.index} data-selected={step.selected || undefined}>
+                            {step.text}
+                            {step.selected && <span className="sd-known-tag">Next</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    </dd>
+                  </div>
+                )}
+                <div>
+                  <dt>Evidence</dt>
+                  <dd>
+                    {delta.evidenceState === 'none'
+                      ? 'None linked yet, so nothing here is verified.'
+                      : delta.evidenceState === 'verified'
+                        ? 'Linked and verified.'
+                        : delta.evidenceState === 'conflict'
+                          ? 'Linked, but the sources disagree.'
+                          : delta.evidenceState === 'stale'
+                            ? 'Linked, but out of date.'
+                            : 'Linked, not yet verified.'}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          )}
 
           {!hasRecommendation && delta.move !== title && (
             <p className="sd-because" aria-live="polite">{delta.move}</p>
