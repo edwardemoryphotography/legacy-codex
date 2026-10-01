@@ -64,6 +64,8 @@ Repeated Supabase/Vercel configuration rediscovery is a system failure. Before c
 
 Read this file first, then `STATE.md` for the latest project status, then `TODOS.md` for queued work. An empty queue does not block the current explicit request. Coordination docs are docs/coordination only — they describe state, they do not themselves authorize application, external-system, or production-data changes; the user's explicit request does that (see Authority model above).
 
+Before opening or continuing a branch, check real PR state with `node scripts/pr-status.mjs`; `docs/GITHUB-FLOW.md` explains squash-merge, one-branch-per-agent, and the claim/release habit.
+
 ### RULES
 
 1. **Verify before claiming done, proportionally.** Run or otherwise check your work — the checks that actually establish the result (tests, lint, `tsc --noEmit`, a build, a manual check for UI work). Don't report success on an unverified change, and don't loop through redundant re-checks once the appropriate one has already passed.
