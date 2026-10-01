@@ -1064,7 +1064,7 @@ export default function MissionTab() {
                 className="mission-invite-input"
                 autoComplete="off"
                 required
-                rows={5}
+                rows={3}
                 placeholder="A real project, in your words"
                 value={nameTitle}
                 onChange={setNameTitle}
@@ -1079,7 +1079,7 @@ export default function MissionTab() {
                 autoComplete="off"
                 enterKeyHint="done"
                 required
-                placeholder="The observable thing that means it is finished"
+                placeholder="An observable finish line"
                 value={nameFinish}
                 onChange={setNameFinish}
               />

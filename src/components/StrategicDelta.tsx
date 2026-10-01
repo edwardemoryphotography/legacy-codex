@@ -490,7 +490,7 @@ export default function StrategicDelta({
             <p className="sd-taught">Kept: {retainedStep.move}. It stays on record, and it is not the next step.</p>
           )}
 
-          <div className="sd-act">
+          {!isFirstRun && <div className="sd-act">
             {hasRecommendation && accepted ? (
               <div className="sd-act-primary">
                 {/* The saved action is a separate, explicit commitment. This
@@ -566,16 +566,14 @@ export default function StrategicDelta({
                 </ActionChip>
               )}
             </div>
-          </div>
+          </div>}
 
           {!hasRecommendation && delta.move !== title && (
             <p className="sd-because" aria-live="polite">{delta.move}</p>
           )}
-          {(isFirstRun || delta.because !== delta.move) && (
+          {!isFirstRun && delta.because !== delta.move && (
             <p className={hasRecommendation || delta.move === title ? 'sd-because' : 'sd-support'}>
-              {isFirstRun
-                ? 'Write the idea below. The next move is named from those words, and from nothing else.'
-                : delta.because}
+              {delta.because}
             </p>
           )}
 
@@ -585,6 +583,19 @@ export default function StrategicDelta({
               already exist there — re-showing the "name your mission" form
               would be wrong. */}
           {delta.provenance === 'insufficient_context' && !delta.missionId && children}
+
+          {isFirstRun && (
+            <div className="sd-act">
+              <ActionChip
+                onClick={() => setOpen(open === 'why' ? null : 'why')}
+                variant="ghost"
+                aria-expanded={open === 'why'}
+                aria-controls="sd-why"
+              >
+                Why this?
+              </ActionChip>
+            </div>
+          )}
 
           {(correcting || awaitingOperation || projectReviewBusy) && (
             <p className="sd-phase">{showPhaseText ? phaseCopy : '\u00a0'}</p>

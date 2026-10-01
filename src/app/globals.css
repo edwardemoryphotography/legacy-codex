@@ -4,15 +4,15 @@
 
 :root {
   color-scheme: dark;
-  --bg: #07080d;
-  --surface: #10111a;
-  --surface-soft: #161826;
-  --surface-strong: #1d2030;
-  --line: #262b3d;
-  --line-strong: #343a52;
-  --text: #f0f2fa;
-  --text-soft: #b8bfd4;
-  --text-dim: #8c93ad;
+  --bg: #101113;
+  --surface: #191b1e;
+  --surface-soft: #202226;
+  --surface-strong: #2a2d32;
+  --line: #303236;
+  --line-strong: #474a50;
+  --text: #f3efe8;
+  --text-soft: #bbb7b0;
+  --text-dim: #96928b;
   --teal: #28e0bb;
   --teal-soft: rgba(40, 224, 187, 0.14);
   --amber: #f5b84b;
@@ -31,16 +31,16 @@
   /* Fixed chrome (bottom tab bar) and the Mission card's drop shadow — the
      two dark literals the light review theme has to override. */
   /* Opaque: at 96% the page text ghosted through the tab bar on phones. */
-  --chrome: #0a0a0f;
-  --invite-field-bg: rgba(8, 10, 18, 0.98);
-  --card-shadow: 0 24px 60px rgba(0, 0, 0, 0.38);
+  --chrome: #191b1e;
+  --invite-field-bg: #121416;
+  --card-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
   /* Shared surfaces used by ui.tsx and CodexTab inline styles. */
-  --card-bg: linear-gradient(180deg, rgba(23, 26, 40, 0.98), rgba(14, 16, 24, 0.98));
-  --card-lift: 0 18px 50px rgba(0, 0, 0, 0.24);
-  --field-bg: rgba(13, 15, 24, 0.94);
-  --field-bg-soft: rgba(10, 12, 19, 0.38);
-  --control-bg: linear-gradient(180deg, rgba(22, 24, 36, 0.98), rgba(15, 17, 26, 0.98));
-  --control-lift: 0 10px 22px rgba(0, 0, 0, 0.18);
+  --card-bg: #191b1e;
+  --card-lift: 0 12px 32px rgba(0, 0, 0, 0.12);
+  --field-bg: #121416;
+  --field-bg-soft: rgba(18, 20, 22, 0.55);
+  --control-bg: #24272b;
+  --control-lift: none;
 }
 
 /* Review-only light presentation (ThemeReview.tsx sets data-theme on
@@ -92,8 +92,7 @@ html {
 
 body {
   background:
-    radial-gradient(ellipse 90% 46% at 50% -12%, rgba(92, 112, 186, 0.18), transparent 58%),
-    radial-gradient(ellipse 42% 28% at 100% 0%, rgba(40, 224, 187, 0.05), transparent 46%),
+    radial-gradient(ellipse 80% 38% at 65% -12%, rgba(196, 177, 147, 0.08), transparent 65%),
     var(--bg);
   color: var(--text);
   font-family: 'Instrument Sans Variable', 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -122,9 +121,9 @@ body {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
-  padding: 8px;
+  padding: 6px 8px;
   padding-bottom: calc(8px + var(--safe-bottom));
-  border-top: 1px solid var(--line-strong);
+  border-top: 1px solid var(--line);
   background: var(--chrome);
   box-shadow: 0 -14px 36px rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(14px);
@@ -142,13 +141,20 @@ body {
 }
 
 .codex-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   min-height: 52px;
   padding: 8px 6px;
-  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 12px;
   cursor: pointer;
   color: var(--text-dim);
   font-size: 0.75rem;
-  font-weight: 650;
+  font-weight: 500;
   line-height: 1.25;
   text-align: center;
   text-wrap: balance;
@@ -157,6 +163,15 @@ body {
     border-color 150ms ease,
     background 150ms ease,
     color 150ms ease;
+}
+
+.codex-tab-icon { width: 19px; height: 19px; flex: none; }
+.codex-tab[aria-selected="true"],
+.codex-tab[aria-expanded="true"],
+.codex-tab[data-secondary-active="true"] {
+  background: var(--surface-strong);
+  color: var(--text);
+  border-color: var(--line-strong);
 }
 
 .interactive-control {
@@ -356,13 +371,9 @@ body {
   isolation: isolate;
   max-width: 52rem;
   padding: 22px 20px 18px;
-  border-radius: 28px;
-  background:
-    radial-gradient(90% 80% at 0% 0%, color-mix(in srgb, var(--sd-indigo) 42%, transparent), transparent 58%),
-    radial-gradient(70% 90% at 100% 10%, color-mix(in srgb, var(--sd-blue) 16%, transparent), transparent 52%),
-    radial-gradient(46% 42% at 88% 100%, color-mix(in srgb, var(--sd-magenta) 14%, transparent), transparent 58%),
-    linear-gradient(180deg, color-mix(in srgb, var(--sd-indigo) 24%, var(--bg)), var(--bg));
-  border: 1px solid color-mix(in srgb, var(--sd-violet) 34%, transparent);
+  border-radius: 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
   box-shadow:
     var(--card-shadow),
     inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
@@ -489,24 +500,25 @@ body {
 }
 
 .sd-identity h2 {
-  color: var(--text);
-  font-size: clamp(1.35rem, 1.1rem + 1vw, 1.7rem);
-  font-weight: 650;
-  letter-spacing: -0.03em;
-  line-height: 1.15;
+  color: var(--text-soft);
+  font-size: 0.73rem;
+  font-weight: 550;
+  letter-spacing: 0.13em;
+  line-height: 1.4;
+  text-transform: uppercase;
 }
 
 .sd-purpose {
   margin-top: 4px;
   color: var(--text-soft);
-  font-size: 1.02rem;
+  font-size: 0.85rem;
   line-height: 1.4;
 }
 
 .sd-mission {
   margin-top: 12px;
   color: var(--text-soft);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   line-height: 1.4;
 }
 
@@ -551,11 +563,7 @@ body {
 }
 
 .sd::after {
-  content: '';
-  display: block;
-  height: 1px;
-  margin: 28px 0 8px;
-  background: linear-gradient(90deg, transparent, var(--line), transparent);
+  content: none;
 }
 
 .sd-field {
@@ -1248,7 +1256,7 @@ body {
   margin-top: 14px;
   color: var(--text);
   font-family: 'Instrument Serif', Georgia, 'Iowan Old Style', serif;
-  font-size: clamp(1.9rem, 1.2rem + 2.4vw, 3.25rem);
+  font-size: clamp(2.1rem, 1.4rem + 2.6vw, 3.6rem);
   font-weight: 400;
   letter-spacing: -0.03em;
   line-height: 1.12;
@@ -1347,11 +1355,10 @@ body {
 .sd .sd-act-primary button,
 .sd .mission-invite button {
   min-height: 48px !important;
-  border-color: color-mix(in srgb, var(--sd-blue) 58%, var(--sd-violet)) !important;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--sd-violet) 32%, transparent), color-mix(in srgb, var(--sd-blue) 16%, transparent)) !important;
-  color: var(--text) !important;
-  box-shadow: 0 12px 28px color-mix(in srgb, var(--sd-indigo) 36%, transparent) !important;
+  border-color: var(--text) !important;
+  background: var(--text) !important;
+  color: var(--bg) !important;
+  box-shadow: none !important;
 }
 
 .sd-controls {
@@ -1502,7 +1509,7 @@ body {
   user-select: text;
   touch-action: manipulation;
   font-size: 16px !important;
-  border: 1px solid color-mix(in srgb, var(--teal) 32%, var(--line-strong)) !important;
+  border: 1px solid var(--line-strong) !important;
   background: var(--invite-field-bg) !important;
   color: var(--text) !important;
 }
@@ -1689,14 +1696,17 @@ body {
    move-first hierarchy — only the scale of the space around it. */
 @media (min-width: 720px) {
   .sd-stage {
-    grid-template-columns: 264px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 232px;
     gap: 28px;
     align-items: start;
   }
   .sd-field-slot {
-    --sd-field-size: 264px;
+    --sd-field-size: 232px;
+    grid-column: 2;
+    grid-row: 1;
     margin: 0;
   }
+  .sd-copy { grid-column: 1; grid-row: 1; }
   .sd-orb-host[data-orb="hero"] .sd-field {
     --sd-prox-range: 18px;
   }
@@ -1704,8 +1714,8 @@ body {
 
 @media (min-width: 1024px) {
   .sd {
-    max-width: 56rem;
-    padding: 28px 32px 24px;
+    max-width: none;
+    padding: 36px;
   }
   .sd::after {
     margin-top: 28px;
@@ -1725,17 +1735,18 @@ body {
     display: block;
   }
   .sd-field-slot {
-    --sd-field-size: 148px;
+    --sd-field-size: 104px;
     float: right;
-    margin: -6px -8px 6px 10px;
+    margin: -2px -4px 8px 8px;
     shape-outside: circle(50%);
     shape-margin: 8px;
   }
   .sd-move {
     margin-top: 8px;
-    font-size: 1.7rem;
+    font-size: 2.1rem;
   }
   .sd-act {
+    clear: both;
     margin-top: 16px;
   }
 }
@@ -1748,10 +1759,13 @@ body {
 
 /* Mission front door: quiet navigation, one focal surface, progressive detail. */
 .codex-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding-bottom: 16px; }
-.codex-brand { display: grid; gap: 6px; max-width: 36rem; }
-.codex-header h1 { font-size: 1.15rem; font-weight: 560; letter-spacing: -0.04em; display: flex; align-items: center; gap: 9px; }
+.codex-brand { display: flex; align-items: center; gap: 14px; max-width: 36rem; }
+.codex-brand-copy { display: grid; gap: 4px; }
+.codex-brandmark { width: 40px; height: 40px; flex: none; color: var(--text); }
+.codex-brand-eyebrow { color: var(--text-dim); font-size: 0.62rem; font-weight: 550; letter-spacing: 0.16em; text-transform: uppercase; }
+.codex-header h1 { font-size: 1.25rem; font-weight: 550; letter-spacing: -0.04em; display: flex; align-items: center; gap: 9px; }
 .brand-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 12px color-mix(in srgb, var(--teal) 70%, transparent); }
-.codex-header p { color: var(--text-soft); font-size: 1.02rem; line-height: 1.35; letter-spacing: -0.02em; }
+.codex-header p { color: var(--text-dim); font-size: 0.8rem; line-height: 1.35; }
 .codex-main { min-width: 0; }
 .codex-footer { color: var(--text-dim); font-size: 12px; padding-top: 36px; }
 .mission-space { display: grid; gap: 18px; }
@@ -1777,7 +1791,7 @@ body {
   display: grid;
   gap: 3px;
   min-height: 44px;
-  padding-top: 10px;
+  padding-top: 8px;
   border-top: 1px solid var(--line);
   color: var(--text-dim);
 }
@@ -1927,17 +1941,17 @@ body {
    its opaque, unscaled base state indefinitely under this toggle too. */
 [data-reduced-motion="true"] .sd-field-tap::after { opacity: 0 !important; }
 @media (min-width: 1024px) {
-  .codex-shell { display: grid; grid-template-columns: 190px minmax(0, 1fr); column-gap: 54px; padding: 36px 40px; }
-  .codex-header { grid-column: 1 / -1; padding-bottom: 20px; }
-  .codex-tablist { position: sticky; top: 24px; align-self: start; display: flex; flex-direction: column; gap: 6px; padding: 0; border: 0; box-shadow: none; background: transparent; backdrop-filter: none; }
-  .codex-tab { width: 100%; min-height: 44px; text-align: left; padding: 12px 16px; font-size: 13px; font-weight: 500; }
-  .codex-main { max-width: 940px; }
+  .codex-shell { display: grid; grid-template-columns: 168px minmax(0, 1fr); column-gap: 40px; padding: 32px 36px; }
+  .codex-header { grid-column: 1 / -1; padding-bottom: 26px; margin-bottom: 26px; border-bottom: 1px solid var(--line); }
+  .codex-tablist { position: sticky; top: 24px; align-self: start; display: flex; flex-direction: column; gap: 8px; padding: 0; border: 0; box-shadow: none; background: transparent; backdrop-filter: none; }
+  .codex-tab { flex-direction: row; justify-content: flex-start; gap: 12px; width: 100%; min-height: 48px; text-align: left; padding: 12px 14px; font-size: 13px; font-weight: 500; }
+  .codex-main { max-width: 1080px; }
   .codex-footer { grid-column: 2; }
 }
 @media (max-width: 600px) {
-  .codex-shell { padding: 20px 16px calc(106px + var(--safe-bottom)); }
+  .codex-shell { padding: 18px 12px calc(106px + var(--safe-bottom)); }
   .codex-header { padding-bottom: 18px; }
-  .codex-header p { font-size: 0.95rem; }
+  .codex-header p { font-size: 0.74rem; }
   .mission-space { gap: 14px; }
   .session-status { max-width: 100%; }
   /* A healthy connection is not news on a phone; "Checking…", failures,
@@ -2066,3 +2080,61 @@ body {
 .sd-project-review details { margin: 0.65rem 0; }
 .sd-project-review summary { cursor: pointer; overflow-wrap: anywhere; }
 .sd-project-review h3 { margin-top: 1rem; }
+
+/* The reference library shares Mission's quiet surfaces, with the reading
+   pane visible without scrolling through the whole catalogue on a phone. */
+.library-eyebrow {
+  color: var(--text-dim);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.codex-library { display: grid; gap: 24px; }
+.library-search { display: grid; gap: 12px; box-shadow: none !important; }
+.library-counts { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--text-dim); font-size: 0.78rem; }
+.library-counts strong { color: var(--text); font-weight: 550; }
+.library-sync-status { margin-top: 8px; color: var(--text-dim); font-size: 0.78rem; }
+.library-layout { display: grid; gap: 20px; align-items: start; }
+.library-sidebar { box-shadow: none !important; }
+.library-sidebar nav { max-height: 19rem; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+.library-article { min-width: 0; box-shadow: none !important; }
+.library-article .codex-markdown h2 { font-family: 'Instrument Serif', Georgia, serif; font-weight: 400; }
+.library-article .codex-markdown { line-height: 1.75 !important; }
+.library-article pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.commitment-panel { border-radius: 24px; padding: 24px; background: var(--surface); }
+.commitment-panel h3 { font-family: 'Instrument Serif', Georgia, serif; font-size: 1.7rem; font-weight: 400; }
+.mission-disclosure > summary { padding: 18px 8px; }
+.mission-invite { clear: both; margin-top: 20px; }
+.mission-invite textarea { resize: vertical; min-height: 80px !important; }
+.sd[data-first-run="true"] .sd-act { margin-top: 10px; justify-items: start; }
+
+@media (min-width: 1024px) {
+  .library-layout { grid-template-columns: 250px minmax(0, 1fr); }
+  .library-sidebar { position: sticky; top: 24px; }
+  .library-sidebar nav { max-height: 32rem; }
+  .mission-path { max-width: none; gap: 24px; }
+  .mission-path li { padding-top: 12px; padding-bottom: 8px; }
+}
+
+@media (max-width: 600px) {
+  .codex-brandmark { width: 30px; height: 30px; }
+  .codex-brand { gap: 10px; }
+  .codex-brand-eyebrow { font-size: 0.56rem; }
+  .codex-header h1 { font-size: 1.15rem; }
+  .codex-brand-copy { gap: 2px; }
+  .sd:not(.sd-orb-host) { padding: 20px 18px; border-radius: 22px; }
+  .sd-purpose { display: none; }
+  .sd-mission { margin-top: 8px; font-size: 0.75rem; }
+  .sd-because, .sd-support { clear: both; font-size: 0.9rem; line-height: 1.45; margin-top: 12px; }
+  .mission-invite { margin-top: 16px; gap: 10px; }
+  .mission-invite-field label { font-size: 0.75rem; }
+  .mission-invite textarea { height: 80px; }
+  .mission-invite input { min-height: 46px; }
+  .mission-path span { font-size: 0.72rem; }
+  .mission-space { gap: 12px; }
+  .commitment-panel { padding: 18px; border-radius: 22px; }
+  .library-sidebar nav { max-height: 12rem; }
+  .codex-tablist { padding-bottom: calc(8px + var(--safe-bottom)); }
+  .codex-tab { min-height: 52px; font-size: 0.65rem; }
+  .codex-footer { padding: 24px 6px 0; }
+}
