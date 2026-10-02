@@ -1,0 +1,31 @@
+{
+  "passed": true,
+  "browser": "140.0.7339.16",
+  "checks": [
+    "Latest chapter and complete chapter rail rendered from evidence",
+    "Reduced-motion preference honored on initial load",
+    "Every chapter (18) renders its own sources and excludes future domains",
+    "Previous/next navigation and lower bound",
+    "Constellation domain opens real historical index; Escape closes it",
+    "Archive search, honest empty result, and selection navigation",
+    "Playback restarts at origin, advances, and pauses",
+    "Stable deep links and keyboard chapter navigation",
+    "Coverage limitations and source repositories accessible",
+    "Archify companion link resolves to an actual HTML artifact",
+    "390, 430, 768, 1440px layouts have no horizontal overflow; mobile domain control works",
+    "file:// directly opens and navigates with no HTTP resource dependencies",
+    "No browser JavaScript errors"
+  ],
+  "errors": [],
+  "viewports": [
+    390,
+    430,
+    768,
+    1440
+  ],
+  "screenshots": [
+    "desktop.png",
+    "mobile.png"
+  ],
+  "visualInspection": "pending-human-or-agent-image-review"
+}

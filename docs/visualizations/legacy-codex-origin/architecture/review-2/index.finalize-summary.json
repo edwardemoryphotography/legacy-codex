@@ -1,0 +1,240 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "fail",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "/Users/edwardfrye/Desktop/legacy-codex-brief-update/docs/visualizations/legacy-codex-origin/architecture/candidate.json",
+    "sha256": "c73d8ed151b0ca32d36b8480cebb7b57796e89bf93eb35d52d46f7d1cfd6e3c7",
+    "bytes": 9811
+  },
+  "artifact": {
+    "path": "/Users/edwardfrye/Desktop/legacy-codex-brief-update/docs/visualizations/legacy-codex-origin/architecture/index.html",
+    "sha256": "2586f50193cc79fdea9d3308ca33cf135e11eb60f08e16117a131b3fb802c038",
+    "bytes": 784748
+  },
+  "gates": {
+    "validate": "fail",
+    "deliver": "not-run",
+    "check": "not-run",
+    "browser-check": "not-run"
+  },
+  "failedStage": "validate",
+  "diagnostics": [
+    {
+      "code": "layout/constraint",
+      "severity": "error",
+      "message": "Component \"ledger\" falls outside the viewBox 1206x1068 — adjust pos/size or set a larger meta.viewBox.",
+      "subject": {
+        "diagramType": "architecture"
+      }
+    },
+    {
+      "code": "layout/route-out-of-bounds",
+      "severity": "error",
+      "message": "Connection \"persist\" extends outside the viewBox — move the measured outside route points inward or enlarge an authored viewBox for right/bottom overflow.",
+      "subject": {
+        "diagramType": "architecture",
+        "collection": "connections",
+        "index": 6,
+        "id": "persist",
+        "from": "correction",
+        "to": "ledger"
+      },
+      "evidence": {
+        "viewBox": [
+          1206,
+          1068
+        ],
+        "outsidePoints": [
+          [
+            847,
+            -56
+          ],
+          [
+            966,
+            -56
+          ],
+          [
+            966,
+            -80
+          ]
+        ],
+        "points": [
+          [
+            197,
+            920
+          ],
+          [
+            197,
+            714.5
+          ],
+          [
+            847,
+            714.5
+          ],
+          [
+            847,
+            -56
+          ],
+          [
+            966,
+            -56
+          ],
+          [
+            966,
+            -80
+          ]
+        ]
+      },
+      "supportedFixes": [
+        "move negative route coordinates inside the canvas; for right/bottom overflow, enlarge meta.viewBox or reroute inward; preserve endpoints, direction and labels, then revalidate"
+      ]
+    },
+    {
+      "code": "layout/route-out-of-bounds",
+      "severity": "error",
+      "message": "Connection \"feedback\" extends outside the viewBox — move the measured outside route points inward or enlarge an authored viewBox for right/bottom overflow.",
+      "subject": {
+        "diagramType": "architecture",
+        "collection": "connections",
+        "index": 7,
+        "id": "feedback",
+        "from": "ledger",
+        "to": "reads"
+      },
+      "evidence": {
+        "viewBox": [
+          1206,
+          1068
+        ],
+        "outsidePoints": [
+          [
+            1009.05,
+            -80
+          ],
+          [
+            1009.05,
+            -10
+          ],
+          [
+            980,
+            -10
+          ]
+        ],
+        "points": [
+          [
+            1009.05,
+            -80
+          ],
+          [
+            1009.05,
+            -10
+          ],
+          [
+            980,
+            -10
+          ],
+          [
+            980,
+            60
+          ]
+        ]
+      },
+      "supportedFixes": [
+        "move negative route coordinates inside the canvas; for right/bottom overflow, enlarge meta.viewBox or reroute inward; preserve endpoints, direction and labels, then revalidate"
+      ]
+    },
+    {
+      "code": "layout/route-out-of-bounds",
+      "severity": "error",
+      "message": "Connection \"lesson-write\" extends outside the viewBox — move the measured outside route points inward or enlarge an authored viewBox for right/bottom overflow.",
+      "subject": {
+        "diagramType": "architecture",
+        "collection": "connections",
+        "index": 13,
+        "id": "lesson-write",
+        "from": "lessons",
+        "to": "ledger"
+      },
+      "evidence": {
+        "viewBox": [
+          1206,
+          1068
+        ],
+        "outsidePoints": [
+          [
+            1113,
+            -56
+          ],
+          [
+            994,
+            -56
+          ],
+          [
+            994,
+            -80
+          ]
+        ],
+        "points": [
+          [
+            987,
+            920
+          ],
+          [
+            987,
+            593
+          ],
+          [
+            1113,
+            593
+          ],
+          [
+            1113,
+            -56
+          ],
+          [
+            994,
+            -56
+          ],
+          [
+            994,
+            -80
+          ]
+        ]
+      },
+      "supportedFixes": [
+        "move negative route coordinates inside the canvas; for right/bottom overflow, enlarge meta.viewBox or reroute inward; preserve endpoints, direction and labels, then revalidate"
+      ]
+    }
+  ],
+  "diagnosticSummary": {
+    "total": 4,
+    "shown": 4,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/Users/edwardfrye/Desktop/legacy-codex-brief-update/docs/visualizations/legacy-codex-origin/architecture/review-2/index.finalize.json",
+    "summaryReceipt": "/Users/edwardfrye/Desktop/legacy-codex-brief-update/docs/visualizations/legacy-codex-origin/architecture/review-2/index.finalize-summary.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-02T10:29:10.874Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 447,
+  "nextAction": {
+    "action": "edit-in-place",
+    "candidate": "/Users/edwardfrye/Desktop/legacy-codex-brief-update/docs/visualizations/legacy-codex-origin/architecture/candidate.json",
+    "constraint": "Preserve all semantics and user-fixed geometry. Use references/architecture-layout-repair.md to choose a local repair or connected-scene reflow; edit the existing candidate.",
+    "then": "finalize-once"
+  }
+}

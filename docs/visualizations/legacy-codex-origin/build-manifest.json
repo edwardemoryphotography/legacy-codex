@@ -1,0 +1,25 @@
+{
+  "title": "Legacy Codex — The Origin Atlas",
+  "asOf": "2026-10-02",
+  "chapters": 18,
+  "repositories": 7,
+  "firstChapter": "2025-03-21",
+  "lastChapter": "2026-10-02",
+  "domains": [
+    "neuro",
+    "codex",
+    "doctrine",
+    "artful",
+    "foundry",
+    "agents",
+    "reasoning",
+    "evidence",
+    "control",
+    "missions"
+  ],
+  "sourceReferences": 43,
+  "uniqueSourceUrls": 38,
+  "architecture": "architecture/index.html",
+  "htmlBytes": 146794,
+  "offline": true
+}

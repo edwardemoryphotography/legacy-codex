@@ -12,6 +12,7 @@ import ConstraintValidatorTab from './tabs/ConstraintValidatorTab'
 import CodexTab from './tabs/CodexTab'
 import ControlsTab from './tabs/ControlsTab'
 import BriefTab from './tabs/BriefTab'
+import OriginTab from './tabs/OriginTab'
 import { OrbHostProvider, PersistentOrb } from './OrbHost'
 import ThemeReview from './ThemeReview'
 
@@ -31,6 +32,7 @@ const TABS: Tab[] = [
   { id: 'codex',                 label: 'Codex' },
   { id: 'controls',             label: 'Controls' },
   { id: 'brief',                 label: 'Brief' },
+  { id: 'origin',                label: 'Origin Atlas' },
 ]
 
 // Everyday screens live in the primary bar so they're always one tap away,
@@ -267,12 +269,15 @@ export default function CodexApp() {
           {activeTab === 'codex'                && <CodexTab />}
           {activeTab === 'controls'             && <ControlsTab />}
           {activeTab === 'brief'                 && <BriefTab />}
+          {activeTab === 'origin'                && <OriginTab />}
         </div>
       </main>
 
-      <footer className="codex-footer">
-        Your context. Your pace.
-      </footer>
+      {activeTab !== 'origin' && (
+        <footer className="codex-footer">
+          Your context. Your pace.
+        </footer>
+      )}
     </div>
     </OrbHostProvider>
   )

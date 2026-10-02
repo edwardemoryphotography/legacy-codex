@@ -1,0 +1,660 @@
+{
+  "asOf": "2026-10-02",
+  "repositories": [
+    {
+      "id": "legacy-codex",
+      "name": "legacy-codex",
+      "url": "https://github.com/edwardemoryphotography/legacy-codex",
+      "revision": "7f49d447b8d2b29a602b2aafdff43d525e1bfa7b",
+      "role": "Human-facing Legacy Codex application. Also contains foundry-console/ (builder/execution console) and PocketForge sub-app code. Revision is observed GitHub main; local feat/brief-tab remains at 18f8b68e80c3ac97a59497d28f3806cf8233129b."
+    },
+    {
+      "id": "codex-control-panel",
+      "name": "codex-control-panel",
+      "url": "https://github.com/edwardemoryphotography/codex-control-panel",
+      "revision": "e56c3e209d6478c208ca2650d80a2da473f7bc79",
+      "role": "Task-routing Control Panel, shared Standards Kit and canonical cross-project STATE.md. Older dated state entries must not override newer scoped records."
+    },
+    {
+      "id": "codex-system-architecture",
+      "name": "codex-system-architecture",
+      "url": "https://github.com/edwardemoryphotography/codex-system-architecture",
+      "revision": "f571e466853f3832f2b1692ad9ae825a51794dc4",
+      "role": "Architecture/document navigation and System Atlas; canonical owner of notion-wiki/docs/GOOSE-COOKBOOK.md. First tracked snapshot is January 21, 2026, not the Cookbook debut."
+    },
+    {
+      "id": "artful-intelligence",
+      "name": "Artful-Intelligence",
+      "url": "https://github.com/edwardemoryphotography/Artful-Intelligence",
+      "revision": "326afb3dd0423122c0a646ee1ab389f653fdf7f0",
+      "role": "Separate photography/creative-analysis implementation; related infrastructure explicitly named by the Cookbook. Not the unified hub."
+    },
+    {
+      "id": "artful-intelligence-hub",
+      "name": "artful-intelligence-hub",
+      "url": "https://github.com/edwardemoryphotography/artful-intelligence-hub",
+      "revision": "9a47a910ef7a523b1e0e6fd09b319d69234093e6",
+      "role": "Unified ecosystem status UI and truth-ladder surface; its README explicitly distinguishes implemented from runtime-verified integrations."
+    },
+    {
+      "id": "rork-legacy-codex-companion",
+      "name": "rork-legacy-codex-companion",
+      "url": "https://github.com/edwardemoryphotography/rork-legacy-codex-companion",
+      "revision": "d2d3d40b749d0b4c3d0e6da4f16bbe29c0cfc27d",
+      "role": "Historical Swift iOS companion; later Strategic Delta source explicitly cites conceptual next-action lineage. No live synchronization is inferred."
+    },
+    {
+      "id": "neurocreative-platform",
+      "name": "neurocreative-platform",
+      "url": "https://github.com/edwardemoryphotography/neurocreative-platform",
+      "revision": "c077bcdb94bdf3c8fa9079c9781be135c7e5b814",
+      "role": "Earlier EEG/creative-stack project, linked to Legacy Codex in later repository documentation. Related precursor, not evidence of a March 2025 Codex origin."
+    }
+  ],
+  "coverage": {
+    "summary": "18 source-backed milestones distinguish an earlier related neurocreative precursor (2025-03-21), the retrospectively documented Codex origin (2025-11-02–03), the first Codex repository record (2025-11-28), and observed GitHub main through 2026-10-02. The narrative follows an existing vision becoming legible through representations, execution surfaces, routing, evidence and bounded reasoning—not autonomous sentience or a newly expanded ambition.",
+    "limits": [
+      "Read-only local git and GitHub API research across seven selected repositories, not an exhaustive account of every portfolio repository, conversation or pre-repository artifact.",
+      "Milestone dates are documented event dates or git author dates except the Brief snapshot, anchored to its verified October 2 PR merge. A grouped milestone may cite earlier contributing implementations; its summary names those dates.",
+      "The November 2–3 origin is reported retrospectively in a November 28 README. March 21 belongs to a related precursor and does not move the documented Codex origin backward.",
+      "Domain tags represent substantiated conceptual relevance only. Their first appearance is the first selected milestone bearing that tag, not a domain invention date or proof of runtime integration.",
+      "Documented means a source account or declared baseline; implemented means checked-in code, not independently verified runtime behavior; branch denotes observed checkout provenance, not necessarily unmerged work.",
+      "Repository revisions are GitHub default-main heads observed during this research. Foundry is a legacy-codex subdirectory; no separate Foundry repository is asserted.",
+      "GitHub main was 7f49d447b8d2b29a602b2aafdff43d525e1bfa7b; local feat/brief-tab was 18f8b68e80c3ac97a59497d28f3806cf8233129b. PR #98 already squash-merged Brief as 4ff74b8a93371d36a500bab71bac30973e72655a. The branch/main comparison is diverged (5 ahead, 1 behind), not proof that Brief is absent from main.",
+      "Current README and STATE claims are pinned and attributed; they are not reused as historical debut dates. Some canonical state sections retain older, conflicting status records.",
+      "No production requests, deployments, model calls, biometric streams or user-data queries were made. Implementation, deployment reports, runtime verification and reasoning quality remain separate.",
+      "Only architecture-relevant excerpts are reproduced. No environment files, credential contents, personal mission records or sensitive personal traits are included."
+    ]
+  },
+  "milestones": [
+    {
+      "id": "neurocreative-baseline",
+      "date": "2025-03-21",
+      "era": "Related roots",
+      "title": "A neurocreative precursor",
+      "summary": "The NeuroCreative repository records a v0.1-mvp checkpoint focused on Python WebSocket EEG streaming, a simple viewer and Muse 2 compatibility through Mind Monitor. React and ML experiments were archived.",
+      "meaning": "A related technical lineage predates the documented Codex origin. Later cross-links connect the projects; this does not establish that Legacy Codex existed in March.",
+      "kind": "documented",
+      "domains": [
+        "neuro"
+      ],
+      "sources": [
+        {
+          "label": "Archived React + ML folders, updated README for v0.1 MVP checkpoint",
+          "url": "https://github.com/edwardemoryphotography/neurocreative-platform/commit/cbeb9ad97bf69413948932eb3630c42cf927ddc4",
+          "revision": "cbeb9ad97bf69413948932eb3630c42cf927ddc4"
+        },
+        {
+          "label": "README.md",
+          "url": "https://github.com/edwardemoryphotography/neurocreative-platform/blob/cbeb9ad97bf69413948932eb3630c42cf927ddc4/README.md",
+          "revision": "cbeb9ad97bf69413948932eb3630c42cf927ddc4",
+          "path": "README.md"
+        },
+        {
+          "label": "README.md",
+          "url": "https://github.com/edwardemoryphotography/neurocreative-platform/blob/c077bcdb94bdf3c8fa9079c9781be135c7e5b814/README.md",
+          "revision": "c077bcdb94bdf3c8fa9079c9781be135c7e5b814",
+          "path": "README.md"
+        }
+      ],
+      "unknowns": [
+        "Precursor lineage is an interpretation supported by later repository cross-links, not a documented March Codex integration.",
+        "No live EEG stream or WHOOP connection was tested; the later README calls WHOOP integration planned/in progress."
+      ]
+    },
+    {
+      "id": "codex-origin-session",
+      "date": "2025-11-02",
+      "era": "Origin",
+      "title": "A method for preserving intent",
+      "summary": "The November 28 README retrospectively attributes Legacy Codex to a November 2–3, 2025 session and describes a collaboration protocol, architecture, transmission framework and continuity blueprint.",
+      "meaning": "The early record already describes continuity and transmission. Later machinery can make that original purpose more legible without implying a newly invented ambition.",
+      "kind": "documented",
+      "domains": [
+        "codex",
+        "doctrine"
+      ],
+      "sources": [
+        {
+          "label": "Early README: retrospective origin account",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/blob/14cd39b283fefc073503943764ef4bee7fc87292/README.md",
+          "revision": "14cd39b283fefc073503943764ef4bee7fc87292",
+          "path": "README.md"
+        },
+        {
+          "label": "notion-wiki/docs/GOOSE-COOKBOOK.md",
+          "url": "https://github.com/edwardemoryphotography/codex-system-architecture/blob/f571e466853f3832f2b1692ad9ae825a51794dc4/notion-wiki/docs/GOOSE-COOKBOOK.md",
+          "revision": "f571e466853f3832f2b1692ad9ae825a51794dc4",
+          "path": "notion-wiki/docs/GOOSE-COOKBOOK.md"
+        }
+      ],
+      "unknowns": [
+        "The event spans November 2–3; November 2 is its start-date anchor, not an exact session timestamp.",
+        "This is a later first-party account, not a contemporaneous transcript or git commit from November 2."
+      ]
+    },
+    {
+      "id": "artful-genesis",
+      "date": "2025-11-26",
+      "era": "Related roots",
+      "title": "Creative analysis takes executable form",
+      "summary": "Artful Intelligence has a dated Genesis commit containing a Python backend, pose-analysis engine and a Next.js frontend with an image uploader.",
+      "meaning": "This is a parallel creative-software strand later named within the Cookbook’s related infrastructure—not proof that the Codex runtime called it in 2025.",
+      "kind": "implemented",
+      "domains": [
+        "artful"
+      ],
+      "sources": [
+        {
+          "label": "Genesis: Artful Intelligence V7.0 (Clean Deploy)",
+          "url": "https://github.com/edwardemoryphotography/Artful-Intelligence/commit/4102520b1a5a6468e4629b8340623996c29cf7af",
+          "revision": "4102520b1a5a6468e4629b8340623996c29cf7af"
+        },
+        {
+          "label": "notion-wiki/docs/GOOSE-COOKBOOK.md",
+          "url": "https://github.com/edwardemoryphotography/codex-system-architecture/blob/f571e466853f3832f2b1692ad9ae825a51794dc4/notion-wiki/docs/GOOSE-COOKBOOK.md",
+          "revision": "f571e466853f3832f2b1692ad9ae825a51794dc4",
+          "path": "notion-wiki/docs/GOOSE-COOKBOOK.md"
+        }
+      ],
+      "unknowns": [
+        "Genesis is the earliest commit retrieved from this repository, not a proven date for the first creative idea or prototype.",
+        "The historical implementation was inspected, not executed or evaluated for analytical validity."
+      ]
+    },
+    {
+      "id": "codex-repository",
+      "date": "2025-11-28",
+      "era": "Externalization",
+      "title": "The framework becomes a durable artifact",
+      "summary": "The Legacy Codex repository begins with a README, expands its description of collaboration and continuity, and adds an index.html artifact that same day.",
+      "meaning": "The vision becomes a versioned object other people and future agents can revisit, rather than relying only on a conversation.",
+      "kind": "implemented",
+      "domains": [
+        "codex",
+        "doctrine"
+      ],
+      "sources": [
+        {
+          "label": "Initial commit",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/commit/935b2c05af9f6e48a1e3578ee2a8c029d460a4f3",
+          "revision": "935b2c05af9f6e48a1e3578ee2a8c029d460a4f3"
+        },
+        {
+          "label": "README.md",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/blob/14cd39b283fefc073503943764ef4bee7fc87292/README.md",
+          "revision": "14cd39b283fefc073503943764ef4bee7fc87292",
+          "path": "README.md"
+        },
+        {
+          "label": "Add files via upload",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/commit/f9a470c118a41bbf54817020790c7d0d2297d95d",
+          "revision": "f9a470c118a41bbf54817020790c7d0d2297d95d"
+        }
+      ],
+      "unknowns": [
+        "The first commit is November 28; do not equate it with the earlier November 2–3 origin account.",
+        "An uploaded HTML file establishes an artifact, not a verified deployment."
+      ]
+    },
+    {
+      "id": "foundry-and-agent-continuity",
+      "date": "2026-02-23",
+      "era": "Execution surfaces",
+      "title": "Foundry gives work an operating surface",
+      "summary": "The foundry-console subdirectory adds a Next.js console for Case Study Zero: workspaces, sprints, friction, milestones and audit events. A separate same-day agent skill records structured lessons through an explicitly invoked script.",
+      "meaning": "Execution state and reusable lessons gain concrete homes. Their shared theme is continuity; the sources do not show the lesson script operating the Foundry console.",
+      "kind": "implemented",
+      "domains": [
+        "codex",
+        "foundry",
+        "agents"
+      ],
+      "sources": [
+        {
+          "label": "foundry-console/README.md",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/blob/8a5f48e1ad2a8cb37047355bef0fb8017e0808f8/foundry-console/README.md",
+          "revision": "8a5f48e1ad2a8cb37047355bef0fb8017e0808f8",
+          "path": "foundry-console/README.md"
+        },
+        {
+          "label": "feat: add The Foundry Console — Next.js web console for Case Study Zero",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/commit/8a5f48e1ad2a8cb37047355bef0fb8017e0808f8",
+          "revision": "8a5f48e1ad2a8cb37047355bef0fb8017e0808f8"
+        },
+        {
+          "label": "skills/self-improving-agent/SKILL.md",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/blob/4c2fe1fabe53b8e9fdcacfc0e462e9434c81fcac/skills/self-improving-agent/SKILL.md",
+          "revision": "4c2fe1fabe53b8e9fdcacfc0e462e9434c81fcac",
+          "path": "skills/self-improving-agent/SKILL.md"
+        }
+      ],
+      "unknowns": [
+        "Foundry is a subdirectory in legacy-codex, not a separately verified repository.",
+        "The skill name “self-improving” does not establish autonomous learning.",
+        "Initial implementation date is not a live-backend verification date."
+      ]
+    },
+    {
+      "id": "companion-intelligence",
+      "date": "2026-03-13",
+      "era": "Execution surfaces",
+      "title": "A mobile companion explores the same problem",
+      "summary": "The Swift iOS companion adds an Intelligence tab, GitHub service and project-analysis views. Later Strategic Delta source comments explicitly identify the companion’s Daily Boot and project-next-action ladder as lineage.",
+      "meaning": "The same next-step problem appears in a separate mobile surface. The later web engine records conceptual lineage while deliberately avoiding a runtime dependency on the older surface.",
+      "kind": "implemented",
+      "domains": [
+        "codex",
+        "reasoning"
+      ],
+      "sources": [
+        {
+          "label": "Added a new Intelligence tab with GitHub integration and AI project analysis features.",
+          "url": "https://github.com/edwardemoryphotography/rork-legacy-codex-companion/commit/6877770f16ef9a3e0e76f96144cfaa22eb7f4388",
+          "revision": "6877770f16ef9a3e0e76f96144cfaa22eb7f4388"
+        },
+        {
+          "label": "src/lib/strategicDelta.ts",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/blob/f126ade2f4ebe800de4afa94647b5d9078e4c450/src/lib/strategicDelta.ts",
+          "revision": "f126ade2f4ebe800de4afa94647b5d9078e4c450",
+          "path": "src/lib/strategicDelta.ts"
+        }
+      ],
+      "unknowns": [
+        "This establishes checked-in mobile code, not an App Store release or current mobile deployment.",
+        "Lineage is explicitly claimed in later source commentary; no code-sharing or live synchronization is inferred."
+      ]
+    },
+    {
+      "id": "biometric-honesty",
+      "date": "2026-04-19",
+      "era": "Execution surfaces",
+      "title": "Capacity signals must come from reality",
+      "summary": "After adding a biometric dashboard, Legacy Codex removes mock, fixture and fallback values. The biometric reader returns an explicit unavailable state when its external JSON source is missing or invalid.",
+      "meaning": "The neuro strand enters Codex as a real-data-only input contract: absent evidence must remain absent rather than becoming a convincing readiness score.",
+      "kind": "implemented",
+      "domains": [
+        "codex",
+        "neuro",
+        "evidence"
+      ],
+      "sources": [
+        {
+          "label": "fix(biometrics): remove ALL mock/fixture/fallback biometric data — real-data-only governor",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/commit/5324b2ec4ba45e92e9b6c21a5dedce11c5c4d077",
+          "revision": "5324b2ec4ba45e92e9b6c21a5dedce11c5c4d077"
+        },
+        {
+          "label": "src/lib/biometrics.ts",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/blob/5324b2ec4ba45e92e9b6c21a5dedce11c5c4d077/src/lib/biometrics.ts",
+          "revision": "5324b2ec4ba45e92e9b6c21a5dedce11c5c4d077",
+          "path": "src/lib/biometrics.ts"
+        }
+      ],
+      "unknowns": [
+        "The reader expects a live bridge; the code does not prove that a WHOOP, Muse or Apple Health bridge was running.",
+        "No personal biometric observations are included in this history."
+      ]
+    },
+    {
+      "id": "control-intake",
+      "date": "2026-05-15",
+      "era": "Execution surfaces",
+      "title": "Control Panel names the routing question",
+      "summary": "The first substantive Control Panel screen offers task intake, intent chips and Route Task / Fast Execute Here buttons. At this revision those buttons only display alerts.",
+      "meaning": "Task-to-tool routing becomes an explicit interface concern before later persistence and provider integration. The first screen is not yet an execution engine.",
+      "kind": "implemented",
+      "domains": [
+        "control"
+      ],
+      "sources": [
+        {
+          "label": "Screen 1: intake + chips + route",
+          "url": "https://github.com/edwardemoryphotography/codex-control-panel/commit/2e549b66196b484c92e5699f729c304e7a7d3ec6",
+          "revision": "2e549b66196b484c92e5699f729c304e7a7d3ec6"
+        },
+        {
+          "label": "app/page.tsx",
+          "url": "https://github.com/edwardemoryphotography/codex-control-panel/blob/2e549b66196b484c92e5699f729c304e7a7d3ec6/app/page.tsx",
+          "revision": "2e549b66196b484c92e5699f729c304e7a7d3ec6",
+          "path": "app/page.tsx"
+        }
+      ],
+      "unknowns": [
+        "Do not backdate the current README’s AI routing, safeguards or Foundry persistence to this intake prototype."
+      ]
+    },
+    {
+      "id": "codex-next-migration",
+      "date": "2026-05-18",
+      "era": "Execution surfaces",
+      "title": "A component-based front door",
+      "summary": "Legacy Codex’s Next.js migration introduces an application shell, typed Codex data and independent tabs for reference material, protocols, analysis, resumption and biometrics. It replaces the static site on main in the June 10 merge.",
+      "meaning": "The reference framework becomes a composable application surface while remaining distinct from the Foundry sub-application.",
+      "kind": "implemented",
+      "domains": [
+        "codex"
+      ],
+      "sources": [
+        {
+          "label": "feat: Next.js 14 migration v27.0-DEV — Gemini fixes, CLAUDE.md",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/commit/9662d0cda1be82182118657d0bf6f7191d9305e8",
+          "revision": "9662d0cda1be82182118657d0bf6f7191d9305e8"
+        },
+        {
+          "label": "Earlier February 17 single-file restoration",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/commit/040ed3d340c5121baeb70763599d1b69e57048bb",
+          "revision": "040ed3d340c5121baeb70763599d1b69e57048bb"
+        },
+        {
+          "label": "Merge next-js-migration into main: replace legacy static site with Next.js 14 app",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/commit/e681c56811f800412c1c99666976a4649d779da1",
+          "revision": "e681c56811f800412c1c99666976a4649d779da1"
+        }
+      ],
+      "unknowns": [
+        "May 18 is the implementation commit; June 10 is the main-branch merge. Neither date alone verifies production behavior.",
+        "The February single-file restoration shows the path was not a simple uninterrupted migration."
+      ]
+    },
+    {
+      "id": "routing-and-system-atlas",
+      "date": "2026-08-07",
+      "era": "Connected structure",
+      "title": "Routes and relationships become inspectable",
+      "summary": "By August 7, Foundry has a routing UI and Legacy Codex readout, Control Panel has a validated Foundry-persistence contract, and Architecture’s knowledge graph is redesigned as System Atlas with territories, connections and focus navigation.",
+      "meaning": "Task intent, execution state and architectural relationships become inspectable across distinct surfaces. This is a cluster of related implementations, not evidence that every repository shares one runtime.",
+      "kind": "implemented",
+      "domains": [
+        "codex",
+        "foundry",
+        "control",
+        "evidence"
+      ],
+      "sources": [
+        {
+          "label": "feat: Lane B Foundry routing UI and Legacy Codex readout",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/commit/61bccd01b59c68c654f41b518783bb99175ccdda",
+          "revision": "61bccd01b59c68c654f41b518783bb99175ccdda"
+        },
+        {
+          "label": "Validated route contract and Foundry persistence for the routing control plane",
+          "url": "https://github.com/edwardemoryphotography/codex-control-panel/commit/5e7077285d65a4d733cdd3c50959aeba868f3d3f",
+          "revision": "5e7077285d65a4d733cdd3c50959aeba868f3d3f"
+        },
+        {
+          "label": "Redesign knowledge graph as System Atlas",
+          "url": "https://github.com/edwardemoryphotography/codex-system-architecture/commit/a1ab79f90b33dc2d21f56c0f3f78d182a21c0e82",
+          "revision": "a1ab79f90b33dc2d21f56c0f3f78d182a21c0e82"
+        }
+      ],
+      "unknowns": [
+        "The routing implementations cited are dated August 4; August 7 anchors the Atlas endpoint of this grouped milestone.",
+        "Commit evidence establishes code and contracts, not a fresh end-to-end production verification."
+      ]
+    },
+    {
+      "id": "mission-loop",
+      "date": "2026-08-09",
+      "era": "Connected structure",
+      "title": "Intent gains a mission and evidence loop",
+      "summary": "The August 8 Mission Loop commit adds lifecycle logic, schema and an evidence bridge. August 9 adds the Mission screen and unifies capture with evidence-bridge writes into Supabase.",
+      "meaning": "The human-facing next action can be related to a mission, its state and external evidence rather than only to an isolated task description.",
+      "kind": "implemented",
+      "domains": [
+        "codex",
+        "missions",
+        "evidence"
+      ],
+      "sources": [
+        {
+          "label": "feat: Mission Loop data model, lifecycle logic, and evidence bridge (Phase 0-1)",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/commit/54e37ad064ac324fb6bab8fb54886bef32b9a9b3",
+          "revision": "54e37ad064ac324fb6bab8fb54886bef32b9a9b3"
+        },
+        {
+          "label": "feat: Mission Screen UI (Phase 2)",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/commit/536785ede577c6ff7da303fd2d993859b3aa7632",
+          "revision": "536785ede577c6ff7da303fd2d993859b3aa7632"
+        },
+        {
+          "label": "Unify capture pipeline; write evidence bridge into Supabase",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/commit/f5fc53747e16482f847c3bc6c79562d24ef1dd51",
+          "revision": "f5fc53747e16482f847c3bc6c79562d24ef1dd51"
+        }
+      ],
+      "unknowns": [
+        "Dates distinguish the August 8 data/lifecycle foundation from the August 9 UI and capture work.",
+        "Repository implementation is not proof of populated production missions or evidence."
+      ]
+    },
+    {
+      "id": "goose-doctrine",
+      "date": "2026-08-09",
+      "era": "Legibility",
+      "title": "The build becomes an explanation",
+      "summary": "The Architecture repository adds the canonical Goose Cookbook. It explicitly frames the system as preserving meaning across representations and explains the reconstruction of an existing vision from implementation evidence.",
+      "meaning": "The important change is improved legibility of the original end-state—not software becoming sentient or the vision suddenly expanding. Lessons are to become durable capability rather than transcript accumulation.",
+      "kind": "documented",
+      "domains": [
+        "doctrine",
+        "agents",
+        "reasoning"
+      ],
+      "sources": [
+        {
+          "label": "docs: add canonical Goose Cookbook doctrine",
+          "url": "https://github.com/edwardemoryphotography/codex-system-architecture/commit/52c883f0baeffd353db3e8bcca8941641b1980b8",
+          "revision": "52c883f0baeffd353db3e8bcca8941641b1980b8"
+        },
+        {
+          "label": "notion-wiki/docs/GOOSE-COOKBOOK.md",
+          "url": "https://github.com/edwardemoryphotography/codex-system-architecture/blob/f571e466853f3832f2b1692ad9ae825a51794dc4/notion-wiki/docs/GOOSE-COOKBOOK.md",
+          "revision": "f571e466853f3832f2b1692ad9ae825a51794dc4",
+          "path": "notion-wiki/docs/GOOSE-COOKBOOK.md"
+        }
+      ],
+      "unknowns": [
+        "The pinned canonical file includes subsequent same-day revisions and an addendum internally dated August 10. Its git author date is August 9; those clocks are not silently reconciled.",
+        "Doctrine states an operating method, not proof that every runtime model inherited it."
+      ]
+    },
+    {
+      "id": "flock-hub",
+      "date": "2026-08-10",
+      "era": "Connected structure",
+      "title": "One hub, with an explicit truth ladder",
+      "summary": "Artful Intelligence Hub adds a unified page wired to constellation_status. Its README distinguishes live UI and status reporting from migrations, owner auth, realtime and a command function that were only written or not exercised.",
+      "meaning": "A shared ecosystem view becomes possible without pretending every connected-looking capability is live. Artful Intelligence Hub is distinct from the photography-analysis repository.",
+      "kind": "implemented",
+      "domains": [
+        "artful",
+        "foundry",
+        "evidence",
+        "doctrine"
+      ],
+      "sources": [
+        {
+          "label": "feat: add unified hub page with live constellation_status wiring",
+          "url": "https://github.com/edwardemoryphotography/artful-intelligence-hub/commit/8551a0ea4875bd0a23c0507c163087805c867c6e",
+          "revision": "8551a0ea4875bd0a23c0507c163087805c867c6e"
+        },
+        {
+          "label": "README.md",
+          "url": "https://github.com/edwardemoryphotography/artful-intelligence-hub/blob/9a47a910ef7a523b1e0e6fd09b319d69234093e6/README.md",
+          "revision": "9a47a910ef7a523b1e0e6fd09b319d69234093e6",
+          "path": "README.md"
+        }
+      ],
+      "unknowns": [
+        "Live is a claim reported by the pinned README, not independently re-tested in this research.",
+        "The same README explicitly leaves several integration rungs below Live; its age prevents assuming those statuses describe every later deployment."
+      ]
+    },
+    {
+      "id": "strategic-delta",
+      "date": "2026-09-07",
+      "era": "Reasoning with boundaries",
+      "title": "One next move, with honest uncertainty",
+      "summary": "Strategic Delta lands as the predictive front door. Its pure pipeline assembles context, routes the situation, generates candidates, inhibits unsuitable moves and selects a recommendation; absent context remains explicit.",
+      "meaning": "The earlier next-action idea becomes a bounded reasoning mechanism. A prediction remains separate from the person’s saved commitment and from verified evidence.",
+      "kind": "implemented",
+      "domains": [
+        "codex",
+        "missions",
+        "reasoning",
+        "evidence"
+      ],
+      "sources": [
+        {
+          "label": "Strategic Delta: predictive front door, with two real reasoning bugs fixed (#78)",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/commit/f126ade2f4ebe800de4afa94647b5d9078e4c450",
+          "revision": "f126ade2f4ebe800de4afa94647b5d9078e4c450"
+        },
+        {
+          "label": "src/lib/strategicDelta.ts",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/blob/f126ade2f4ebe800de4afa94647b5d9078e4c450/src/lib/strategicDelta.ts",
+          "revision": "f126ade2f4ebe800de4afa94647b5d9078e4c450",
+          "path": "src/lib/strategicDelta.ts"
+        }
+      ],
+      "unknowns": [
+        "This source establishes engine behavior and declared lineage, not autonomous planning quality for arbitrary ideas.",
+        "A successful save/resume workflow is a separate verification claim from next-move quality."
+      ]
+    },
+    {
+      "id": "context-reconstruction",
+      "date": "2026-09-30",
+      "era": "Reasoning with boundaries",
+      "title": "Reasoning reads its sources",
+      "summary": "Project review adds authenticated mission context, related projects, evidence, commitments and corrections, then critiques its proposed next move against those sources. A shared cognitive-doctrine module carries a reviewed Cookbook projection into model requests.",
+      "meaning": "The system begins giving runtime reasoning the context and method its builders had already been instructed to use. Prompt wiring and self-critique are not independent verification.",
+      "kind": "implemented",
+      "domains": [
+        "codex",
+        "missions",
+        "reasoning",
+        "doctrine",
+        "evidence"
+      ],
+      "sources": [
+        {
+          "label": "feat: reconstruct project context and critique the next move (#90)",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/commit/1dd38e0002d4f2b2aa4c8c4684eab9bce8af33b6",
+          "revision": "1dd38e0002d4f2b2aa4c8c4684eab9bce8af33b6"
+        },
+        {
+          "label": "STATE.md",
+          "url": "https://github.com/edwardemoryphotography/codex-control-panel/blob/e56c3e209d6478c208ca2650d80a2da473f7bc79/STATE.md",
+          "revision": "e56c3e209d6478c208ca2650d80a2da473f7bc79",
+          "path": "STATE.md"
+        }
+      ],
+      "unknowns": [
+        "The canonical state reports deployment and test gates, but successful owner reasoning quality still requires real-artifact verification.",
+        "The Cookbook remains the doctrine authority; its runtime projection is not a replacement source."
+      ]
+    },
+    {
+      "id": "confirmed-lessons",
+      "date": "2026-10-01",
+      "era": "Reasoning with boundaries",
+      "title": "Lessons become scoped, reversible rules",
+      "summary": "Project learning adds explicit owner confirmation of edited lessons with conditions and frozen review references. Retiring a lesson is append-only, removes the exact rule from future use and invalidates affected cached reasoning.",
+      "meaning": "The Cookbook’s lesson-to-capability principle gains a concrete, human-controlled mechanism. Model critique does not promote itself into truth.",
+      "kind": "implemented",
+      "domains": [
+        "codex",
+        "reasoning",
+        "doctrine",
+        "evidence"
+      ],
+      "sources": [
+        {
+          "label": "feat: carry confirmed lessons into evidence-backed project reviews (#92)",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/commit/668353e691532c611e835395242ebaba5cfa4b00",
+          "revision": "668353e691532c611e835395242ebaba5cfa4b00"
+        },
+        {
+          "label": "STATE.md",
+          "url": "https://github.com/edwardemoryphotography/codex-control-panel/blob/e56c3e209d6478c208ca2650d80a2da473f7bc79/STATE.md",
+          "revision": "e56c3e209d6478c208ca2650d80a2da473f7bc79",
+          "path": "STATE.md"
+        }
+      ],
+      "unknowns": [
+        "The canonical October 1 state explicitly leaves successful owner review and confirm → reload → reuse → retire behavior unverified.",
+        "Repository and release evidence must not be narrated as proven learning quality."
+      ]
+    },
+    {
+      "id": "brief-checkout",
+      "date": "2026-10-02",
+      "era": "Current snapshot",
+      "title": "Brief is in the checkout—and on main by squash",
+      "summary": "The local feat/brief-tab checkout remains at 18f8b68, whose Brief tab offers Daily Brief, Triage and Ask from bounded real mission context. GitHub shows PR #98 merged on October 2 as 4ff74b8; the original branch SHA is not main’s SHA.",
+      "meaning": "A new explanatory surface sits beside the Delta lifecycle rather than replacing it. Distinguishing a local commit from its squash merge prevents both false “unmerged” and false “up-to-date” claims.",
+      "kind": "branch",
+      "domains": [
+        "codex",
+        "missions",
+        "reasoning"
+      ],
+      "sources": [
+        {
+          "label": "Add Brief tab: Daily Brief / Triage / Ask, grounded in real missions",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/commit/18f8b68e80c3ac97a59497d28f3806cf8233129b",
+          "revision": "18f8b68e80c3ac97a59497d28f3806cf8233129b"
+        },
+        {
+          "label": "Add Brief tab: Daily Brief / Triage / Ask, grounded in real missions (#98)",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/commit/4ff74b8a93371d36a500bab71bac30973e72655a",
+          "revision": "4ff74b8a93371d36a500bab71bac30973e72655a"
+        },
+        {
+          "label": "Brief PR #98: merged status",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/pull/98"
+        }
+      ],
+      "unknowns": [
+        "The local commit author date is October 1, but its committer date and verified PR merge are October 2; this milestone uses the merge date.",
+        "Branch kind denotes the observed checkout provenance, not a claim that the feature remains unmerged.",
+        "No live Daily Brief provider call was made during research."
+      ]
+    },
+    {
+      "id": "main-routing-convergence",
+      "date": "2026-10-02",
+      "era": "Current snapshot",
+      "title": "Main brings routing into Mission",
+      "summary": "GitHub main is 7f49d447, the merged Control Panel integration. Mission now includes local task routing and an explicitly prepared saved-action handoff; its documentation says provider selection is a preference, not a connected executor.",
+      "meaning": "The original “what next?” and “how to carry it out?” concerns become adjacent without collapsing recommendation, commitment, canonical routing ownership or external execution into one claim.",
+      "kind": "implemented",
+      "domains": [
+        "codex",
+        "control",
+        "missions",
+        "reasoning"
+      ],
+      "sources": [
+        {
+          "label": "Bring the Control Panel design and task routing into Mission (#97)",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/commit/7f49d447b8d2b29a602b2aafdff43d525e1bfa7b",
+          "revision": "7f49d447b8d2b29a602b2aafdff43d525e1bfa7b"
+        },
+        {
+          "label": "docs/CONTROL-PANEL-INTEGRATION.md",
+          "url": "https://github.com/edwardemoryphotography/legacy-codex/blob/7f49d447b8d2b29a602b2aafdff43d525e1bfa7b/docs/CONTROL-PANEL-INTEGRATION.md",
+          "revision": "7f49d447b8d2b29a602b2aafdff43d525e1bfa7b",
+          "path": "docs/CONTROL-PANEL-INTEGRATION.md"
+        }
+      ],
+      "unknowns": [
+        "The local Brief checkout does not contain this main-branch integration.",
+        "Routing corrections in this slice are browser-local; canonical Foundry routed_requests ownership is not replaced.",
+        "The integration ledger leaves live saved-action writes with an existing mission and real iPhone speech capture unverified."
+      ]
+    }
+  ]
+}

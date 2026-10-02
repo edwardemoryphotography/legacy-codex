@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "810dafb6-35dd-4c4d-ad03-a343c1629989",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/edwardfrye/Desktop/legacy-codex-brief-update/docs/visualizations/legacy-codex-origin/architecture/candidate.json",
+  "output": "/Users/edwardfrye/Desktop/legacy-codex-brief-update/docs/visualizations/legacy-codex-origin/architecture/index.html",
+  "specification": {
+    "sha256": "37de17cff7f3bc81d02bf869b3a5553d75251620f24913245cf1c3b6314b8122",
+    "bytes": 9810
+  },
+  "artifact": {
+    "sha256": "2586f50193cc79fdea9d3308ca33cf135e11eb60f08e16117a131b3fb802c038",
+    "bytes": 784748
+  }
+}
