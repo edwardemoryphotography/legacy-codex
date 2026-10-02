@@ -189,6 +189,32 @@ describe('MissionTab failed read recovery', () => {
     expect(await screen.findByLabelText('Your idea or project')).toBeTruthy()
     expect(screen.queryByText(/Could not load your missions/)).toBeNull()
   })
+
+  it('keeps one "Check again" when a later read fails while earlier missions are still shown', async () => {
+    failNext = {}
+    const shown: Mission = {
+      id: 'm1',
+      title: 'Write the studio lighting reference',
+      why: '',
+      finishLine: 'The lighting reference is posted where the studio can use it',
+      evidenceRequirement: null,
+      state: 'primary',
+      blocker: null,
+      capacityMismatch: false,
+      createdAt: '2026-09-20T00:00:00.000Z',
+      updatedAt: '2026-09-20T00:00:00.000Z',
+    }
+    tables.missions = [{ ...missionToRow(shown, 'user-1'), created_at: shown.createdAt }]
+    render(<MissionTab />)
+    expect(await screen.findByRole('button', { name: 'Accept this move' })).toBeTruthy()
+
+    failNext = { missions: true }
+    fireEvent.click(screen.getByRole('button', { name: 'Something changed' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Just recheck' }))
+
+    expect(await screen.findByText(/Could not load your missions/)).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'Check again' })).toHaveLength(1)
+  })
 })
 
 describe('MissionTab supplied steps across a finish-line revision', () => {
