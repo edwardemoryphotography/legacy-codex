@@ -273,8 +273,9 @@ html:has(.sd[data-cognition="accepted"])::before { opacity: 0.55; }
    A third review theme, selected like light via ThemeReview / ?theme=sunset
    and never present on production. Palette: burnt orange #e76f51, coral
    #f4a261, sand #e9c46a, deep #264653 — ground darkened to #1e3a46 and
-   status hues lifted so text holds ≥4.5:1 on bg and surface (amber is 4.2:1
-   on surface-soft, so it stays on bg/surface). Fonts are unchanged. Same
+   status hues lifted so text holds ≥4.5:1 on bg, surface, surface-soft and
+   surface-strong (amber is a lighter peach than the palette's coral so it
+   clears that on strong surfaces and over its own tint). Fonts are unchanged. Same
    token names as the Legacy Codex design system's `sunset` theme. */
 :root[data-theme="sunset"] {
   color-scheme: dark;
@@ -289,8 +290,8 @@ html:has(.sd[data-cognition="accepted"])::before { opacity: 0.55; }
   --text-dim: #c4d3d2;
   --teal: #7fd6c2;
   --teal-soft: rgba(127, 214, 194, 0.14);
-  --amber: #f4a261;
-  --amber-soft: rgba(244, 162, 97, 0.14);
+  --amber: #ffd0a0;
+  --amber-soft: rgba(255, 208, 160, 0.14);
   --error: #ff9a85;
   --error-soft: rgba(255, 154, 133, 0.15);
   --success: #8fdc9a;
