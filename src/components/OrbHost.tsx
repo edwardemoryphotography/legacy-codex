@@ -19,6 +19,8 @@ type OrbHostValue = {
   setSlot: (node: HTMLElement | null) => void
   cognition: OrbCognition | null
   setCognition: (next: OrbCognition | null) => void
+  interaction: 'ambient' | 'engaged' | 'listening'
+  setInteraction: (next: 'ambient' | 'engaged' | 'listening') => void
 }
 
 const OrbHostContext = createContext<OrbHostValue | null>(null)
@@ -38,9 +40,10 @@ export function OrbHostProvider({
 }) {
   const [slot, setSlot] = useState<HTMLElement | null>(null)
   const [cognition, setCognition] = useState<OrbCognition | null>(null)
+  const [interaction, setInteraction] = useState<OrbHostValue['interaction']>('ambient')
   const value = useMemo(
-    () => ({ placed, slot, setSlot, cognition, setCognition }),
-    [placed, slot, cognition],
+    () => ({ placed, slot, setSlot, cognition, setCognition, interaction, setInteraction }),
+    [placed, slot, cognition, interaction],
   )
   return <OrbHostContext.Provider value={value}>{children}</OrbHostContext.Provider>
 }
@@ -154,10 +157,18 @@ export function PersistentOrb() {
       data-cognition={live.cognition}
       data-provenance={live.provenance}
       data-recording={live.recording ? 'true' : undefined}
+      data-interaction={host.interaction}
     >
       <CognitionField />
     </div>
   )
+}
+
+/** Composer presence is separate from cognition: listening is not reasoning. */
+export function useOrbInteraction(interaction: OrbHostValue['interaction']) {
+  const publish = useContext(OrbHostContext)?.setInteraction
+  useEffect(() => { publish?.(interaction) }, [publish, interaction])
+  useEffect(() => () => { publish?.('ambient') }, [publish])
 }
 
 /** Placeholder in the Strategic Delta stage. Without a provider the field

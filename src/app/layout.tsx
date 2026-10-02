@@ -3,6 +3,7 @@ import '@fontsource-variable/instrument-sans/wght.css'
 import '@fontsource/instrument-serif/latin-400.css'
 import './globals.css'
 import './atmosphere.css'
+import './control-panel.css'
 import { THEME_BOOT_SCRIPT } from '@/lib/themeReview'
 
 export const metadata: Metadata = {
