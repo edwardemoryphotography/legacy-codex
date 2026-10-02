@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="robots" content="noindex,nofollow">
+<meta name="description" content="An evidence-backed, interactive origin atlas of the Legacy Codex ecosystem. Travel from the documented idea to its evolving implementation.">
+<title>Legacy Codex — The build became the explanation</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23080d19'/%3E%3Ccircle cx='32' cy='32' r='19' fill='none' stroke='%2381d5cf'/%3E%3Cellipse cx='32' cy='32' rx='10' ry='25' fill='none' stroke='%23a6adf5' transform='rotate(35 32 32)'/%3E%3C/svg%3E">
+<style>/*__STYLES__*/</style>
+</head>
+<body>
+<a class="skip" href="#transport">Skip to timeline controls</a>
+<canvas id="sky" aria-hidden="true"></canvas>
+<div class="ambient" aria-hidden="true"></div>
+<div class="shell">
+<header class="masthead">
+  <a class="brand" href="#" aria-label="Legacy Codex: return to latest chapter"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="15"/><ellipse cx="24" cy="24" rx="9" ry="22" transform="rotate(35 24 24)"/><circle cx="24" cy="24" r="2"/></svg><span>LEGACY CODEX<small>THE ORIGIN ATLAS</small></span></a>
+  <div class="masthead-center"><span class="status-dot"></span> A HISTORY, NOT A SIMULATION</div>
+  <nav aria-label="Atlas navigation"><button id="archive-button" class="text-button" aria-label="Explore archive">Archive <span aria-hidden="true">↗</span></button><button id="about-button" class="icon-button" aria-label="About this atlas and its evidence">?</button></nav>
+</header>
+<main>
+<section class="stage" aria-label="Interactive history constellation">
+  <div class="intro">
+    <p class="eyebrow">EDWARD FRYE / AN IDEA IN CONSTRUCTION</p>
+    <h1>A vision.<br>Made <em>visible.</em></h1>
+    <p class="thesis">Not a collection of tools. <br>A way for meaning to survive <br>the journey between minds.</p>
+    <button id="begin" class="primary-button"><span aria-hidden="true">▶</span> Watch it take shape</button>
+    <div class="intro-foot"><span class="small-orbit" aria-hidden="true">◎</span><span>One idea. Many representations.<br>The build became the explanation.</span></div>
+  </div>
+  <div class="universe">
+    <div class="scene-top"><span id="scene-date">THE EVOLVING ECOSYSTEM</span><button class="text-button" id="motion-button" aria-pressed="true">Motion on <span aria-hidden="true">∿</span></button></div>
+    <svg id="constellation" viewBox="0 0 960 650" role="group" aria-label="Conceptual domains appearing across the documented history. Select a domain to inspect its sources.">
+      <defs>
+        <radialGradient id="field"><stop offset="0" stop-color="#516aa6" stop-opacity=".2"/><stop offset=".45" stop-color="#448eaa" stop-opacity=".08"/><stop offset="1" stop-color="#080d19" stop-opacity="0"/></radialGradient>
+        <radialGradient id="core"><stop offset="0" stop-color="#132b43"/><stop offset=".72" stop-color="#13263b"/><stop offset="1" stop-color="#80ced1" stop-opacity=".18"/></radialGradient>
+        <linearGradient id="filament" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#81d5cf" stop-opacity=".08"/><stop offset=".5" stop-color="#94cadf" stop-opacity=".6"/><stop offset="1" stop-color="#a6adf5" stop-opacity=".15"/></linearGradient>
+        <filter id="soft"><feGaussianBlur stdDeviation="4"/></filter>
+        <filter id="halo"><feGaussianBlur stdDeviation="15"/></filter>
+      </defs>
+      <g aria-hidden="true">
+        <circle cx="480" cy="326" r="320" fill="url(#field)"/>
+        <g class="orbits" fill="none" stroke="#92a9c0">
+          <ellipse cx="480" cy="326" rx="332" ry="247" transform="rotate(-24 480 326)"/>
+          <ellipse cx="480" cy="326" rx="267" ry="183" transform="rotate(18 480 326)"/>
+          <ellipse cx="480" cy="326" rx="199" ry="143" transform="rotate(-43 480 326)"/>
+          <circle cx="480" cy="326" r="115"/>
+        </g>
+        <g id="epoch-dust"></g>
+        <path class="axis" d="M45 326H915 M480 17V632"/>
+        <text x="895" y="315" class="coordinate">INTENT</text><text x="491" y="627" class="coordinate">CONTINUITY</text>
+        <g id="connections"></g>
+        <circle cx="480" cy="326" r="94" fill="#4ca5ba" opacity=".10" filter="url(#halo)"/>
+      </g>
+      <g id="domain-nodes"></g>
+    </svg>
+    <div class="scene-bottom"><span><i class="legend-dot"></i> Documented by this chapter <i class="legend-dot current"></i> In this chapter</span><span id="domain-count"></span></div>
+    <p class="map-note">Connections show conceptual lineage, not live traffic or proven runtime integrations.</p>
+    <div id="mobile-domains" class="mobile-domains" aria-label="Explore available domains"></div>
+  </div>
+</section>
+<section class="timeline-section" id="transport" aria-label="Historical timeline" tabindex="-1">
+  <div class="transport-top"><div class="transport-controls"><button class="round-button" id="previous" aria-label="Previous chapter">←</button><button class="play-button" id="play" aria-label="Play history" aria-pressed="false">▶</button><button class="round-button" id="next" aria-label="Next chapter">→</button><span class="chapter-counter" id="chapter-counter"></span></div><div class="transport-hint">DRAG THROUGH THE BUILD <span aria-hidden="true">────────</span></div><button id="latest" class="text-button">Jump to latest <span aria-hidden="true">↗</span></button></div>
+  <label class="sr-only" for="timeline">Chapter in the documented history</label><input id="timeline" type="range" min="0" max="1" value="1" step="1">
+  <div class="timeline-dates"><span id="first-date"></span><span>2026</span><span id="last-date"></span></div>
+  <div class="chapter-rail" id="chapter-rail" aria-label="Choose a chapter"></div>
+</section>
+<section class="chapter-detail" aria-labelledby="chapter-title">
+  <div class="chapter-copy"><div class="chapter-meta"><span class="eyebrow" id="chapter-era"></span><span class="evidence-badge" id="chapter-kind"></span></div><h2 id="chapter-title"></h2><p class="chapter-summary" id="chapter-summary"></p><p class="meaning" id="chapter-meaning"></p><div id="chapter-domains" class="domain-tags"></div></div>
+  <aside class="proof"><div class="proof-heading"><h3>Follow the evidence</h3><button id="copy-link" class="text-button">Copy chapter link ↗</button></div><p class="proof-date" id="chapter-date"></p><div id="chapter-sources" class="source-list"></div><div id="chapter-unknowns" class="unknowns"></div></aside>
+</section>
+<section class="closing"><p class="eyebrow">THE THREAD THAT NEVER CHANGED</p><p class="closing-thesis">“Make the idea representable<br>across different kinds of minds.”</p><div class="meaning-path"><span>Vision</span><b>→</b><span>Structure</span><b>→</b><span>Software</span><b>→</b><span>Evidence</span><b>→</b><span>Inherited capability</span></div><a id="architecture-link" class="architecture-link" href="__ARCHITECTURE_PATH__">Explore the architecture <span aria-hidden="true">↗</span><small>Source-linked present-day implementation · Archify</small></a></section>
+</main>
+<footer><span>LEGACY CODEX <i>/</i> A living idea, an evidenced history.</span><button class="text-button" id="coverage-button">Sources &amp; limits ↗</button><span id="snapshot-label"></span></footer>
+</div>
+<dialog id="inspector" aria-labelledby="inspector-title"><div class="dialog-top"><p class="eyebrow" id="inspector-eyebrow">EXPLORE THE ATLAS</p><button id="close-dialog" class="round-button" aria-label="Close explorer">×</button></div><h2 id="inspector-title"></h2><p id="inspector-description"></p><div id="search-wrap"><label class="sr-only" for="archive-search">Search chapters</label><input id="archive-search" type="search" placeholder="Search ideas, systems, turning points…" autocomplete="off"><div id="archive-filters" class="domain-tags"></div></div><div id="inspector-content"></div></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<p id="chapter-announcement" class="sr-only" aria-live="polite"></p>
+<noscript><p class="noscript">This atlas needs JavaScript for its timeline. Read research-notes.md or evidence.json beside this file for the source-backed history.</p></noscript>
+<script id="evidence" type="application/json">/*__EVIDENCE__*/</script>
+<script>/*__MODEL__*/
+/*__APP__*/</script>
+</body>
+</html>

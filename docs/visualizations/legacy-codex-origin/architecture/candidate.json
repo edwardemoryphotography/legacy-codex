@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Legacy Codex · Current human-intent loop",
+    "output": "index.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/edwardemoryphotography/legacy-codex.git",
+      "revision": "18f8b68e80c3ac97a59497d28f3806cf8233129b",
+      "provider": "github",
+      "link_mode": "web"
+    }
+  },
+  "components": [
+    {"id":"intent","type":"frontend","label":"01 · Human intent","sublabel":"Mission title + finish line","tag":"MissionTab capture / edit","pos":[60,60],"size":[260,80],"sources":[{"path":"src/components/tabs/MissionTab.tsx","line":898,"end_line":920,"label":"Capture and persist the idea"},{"path":"src/components/tabs/MissionTab.tsx","line":494,"end_line":526,"label":"Persist explicit mission edits"}]},
+    {"id":"missions","type":"database","label":"02 · Saved mission","sublabel":"missions · human-defined outcome","pos":[445,60],"size":[260,80],"sources":[{"path":"src/components/tabs/MissionTab.tsx","line":511,"end_line":526,"label":"Mission writer and history"},{"path":"src/lib/projectReviewServer.ts","line":44,"end_line":62,"label":"Account-scoped mission reader"}]},
+    {"id":"reads","type":"frontend","label":"03 · Context readers","sublabel":"MissionTab + review server","tag":"Failed reads are not empty","pos":[850,60],"size":[260,80],"sources":[{"path":"src/components/tabs/MissionTab.tsx","line":366,"end_line":418,"label":"Read missions, evidence, corrections"},{"path":"src/lib/projectReviewServer.ts","line":44,"end_line":77,"label":"Review reads actions and lessons"},{"path":"src/lib/projectLessonsServer.ts","line":8,"end_line":30,"label":"Scope rules; exclude retirements"}]},
+    {"id":"context","type":"backend","label":"04 · Assemble + route","sublabel":"Pure Strategic Delta context","tag":"No I/O; supplied now","pos":[850,510],"size":[260,80],"sources":[{"path":"src/lib/strategicDelta.ts","line":11,"end_line":16,"label":"Pure prediction, no writes"},{"path":"src/lib/strategicDelta.ts","line":53,"end_line":71,"label":"Assemble observed inputs"},{"path":"src/lib/strategicDelta.ts","line":845,"end_line":852,"label":"Prediction entry point"}]},
+    {"id":"gates","type":"backend","label":"05 · Candidate gates","sublabel":"Generate → inhibit → select","tag":"Corrections outrank proposals","pos":[445,510],"size":[260,80],"sources":[{"path":"src/lib/strategicDelta.ts","line":461,"end_line":565,"label":"Correction, evidence, capacity gates"},{"path":"src/components/StrategicDelta.tsx","line":212,"end_line":248,"label":"Model suggestions use same engine"}]},
+    {"id":"choice","type":"frontend","label":"06 · Your next move","sublabel":"Human accepts or corrects","tag":"Prediction ≠ commitment","pos":[60,510],"size":[260,80],"sources":[{"path":"src/components/StrategicDelta.tsx","line":503,"end_line":542,"label":"Recommendation and acceptance UI"},{"path":"src/components/tabs/MissionTab.tsx","line":1117,"end_line":1118,"label":"Human callback wiring"}]},
+    {"id":"correction","type":"frontend","label":"07 · Record response","sublabel":"Accept / Not right / supplied step","tag":"Mission required; await write","pos":[60,920],"size":[260,80],"sources":[{"path":"src/components/tabs/MissionTab.tsx","line":570,"end_line":648,"label":"Persist acceptance and correction"},{"path":"src/components/tabs/MissionTab.tsx","line":653,"end_line":678,"label":"Supplied steps bind to clause"}]},
+    {"id":"ledger","type":"database","label":"08 · Delta history","sublabel":"mission_events · append records","tag":"Transitional UI ledger","pos":[445,920],"size":[260,80],"sources":[{"path":"src/components/tabs/MissionTab.tsx","line":578,"end_line":587,"label":"Actual Delta event insert"},{"path":"src/components/tabs/MissionTab.tsx","line":369,"end_line":402,"label":"Reload corrections for inhibition"},{"path":"src/app/api/delta-review/route.ts","line":87,"end_line":96,"label":"Cached review is not evidence"}]},
+    {"id":"commitment","type":"frontend","label":"Explicit commitment","sublabel":"SavedActions → actions","tag":"Save separately; DONE is a report","pos":[60,290],"size":[260,80],"sources":[{"path":"src/components/SavedActions.tsx","line":20,"end_line":29,"label":"Accepted words only seed composer"},{"path":"src/components/SavedActions.tsx","line":81,"end_line":117,"label":"Human save writes canonical actions"},{"path":"src/components/SavedActions.tsx","line":133,"end_line":158,"label":"Progress reports are not proof"}]},
+    {"id":"review","type":"backend","label":"Optional project review","sublabel":"Claude proposal + one critique","tag":"JWT + owner gate; not verification","pos":[445,290],"size":[260,80],"sources":[{"path":"src/app/api/delta-review/route.ts","line":47,"end_line":96,"label":"Bounded review and cache writer"},{"path":"src/lib/supabase/deltaAuth.ts","line":5,"end_line":16,"label":"JWT and owner enforcement"},{"path":"src/components/StrategicDelta.tsx","line":221,"end_line":248,"label":"Proposal enters deterministic gates"}]},
+    {"id":"evidence","type":"database","label":"Observed evidence","sublabel":"evidence_snapshots · read model","tag":"Status + time; no self-check proof","pos":[850,290],"size":[260,80],"sources":[{"path":"src/components/tabs/MissionTab.tsx","line":369,"end_line":409,"label":"Client evidence read availability"},{"path":"src/lib/projectReviewServer.ts","line":49,"end_line":64,"label":"Read statuses and observation times"},{"path":"src/app/api/delta-review/route.ts","line":79,"end_line":81,"label":"Self-check explicitly not verification"}]},
+    {"id":"lessons","type":"security","label":"Human-confirmed lessons","sublabel":"Confirm / retire through API","tag":"Current review + scope + conditions","pos":[850,920],"size":[260,80],"sources":[{"path":"src/components/ProjectLearning.tsx","line":25,"end_line":74,"label":"Human edits, confirms and retires"},{"path":"src/app/api/delta-lessons/route.ts","line":11,"end_line":59,"label":"Owner-gated writes; no model call"},{"path":"src/lib/projectLessonsServer.ts","line":8,"end_line":30,"label":"Exact retirement and scoped retrieval"}]}
+  ],
+  "connections": [
+    {"id":"capture","from":"intent","to":"missions","label":"save / edit","variant":"emphasis"},
+    {"id":"mission-read","from":"missions","to":"reads","label":"read rows","variant":"emphasis"},
+    {"id":"assemble","from":"reads","to":"context","label":"real inputs","variant":"emphasis","fromSide":"right","toSide":"right"},
+    {"id":"evaluate","from":"context","to":"gates","label":"candidates","variant":"emphasis"},
+    {"id":"recommend","from":"gates","to":"choice","label":"move or gap","variant":"emphasis"},
+    {"id":"respond","from":"choice","to":"correction","label":"human response","variant":"emphasis"},
+    {"id":"persist","from":"correction","to":"ledger","label":"append event","variant":"emphasis"},
+    {"id":"feedback","from":"ledger","to":"reads","label":"reload history","variant":"emphasis","fromSide":"bottom","toSide":"top"},
+    {"id":"save-action","from":"choice","to":"commitment","label":"explicit save","variant":"dashed"},
+    {"id":"review-request","from":"reads","to":"review","label":"owner requests review","variant":"dashed"},
+    {"id":"proposal","from":"review","to":"gates","label":"candidate only","variant":"dashed"},
+    {"id":"evidence-read","from":"evidence","to":"reads","label":"read evidence","variant":"default"},
+    {"id":"confirm-lesson","from":"choice","to":"lessons","label":"human confirms / retires","variant":"security","fromSide":"right","toSide":"top"},
+    {"id":"lesson-write","from":"lessons","to":"ledger","label":"append rule / retirement","variant":"security"}
+  ],
+  "cards": [
+    {"dot":"cyan","title":"Follow the numbered loop","items":["01–08 is the normal Mission / Strategic Delta path, not a historical timeline. Corrections survive reload and inhibit the rejected move; insufficient context names the missing input.","Context readers combine the browser read with the separate review-server reader. Arrows out of stores show returned data, not stores initiating calls. Only review context reads saved actions and confirmed lessons."]},
+    {"dot":"violet","title":"Reasoning has no authority to commit","items":["Optional project review: explicit owner request, authenticated account-scoped reads, bounded proposal → one critique. Its source-bound cache lives in mission_events; it is neither a canonical action nor verified evidence.","Model and human-supplied candidates face the same deterministic gates. Accept records agreement only. SavedActions performs the separate explicit actions insert. No action → evidence edge exists."]},
+    {"dot":"amber","title":"Learning is human, scoped and reversible","items":["The lesson API requires a current valid review for confirmation, plus a human-edited rule, conditions and scope. Retirement appends the exact confirmation ID; later reads exclude it.","Confirmed rules return through the ledger to subsequent review context. They are not verified outcomes, automatic doctrine updates, or permission for an autonomous loop."]},
+    {"dot":"slate","title":"Snapshot and limits","items":["Source snapshot: local feat/brief-tab at 18f8b68e80c3ac97a59497d28f3806cf8233129b. This is current checked-out code, not a claim of merge, deployment or successful production reasoning.","The Brief tab exists on this branch but is display-only and outside the Delta loop. Clause-only model assistance is summarized by the candidate gate, not shown as another primary path.","Evidence ingestion, production row contents, provider availability and real owner-session behavior are not verified here. The initial worktree had untracked docs/plans/; cited source files are committed bytes."]}
+  ]
+}

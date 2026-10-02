@@ -1,0 +1,209 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "/Users/edwardfrye/Desktop/legacy-codex-brief-update/docs/visualizations/legacy-codex-origin/architecture/candidate.json",
+    "sha256": "37de17cff7f3bc81d02bf869b3a5553d75251620f24913245cf1c3b6314b8122",
+    "bytes": 9810
+  },
+  "artifact": {
+    "path": "/Users/edwardfrye/Desktop/legacy-codex-brief-update/docs/visualizations/legacy-codex-origin/architecture/index.html",
+    "sha256": "2586f50193cc79fdea9d3308ca33cf135e11eb60f08e16117a131b3fb802c038",
+    "bytes": 784748
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/Users/edwardfrye/Desktop/legacy-codex-brief-update/docs/visualizations/legacy-codex-origin/architecture/review-3/index.finalize.json",
+    "summaryReceipt": "/Users/edwardfrye/Desktop/legacy-codex-brief-update/docs/visualizations/legacy-codex-origin/architecture/review-3/index.finalize-summary.json",
+    "browserCheckReceipt": "/Users/edwardfrye/Desktop/legacy-codex-brief-update/docs/visualizations/legacy-codex-origin/architecture/review-3/index.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-02T10:29:10.874Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 4296,
+  "visualReviewRecommendation": {
+    "action": "inspect-route-readability",
+    "signals": {
+      "resolvedCrossovers": 5,
+      "routesOverSuggestedBends": 2
+    },
+    "reason": "Automated gates passed, but crossings or detours still need perceptual review before claiming visual quality.",
+    "affectedRoutes": {
+      "crossings": [
+        {
+          "left": {
+            "id": "mission-read",
+            "from": "missions",
+            "to": "reads",
+            "label": "read rows",
+            "collectionIndex": 1,
+            "artifactIndex": 2
+          },
+          "right": {
+            "id": "feedback",
+            "from": "ledger",
+            "to": "reads",
+            "label": "reload history",
+            "collectionIndex": 7,
+            "artifactIndex": 8
+          },
+          "point": [
+            845.0999999999998,
+            91.95
+          ],
+          "sharedNode": "reads"
+        },
+        {
+          "left": {
+            "id": "evaluate",
+            "from": "context",
+            "to": "gates",
+            "label": "candidates",
+            "collectionIndex": 3,
+            "artifactIndex": 4
+          },
+          "right": {
+            "id": "feedback",
+            "from": "ledger",
+            "to": "reads",
+            "label": "reload history",
+            "collectionIndex": 7,
+            "artifactIndex": 8
+          },
+          "point": [
+            845.0999999999998,
+            550
+          ]
+        },
+        {
+          "left": {
+            "id": "feedback",
+            "from": "ledger",
+            "to": "reads",
+            "label": "reload history",
+            "collectionIndex": 7,
+            "artifactIndex": 8
+          },
+          "right": {
+            "id": "review-request",
+            "from": "reads",
+            "to": "review",
+            "label": "owner requests review",
+            "collectionIndex": 9,
+            "artifactIndex": 10
+          },
+          "point": [
+            845.0999999999999,
+            107
+          ],
+          "sharedNode": "reads"
+        },
+        {
+          "left": {
+            "id": "feedback",
+            "from": "ledger",
+            "to": "reads",
+            "label": "reload history",
+            "collectionIndex": 7,
+            "artifactIndex": 8
+          },
+          "right": {
+            "id": "confirm-lesson",
+            "from": "choice",
+            "to": "lessons",
+            "label": "human confirms / retires",
+            "collectionIndex": 12,
+            "artifactIndex": 13
+          },
+          "point": [
+            845.0999999999998,
+            896
+          ]
+        },
+        {
+          "left": {
+            "id": "feedback",
+            "from": "ledger",
+            "to": "reads",
+            "label": "reload history",
+            "collectionIndex": 7,
+            "artifactIndex": 8
+          },
+          "right": {
+            "id": "lesson-write",
+            "from": "lessons",
+            "to": "ledger",
+            "label": "append rule / retirement",
+            "collectionIndex": 13,
+            "artifactIndex": 14
+          },
+          "point": [
+            845.0999999999998,
+            960
+          ],
+          "sharedNode": "ledger"
+        }
+      ],
+      "detours": [
+        {
+          "relationship": {
+            "id": "feedback",
+            "from": "ledger",
+            "to": "reads",
+            "label": "reload history",
+            "collectionIndex": 7,
+            "artifactIndex": 8
+          },
+          "bends": 4,
+          "stretch": 1.071
+        },
+        {
+          "relationship": {
+            "id": "confirm-lesson",
+            "from": "choice",
+            "to": "lessons",
+            "label": "human confirms / retires",
+            "collectionIndex": 12,
+            "artifactIndex": 13
+          },
+          "bends": 3,
+          "stretch": 1
+        }
+      ],
+      "truncated": false
+    },
+    "hints": [
+      "missions → reads and ledger → reads cross next to reads: move node missions or ledger so the two reach reads from different sides (for example one level with it, one directly above or below it).",
+      "context → gates crosses ledger → reads: move the node of whichever is a branch, return, or second entrance to the other side of the main path, so that relationship runs through an empty corridor.",
+      "ledger → reads and reads → review cross next to reads: move node ledger or review so the two reach reads from different sides (for example one level with it, one directly above or below it).",
+      "ledger → reads crosses choice → lessons: move the node of whichever is a branch, return, or second entrance to the other side of the main path, so that relationship runs through an empty corridor.",
+      "ledger → reads and lessons → ledger cross next to ledger: move node reads or lessons so the two reach ledger from different sides (for example one level with it, one directly above or below it).",
+      "ledger → reads needs 4 bends: move node ledger or reads so they share a row or column with matching centers, or sit diagonally with a clear corner.",
+      "choice → lessons needs 3 bends: move node choice or lessons so they share a row or column with matching centers, or sit diagonally with a clear corner."
+    ],
+    "repair": "Trace these relationships at the desktop viewport. For Architecture, use references/architecture-layout-repair.md: reflow a blocked main path or tangled connected scene, and repair an isolated defect locally only when the surrounding composition is accepted. Preserve all semantic content and user-fixed geometry. Rerun finalize once after the edit."
+  }
+}
