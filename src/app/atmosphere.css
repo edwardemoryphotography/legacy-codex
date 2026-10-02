@@ -1,0 +1,270 @@
+/* ─── Atmosphere ──────────────────────────────────────────────────────
+   Kiren-inspired presentation layer, loaded after globals.css so it can
+   restyle without rewriting the established stylesheet (and without
+   colliding with in-flight work there).
+
+   What it carries from the Kiren reference:
+   - navy depth instead of near-black,
+   - periwinkle pill buttons with dark ink,
+   - one ambient light that changes mood with a REAL state the Mission
+     screen already reports (data-cognition on the next-move card):
+       calm indigo  — default / waiting for input
+       violet       — reconsidering or working out a step
+       warm red     — a write did not record
+       warm gold    — you accepted the move
+     Nothing here invents progress: no state, no colour change.
+   - generous spacing and sentence-case labels.
+
+   Dark is production. The light review theme keeps its own tokens; only
+   the action tokens are given a light value so buttons stay readable. */
+
+:root {
+  --bg: #0d0f1f;
+  --surface: #14172d;
+  --surface-soft: #191c36;
+  --surface-strong: #20244a;
+  --line: #262a4a;
+  --line-strong: #363b66;
+  --text: #eceefb;
+  --text-soft: #b8bcda;
+  --text-dim: #8d92b6;
+  --chrome: #0d0f1f;
+  --invite-field-bg: rgba(10, 12, 28, 0.92);
+  --card-shadow: 0 30px 70px rgba(4, 5, 16, 0.5);
+  --card-bg: linear-gradient(180deg, rgba(27, 31, 60, 0.72), rgba(18, 21, 42, 0.72));
+  --field-bg: rgba(12, 14, 32, 0.9);
+  --field-bg-soft: rgba(12, 14, 32, 0.45);
+  --control-bg: linear-gradient(180deg, rgba(30, 34, 64, 0.9), rgba(20, 23, 46, 0.9));
+
+  --peri: #aeb6ff;
+  --peri-deep: #939cf4;
+  --peri-ink: #11142a;
+  --action-bg: var(--peri);
+  --action-text: var(--peri-ink);
+  --action-border: transparent;
+  --action-glow: 0 12px 32px rgba(132, 144, 255, 0.3);
+
+  --glow-calm: rgba(98, 110, 230, 0.38);
+  --glow-think: rgba(150, 98, 232, 0.34);
+  --glow-alert: rgba(206, 86, 96, 0.34);
+  --glow-done: rgba(222, 176, 92, 0.3);
+  --atmo-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+:root[data-theme="light"] {
+  --action-bg: #4b55c9;
+  --action-text: #ffffff;
+  --action-border: transparent;
+  --action-glow: 0 10px 26px rgba(75, 85, 201, 0.22);
+}
+
+/* ─── The room light ─────────────────────────────────────────────────
+   Four fixed layers, one per mood. Only opacity animates, so the change
+   is cheap on a phone and never repaints the page underneath. */
+body {
+  background: var(--bg);
+}
+
+html::before,
+html::after,
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  z-index: 0;
+  inset: -20vh -30vw auto;
+  height: 78vh;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1400ms var(--atmo-ease);
+}
+
+html::before {
+  opacity: 1;
+  background:
+    radial-gradient(60% 70% at 50% 0%, var(--glow-calm), transparent 70%),
+    radial-gradient(40% 50% at 92% 18%, rgba(110, 124, 220, 0.16), transparent 70%);
+}
+html::after { background: radial-gradient(60% 70% at 50% 0%, var(--glow-think), transparent 70%); }
+body::before { background: radial-gradient(60% 70% at 50% 0%, var(--glow-alert), transparent 70%); }
+body::after { background: radial-gradient(60% 70% at 50% 0%, var(--glow-done), transparent 70%); }
+
+html:has(.sd[data-cognition="deriving"])::after,
+html:has(.sd[data-cognition="correcting"])::after,
+html:has(.sd[data-cognition="reconstructing"])::after { opacity: 1; }
+
+html:has(.sd[data-cognition="failed"]) body::before { opacity: 1; }
+html:has(.sd[data-cognition="failed"])::before { opacity: 0.35; }
+
+html:has(.sd[data-cognition="accepted"]) body::after { opacity: 1; }
+html:has(.sd[data-cognition="accepted"])::before { opacity: 0.55; }
+
+:root[data-theme="light"]::before,
+:root[data-theme="light"]::after,
+:root[data-theme="light"] body::before,
+:root[data-theme="light"] body::after { display: none; }
+
+/* Lift the app above the light layers (body::after sits after it in
+   paint order otherwise). */
+.codex-shell { z-index: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  html::before, html::after, body::before, body::after { transition: none; }
+}
+
+/* ─── Shell ──────────────────────────────────────────────────────────── */
+.codex-tablist {
+  border-top-color: rgba(174, 182, 255, 0.1);
+  background: rgba(13, 15, 31, 0.94);
+  box-shadow: 0 -18px 40px rgba(4, 5, 16, 0.45);
+}
+
+/* ─── The next-move card ────────────────────────────────────────────────
+   Kiren puts the moment on the room, not inside a box: the card becomes a
+   quiet frosted pane so the ambient light reads through it. */
+.sd:not(.sd-orb-host) {
+  padding: 22px 20px 22px;
+  /* Hero surface on the shared radius scale (STATE.md, 2026-10-01). */
+  border-radius: var(--radius-xl);
+  background: linear-gradient(180deg, rgba(26, 30, 60, 0.55), rgba(15, 17, 36, 0.62));
+  border: 1px solid rgba(174, 182, 255, 0.12);
+  box-shadow:
+    var(--card-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+}
+
+/* Sentence-case labels, like Kiren's "Device health" / "Breach check". */
+.sd-status,
+.sd-eyebrow {
+  font-size: 0.84rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+.sd-identity h2 {
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  text-transform: none;
+}
+.sd-purpose { color: var(--text-dim); font-size: 0.95rem; }
+.sd-mission { margin-top: 16px; }
+.sd-move { margin-top: 12px; }
+.sd-act { margin-top: 22px; }
+
+/* Periwinkle pills: the one primary action on each step. */
+.sd .sd-act-primary button,
+.sd .mission-invite button {
+  min-height: 50px !important;
+  border-radius: 999px !important;
+  border: 1px solid transparent !important;
+  background: var(--action-bg) !important;
+  color: var(--action-text) !important;
+  box-shadow: var(--action-glow) !important;
+  font-weight: 650 !important;
+  letter-spacing: 0.005em;
+}
+.sd .sd-act-primary button:disabled,
+.sd .mission-invite button:disabled {
+  background: rgba(174, 182, 255, 0.22) !important;
+  color: rgba(236, 238, 251, 0.62) !important;
+  box-shadow: none !important;
+}
+
+.sd-next {
+  border-radius: 999px;
+}
+
+/* Fields: navy wells with a periwinkle focus ring. */
+.mission-invite input,
+.mission-invite textarea {
+  border-radius: var(--radius) !important;
+  border: 1px solid rgba(174, 182, 255, 0.2) !important;
+}
+.mission-invite input:focus,
+.mission-invite input:focus-visible,
+.mission-invite textarea:focus,
+.mission-invite textarea:focus-visible {
+  outline: 2px solid var(--peri) !important;
+  border-color: var(--peri) !important;
+  box-shadow: 0 0 0 5px rgba(174, 182, 255, 0.16) !important;
+}
+.mission-invite { gap: 12px; }
+.mission-invite textarea { min-height: 64px !important; height: 64px; }
+
+/* ─── What Codex has from you ───────────────────────────────────────────
+   The "Device checked" moment: real inputs, read back plainly. */
+.sd-known {
+  margin-top: 22px;
+  padding: 16px 16px 6px;
+  border-radius: var(--radius-lg);
+  background: rgba(174, 182, 255, 0.05);
+  border: 1px solid rgba(174, 182, 255, 0.1);
+}
+.sd-known-title {
+  color: var(--text-soft);
+  font-size: 0.86rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.sd-known dl > div {
+  display: grid;
+  gap: 3px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(174, 182, 255, 0.08);
+}
+.sd-known dl > div:first-child { border-top: 0; }
+.sd-known dt {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+}
+.sd-known dd {
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+.sd-known ul {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+}
+.sd-known li {
+  color: var(--text-soft);
+}
+.sd-known li[data-selected] { color: var(--text); }
+.sd-known-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(174, 182, 255, 0.14);
+  color: var(--peri);
+  font-size: 0.72rem;
+  font-weight: 600;
+  vertical-align: 1px;
+}
+
+:root[data-theme="light"] .sd-known {
+  background: rgba(75, 85, 201, 0.05);
+  border-color: rgba(75, 85, 201, 0.12);
+}
+:root[data-theme="light"] .sd-known-tag { color: #3e47b5; background: rgba(75, 85, 201, 0.1); }
+:root[data-theme="light"] .sd:not(.sd-orb-host) {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ─── Header: one quiet line, no tracked capitals ─────────────────────── */
+.codex-brand-eyebrow {
+  font-size: 0.74rem;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+/* First run already says "Bring one idea"; "Nothing captured yet" repeats
+   it and pushes the one action toward the tab bar on a phone. */
+.sd[data-first-run] .sd-mission { display: none; }

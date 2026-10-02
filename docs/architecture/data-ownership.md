@@ -15,6 +15,13 @@ The current repository contains both the human Mission Loop and Foundry's techni
 | `evidence_snapshots` | Read model currently consumed by the Mission UI and evidence bridge | **TRANSITIONAL / DERIVED**; no new authority should be added here |
 | `mission_events` | Mission-specific UI event stream | **TRANSITIONAL**; keep append-only while Mission behavior moves toward the generic event contract |
 
+Project-review caches and scoped, human-confirmed lessons use this transitional
+Mission ledger (`delta_reviewed`, `delta_lesson_confirmed`,
+`delta_lesson_retired`). A confirmation preserves the review's source references;
+a retirement appends history instead of erasing the rule. These records are
+operating guidance for the current Mission UI, not canonical evidence, generic
+cross-system audit authority, or a new owner of the Goose Cookbook doctrine.
+
 ## Boundary rules
 
 1. A mission is an outcome; an action is a unit of work. Do not collapse one into the other.

@@ -5,7 +5,8 @@ import type { DeltaCandidate, DeltaCorrection, EvidenceRecord, Mission, Strategi
 import { candidateTargetsClause, operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
 import { ActionBtn, ActionChip, Textarea } from '@/components/ui'
 import { OrbSlot, useOrbCognition } from '@/components/OrbHost'
-import type { ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
+import ProjectLearning, { type ConfirmLesson, type RetireLesson } from '@/components/ProjectLearning'
+import type { ConfirmedLesson, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
 
 // Phases are derived from work that is actually pending — anonymous
 // sign-in, then the missions/evidence read. Nothing here runs on a timer
@@ -124,6 +125,11 @@ interface Props {
    *  exhausted structural signal for it. Omit to run deterministic-only —
    *  that is a fully honest configuration, not a degraded one. */
   requestOperation?: DeltaRequestOperation
+  confirmedLessons?: ConfirmedLesson[]
+  onConfirmLesson?: ConfirmLesson
+  onRetireLesson?: RetireLesson
+  projectReviewAccessError?: string | null
+  projectReviewAvailable?: boolean
   projectReview?: ProjectReview | null
   projectReviewBusy?: boolean
   projectReviewError?: string | null
@@ -149,6 +155,11 @@ export default function StrategicDelta({
   onContextAdded,
   onRecheck,
   requestOperation,
+  confirmedLessons = [],
+  onConfirmLesson,
+  onRetireLesson,
+  projectReviewAccessError = null,
+  projectReviewAvailable = true,
   projectReview = null,
   projectReviewBusy = false,
   projectReviewError = null,
@@ -457,23 +468,21 @@ export default function StrategicDelta({
       data-recording={recording ? 'true' : undefined}
       data-first-run={isFirstRun ? 'true' : undefined}
       aria-busy={reconstructing || recording}
-      aria-label="Strategic Delta"
+      aria-label="Your next move"
     >
       <div className="sd-stage">
       <OrbSlot />
       <div className="sd-copy">
       <header className="sd-identity">
-        <h2>Strategic Delta</h2>
-        <p className="sd-purpose">Your best next move</p>
+        <h2>Your next move</h2>
+        <p className="sd-purpose">Only from what you have told Codex</p>
       </header>
-      {!pendingRead && (
+      {!pendingRead && (primaryMission || readAvailable) && (
         <p className="sd-mission">
           {primaryMission ? (
-            <>Primary mission <strong>{primaryMission.title}</strong></>
-          ) : readAvailable ? (
-            'No Primary mission yet'
+            <>Working on <strong>{primaryMission.title}</strong></>
           ) : (
-            'Primary mission unavailable'
+            'Nothing captured yet'
           )}
         </p>
       )}
@@ -558,7 +567,7 @@ export default function StrategicDelta({
               )}
               {readAvailable && reviewTarget?.finishLine && requestProjectReview && (
                 <ActionChip
-                  disabled={projectReviewBusy || recording}
+                  disabled={!projectReviewAvailable || projectReviewBusy || recording}
                   onClick={() => void requestProjectReview({ missionId: reviewTarget.id, finishLine: reviewTarget.finishLine! })}
                   variant="secondary"
                 >
@@ -567,6 +576,51 @@ export default function StrategicDelta({
               )}
             </div>
           </div>}
+
+          {aimedMission && (
+            <section className="sd-known" aria-label="What Codex has from you">
+              <h3 className="sd-known-title">What Codex has from you</h3>
+              <dl>
+                <div>
+                  <dt>What you are finishing</dt>
+                  <dd>{aimedMission.title}</dd>
+                </div>
+                <div>
+                  <dt>How you will know it is done</dt>
+                  <dd>{finishLine ?? 'Not set yet — add a finish line to get a concrete step.'}</dd>
+                </div>
+                {proofSteps.length > 1 && (
+                  <div>
+                    <dt>What that asks you to prove</dt>
+                    <dd>
+                      <ul>
+                        {proofSteps.map(step => (
+                          <li key={step.index} data-selected={step.selected || undefined}>
+                            {step.text}
+                            {step.selected && <span className="sd-known-tag">Next</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    </dd>
+                  </div>
+                )}
+                <div>
+                  <dt>Evidence</dt>
+                  <dd>
+                    {delta.evidenceState === 'none'
+                      ? 'None linked yet, so nothing here is verified.'
+                      : delta.evidenceState === 'verified'
+                        ? 'Linked and verified.'
+                        : delta.evidenceState === 'conflict'
+                          ? 'Linked, but the sources disagree.'
+                          : delta.evidenceState === 'stale'
+                            ? 'Linked, but out of date.'
+                            : 'Linked, not yet verified.'}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          )}
 
           {!hasRecommendation && delta.move !== title && (
             <p className="sd-because" aria-live="polite">{delta.move}</p>
@@ -618,6 +672,7 @@ export default function StrategicDelta({
               {shownOperationError}
             </p>
           )}
+          {projectReviewAccessError && <p className="sd-hint" role="status">{projectReviewAccessError}</p>}
           {projectReviewError && <p className="sd-fail" role="alert">{projectReviewError}</p>}
           {projectReview && !projectReviewBusy && (
             <p className="sd-support">
@@ -725,6 +780,7 @@ export default function StrategicDelta({
                   {projectReview.warnings.map((warning, index) => <p className="sd-hint" key={index}>{warning}</p>)}
                 </section>
               )}
+              {(projectReview || confirmedLessons.length > 0) && <ProjectLearning review={projectReview} lessons={confirmedLessons} onConfirm={onConfirmLesson} onRetire={onRetireLesson} />}
               {delta.inhibited.length > 0 && (
                 <section>
                   <h3>Alternatives inhibited</h3>

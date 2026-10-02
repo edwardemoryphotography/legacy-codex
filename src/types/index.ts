@@ -159,6 +159,8 @@ export type MissionEventType =
   | 'delta_corrected'
   | 'delta_context_added'
   | 'delta_reviewed'
+  | 'delta_lesson_confirmed'
+  | 'delta_lesson_retired'
   // A concrete step the user supplied for an unresolved finish-line clause.
   // Distinct from delta_corrected: the text is the operation to evaluate,
   // not a reason for rejecting the fallback.

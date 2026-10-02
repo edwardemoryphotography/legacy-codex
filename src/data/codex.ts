@@ -66,9 +66,11 @@ The Cookbook's **MasterChef of Geese** addendum asks agents to demonstrate the m
 
 ## What the app can inherit
 
-The artifact analyzer and bounded next-operation model call receive a shared distillation of this method. An analysis should distinguish observed evidence, proposed reconstruction, unknowns, one next move, and a reusable lesson. The next-operation route still returns only one candidate action or NONE.
+The artifact analyzer, bounded next-operation call and project-review loop receive a shared distillation of this method. An analysis should distinguish observed evidence, proposed reconstruction, unknowns, one next move, and a reusable lesson. The next-operation route still returns only one candidate action or NONE.
 
-These are instructions, not proof of model quality or permanent learning. An analysis does not automatically become a saved lesson, a committed action, or verified evidence. The deterministic Strategic Delta remains a rule-based prediction over the real state it receives.
+On Mission, **Review project** reads actual saved context, supporting records from selected related projects, other project summaries and active confirmed lessons, then critiques its proposal once. **Why this → Lessons carried forward** lets you edit a lesson, state its application conditions and explicitly confirm project-only or account-wide scope. **Stop using this lesson** retires it without erasing its history. The current owner access gate remains in place.
+
+These instructions and confirmed rules are not proof of model quality. An analysis does not automatically become a saved lesson, a committed action, or verified evidence. A confirmed lesson is operating guidance, not a change to this doctrine. The deterministic Strategic Delta remains a rule-based prediction over the real state it receives; project-review proposals must pass its gates.
 
 ## Primary source
 

@@ -1,9 +1,9 @@
 // Security/attribution checks use the actual canonical source URLs and Codex
 // corpus. No fabricated projects, provider responses, or auth/data doubles.
 import { describe, expect, it } from 'vitest'
-import { GOOSE_COOKBOOK_SOURCE } from './cognitiveDoctrine'
+import { GOOSE_COOKBOOK_SOURCE, LEGACY_CODEX_NORTH_STAR } from './cognitiveDoctrine'
 import { findEntryById } from '@/data/codex'
-import { githubFileReference, sourceLinks, boundSourceText } from './projectReview'
+import { githubFileReference, sourceLinks, boundSourceText, contextTerms, relatedProjectSignal, parseLessonProposal } from './projectReview'
 
 describe('project source boundary', () => {
   it('resolves the actual pinned Cookbook to a fixed GitHub file request', () => {
@@ -36,5 +36,32 @@ describe('project source boundary', () => {
     expect(result.truncated).toBe(true)
     expect(result.text).toBe(entry.content.slice(0, 100))
     expect(boundSourceText(entry.content, entry.content.length).truncated).toBe(false)
+  })
+
+  it('finds a relationship in the actual Goose entry without treating generic product words as evidence', () => {
+    const entry = findEntryById('root.north-star')!
+    const signal = relatedProjectSignal(entry.content, entry)
+    expect(signal.score).toBeGreaterThanOrEqual(2)
+    expect(signal.reason).toContain('hypothesis')
+    expect(contextTerms(entry.content)).toContain('cookbook')
+    expect(contextTerms(entry.content)).not.toContain('legacy')
+    expect(contextTerms(entry.content)).not.toContain('codex')
+  })
+
+  it('recognizes an explicit reference to a real source entry ahead of shared terminology', () => {
+    const entry = findEntryById('root.north-star')!
+    expect(relatedProjectSignal(entry.path, entry).score).toBe(100)
+  })
+
+  it('retains the actual published North Star only with supporting source attribution and conditions', () => {
+    const entry = findEntryById('root.north-star')!
+    // Published doctrine words, not a fabricated provider response or a
+    // claim that this test created a human-confirmed database lesson.
+    const published = { rule: LEGACY_CODEX_NORTH_STAR,
+      whenToApply: 'A pattern is a hypothesis to test against evidence and human correction.', sourceIds: [entry.id] }
+    expect(entry.content).toContain(published.whenToApply)
+    expect(parseLessonProposal(published, [entry])).toEqual(published)
+    expect(parseLessonProposal(published, [])).toBeNull()
+    expect(parseLessonProposal({ ...published, whenToApply: '' }, [entry])).toBeNull()
   })
 })

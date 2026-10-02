@@ -1,0 +1,31 @@
+import type { projectUserClient } from './projectReviewServer'
+import { parseLessonProposal, type ConfirmedLesson } from './projectReview'
+
+type Client = ReturnType<typeof projectUserClient>
+
+// These are human-confirmed operating rules, never verified evidence. The
+// append-only transitional mission ledger owns this slice, not new doctrine.
+export async function loadConfirmedLessons(client: Client, userId: string, missionIds: string[]): Promise<ConfirmedLesson[]> {
+  const confirmed = await client.from('mission_events').select('id,mission_id,detail,created_at')
+    .eq('user_id', userId).eq('type', 'delta_lesson_confirmed').order('created_at', { ascending: false }).limit(50)
+  if (confirmed.error) throw new Error('Could not read confirmed lessons.')
+  const rows = confirmed.data ?? []
+  if (!rows.length) return []
+  const retired = await client.from('mission_events').select('idempotency_key').eq('user_id', userId)
+    .eq('type', 'delta_lesson_retired').in('idempotency_key', rows.map(row => `lesson:retire:${row.id}`))
+  if (retired.error) throw new Error('Could not read lesson retirements.')
+  const inactive = new Set((retired.data ?? []).map(row => row.idempotency_key))
+  return rows.filter(row => !inactive.has(`lesson:retire:${row.id}`)).map(row => {
+    // A malformed stored rule must not silently become 'no prior learning'.
+    const saved = JSON.parse(row.detail) as ConfirmedLesson
+    if (!Array.isArray(saved.sourceRefs) || !saved.sourceRefs.every(ref =>
+      typeof ref.id === 'string' && typeof ref.label === 'string' && typeof ref.status === 'string') ||
+      !['mission', 'account'].includes(saved.scope) || !Number.isFinite(Date.parse(saved.reviewedAt))) {
+      throw new Error('A confirmed lesson could not be reconstructed.')
+    }
+    const proposal = parseLessonProposal(saved, saved.sourceRefs)
+    if (!proposal) throw new Error('A confirmed lesson has invalid provenance.')
+    return { ...proposal, id: row.id, missionId: row.mission_id, scope: saved.scope,
+      reviewedAt: saved.reviewedAt, confirmedAt: row.created_at, sourceRefs: saved.sourceRefs }
+  }).filter(lesson => lesson.scope === 'account' || missionIds.includes(lesson.missionId)).slice(0, 16)
+}

@@ -42,7 +42,7 @@ import { ActionBtn, ActionChip, Badge, Card, Input, SectionSubtitle, SectionTitl
 import NextMovePanel from '@/components/NextMovePanel'
 import SavedActions from '@/components/SavedActions'
 import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase } from '@/components/StrategicDelta'
-import type { ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
+import type { ConfirmedLesson, LessonConfirmation, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
 
 // ─── Supabase row <-> domain mapping ────────────────────────────────────
 // missionLoop.ts operates on the camelCase Mission/MissionEvent domain
@@ -306,6 +306,9 @@ export default function MissionTab() {
   // reason: an unconfigured server should never even attempt the call, not
   // just fail it gracefully.
   const [operationStageConfigured, setOperationStageConfigured] = useState(false)
+  const [confirmedLessons, setConfirmedLessons] = useState<ConfirmedLesson[]>([])
+  const [projectReviewAccessError, setProjectReviewAccessError] = useState<string | null>(null)
+  const [lessonNotice, setLessonNotice] = useState('')
   const [projectReview, setProjectReview] = useState<ProjectReview | null>(null)
   const [projectReviewBusy, setProjectReviewBusy] = useState(false)
   const [projectReviewError, setProjectReviewError] = useState<string | null>(null)
@@ -441,15 +444,21 @@ export default function MissionTab() {
     void (async () => {
       try {
         const sessionResult = await supabase.auth.getSession()
-        const res = await fetch('/api/delta-operation', {
+        const res = await fetch('/api/delta-review?capabilities=1', {
           headers: sessionResult.data.session?.access_token
             ? { Authorization: `Bearer ${sessionResult.data.session.access_token}` }
             : {},
         })
-        const data = await res.json() as { configured?: unknown }
-        if (!cancelled) setOperationStageConfigured(res.ok && data.configured === true)
+        const data = await res.json() as { configured?: unknown; error?: string }
+        if (!cancelled) {
+          setOperationStageConfigured(res.ok && data.configured === true)
+          setProjectReviewAccessError(res.ok && data.configured === true ? null : data.error || 'Project intelligence is not configured. Your saved work remains available.')
+        }
       } catch {
-        if (!cancelled) setOperationStageConfigured(false)
+        if (!cancelled) {
+          setOperationStageConfigured(false)
+          setProjectReviewAccessError('Could not check project intelligence access. Reconnect without clearing your saved work.')
+        }
       }
     })()
     return () => { cancelled = true }
@@ -705,9 +714,12 @@ export default function MissionTab() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify(request),
       })
-      const data = await response.json() as { review?: ProjectReview | null; error?: string }
+      const data = await response.json() as { review?: ProjectReview | null; lessons?: ConfirmedLesson[]; error?: string }
       if (!response.ok) throw new Error(data.error || 'Project review could not complete.')
-      if (generation === reviewGeneration.current) setProjectReview(data.review ?? null)
+      if (generation === reviewGeneration.current) {
+        setProjectReview(data.review ?? null)
+        setConfirmedLessons(data.lessons ?? [])
+      }
     } catch (failure) {
       if (generation === reviewGeneration.current) setProjectReviewError(failure instanceof Error ? failure.message : 'Project review could not complete.')
     } finally {
@@ -725,26 +737,32 @@ export default function MissionTab() {
     // Hide the external cached proposal as soon as its inputs change.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setProjectReview(null)
+    setConfirmedLessons([])
     setProjectReviewError(null)
     const primary = findByState(board, 'primary')
     const secondary = findByState(board, 'secondary')
     const target = primary && !primary.blocker && !primary.capacityMismatch ? primary : secondary
-    if (!operationStageConfigured || !loaded || loadFailed || !user || !target?.finishLine) return
+    // Cached reasoning and human-confirmed lessons need no provider key.
+    // Keep reading/retirement available when generation is unavailable.
+    if (!loaded || loadFailed || !user || !target) return
     let cancelled = false
     void (async () => {
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         if (sessionError || !session) throw new Error('Session unavailable.')
         const response = await fetch(`/api/delta-review?missionId=${encodeURIComponent(target.id)}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
-        const data = await response.json() as { review?: ProjectReview | null; error?: string }
+        const data = await response.json() as { review?: ProjectReview | null; lessons?: ConfirmedLesson[]; error?: string }
         if (!response.ok) throw new Error(data.error || 'Could not restore the project review.')
-        if (!cancelled && generation === reviewGeneration.current) setProjectReview(data.review ?? null)
+        if (!cancelled && generation === reviewGeneration.current) {
+          setProjectReview(data.review ?? null)
+          setConfirmedLessons(data.lessons ?? [])
+        }
       } catch {
         if (!cancelled && generation === reviewGeneration.current) setProjectReviewError('Could not restore the project review. Your saved work is unchanged; try Review project again.')
       }
     })()
     return () => { cancelled = true }
-  }, [board, corrections, suppliedSteps, operationStageConfigured, loaded, loadFailed, user, reviewRevision])
+  }, [board, corrections, suppliedSteps, loaded, loadFailed, user, reviewRevision])
 
   useEffect(() => {
     if (!projectReview) return
@@ -752,6 +770,31 @@ export default function MissionTab() {
     const timer = setTimeout(() => setProjectReview(null), Number.isFinite(remaining) ? Math.max(0, remaining) : 0)
     return () => clearTimeout(timer)
   }, [projectReview])
+
+  const handleLessonWrite = useCallback(async (body: object): Promise<boolean> => {
+    beginFieldWork()
+    setLessonNotice('')
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error || !session) throw new Error('Your session is unavailable. Reconnect without clearing saved work.')
+      const response = await fetch('/api/delta-lessons', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify(body),
+      })
+      const data = await response.json() as { error?: string; confirmed?: boolean; retired?: boolean }
+      if (!response.ok || (!data.confirmed && !data.retired)) throw new Error(data.error || 'The lesson was not recorded.')
+      reviewGeneration.current += 1
+      setProjectReview(null)
+      setReviewRevision(value => value + 1)
+      setLessonNotice(data.confirmed ? 'Lesson preserved. The next project review will read it under its stated conditions.' : 'Lesson retired. Its history remains; the next review will exclude it.')
+      return true
+    } catch (failure) {
+      setLessonNotice(failure instanceof Error ? failure.message : 'The lesson could not be recorded.')
+      return false
+    } finally { endFieldWork() }
+  }, [])
+  const handleConfirmLesson = useCallback((lesson: LessonConfirmation) => handleLessonWrite({ action: 'confirm', ...lesson }), [handleLessonWrite])
+  const handleRetireLesson = useCallback((lessonId: string) => handleLessonWrite({ action: 'retire', lessonId }), [handleLessonWrite])
 
   // The narrowly bounded model-assist stage: one clause in, one operation
   // (or null) out. Owns auth and the network call so StrategicDelta.tsx
@@ -794,6 +837,10 @@ export default function MissionTab() {
   const primary = findByState(board, 'primary')
   const secondary = findByState(board, 'secondary')
   const missionList = Object.values(board.missions)
+  // The Delta shows its own "Check again" only for a failed read with nothing
+  // to predict from. A later read can fail while earlier missions are still
+  // on screen; then the banner keeps the button so a retry is always offered.
+  const deltaOffersRecheck = loaded && loadFailed && missionList.length === 0
   const parkedOrCandidate = missionList.filter(m => m.state === 'parked' || m.state === 'candidate')
   const challengeCandidates = missionList.filter(
     m => (m.state === 'parked' || m.state === 'candidate') && m.finishLine,
@@ -1001,7 +1048,8 @@ export default function MissionTab() {
         <div className="mission-status" role="alert">
           <p>{connectionError}</p>
           <div className="flex flex-wrap items-center gap-4 mt-3">
-            <ActionBtn onClick={retryConnection}>Try connection again</ActionBtn>
+            {/* The Strategic Delta offers the same retry once a read has failed and it has no mission to predict from; one label, one button. */}
+            {!deltaOffersRecheck && <ActionBtn onClick={retryConnection}>Check again</ActionBtn>}
             <a href="https://legacy-codex.vercel.app">Open main Legacy Codex site</a>
           </div>
         </div>
@@ -1044,9 +1092,14 @@ export default function MissionTab() {
         onRecheck={handleDeltaRecheck}
         requestOperation={operationStageConfigured ? handleRequestOperation : undefined}
         projectReview={projectReview}
+        confirmedLessons={confirmedLessons}
+        onConfirmLesson={handleConfirmLesson}
+        onRetireLesson={handleRetireLesson}
+        projectReviewAccessError={projectReviewAccessError}
+        projectReviewAvailable={operationStageConfigured}
         projectReviewBusy={projectReviewBusy}
         projectReviewError={projectReviewError}
-        requestProjectReview={operationStageConfigured ? handleProjectReview : undefined}
+        requestProjectReview={sessionReady ? handleProjectReview : undefined}
       >
         {confirmedEmpty ? (
           <form
@@ -1093,6 +1146,8 @@ export default function MissionTab() {
           </form>
         ) : null}
       </StrategicDelta>
+
+      {lessonNotice && <p role="status" className="mission-status">{lessonNotice}</p>}
 
       {/* Accepting a Delta is a prediction, not a commitment — SavedActions
           is where accepting one turns into a tracked, resumable action with

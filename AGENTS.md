@@ -188,7 +188,11 @@ that control rather than failing at runtime.
 for an actionable saved project, including single-clause finish lines. The
 server reads that authenticated account's mission, related missions, evidence
 read model, canonical commitments and notes/corrections through RLS; no admin
-key is used. It reads at most two public GitHub text files explicitly linked
+key is used. Explicit IDs and shared meaningful terms select up to four of
+the latest 50 other missions for deeper evidence, commitment and correction
+reads. Up to eight additional summaries allow discovery without lexical
+overlap, but their underlying records are explicitly unread. Relationship
+signals remain hypotheses. It reads at most two public GitHub text files explicitly linked
 in project notes. A bounded proposal → critique loop returns a source-attributed
 candidate, proposed bigger picture, overlooked connection, self-check and
 unknowns. The candidate still passes the engine's quality, priority, blocker,
@@ -201,6 +205,24 @@ commitments, source revisions, mission changes and one-hour expiry invalidate
 the cache. POST checks context again after reasoning before saving. The current
 owner allowlist is preserved; sharing the app does not enable a new visitor's
 model access or transfer Eddie's anonymous identity.
+
+**Confirmed learning:** `/api/delta-lessons` records an explicit, editable
+human confirmation with a rule, application conditions, scope and frozen
+review source references. `delta_lesson_confirmed` / `delta_lesson_retired`
+are append-only records in the same transitional UI ledger, not canonical
+doctrine, generic audit ownership or verified evidence. Retirements are read
+by exact confirmation ID so old retired rules cannot reappear. The latest 50
+confirmations yield at most 16 active rules scoped to the target/related
+project or account. Confirmation requires a current valid review and is
+idempotent on retries. Confirmation or retirement changes the source hash,
+invalidating reasoning that used the prior rule set. No model may confirm
+its own lesson, rewrite the Goose Cookbook, or start an unbounded loop.
+
+`/api/delta-review?capabilities=1` reports owner-gated configuration without
+a provider call. Keep clause-generation POSTs on `/api/delta-operation`.
+Review failures identify their context/provider/persistence stage without
+logging private source text or credentials. Configuration and passing tests
+do not establish a successful owner review or useful reasoning.
 
 ### Styling system
 

@@ -20,7 +20,9 @@ Foundry is the builder and operations environment behind Legacy Codex. Routing, 
 
 The cross-system cognitive doctrine remains the Goose Cookbook in `edwardemoryphotography/codex-system-architecture/notion-wiki/docs/GOOSE-COOKBOOK.md`.
 
-Its North Star is **preserving human intent so another intelligence can reconstruct, execute, verify, and continue it**. The reviewed runtime projection is `src/lib/cognitiveDoctrine.ts`, consumed by both existing model routes. In the app, open **Codex → Root → North Star — Goose Cookbook**, or search **Goose**, to read the origin lesson, MasterChef method, primary source, and current capability limits.
+Its North Star is **preserving human intent so another intelligence can reconstruct, execute, verify, and continue it**. The reviewed runtime projection is `src/lib/cognitiveDoctrine.ts`, consumed by the analysis, operation and project-review model routes. In the app, open **Codex → Root → North Star — Goose Cookbook**, or search **Goose**, to read the origin lesson, MasterChef method, primary source, and current capability limits.
+
+On Mission, **Review project** reconstructs the saved outcome using real account-scoped sources, reads supporting records from selected related projects, and critiques its own proposal once. **Why this → Lessons carried forward** lets the owner edit and confirm a proposed lesson, state when it applies, and choose project-only or account-wide scope. Later relevant reviews read active confirmed lessons; **Stop using this lesson** retires a rule while retaining its history. Reviews are proposals, lessons are human-confirmed operating rules, and neither is verified evidence. Project-review provider calls require an explicit review; reload only restores current cached project reasoning. The existing owner access gate still applies, so sharing the URL does not grant model access.
 
 ## Local development
 

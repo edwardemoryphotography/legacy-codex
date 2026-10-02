@@ -298,7 +298,7 @@ export default function ConstraintValidatorTab() {
             style={{
               width: '100%',
               border: '1px solid var(--line-strong)',
-              borderRadius: 10,
+              borderRadius: 'var(--radius)',
               background: '#0f0f18',
               color: 'var(--text)',
               font: 'inherit',

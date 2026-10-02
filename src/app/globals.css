@@ -24,6 +24,7 @@
   --radius-sm: 8px;
   --radius: 12px;
   --radius-lg: 18px;
+  --radius-xl: 24px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
@@ -150,7 +151,7 @@ body {
   padding: 8px 6px;
   border: 1px solid transparent;
   background: transparent;
-  border-radius: 12px;
+  border-radius: var(--radius);
   cursor: pointer;
   color: var(--text-dim);
   font-size: 0.75rem;
@@ -371,7 +372,7 @@ body {
   isolation: isolate;
   max-width: 52rem;
   padding: 22px 20px 18px;
-  border-radius: 24px;
+  border-radius: var(--radius-xl);
   background: var(--surface);
   border: 1px solid var(--line);
   box-shadow:
@@ -1878,7 +1879,7 @@ body {
   margin-top: 8px;
   padding: 18px 18px 16px;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--surface) 88%, transparent);
 }
 
@@ -1952,6 +1953,9 @@ body {
   .codex-shell { padding: 18px 12px calc(106px + var(--safe-bottom)); }
   .codex-header { padding-bottom: 18px; }
   .codex-header p { font-size: 0.74rem; }
+  /* The product name and the move matter on a phone; the eyebrow is chrome
+     above the instrument. */
+  .codex-brand-eyebrow { display: none; }
   .mission-space { gap: 14px; }
   .session-status { max-width: 100%; }
   /* A healthy connection is not news on a phone; "Checking…", failures,
@@ -2075,11 +2079,23 @@ body {
   overflow: auto;
   padding: 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 .sd-project-review details { margin: 0.65rem 0; }
 .sd-project-review summary { cursor: pointer; overflow-wrap: anywhere; }
 .sd-project-review h3 { margin-top: 1rem; }
+.sd-project-review label { display: block; margin: 12px 0 6px; }
+.sd-project-review textarea {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--line-strong);
+  border-radius: var(--radius); background: var(--field-bg); color: var(--text); font: inherit;
+  font-size: 16px; resize: vertical;
+}
+.sd-project-review button {
+  margin: 10px 0; min-height: 44px; padding: 10px 14px; border-radius: var(--radius);
+  border: 1px solid var(--line-strong); background: var(--control-bg); color: var(--text);
+}
+.sd-project-review button:disabled { opacity: .55; }
+.sd-project-review input[type="checkbox"] { margin-right: 8px; accent-color: var(--teal); }
 
 /* The reference library shares Mission's quiet surfaces, with the reading
    pane visible without scrolling through the whole catalogue on a phone. */
@@ -2101,7 +2117,7 @@ body {
 .library-article .codex-markdown h2 { font-family: 'Instrument Serif', Georgia, serif; font-weight: 400; }
 .library-article .codex-markdown { line-height: 1.75 !important; }
 .library-article pre { white-space: pre-wrap; overflow-wrap: anywhere; }
-.commitment-panel { border-radius: 24px; padding: 24px; background: var(--surface); }
+.commitment-panel { border-radius: var(--radius-xl); padding: 24px; background: var(--surface); }
 .commitment-panel h3 { font-family: 'Instrument Serif', Georgia, serif; font-size: 1.7rem; font-weight: 400; }
 .mission-disclosure > summary { padding: 18px 8px; }
 .mission-invite { clear: both; margin-top: 20px; }
@@ -2122,7 +2138,7 @@ body {
   .codex-brand-eyebrow { font-size: 0.56rem; }
   .codex-header h1 { font-size: 1.15rem; }
   .codex-brand-copy { gap: 2px; }
-  .sd:not(.sd-orb-host) { padding: 20px 18px; border-radius: 22px; }
+  .sd:not(.sd-orb-host) { padding: 20px 18px; border-radius: var(--radius-xl); }
   .sd-purpose { display: none; }
   .sd-mission { margin-top: 8px; font-size: 0.75rem; }
   .sd-because, .sd-support { clear: both; font-size: 0.9rem; line-height: 1.45; margin-top: 12px; }
@@ -2132,7 +2148,7 @@ body {
   .mission-invite input { min-height: 46px; }
   .mission-path span { font-size: 0.72rem; }
   .mission-space { gap: 12px; }
-  .commitment-panel { padding: 18px; border-radius: 22px; }
+  .commitment-panel { padding: 18px; border-radius: var(--radius-xl); }
   .library-sidebar nav { max-height: 12rem; }
   .codex-tablist { padding-bottom: calc(8px + var(--safe-bottom)); }
   .codex-tab { min-height: 52px; font-size: 0.65rem; }
