@@ -29,7 +29,7 @@ For coding tasks, "done" means the requested end state is actually reached — n
 
 ## Cross-repo engineering standards
 
-The Legacy Codex Standards Kit (product definition, task lifecycle, design tokens, intelligence governance, SHIPPED ladder) is governed from `codex-control-panel/standards/` (Standards Kit 2.2.0) — this repo is named in Master Charter §1 but does not implement most of it: no Liquid Intelligence design system (this app ships dark, its own established design; a light variant exists for preview review only) and no AI task-routing/lifecycle surface (the one real AI integration is `/api/analyze`, already following §5.4's server-only-key rule). What does apply: §9 discovery-before-modification, and `standards/AGENT-BEHAVIOR.md`'s baseline conduct (think-before-coding, simplicity, surgical changes, verification) underneath the doctrine below — the doctrine and sanity gate here are repo-specific and take precedence over generic guidance where they overlap.
+The Legacy Codex Standards Kit (product definition, task lifecycle, design tokens, intelligence governance, SHIPPED ladder) is governed from `codex-control-panel/standards/` (Standards Kit 2.2.0). Eddie's selected Control Panel design is adapted in `control-panel.css` and the Mission task router; production ships dark, with light available only for preview/local review. Routing is explicitly local-rules handoff preparation, not external-tool execution. Model calls remain server-only and owner-gated. See `docs/CONTROL-PANEL-INTEGRATION.md` for boundaries. §9 discovery-before-modification and `standards/AGENT-BEHAVIOR.md` apply underneath the repo-specific doctrine and sanity gate here.
 
 ## Mandatory cognitive doctrine
 
@@ -270,3 +270,44 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+
+## Mandatory Reality Filter: pre-ship completion gate
+
+This gate is mandatory whenever an agent is about to report that a Legacy Codex change is **done, fixed, merged, deployed, shipped, runtime verified, or live**. It applies to Codex, Claude Code, Cursor, Grok Build, and every other coding agent governed by this file.
+
+**Goal: nothing is "done" until Eddie can tap the evidence on his iPhone and see it.**
+
+1. List every completion claim the agent is making: fixed, merged, deployed, added, runtime verified, live.
+2. Give one tappable proof per applicable claim:
+   - **Merged:** GitHub PR URL showing **Merged**. An open PR is `[PARTIAL]`.
+   - **Deployed:** Vercel deployment URL showing **Ready** for the intended target.
+   - **Live:** the production URL plus the exact visible behavior Eddie should look for.
+   - **Fixed:** state what happened before, what should happen now, and the runtime evidence that establishes the change.
+3. Tag every unsupported stage honestly:
+   - `[UNVERIFIED]` — claimed but no proof exists yet.
+   - `[INFERENCE]` — expected from code/configuration but not directly verified.
+   - `[PARTIAL]` — part of the claim is proven; name which part.
+   - `[MISSING]` — required behavior/data/evidence does not exist.
+   - `[NEEDS CONFIRMATION]` — only Eddie can perform the remaining check.
+4. **No mock data.** Placeholder, simulated, fixture, or synthetic content does not prove a real-data path. If real data is required and absent, use `[MISSING]`.
+5. **Smallest safe patch.** Disclose files/features touched beyond the requested scope.
+6. End with exactly one release verdict: **SHIP**, **HOLD**, or **SHIP WITH FLAGS**.
+
+### Reality Filter output contract
+
+Keep the final verification phone-sized:
+- Verdict on the first line.
+- One line per completion claim with its proof URL or evidence tag.
+- A short **Look at this** instruction telling Eddie exactly what to open and what to observe.
+- Aim for about 15 lines maximum; no table unless Eddie explicitly asks for one.
+
+### Non-negotiable proof rules
+
+- "Should work" is `[INFERENCE]`, never proof.
+- A passing test/build proves only what that test/build establishes.
+- **Merged does not mean Deployed. Deployed does not mean Runtime Verified. Runtime Verified does not automatically mean Live on the canonical production surface.**
+- Never upgrade an evidence tag without new proof.
+- If a requested finish line includes deployment/runtime verification, do not stop at a commit, PR, merge, or green CI run.
+- If everything has direct proof, say so concisely and stop.
+

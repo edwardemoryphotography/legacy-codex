@@ -41,6 +41,9 @@ import { groupByMission, hasConflict, isStale } from '@/lib/evidence'
 import { ActionBtn, ActionChip, Badge, Card, Input, SectionSubtitle, SectionTitle, Textarea } from '@/components/ui'
 import NextMovePanel from '@/components/NextMovePanel'
 import SavedActions from '@/components/SavedActions'
+import TaskRouter, { type RoutedActionDraft, type RouteSeed } from '@/components/TaskRouter'
+import { nextMoveContextKey } from '@/lib/nextMove'
+import type { TaskRouteContext } from '@/lib/taskRouting'
 import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase } from '@/components/StrategicDelta'
 import type { ConfirmedLesson, LessonConfirmation, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
 
@@ -297,6 +300,9 @@ export default function MissionTab() {
   // The accepted move the Delta is actually showing for Primary (reported by
   // StrategicDelta). Distinct from acceptedMoves, which comes from the ledger.
   const [shownAcceptance, setShownAcceptance] = useState<{ missionId: string; move: string } | null>(null)
+  const [routeSeed, setRouteSeed] = useState<RouteSeed | null>(null)
+  const [routedDraft, setRoutedDraft] = useState<RoutedActionDraft | null>(null)
+  const [routeNotes, setRouteNotes] = useState<{ missionId: string; note: string }[]>([])
   const [loaded, setLoaded] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
   const [connectionAttempt, setConnectionAttempt] = useState(0)
@@ -387,6 +393,7 @@ export default function MissionTab() {
       }
       setBoard({ missions })
       const eventRows = (correctionsRes.data ?? []) as Array<MissionEventRow & { type?: string }>
+      setRouteNotes(eventRows.filter(row => row.type === 'delta_context_added').map(row => ({ missionId: row.mission_id, note: row.detail })))
       setCorrections(
         eventRows
           .filter(row => row.type === 'delta_corrected')
@@ -692,6 +699,7 @@ export default function MissionTab() {
       }
       const saved = await recordDeltaEvent('delta_context_added', delta.missionId, note)
       if (saved) {
+        setRouteNotes(previous => [...previous, { missionId: delta.missionId!, note }])
         reviewGeneration.current += 1
         setProjectReview(null)
         setReviewRevision(value => value + 1)
@@ -746,7 +754,25 @@ export default function MissionTab() {
         setConfirmedLessons(data.lessons ?? [])
       }
     } catch (failure) {
-      if (generation === reviewGeneration.current) setProjectReviewError(failure instanceof Error ? failure.message : 'Project review could not complete.')
+      if (generation === reviewGeneration.current) {
+        setProjectReviewError(failure instanceof Error ? failure.message : 'Project review could not complete.')
+        // A failed review may have superseded an in-flight restore that already
+        // cleared the lessons. Reload human-confirmed lessons so they stay visible.
+        void (async () => {
+          try {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session) {
+              const restore = await fetch(`/api/delta-review?missionId=${encodeURIComponent(request.missionId)}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+              if (restore.ok) {
+                const restored = await restore.json() as { lessons?: ConfirmedLesson[] }
+                if (generation === reviewGeneration.current) setConfirmedLessons(restored.lessons ?? [])
+              }
+            }
+          } catch {
+            // Keep the review error visible; lessons reload on the next restore.
+          }
+        })()
+      }
     } finally {
       reviewInFlight.current = false
       setProjectReviewBusy(false)
@@ -1064,6 +1090,19 @@ export default function MissionTab() {
 
   const evidenceGroups = groupByMission(evidence)
   const primaryEvidence = primary ? evidenceGroups.get(primary.id) ?? [] : []
+  // An explicit Delta handoff keeps its actual target, including Secondary.
+  // If that target disappears it must not silently retarget to Primary.
+  const routeMission = routeSeed ? board.missions[routeSeed.missionId] ?? null : primary ?? null
+  const routeContext: TaskRouteContext = {
+    mission: routeMission,
+    missionStatus: !loaded ? 'loading' : loadFailed || !user ? 'unavailable' : 'ready',
+    evidence, evidenceStatus,
+    corrections: sessionReady ? corrections.filter(item => item.missionId === routeMission?.id).map(item => ({ correctedMove: item.correctedMove, reason: item.reason })) : [],
+    contextNotes: sessionReady ? routeNotes.filter(item => item.missionId === routeMission?.id).map(item => item.note) : [],
+  }
+  const currentDraft = routedDraft && routedDraft.missionId === routeMission?.id
+    && routedDraft.contextKey === nextMoveContextKey(routeContext, new Date().toISOString()) ? routedDraft : null
+  const savedMissionId = currentDraft?.missionId ?? shownAcceptance?.missionId ?? primary?.id
   const now = new Date().toISOString()
 
   return (
@@ -1102,7 +1141,15 @@ export default function MissionTab() {
         </ol>
       )}
 
-      {/* The predictive front door: resolves from real state before the
+      <TaskRouter
+        context={routeContext}
+        accountId={sessionReady ? user.id : null}
+        seed={routeSeed}
+        canSave={sessionReady && (routeMission?.state === 'primary' || routeMission?.state === 'secondary')}
+        onPrepare={setRoutedDraft}
+      />
+
+      {/* The next-move guide: resolves from real state before the
           user types anything, and renders during the load so its reasoning
           state reflects work that is actually pending. */}
       <StrategicDelta
@@ -1112,6 +1159,9 @@ export default function MissionTab() {
         phase={deltaPhase}
         acceptedMoves={acceptedMoves}
         onShownAcceptance={setShownAcceptance}
+        onRoute={delta => {
+          if (delta.missionId) setRouteSeed(previous => ({ task: delta.move, missionId: delta.missionId!, sequence: (previous?.sequence ?? 0) + 1 }))
+        }}
         readAvailable={loaded && !loadFailed}
         persistError={deltaError}
         onAccept={handleAcceptDelta}
@@ -1187,9 +1237,10 @@ export default function MissionTab() {
           or an actionable Secondary when that is what the Delta aimed at. */}
       {sessionReady && primary && (
         <SavedActions
-          key={shownAcceptance?.missionId ?? primary.id}
-          missionId={shownAcceptance?.missionId ?? primary.id}
-          suggestedTitle={shownAcceptance?.move ?? null}
+          key={savedMissionId}
+          missionId={savedMissionId}
+          suggestedTitle={shownAcceptance && shownAcceptance.missionId === savedMissionId ? shownAcceptance.move : null}
+          routedDraft={currentDraft}
           onActiveChange={handleResumableAction}
         />
       )}

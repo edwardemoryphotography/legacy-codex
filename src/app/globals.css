@@ -1754,6 +1754,11 @@ body {
 
 /* Preview-only theme switch (ThemeReview.tsx). Never rendered in production. */
 .theme-review { display: inline-flex; flex: none; align-items: center; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; color: var(--text-dim); font-size: 0.74rem; }
+/* Three buttons no longer fit beside the brand on a phone: let the preview
+   switch drop below it instead of running off the right edge (the shell clips
+   overflow-x). Only headers that actually contain the switch wrap, so
+   production's header is untouched. */
+.codex-header:has(.theme-review) { flex-wrap: wrap; row-gap: 12px; }
 .theme-review span { padding: 0 6px 0 8px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; font-size: 0.62rem; }
 .theme-review button { min-height: 32px; padding: 0 12px; border-radius: 999px; border: 0; background: transparent; color: var(--text-soft); font: inherit; cursor: pointer; }
 .theme-review button[aria-pressed="true"] { background: var(--surface-strong); color: var(--text); }
