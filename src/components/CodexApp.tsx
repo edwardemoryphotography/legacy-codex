@@ -32,6 +32,7 @@ const TABS: Tab[] = [
   { id: 'codex',                 label: 'Codex' },
   { id: 'controls',             label: 'Controls' },
   { id: 'brief',                 label: 'Brief' },
+  { id: 'origin',                label: 'Origin Atlas' },
 ]
 
 // Everyday screens live in the primary bar so they're always one tap away,
@@ -268,6 +269,7 @@ export default function CodexApp() {
           {activeTab === 'codex'                && <CodexTab />}
           {activeTab === 'controls'             && <ControlsTab />}
           {activeTab === 'brief'                 && <BriefTab />}
+          {activeTab === 'origin'                && <OriginTab />}
         </div>
       </main>
 
