@@ -94,6 +94,7 @@ export type TabId =
   | 'codex'
   | 'controls'
   | 'brief'
+  | 'origin'
 
 export interface UIPrefs {
   density: 'compact' | 'comfortable'

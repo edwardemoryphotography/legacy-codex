@@ -1768,6 +1768,37 @@ body {
 .brand-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 12px color-mix(in srgb, var(--teal) 70%, transparent); }
 .codex-header p { color: var(--text-dim); font-size: 0.8rem; line-height: 1.35; }
 .codex-main { min-width: 0; }
+.origin-atlas { min-width: 0; display: grid; gap: 12px; }
+.origin-atlas-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.origin-atlas-switch-btn {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.origin-atlas-switch-btn[aria-selected="true"] {
+  border-color: color-mix(in srgb, var(--teal) 45%, var(--line));
+  background: var(--teal-soft);
+  color: var(--text);
+}
+.origin-atlas-frame {
+  display: block;
+  width: 100%;
+  height: calc(100dvh - 14rem - var(--safe-bottom));
+  min-height: 28rem;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #080d19;
+}
 .codex-footer { color: var(--text-dim); font-size: 12px; padding-top: 36px; }
 .mission-space { display: grid; gap: 18px; }
 .session-status { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-dim); max-width: 280px; }
