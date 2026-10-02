@@ -311,12 +311,13 @@ export default function MissionTab() {
   const [operationStageConfigured, setOperationStageConfigured] = useState(false)
   const [confirmedLessons, setConfirmedLessons] = useState<ConfirmedLesson[]>([])
   const [projectReviewAccessError, setProjectReviewAccessError] = useState<string | null>(null)
-  // Who the server says this session is for project intelligence. A 401/403
-  // means a visitor (or a session the server cannot verify): the owner-only
-  // review routes will refuse them, so the cached-review read is skipped
-  // rather than fired just to fail. Any 2xx — including `configured: false`
-  // when the model key is missing — is the owner, whose confirmed lessons
-  // still restore without a provider key.
+  // Who the server says this session is for project intelligence. A 403 is
+  // a visitor: the owner-only review routes will refuse them, so the
+  // cached-review read is skipped rather than fired just to fail. A 401 is a
+  // session the server could not verify (possibly transient), so it is not
+  // locked in as a visitor; its reads still run and fail quietly. Any 2xx —
+  // including `configured: false` when the model key is missing — is the
+  // owner, whose confirmed lessons still restore without a provider key.
   const [projectAccess, setProjectAccess] = useState<'checking' | 'owner' | 'visitor' | 'unknown'>('checking')
   // A failed optional read (restoring a cached review). Shown as a quiet
   // note, never as a failed write.
@@ -465,7 +466,7 @@ export default function MissionTab() {
         if (res.status === 401 || res.status === 403) {
           if (!cancelled) {
             setOperationStageConfigured(false)
-            setProjectAccess('visitor')
+            setProjectAccess(res.status === 403 ? 'visitor' : 'unknown')
             setProjectReviewAccessError(res.status === 403 ? VISITOR_ACCESS_COPY : RECONNECT_ACCESS_COPY)
           }
           return
@@ -728,6 +729,7 @@ export default function MissionTab() {
     setProjectReviewBusy(true)
     setProjectReview(null)
     setProjectReviewError(null)
+    setProjectReviewNotice(null)
     beginFieldWork()
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()

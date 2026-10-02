@@ -350,6 +350,21 @@ describe('MissionTab project-review access', () => {
     expect(document.querySelector('section.sd')!.getAttribute('data-cognition')).not.toBe('failed')
   })
 
+  it('a 401 (unverified session) is not locked in as a visitor and fails quietly', async () => {
+    const fetchMock = vi.fn(async (url: string) => String(url).includes('capabilities=1')
+      ? respond(401, { error: 'Sign in to use model-assisted candidates.' })
+      : respond(401, { error: 'Sign in to use model-assisted candidates.' }))
+    vi.stubGlobal('fetch', fetchMock)
+    render(<MissionTab />)
+
+    expect(await screen.findByText(/Smart suggestions are unavailable until this session reconnects/)).toBeTruthy()
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => String(url).includes('missionId=m1'))).toBe(true))
+    expect(await screen.findByText('A saved project review could not be loaded. Your saved work is unchanged.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Review project' })).toBeTruthy()
+    expect(screen.queryByText('This did not record')).toBeNull()
+    expect(document.querySelector('section.sd')!.getAttribute('data-cognition')).not.toBe('failed')
+  })
+
   it('the owner without a model key still restores confirmed lessons', async () => {
     const fetchMock = vi.fn(async (url: string) => String(url).includes('capabilities=1')
       ? respond(200, { configured: false })
