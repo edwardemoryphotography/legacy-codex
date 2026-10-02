@@ -101,6 +101,7 @@ interface Props {
    *  "the recommendation you accepted", and a Secondary's step must be saved
    *  against the Secondary. */
   onShownAcceptance?: (acceptance: { missionId: string; move: string } | null) => void
+  onRoute?: (delta: Delta) => void
   /** Whether the caller's mission/correction read has actually succeeded
    *  at least once. `missions: []` is ambiguous on its own — it means
    *  either a confirmed-empty first-time visitor or a failed read that
@@ -150,6 +151,7 @@ export default function StrategicDelta({
   phase,
   acceptedMoves = NO_ACCEPTANCES,
   onShownAcceptance,
+  onRoute,
   readAvailable,
   persistError = null,
   onAccept,
@@ -544,6 +546,9 @@ export default function StrategicDelta({
               </div>
             ) : null}
             <div className="sd-act-secondary">
+              {hasRecommendation && onRoute && committableMission && (
+                <ActionChip onClick={() => onRoute(delta)} variant="secondary">Route this move</ActionChip>
+              )}
               <ActionChip
                 onClick={() => setOpen(open === 'why' ? null : 'why')}
                 variant="ghost"

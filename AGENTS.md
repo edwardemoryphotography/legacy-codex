@@ -29,7 +29,7 @@ For coding tasks, "done" means the requested end state is actually reached — n
 
 ## Cross-repo engineering standards
 
-The Legacy Codex Standards Kit (product definition, task lifecycle, design tokens, intelligence governance, SHIPPED ladder) is governed from `codex-control-panel/standards/` (Standards Kit 2.2.0) — this repo is named in Master Charter §1 but does not implement most of it: no Liquid Intelligence design system (this app ships dark, its own established design; a light variant exists for preview review only) and no AI task-routing/lifecycle surface (the one real AI integration is `/api/analyze`, already following §5.4's server-only-key rule). What does apply: §9 discovery-before-modification, and `standards/AGENT-BEHAVIOR.md`'s baseline conduct (think-before-coding, simplicity, surgical changes, verification) underneath the doctrine below — the doctrine and sanity gate here are repo-specific and take precedence over generic guidance where they overlap.
+The Legacy Codex Standards Kit (product definition, task lifecycle, design tokens, intelligence governance, SHIPPED ladder) is governed from `codex-control-panel/standards/` (Standards Kit 2.2.0). Eddie's selected Control Panel design is adapted in `control-panel.css` and the Mission task router; production ships dark, with light available only for preview/local review. Routing is explicitly local-rules handoff preparation, not external-tool execution. Model calls remain server-only and owner-gated. See `docs/CONTROL-PANEL-INTEGRATION.md` for boundaries. §9 discovery-before-modification and `standards/AGENT-BEHAVIOR.md` apply underneath the repo-specific doctrine and sanity gate here.
 
 ## Mandatory cognitive doctrine
 

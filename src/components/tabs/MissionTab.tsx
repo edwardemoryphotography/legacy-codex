@@ -14,6 +14,7 @@ import type {
   Mission,
   MissionEventType,
   MissionState,
+  NextMoveContext,
   StrategicDelta as Delta,
 } from '@/types'
 import { beginFieldWork, endFieldWork } from '@/lib/cognitionPresence'
@@ -41,6 +42,8 @@ import { groupByMission, hasConflict, isStale } from '@/lib/evidence'
 import { ActionBtn, ActionChip, Badge, Card, Input, SectionSubtitle, SectionTitle, Textarea } from '@/components/ui'
 import NextMovePanel from '@/components/NextMovePanel'
 import SavedActions from '@/components/SavedActions'
+import TaskRouter, { type RoutedActionDraft, type RouteSeed } from '@/components/TaskRouter'
+import { nextMoveContextKey } from '@/lib/nextMove'
 import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase } from '@/components/StrategicDelta'
 import type { ConfirmedLesson, LessonConfirmation, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
 
@@ -297,6 +300,8 @@ export default function MissionTab() {
   // The accepted move the Delta is actually showing for Primary (reported by
   // StrategicDelta). Distinct from acceptedMoves, which comes from the ledger.
   const [shownAcceptance, setShownAcceptance] = useState<{ missionId: string; move: string } | null>(null)
+  const [routeSeed, setRouteSeed] = useState<RouteSeed | null>(null)
+  const [routedDraft, setRoutedDraft] = useState<RoutedActionDraft | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
   const [connectionAttempt, setConnectionAttempt] = useState(0)
@@ -1064,6 +1069,17 @@ export default function MissionTab() {
 
   const evidenceGroups = groupByMission(evidence)
   const primaryEvidence = primary ? evidenceGroups.get(primary.id) ?? [] : []
+  // An explicit Delta handoff keeps its actual target, including Secondary.
+  // If that target disappears it must not silently retarget to Primary.
+  const routeMission = routeSeed ? board.missions[routeSeed.missionId] ?? null : primary ?? null
+  const routeContext: NextMoveContext = {
+    mission: routeMission,
+    missionStatus: !loaded ? 'loading' : loadFailed || !user ? 'unavailable' : 'ready',
+    evidence, evidenceStatus,
+  }
+  const currentDraft = routedDraft && routedDraft.missionId === routeMission?.id
+    && routedDraft.contextKey === nextMoveContextKey(routeContext, new Date().toISOString()) ? routedDraft : null
+  const savedMissionId = currentDraft?.missionId ?? shownAcceptance?.missionId ?? primary?.id
   const now = new Date().toISOString()
 
   return (
@@ -1112,6 +1128,9 @@ export default function MissionTab() {
         phase={deltaPhase}
         acceptedMoves={acceptedMoves}
         onShownAcceptance={setShownAcceptance}
+        onRoute={delta => {
+          if (delta.missionId) setRouteSeed(previous => ({ task: delta.move, missionId: delta.missionId!, sequence: (previous?.sequence ?? 0) + 1 }))
+        }}
         readAvailable={loaded && !loadFailed}
         persistError={deltaError}
         onAccept={handleAcceptDelta}
@@ -1178,6 +1197,14 @@ export default function MissionTab() {
         ) : null}
       </StrategicDelta>
 
+      <TaskRouter
+        context={routeContext}
+        accountId={sessionReady ? user.id : null}
+        seed={routeSeed}
+        canSave={sessionReady && (routeMission?.state === 'primary' || routeMission?.state === 'secondary')}
+        onPrepare={setRoutedDraft}
+      />
+
       {lessonNotice && <p role="status" className="mission-status">{lessonNotice}</p>}
 
       {/* Accepting a Delta is a prediction, not a commitment — SavedActions
@@ -1187,9 +1214,10 @@ export default function MissionTab() {
           or an actionable Secondary when that is what the Delta aimed at. */}
       {sessionReady && primary && (
         <SavedActions
-          key={shownAcceptance?.missionId ?? primary.id}
-          missionId={shownAcceptance?.missionId ?? primary.id}
-          suggestedTitle={shownAcceptance?.move ?? null}
+          key={savedMissionId}
+          missionId={savedMissionId}
+          suggestedTitle={shownAcceptance?.missionId === savedMissionId ? shownAcceptance.move : null}
+          routedDraft={currentDraft}
           onActiveChange={handleResumableAction}
         />
       )}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { connectMissionSession } from '@/lib/supabase/missionSession'
 import { ActionBtn, Input, Textarea } from '@/components/ui'
+import type { RoutedActionDraft } from './TaskRouter'
 
 type SavedAction = {
   id: string
@@ -20,6 +21,7 @@ const fields = 'id,mission_id,action_title,status,resume_note,updated_at,mission
 export default function SavedActions({
   missionId,
   suggestedTitle,
+  routedDraft,
   onActiveChange,
 }: {
   missionId?: string
@@ -27,6 +29,9 @@ export default function SavedActions({
    *  composer once so the saved action can use the same words. Never
    *  written for them — saving stays an explicit commitment. */
   suggestedTitle?: string | null
+  /** Explicitly prepared handoff, not a background recommendation. Saved
+   *  into the existing action's resume_note only with the matching title. */
+  routedDraft?: RoutedActionDraft | null
   onActiveChange?: (missionId: string, active: boolean) => void
 }) {
   const [actions, setActions] = useState<SavedAction[]>([])
@@ -63,12 +68,20 @@ export default function SavedActions({
   }, [missionId, loading, error, hasOpenAction, actions, onActiveChange])
 
   useEffect(() => {
-    if (!suggestedTitle || titleTouched) return
+    if (routedDraft || !suggestedTitle || titleTouched) return
     // Seeding the composer from an accepted recommendation is a reaction to
     // that prop, not a render-time derivation — the field stays editable.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTitle(suggestedTitle)
-  }, [suggestedTitle, titleTouched])
+  }, [suggestedTitle, titleTouched, routedDraft])
+
+  useEffect(() => {
+    if (!routedDraft) return
+    // Preparing a route is an explicit request to seed this composer.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTitle(routedDraft.task)
+    setTitleTouched(false)
+  }, [routedDraft])
 
   useEffect(() => {
     let cancelled = false
@@ -84,6 +97,7 @@ export default function SavedActions({
     try {
       const { data, error: writeError } = await supabase.from('actions').insert({
         mission_id: missionId, action_title: title.trim(), status: 'TODO', is_next_action: true,
+        resume_note: routedDraft?.missionId === missionId && title.trim() === routedDraft.task ? routedDraft.note : null,
       }).select(fields).single()
       if (writeError || !data) throw writeError ?? new Error('No saved action returned')
       setActions(previous => [data as unknown as SavedAction, ...previous])
@@ -110,10 +124,12 @@ export default function SavedActions({
         {openActions.map(action => <ActionCard key={`${action.id}:${action.updated_at}`} action={action} matchesRecommendation={action.action_title === suggestedTitle} onSaved={saved => {
           setActions(previous => previous.map(item => item.id === saved.id ? saved : item))
         }} />)}
+        {openActions.length > 0 && routedDraft && <p role="status">An unfinished action is already saved. Copy the prepared handoff into its starting point if it belongs to that action, or finish that action before saving another.</p>}
         {!openActions.length && (missionId ? <div className="space-y-3">
           <p>Name one concrete step you want to take. Saving it is a commitment, not proof that it is done.</p>
           <label htmlFor="saved-action-title">Name the action to save</label>
           <Input id="saved-action-title" value={title} onChange={value => { setTitleTouched(true); setTitle(value) }} placeholder="What will you do next?" />
+          {routedDraft && (title.trim() === routedDraft.task ? <details className="route-handoff"><summary>Handoff to save with this action</summary><pre tabIndex={0}>{routedDraft.note}</pre><p>The task and this starting point will be saved together. No tool has run.</p></details> : <p>The action title changed. This save will use your new title without the earlier handoff. Route the revised task to prepare a matching handoff.</p>)}
           <ActionBtn disabled={saving || !title.trim()} onClick={saveAction}>{saving ? 'Saving…' : 'Save next action'}</ActionBtn>
         </div> : <p>No unfinished actions are saved. Choose your next action on the Mission screen.</p>)}
         {doneActions.length > 0 && <details><summary>Actions you marked done ({doneActions.length})</summary>

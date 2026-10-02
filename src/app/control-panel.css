@@ -1,0 +1,133 @@
+/* Liquid Intelligence presentation, adapted from Eddie's selected Control
+   Panel (e56c3e2). Existing Mission state, orb identity and theme guard stay
+   authoritative. Ornament reacts to focus/results, never simulated AI work. */
+:root {
+  --bg: #08090e;
+  --surface: #191a23;
+  --surface-soft: #1e202a;
+  --surface-strong: #292b37;
+  --line: rgba(255,255,255,.10);
+  --line-strong: rgba(255,255,255,.19);
+  --text: #f5f5f7;
+  --text-soft: #c3c3ce;
+  --text-dim: #9a9aa9;
+  --chrome: #101119;
+  --panel-glass: rgba(28,29,38,.72);
+  --panel-field: rgba(10,11,18,.48);
+  --panel-shadow: 0 20px 52px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.07);
+  --gradient-brand: linear-gradient(130deg,#3d8bff,#6a6ff5 24%,#a259ff 55%,#b24486 78%,#b04c34);
+  --action-bg: var(--gradient-brand);
+  --action-text: #fff;
+  --action-glow: 0 8px 24px rgba(135,91,246,.23);
+  --glow-calm: rgba(98,85,180,.20);
+  --glow-think: rgba(150,98,232,.25);
+}
+:root[data-theme="light"] {
+  --bg: #f2f2f7;
+  --surface: #fff;
+  --surface-soft: #f0f0f4;
+  --surface-strong: #e8e8ef;
+  --line: rgba(25,25,40,.10);
+  --line-strong: rgba(25,25,40,.22);
+  --text: #1d1d1f;
+  --text-soft: #54545f;
+  --text-dim: #686874;
+  --chrome: #f2f2f7;
+  --panel-glass: rgba(255,255,255,.75);
+  --panel-field: rgba(235,235,241,.64);
+  --panel-shadow: 0 18px 38px rgba(40,40,70,.10), inset 0 1px 0 #fff;
+  --action-bg: var(--gradient-brand);
+  --action-text: #fff;
+}
+.codex-header {
+  border: 1px solid var(--line);
+  border-radius: 2rem;
+  background: var(--panel-glass);
+  box-shadow: var(--panel-shadow);
+  backdrop-filter: blur(24px);
+  padding: 18px 24px;
+  margin-bottom: 26px;
+}
+.codex-brandmark { padding: 9px; width: 46px; height: 46px; border-radius: 15px; stroke: white; background: var(--gradient-brand); box-shadow: 0 5px 18px rgba(136,95,240,.26); }
+.codex-header h1 { font-size: 1.25rem; letter-spacing: -.04em; }
+.codex-brand-eyebrow { display: none; }
+.codex-tab[aria-selected="true"] { background: var(--panel-glass); border-color: var(--line-strong); border-radius: 1.2rem; box-shadow: var(--panel-shadow); }
+.mission-space { gap: 24px; }
+.sd:not(.sd-orb-host), .commitment-panel, .mission-disclosure { border-radius: 2rem; background: var(--panel-glass); border-color: var(--line); box-shadow: var(--panel-shadow); }
+.sd:not(.sd-orb-host) { padding: 30px; }
+.sd-move { font-family: var(--font-sans); font-size: clamp(1.8rem,3vw,2.65rem); line-height: 1.15; letter-spacing: -.045em; }
+.sd-stage { grid-template-columns: 152px minmax(0,1fr); gap: 26px; align-items: center; --sd-field-size: 152px; }
+.sd-field-slot { margin: 0; }
+.sd-copy { min-width: 0; }
+.task-router { padding: 12px 0; scroll-margin-top: 24px; }
+.route-intro { text-align: center; margin: 0 auto 24px; max-width: 640px; }
+.route-eyebrow { display: block; text-transform: uppercase; letter-spacing: .17em; color: var(--text-dim); font-size: .68rem; font-weight: 600; margin-bottom: 12px; }
+.route-intro h2 { font-size: clamp(1.9rem,4vw,2.6rem); line-height: 1.15; letter-spacing: -.045em; font-weight: 650; margin: 0 0 12px; }
+.route-intro h2 span { color: #a47bf5; }
+:root[data-theme="light"] .route-intro h2 span { color: #7850c5; }
+.route-intro p, .route-teach p { color: var(--text-soft); font-size: .94rem; line-height: 1.6; }
+.route-composer { border-radius: 2rem; padding: 20px; background: var(--panel-field); border: 1px solid var(--line-strong); box-shadow: inset 0 1px 0 rgba(255,255,255,.08); transition: box-shadow 200ms,border-color 200ms; }
+.route-composer:focus-within { border-color: #9472d8; box-shadow: 0 0 0 3px rgba(148,114,216,.12),0 10px 35px rgba(133,89,210,.14); }
+.route-composer textarea { display: block; width: 100%; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 1.02rem; line-height: 1.65; padding: 0; resize: vertical; min-height: 112px; outline: none; }
+.route-composer textarea::placeholder { color: var(--text-dim); }
+.route-composer-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+.route-composer-foot > span { color: var(--text-dim); font-size: .72rem; }
+.route-primary,.route-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; border-radius: 999px; padding: 11px 20px; font-size: .88rem; font-weight: 600; border: 1px solid transparent; transition: transform 180ms,box-shadow 180ms; }
+.route-primary { background: var(--gradient-brand); color: white; box-shadow: var(--action-glow); }
+.route-primary:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(135,91,246,.32); }
+.route-primary:disabled { opacity: .45; cursor: default; }
+.route-secondary { background: var(--panel-field); color: var(--text); border-color: var(--line-strong); }
+.route-primary:focus-visible,.route-secondary:focus-visible,.route-priority button:focus-visible,.task-router select:focus-visible,.route-handoff summary:focus-visible { outline: 2px solid #aa88ff; outline-offset: 4px; }
+.route-preferences,.route-result { border: 1px solid var(--line); border-radius: 2rem; padding: 24px; background: var(--panel-glass); box-shadow: var(--panel-shadow); margin-top: 24px; }
+.route-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 22px; }
+.route-card-heading h3,.route-teach h3 { font-size: 1.15rem; font-weight: 600; letter-spacing: -.025em; }
+.route-card-heading > span:last-child { color: var(--text-dim); text-transform: uppercase; letter-spacing: .12em; font-size: .65rem; }
+.route-preference-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; }
+.route-preference-grid label:not(.route-toggle),.route-priority legend { display: block; font-size: .85rem; font-weight: 600; margin-bottom: 10px; }
+.task-router select { width: 100%; padding: 12px 14px; min-height: 46px; border: 1px solid var(--line-strong); border-radius: 1rem; color: var(--text); background: var(--surface-soft); font: inherit; font-size: .92rem; }
+.route-priority { border: 0; padding: 0; margin: 20px 0 0; }
+.route-priority > div { display: grid; grid-template-columns: repeat(3,1fr); padding: 4px; border-radius: 1rem; border: 1px solid var(--line); background: var(--panel-field); }
+.route-priority button { text-transform: capitalize; color: var(--text-soft); padding: 11px 4px; font-size: .8rem; border-radius: .8rem; min-height: 44px; }
+.route-priority button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 2px 7px rgba(0,0,0,.12); font-weight: 600; }
+.route-toggles { display: grid; gap: 12px; }
+.route-toggle { position: relative; display: flex; align-items: center; gap: 16px; justify-content: space-between; padding: 14px; border-radius: 1.1rem; border: 1px solid var(--line); background: var(--panel-field); cursor: pointer; }
+.route-toggle strong { display: block; font-size: .82rem; font-weight: 600; }
+.route-toggle small { display: block; font-size: .75rem; color: var(--text-dim); margin-top: 5px; }
+.route-toggle input { position: absolute; right: 14px; width: 46px; height: 28px; opacity: 0; }
+.route-switch { flex-shrink: 0; width: 46px; height: 28px; border-radius: 999px; background: var(--surface-strong); border: 1px solid var(--line-strong); }
+.route-switch::after { content: ''; display: block; margin: 2px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,.2); transition: transform 180ms; }
+.route-toggle input:checked + .route-switch { background: var(--gradient-brand); border-color: transparent; }
+.route-toggle input:checked + .route-switch::after { transform: translateX(18px); }
+.route-toggle input:focus-visible + .route-switch { outline: 2px solid #aa88ff; outline-offset: 4px; }
+.route-boundary { font-size: .76rem; color: var(--text-dim); line-height: 1.6; margin-top: 18px; }
+.route-results { animation: route-card-enter 360ms ease both; }
+.route-result h3 { font-size: 2rem; letter-spacing: -.045em; font-weight: 650; }
+.route-arrow { color: #a47bf5; }
+.route-result > p { margin-top: 8px; }
+.route-badge { color: var(--text-soft); background: var(--panel-field); padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: .72rem; }
+.route-handoff { border: 1px solid var(--line); border-radius: 1.1rem; margin: 20px 0; padding: 15px; background: var(--panel-field); }
+.route-handoff summary { cursor: pointer; font-size: .88rem; font-weight: 550; }
+.route-handoff pre { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; font-family: var(--font-sans); font-size: .8rem; line-height: 1.65; max-height: 360px; overflow-y: auto; margin: 15px 0; color: var(--text-soft); }
+.route-teach { display: grid; grid-template-columns: minmax(0,1fr) minmax(160px,230px) auto; gap: 16px; align-items: center; padding: 22px 4px 0; }
+.route-teach p { font-size: .78rem; }
+.route-notice { padding: 14px 4px 0; font-size: .85rem; color: var(--text-soft); line-height: 1.6; }
+@keyframes route-card-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media(min-width:1024px) { .codex-shell { max-width: 1220px; margin: auto; grid-template-columns: 150px minmax(0,1fr); gap: 28px; } .codex-header { margin-bottom: 0; } }
+@media(max-width:700px) {
+  .codex-header { border-radius: 1.65rem; padding: 14px; margin-bottom: 18px; }
+  .codex-brandmark { width: 40px; height: 40px; padding: 7px; }
+  .codex-header h1 { font-size: 1.1rem; }
+  .sd-stage { grid-template-columns: 1fr; --sd-field-size: 108px; gap: 16px; }
+  .sd:not(.sd-orb-host) { padding: 22px; }
+  .route-intro { margin-bottom: 20px; }
+  .route-intro h2 { font-size: 1.85rem; }
+  .route-intro p { font-size: .86rem; }
+  .route-composer { padding: 16px; border-radius: 1.65rem; }
+  .route-preferences,.route-result { padding: 20px; border-radius: 1.65rem; }
+  .route-preference-grid { grid-template-columns: 1fr; gap: 18px; }
+  .route-card-heading > span:last-child { letter-spacing: .06em; font-size: .6rem; }
+  .route-teach { grid-template-columns: 1fr; gap: 12px; }
+  .route-teach .route-secondary { justify-self: start; }
+  .route-primary,.route-secondary { padding: 11px 16px; }
+}
+@media(prefers-reduced-motion:reduce) { .route-results { animation: none; } .task-router * { transition: none; scroll-behavior: auto; } }
