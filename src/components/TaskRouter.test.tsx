@@ -9,6 +9,25 @@ const props = { context, accountId: null, seed: null, canSave: false, onPrepare:
 afterEach(cleanup)
 
 describe('TaskRouter with real supplied intent and unavailable account context', () => {
+  it('engages the spectrum immediately on focus and settles when focus leaves', () => {
+    render(<TaskRouter {...props} />)
+    const input = screen.getByRole('textbox', { name: 'Task to route' })
+    fireEvent.focus(input)
+    expect(input.closest('.route-composer')?.getAttribute('data-engaged')).toBe('true')
+    fireEvent.blur(input)
+    expect(input.closest('.route-composer')?.getAttribute('data-engaged')).toBeNull()
+  })
+
+  it('keeps actual typed intent when speech recognition is unavailable', () => {
+    render(<TaskRouter {...props} />)
+    const input = screen.getByRole('textbox', { name: 'Task to route' })
+    fireEvent.change(input, { target: { value: intent } })
+    fireEvent.click(screen.getByRole('button', { name: 'Start voice input' }))
+    expect(screen.getByText(/Voice input is not available in this browser/)).not.toBeNull()
+    expect((input as HTMLTextAreaElement).value).toBe(intent)
+    expect(screen.getByRole('button', { name: 'Start voice input' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.queryByRole('article', { name: 'Task route' })).toBeNull()
+  })
   it('prepares a handoff without pretending an unavailable mission or tool has run', () => {
     render(<TaskRouter {...props} />)
     fireEvent.change(screen.getByRole('textbox', { name: 'Task to route' }), { target: { value: intent } })
@@ -47,7 +66,7 @@ describe('TaskRouter with real supplied intent and unavailable account context',
     fireEvent.change(screen.getByRole('combobox', { name: 'Correct routing lane' }), { target: { value: 'architecture' } })
     fireEvent.click(screen.getByRole('button', { name: 'Use this lane' }))
     expect(screen.getByRole('article', { name: 'Task route' }).textContent).toContain('Plan & architecture')
-    expect(screen.getByRole('status').textContent).toContain('Correction applied for this session')
+    expect(screen.getByRole('status', { name: 'Routing status' }).textContent).toContain('Correction applied for this session')
   })
 
   it('invalidates a handoff when human project context or a Delta correction changes', () => {

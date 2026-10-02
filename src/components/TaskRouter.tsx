@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { nextMoveContextExpiresAt, nextMoveContextKey } from '@/lib/nextMove'
 import { buildTaskRoute, correctTaskRoute, HANDOFF_TOOLS, readRouteLearning, ROUTE_LANES, type HandoffTool, type RouteLane, type RouteLearning, type RouteOptions, type TaskRoute, type TaskRouteContext } from '@/lib/taskRouting'
 import { useMotionAllowed } from '@/hooks/useMotionAllowed'
+import { useTaskVoice } from '@/hooks/useTaskVoice'
+import { useOrbInteraction } from '@/components/OrbHost'
 
 export type RoutedActionDraft = { task: string; note: string; missionId: string; contextKey: string }
 export type RouteSeed = { task: string; missionId: string; sequence: number }
@@ -16,6 +18,10 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
   onPrepare: (draft: RoutedActionDraft | null) => void
 }) {
   const [task, setTask] = useState('')
+  const [engaged, setEngaged] = useState(false)
+  const voice = useTaskVoice(task, setTask)
+  const cancelVoice = voice.cancel
+  useOrbInteraction(voice.phase === 'listening' ? 'listening' : engaged || voice.active ? 'engaged' : 'ambient')
   const [options, setOptions] = useState<RouteOptions>({ currentTool: 'Codex', stayHere: false, hybrid: true, priority: 'balanced' })
   const [learning, setLearning] = useState<RouteLearning>({})
   const [learningScope, setLearningScope] = useState<string | null>(null)
@@ -29,8 +35,12 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
   const contextKey = nextMoveContextKey(context, new Date().toISOString())
   const inputKey = JSON.stringify([task, options, contextKey, learningScope, learning])
   const active = result?.inputKey === inputKey ? result.route : null
+  const missionId = context.mission?.id ?? null
+
+  useEffect(() => { cancelVoice() }, [missionId, cancelVoice])
 
   useEffect(() => {
+    cancelVoice()
     // Only bounded token weights are stored. Tasks and project context stay
     // in memory until the person explicitly saves a canonical action.
     let restored: RouteLearning = {}
@@ -40,10 +50,11 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
     setLearningScope(storageKey)
     setResult(null)
     setMessage('')
-  }, [storageKey])
+  }, [storageKey, cancelVoice])
 
   useEffect(() => {
     if (!seed) return
+    voice.cancel()
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTask(seed.task)
     setResult(null)
@@ -78,6 +89,7 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
   }, [inputKey, result])
 
   function route(chosen?: RouteLane, weights = learning) {
+    voice.cancel()
     const routed = buildTaskRoute(task, context, options, weights, chosen)
     setResult({ route: routed, inputKey: JSON.stringify([task, options, contextKey, learningScope, weights]) })
     setCorrection(routed.primary.key)
@@ -107,13 +119,20 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
       {context.missionStatus === 'ready' && context.mission && <p className="route-target">For {context.mission.title} · {context.mission.state}</p>}
     </div>
     <form onSubmit={event => { event.preventDefault(); if (task.trim()) route() }}>
-      <div className="route-composer">
+      <div className="route-composer" data-engaged={engaged || voice.active ? 'true' : undefined} data-motion={motionAllowed ? 'true' : 'false'} data-voice={voice.phase} onFocusCapture={() => setEngaged(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setEngaged(false) }}>
         <label className="sr-only" htmlFor="route-task">Task to route</label>
-        <textarea ref={field} id="route-task" rows={4} maxLength={2000} value={task} onChange={event => { setTask(event.target.value); setMessage('') }} placeholder="Describe the real task you want to do…" onKeyDown={event => {
+        <textarea ref={field} id="route-task" rows={4} maxLength={2000} value={task} onChange={event => { voice.cancel(); setTask(event.target.value); setMessage('') }} placeholder="Describe the real task you want to do…" onKeyDown={event => {
+          if (event.key === 'Escape') voice.cancel()
           if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && task.trim()) { event.preventDefault(); route() }
         }} />
-        <div className="route-composer-foot"><span>⌘ / Ctrl + Enter</span><button className="route-primary" disabled={!task.trim()} type="submit"><span aria-hidden="true">✦</span> Route task</button></div>
+        <div className="route-composer-foot"><span>⌘ / Ctrl + Enter</span><div className="route-composer-actions">
+          <button className="route-mic" type="button" onClick={voice.toggle} disabled={voice.phase === 'stopping'} aria-label={voice.active ? 'Stop voice input' : 'Start voice input'} aria-pressed={voice.active} aria-describedby="route-voice-status" title="Speak your task">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-3 0h6" /></svg>
+          </button>
+          <button className="route-primary" disabled={!task.trim()} type="submit"><span aria-hidden="true">✦</span> Route task</button>
+        </div></div>
       </div>
+      <p id="route-voice-status" className="route-voice-status" role="status">{voice.status || 'Speak or type your task. Voice uses your browser’s speech service.'}</p>
       <div className="route-preferences">
         <div className="route-card-heading"><h3>Preferences</h3><span>Control surface</span></div>
         <div className="route-preference-grid">
@@ -155,6 +174,6 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
         <button type="button" className="route-secondary" onClick={teach}>Use this lane</button>
       </div>
     </div>}
-    {message && <p className="route-notice" role="status">{message}</p>}
+    {message && <p className="route-notice" role="status" aria-label="Routing status">{message}</p>}
   </section>
 }
