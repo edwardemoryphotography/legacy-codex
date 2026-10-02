@@ -51,6 +51,7 @@
 .codex-brandmark { padding: 9px; width: 46px; height: 46px; border-radius: 15px; stroke: white; background: var(--gradient-brand); box-shadow: 0 5px 18px rgba(136,95,240,.26); }
 .codex-header h1 { font-size: 1.25rem; letter-spacing: -.04em; }
 .codex-brand-eyebrow { display: none; }
+.codex-tablist { background: var(--panel-glass); }
 .codex-tab[aria-selected="true"] { background: var(--panel-glass); border-color: var(--line-strong); border-radius: 1.2rem; box-shadow: var(--panel-shadow); }
 .mission-space { gap: 24px; }
 .sd:not(.sd-orb-host), .commitment-panel, .mission-disclosure { border-radius: 2rem; background: var(--panel-glass); border-color: var(--line); box-shadow: var(--panel-shadow); }
@@ -113,7 +114,7 @@
 .route-teach p { font-size: .78rem; }
 .route-notice { padding: 14px 4px 0; font-size: .85rem; color: var(--text-soft); line-height: 1.6; }
 @keyframes route-card-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@media(min-width:1024px) { .codex-shell { max-width: 1220px; margin: auto; grid-template-columns: 150px minmax(0,1fr); gap: 28px; } .codex-header { margin-bottom: 0; } }
+@media(min-width:1024px) { .codex-shell { max-width: 1220px; margin: auto; grid-template-columns: 150px minmax(0,1fr); gap: 28px; } .codex-header { margin-bottom: 0; } .codex-tablist { background: transparent; } }
 @media(max-width:700px) {
   .codex-header { border-radius: 1.65rem; padding: 14px; margin-bottom: 18px; }
   .codex-brandmark { width: 40px; height: 40px; padding: 7px; }

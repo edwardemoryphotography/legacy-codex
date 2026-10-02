@@ -23,7 +23,9 @@ No new database migration, model endpoint, credential, access key UI or external
 - Baseline: 273 tests passed before changes.
 - Routing tests first failed on the absent module; the real integration request then exposed continuity keywords incorrectly outweighing “Implement.” The leading-action fix passes.
 - First integrated check: 279 tests pass; TypeScript and production build pass; ESLint reports zero errors and eight pre-existing warnings.
-- Rendered preview and final regression verification are recorded in the PR.
+- Final suite: 284 tests pass; TypeScript and production build pass; lint zero errors (eight existing warnings). GitHub `verify` passes.
+- Vercel preview renders the actual supplied integration request and its prepared handoff. Tool override, clipboard contents, route correction and correction restoration after reload were checked through the UI. No app console errors or framework overlay; unrelated browser-extension metadata errors were observed.
+- The preview starts with a real empty private browser workspace. No synthetic mission/action was created to verify database writes. Live saved-action writes with an existing mission and iPhone Safari remain unverified in this slice.
 
 ## Durable lesson
 
