@@ -1123,7 +1123,15 @@ export default function MissionTab() {
         </ol>
       )}
 
-      {/* The predictive front door: resolves from real state before the
+      <TaskRouter
+        context={routeContext}
+        accountId={sessionReady ? user.id : null}
+        seed={routeSeed}
+        canSave={sessionReady && (routeMission?.state === 'primary' || routeMission?.state === 'secondary')}
+        onPrepare={setRoutedDraft}
+      />
+
+      {/* The next-move guide: resolves from real state before the
           user types anything, and renders during the load so its reasoning
           state reflects work that is actually pending. */}
       <StrategicDelta
@@ -1201,14 +1209,6 @@ export default function MissionTab() {
           </form>
         ) : null}
       </StrategicDelta>
-
-      <TaskRouter
-        context={routeContext}
-        accountId={sessionReady ? user.id : null}
-        seed={routeSeed}
-        canSave={sessionReady && (routeMission?.state === 'primary' || routeMission?.state === 'secondary')}
-        onPrepare={setRoutedDraft}
-      />
 
       {lessonNotice && <p role="status" className="mission-status">{lessonNotice}</p>}
 

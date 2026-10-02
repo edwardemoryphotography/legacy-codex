@@ -56,8 +56,8 @@
 .sd:not(.sd-orb-host), .commitment-panel, .mission-disclosure { border-radius: 2rem; background: var(--panel-glass); border-color: var(--line); box-shadow: var(--panel-shadow); }
 .sd:not(.sd-orb-host) { padding: 30px; }
 .sd-move { font-family: var(--font-sans); font-size: clamp(1.8rem,3vw,2.65rem); line-height: 1.15; letter-spacing: -.045em; }
-.sd-stage { grid-template-columns: 152px minmax(0,1fr); gap: 26px; align-items: center; --sd-field-size: 152px; }
-.sd-field-slot { margin: 0; }
+.sd-stage { grid-template-columns: minmax(0,1fr) 152px; gap: 26px; align-items: center; }
+.sd-field-slot { --sd-field-size: 152px; margin: 0; }
 .sd-copy { min-width: 0; }
 .task-router { padding: 12px 0; scroll-margin-top: 24px; }
 .route-intro { text-align: center; margin: 0 auto 24px; max-width: 640px; }
@@ -66,6 +66,7 @@
 .route-intro h2 span { color: #a47bf5; }
 :root[data-theme="light"] .route-intro h2 span { color: #7850c5; }
 .route-intro p, .route-teach p { color: var(--text-soft); font-size: .94rem; line-height: 1.6; }
+.route-intro .route-target { font-size: .78rem; color: var(--text-dim); margin-top: 10px; }
 .route-composer { border-radius: 2rem; padding: 20px; background: var(--panel-field); border: 1px solid var(--line-strong); box-shadow: inset 0 1px 0 rgba(255,255,255,.08); transition: box-shadow 200ms,border-color 200ms; }
 .route-composer:focus-within { border-color: #9472d8; box-shadow: 0 0 0 3px rgba(148,114,216,.12),0 10px 35px rgba(133,89,210,.14); }
 .route-composer textarea { display: block; width: 100%; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 1.02rem; line-height: 1.65; padding: 0; resize: vertical; min-height: 112px; outline: none; }
@@ -117,7 +118,8 @@
   .codex-header { border-radius: 1.65rem; padding: 14px; margin-bottom: 18px; }
   .codex-brandmark { width: 40px; height: 40px; padding: 7px; }
   .codex-header h1 { font-size: 1.1rem; }
-  .sd-stage { grid-template-columns: 1fr; --sd-field-size: 108px; gap: 16px; }
+  .sd-stage { display: block; }
+  .sd-field-slot { --sd-field-size: 104px; float: right; margin: -2px -4px 8px 8px; shape-outside: circle(50%); shape-margin: 8px; }
   .sd:not(.sd-orb-host) { padding: 22px; }
   .route-intro { margin-bottom: 20px; }
   .route-intro h2 { font-size: 1.85rem; }
