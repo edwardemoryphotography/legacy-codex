@@ -746,7 +746,25 @@ export default function MissionTab() {
         setConfirmedLessons(data.lessons ?? [])
       }
     } catch (failure) {
-      if (generation === reviewGeneration.current) setProjectReviewError(failure instanceof Error ? failure.message : 'Project review could not complete.')
+      if (generation === reviewGeneration.current) {
+        setProjectReviewError(failure instanceof Error ? failure.message : 'Project review could not complete.')
+        // A failed review may have superseded an in-flight restore that already
+        // cleared the lessons. Reload human-confirmed lessons so they stay visible.
+        void (async () => {
+          try {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session) {
+              const restore = await fetch(`/api/delta-review?missionId=${encodeURIComponent(request.missionId)}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+              if (restore.ok) {
+                const restored = await restore.json() as { lessons?: ConfirmedLesson[] }
+                if (generation === reviewGeneration.current) setConfirmedLessons(restored.lessons ?? [])
+              }
+            }
+          } catch {
+            // Keep the review error visible; lessons reload on the next restore.
+          }
+        })()
+      }
     } finally {
       reviewInFlight.current = false
       setProjectReviewBusy(false)
