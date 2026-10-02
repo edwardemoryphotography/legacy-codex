@@ -14,7 +14,6 @@ import type {
   Mission,
   MissionEventType,
   MissionState,
-  NextMoveContext,
   StrategicDelta as Delta,
 } from '@/types'
 import { beginFieldWork, endFieldWork } from '@/lib/cognitionPresence'
@@ -44,6 +43,7 @@ import NextMovePanel from '@/components/NextMovePanel'
 import SavedActions from '@/components/SavedActions'
 import TaskRouter, { type RoutedActionDraft, type RouteSeed } from '@/components/TaskRouter'
 import { nextMoveContextKey } from '@/lib/nextMove'
+import type { TaskRouteContext } from '@/lib/taskRouting'
 import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase } from '@/components/StrategicDelta'
 import type { ConfirmedLesson, LessonConfirmation, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
 
@@ -302,6 +302,7 @@ export default function MissionTab() {
   const [shownAcceptance, setShownAcceptance] = useState<{ missionId: string; move: string } | null>(null)
   const [routeSeed, setRouteSeed] = useState<RouteSeed | null>(null)
   const [routedDraft, setRoutedDraft] = useState<RoutedActionDraft | null>(null)
+  const [routeNotes, setRouteNotes] = useState<{ missionId: string; note: string }[]>([])
   const [loaded, setLoaded] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
   const [connectionAttempt, setConnectionAttempt] = useState(0)
@@ -392,6 +393,7 @@ export default function MissionTab() {
       }
       setBoard({ missions })
       const eventRows = (correctionsRes.data ?? []) as Array<MissionEventRow & { type?: string }>
+      setRouteNotes(eventRows.filter(row => row.type === 'delta_context_added').map(row => ({ missionId: row.mission_id, note: row.detail })))
       setCorrections(
         eventRows
           .filter(row => row.type === 'delta_corrected')
@@ -697,6 +699,7 @@ export default function MissionTab() {
       }
       const saved = await recordDeltaEvent('delta_context_added', delta.missionId, note)
       if (saved) {
+        setRouteNotes(previous => [...previous, { missionId: delta.missionId!, note }])
         reviewGeneration.current += 1
         setProjectReview(null)
         setReviewRevision(value => value + 1)
@@ -1072,10 +1075,12 @@ export default function MissionTab() {
   // An explicit Delta handoff keeps its actual target, including Secondary.
   // If that target disappears it must not silently retarget to Primary.
   const routeMission = routeSeed ? board.missions[routeSeed.missionId] ?? null : primary ?? null
-  const routeContext: NextMoveContext = {
+  const routeContext: TaskRouteContext = {
     mission: routeMission,
     missionStatus: !loaded ? 'loading' : loadFailed || !user ? 'unavailable' : 'ready',
     evidence, evidenceStatus,
+    corrections: sessionReady ? corrections.filter(item => item.missionId === routeMission?.id).map(item => ({ correctedMove: item.correctedMove, reason: item.reason })) : [],
+    contextNotes: sessionReady ? routeNotes.filter(item => item.missionId === routeMission?.id).map(item => item.note) : [],
   }
   const currentDraft = routedDraft && routedDraft.missionId === routeMission?.id
     && routedDraft.contextKey === nextMoveContextKey(routeContext, new Date().toISOString()) ? routedDraft : null
@@ -1216,7 +1221,7 @@ export default function MissionTab() {
         <SavedActions
           key={savedMissionId}
           missionId={savedMissionId}
-          suggestedTitle={shownAcceptance?.missionId === savedMissionId ? shownAcceptance.move : null}
+          suggestedTitle={shownAcceptance && shownAcceptance.missionId === savedMissionId ? shownAcceptance.move : null}
           routedDraft={currentDraft}
           onActiveChange={handleResumableAction}
         />

@@ -17,6 +17,10 @@ export const HANDOFF_TOOLS = ['Codex', 'Claude', 'ChatGPT', 'Gemini', 'Perplexit
 export type HandoffTool = typeof HANDOFF_TOOLS[number]
 export type RouteLearning = Record<string, Partial<Record<RouteLane, number>>>
 export type RouteOptions = { currentTool: HandoffTool; stayHere: boolean; hybrid: boolean; priority: 'speed' | 'balanced' | 'accuracy' }
+export type TaskRouteContext = NextMoveContext & {
+  corrections?: { correctedMove: string; reason: string }[]
+  contextNotes?: string[]
+}
 export type TaskRouteStep = { key: RouteLane; label: string; tool: HandoffTool; prompt: string }
 export type TaskRoute = { task: string; primary: TaskRouteStep; secondary: TaskRouteStep | null; source: 'local-rules'; match: 'general' | 'matched'; learned: boolean; override: boolean; note: string }
 
@@ -48,7 +52,7 @@ export function correctTaskRoute(task: string, key: RouteLane, learning: RouteLe
   return readRouteLearning(JSON.stringify(next))
 }
 
-export function buildTaskRoute(task: string, context: NextMoveContext, options: RouteOptions, learning: RouteLearning, chosenLane?: RouteLane, now = new Date().toISOString()): TaskRoute {
+export function buildTaskRoute(task: string, context: TaskRouteContext, options: RouteOptions, learning: RouteLearning, chosenLane?: RouteLane, now = new Date().toISOString()): TaskRoute {
   task = task.trim()
   if (!task) throw new Error('Describe a task first.')
   const input = task.toLowerCase()
@@ -74,11 +78,13 @@ export function buildTaskRoute(task: string, context: NextMoveContext, options: 
       `Blocker: ${context.mission.blocker ?? 'None recorded'}`,
       `Capacity mismatch reported: ${context.mission.capacityMismatch ? 'yes' : 'no'}`,
     ].join('\n') : 'Mission context is not available. Do not invent a project or a finish line.',
+    context.corrections?.length ? `Human corrections (recent excerpts; not proof of completion):\n${context.corrections.slice(-12).map(item => `- Rejected move: ${item.correctedMove.slice(0, 1000)}\n  Reason: ${item.reason.slice(0, 1000)}`).join('\n')}` : '',
+    context.contextNotes?.length ? `Human project notes (recent excerpts):\n${context.contextNotes.slice(-8).map(note => `- ${note.slice(0, 1500)}`).join('\n')}` : '',
     context.evidenceStatus === 'ready' ? `Recorded evidence (status preserved; not a new verification):\n${context.evidence.filter(item => context.mission && item.missionId === context.mission.id).slice(0, 12).map(item => {
       const freshness = !isValidEvidenceRecord(item) || Date.parse(item.observedAt) > Date.parse(now) || Date.parse(item.fetchedAt) > Date.parse(now) ? 'invalid observation' : item.status === 'stale' || isStale(item.observedAt, now) || isStale(item.fetchedAt, now) ? 'stale observation' : 'within freshness window'
       return `- [${item.status}; ${freshness}] ${item.claim} | ${item.source} | observed ${item.observedAt}`
     }).join('\n') || 'None recorded for this mission.'}` : 'Evidence could not be read. This does not mean no evidence exists.',
-  ].join('\n\n')
+  ].filter(Boolean).join('\n\n')
   function step(item: typeof first): TaskRouteStep {
     const tool = options.stayHere ? options.currentTool : item.lane.tool
     return { key: item.lane.key, label: item.lane.label, tool, prompt: [

@@ -49,4 +49,18 @@ describe('TaskRouter with real supplied intent and unavailable account context',
     expect(screen.getByRole('article', { name: 'Task route' }).textContent).toContain('Plan & architecture')
     expect(screen.getByRole('status').textContent).toContain('Correction applied for this session')
   })
+
+  it('invalidates a handoff when human project context or a Delta correction changes', () => {
+    const { rerender } = render(<TaskRouter {...props} />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Task to route' }), { target: { value: intent } })
+    fireEvent.click(screen.getByRole('button', { name: 'Route task' }))
+    // Eddie's actual correction of the product direction in this session.
+    const note = 'I feel like we’ve gotten too far away from this.'
+    rerender(<TaskRouter {...props} context={{ ...context, contextNotes: [note] }} />)
+    expect(screen.queryByRole('article', { name: 'Task route' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Route task' }))
+    expect(screen.getByRole('article', { name: 'Task route' }).textContent).toContain(note)
+    rerender(<TaskRouter {...props} context={{ ...context, contextNotes: [note], corrections: [{ correctedMove: intent, reason: note }] }} />)
+    expect(screen.queryByRole('article', { name: 'Task route' })).toBeNull()
+  })
 })

@@ -1,16 +1,15 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { NextMoveContext } from '@/types'
 import { nextMoveContextExpiresAt, nextMoveContextKey } from '@/lib/nextMove'
-import { buildTaskRoute, correctTaskRoute, HANDOFF_TOOLS, readRouteLearning, ROUTE_LANES, type HandoffTool, type RouteLane, type RouteLearning, type RouteOptions, type TaskRoute } from '@/lib/taskRouting'
+import { buildTaskRoute, correctTaskRoute, HANDOFF_TOOLS, readRouteLearning, ROUTE_LANES, type HandoffTool, type RouteLane, type RouteLearning, type RouteOptions, type TaskRoute, type TaskRouteContext } from '@/lib/taskRouting'
 import { useMotionAllowed } from '@/hooks/useMotionAllowed'
 
 export type RoutedActionDraft = { task: string; note: string; missionId: string; contextKey: string }
 export type RouteSeed = { task: string; missionId: string; sequence: number }
 
 export default function TaskRouter({ context, accountId, seed, canSave, onPrepare }: {
-  context: NextMoveContext
+  context: TaskRouteContext
   accountId: string | null
   seed: RouteSeed | null
   canSave: boolean
