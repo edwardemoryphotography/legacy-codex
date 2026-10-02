@@ -1,6 +1,76 @@
 {
-  "generatedAt": "2026-10-02T04:22:59.128Z",
+  "generatedAt": "2026-10-02T14:29:52.390Z",
   "records": [
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-103",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#103",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #103 \"feat: Origin Atlas tab and current-loop architecture map\" merged. 4 check run(s), 4 passing.",
+      "observedAt": "2026-10-02T12:38:09Z",
+      "fetchedAt": "2026-10-02T14:29:42.887Z"
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-99",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#99",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #99 \"Add sunset as a third preview-only review theme\" merged. 5 check run(s), 5 passing.",
+      "observedAt": "2026-10-02T12:04:06Z",
+      "fetchedAt": "2026-10-02T14:29:43.301Z"
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-97",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#97",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #97 \"Bring the Control Panel design and task routing into Mission\" merged. 4 check run(s), 4 passing.",
+      "observedAt": "2026-10-02T09:19:10Z",
+      "fetchedAt": "2026-10-02T14:29:43.686Z"
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-102",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#102",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #102 \"Wire mandatory Reality Filter into coding-agent completion\" merged. 4 check run(s), 4 passing.",
+      "observedAt": "2026-10-02T09:14:28Z",
+      "fetchedAt": "2026-10-02T14:29:44.103Z"
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-101",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#101",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #101 \"Reload confirmed lessons after a failed project review\" merged. 4 check run(s), 4 passing.",
+      "observedAt": "2026-10-02T08:32:34Z",
+      "fetchedAt": "2026-10-02T14:29:44.441Z"
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-100",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#100",
+      "kind": "custom",
+      "status": "unverified",
+      "claim": "PR #100 \"Restore sunset preview URL under Vercel rate limit\" open, not yet merged.",
+      "observedAt": "2026-10-02T07:30:04Z",
+      "fetchedAt": "2026-10-02T14:29:44.441Z"
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-98",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#98",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #98 \"Add Brief tab\" merged. 4 check run(s), 4 passing.",
+      "observedAt": "2026-10-02T06:31:02Z",
+      "fetchedAt": "2026-10-02T14:29:45.191Z"
+    },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-96",
       "missionId": null,
@@ -9,7 +79,7 @@
       "status": "verified",
       "claim": "PR #96 \"fix(mission): don't show visitors a failure for the owner-only review read\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T03:16:53Z",
-      "fetchedAt": "2026-10-02T04:22:55.661Z"
+      "fetchedAt": "2026-10-02T14:29:45.686Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-93",
@@ -19,7 +89,7 @@
       "status": "unverified",
       "claim": "PR #93 \"docs: GitHub flow guide + PR status script for multi-agent work\" open, not yet merged.",
       "observedAt": "2026-10-02T01:49:38Z",
-      "fetchedAt": "2026-10-02T04:22:55.661Z"
+      "fetchedAt": "2026-10-02T14:29:45.686Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-94",
@@ -29,7 +99,7 @@
       "status": "verified",
       "claim": "PR #94 \"design: Kiren-inspired atmosphere for the Mission flow\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-10-02T00:47:59Z",
-      "fetchedAt": "2026-10-02T04:22:55.929Z"
+      "fetchedAt": "2026-10-02T14:29:46.141Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-95",
@@ -39,7 +109,7 @@
       "status": "verified",
       "claim": "PR #95 \"Visual pass 1: radius scale, one reconnect label, trimmed phone chrome\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T00:34:44Z",
-      "fetchedAt": "2026-10-02T04:22:56.229Z"
+      "fetchedAt": "2026-10-02T14:29:49.641Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-92",
@@ -49,7 +119,7 @@
       "status": "verified",
       "claim": "PR #92 \"Carry confirmed lessons into evidence-backed project reviews\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-01T21:16:04Z",
-      "fetchedAt": "2026-10-02T04:22:56.550Z"
+      "fetchedAt": "2026-10-02T14:29:50.016Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-90",
@@ -59,7 +129,7 @@
       "status": "verified",
       "claim": "PR #90 \"Strategic Delta: reconstruct project context and critique the next move\" merged. 5 check run(s), 5 passing.",
       "observedAt": "2026-10-01T14:57:06Z",
-      "fetchedAt": "2026-10-02T04:22:56.850Z"
+      "fetchedAt": "2026-10-02T14:29:50.408Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-91",
@@ -69,7 +139,7 @@
       "status": "verified",
       "claim": "PR #91 \"Redesign Mission and Codex as a calmer personal workspace\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-01T01:20:30Z",
-      "fetchedAt": "2026-10-02T04:22:57.194Z"
+      "fetchedAt": "2026-10-02T14:29:50.804Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-82",
@@ -79,7 +149,7 @@
       "status": "verified",
       "claim": "PR #82 \"Retire obsolete instruction gates and make current user intent authoritative\" merged. 5 check run(s), 4 passing.",
       "observedAt": "2026-09-30T20:31:29Z",
-      "fetchedAt": "2026-10-02T04:22:57.503Z"
+      "fetchedAt": "2026-10-02T14:29:51.231Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-89",
@@ -89,7 +159,7 @@
       "status": "unverified",
       "claim": "PR #89 \"Mission: return-to-action — resume your saved action from the front door\" open, not yet merged.",
       "observedAt": "2026-09-24T22:59:58Z",
-      "fetchedAt": "2026-10-02T04:22:57.503Z"
+      "fetchedAt": "2026-10-02T14:29:51.231Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-88",
@@ -99,7 +169,7 @@
       "status": "verified",
       "claim": "PR #88 \"Evaluate a supplied step and refine the Strategic Delta field\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-23T08:38:55Z",
-      "fetchedAt": "2026-10-02T04:22:57.813Z"
+      "fetchedAt": "2026-10-02T14:29:51.634Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-87",
@@ -109,7 +179,7 @@
       "status": "unverified",
       "claim": "PR #87 \"Record why GitHub previews could not open a session\" open, not yet merged.",
       "observedAt": "2026-09-22T18:34:26Z",
-      "fetchedAt": "2026-10-02T04:22:57.813Z"
+      "fetchedAt": "2026-10-02T14:29:51.634Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-86",
@@ -119,7 +189,7 @@
       "status": "verified",
       "claim": "PR #86 \"Make the Mission front door an invitation to one next move\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-09-22T18:09:19Z",
-      "fetchedAt": "2026-10-02T04:22:58.131Z"
+      "fetchedAt": "2026-10-02T14:29:52.390Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-79",
@@ -129,77 +199,7 @@
       "status": "unverified",
       "claim": "PR #79 \"Claude/orb effect integration b5i8xa\" open, not yet merged.",
       "observedAt": "2026-09-17T07:34:53Z",
-      "fetchedAt": "2026-10-02T04:22:58.131Z"
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-81",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#81",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #81 \"Strategic Delta: dead-CSS fix, ambient hero field, pointer/touch cognition interaction, typography + first-run audit\" merged. 4 check run(s), 4 passing.",
-      "observedAt": "2026-09-09T07:35:29Z",
-      "fetchedAt": "2026-10-02T04:22:58.436Z"
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-83",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#83",
-      "kind": "custom",
-      "status": "unverified",
-      "claim": "PR #83 \"Strategic Delta: deployed interface resolution + neural visual polish\" open, not yet merged.",
-      "observedAt": "2026-09-08T23:49:06Z",
-      "fetchedAt": "2026-10-02T04:22:58.436Z"
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-84",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#84",
-      "kind": "custom",
-      "status": "unverified",
-      "claim": "PR #84 \"Strategic Delta: restore production interface (dead-CSS fix + neural polish)\" open, not yet merged.",
-      "observedAt": "2026-09-08T23:48:23Z",
-      "fetchedAt": "2026-10-02T04:22:58.436Z"
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-80",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#80",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #80 \"Fix broken layout CSS, cover Mission row-mapping tests, record verification gate\" merged. 4 check run(s), 4 passing.",
-      "observedAt": "2026-09-08T23:42:46Z",
-      "fetchedAt": "2026-10-02T04:22:58.771Z"
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-85",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#85",
-      "kind": "custom",
-      "status": "unverified",
-      "claim": "PR #85 \"Strategic Delta: restore production interface after main overwrite\" open, not yet merged.",
-      "observedAt": "2026-09-08T19:35:49Z",
-      "fetchedAt": "2026-10-02T04:22:58.771Z"
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-78",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#78",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #78 \"Strategic Delta: predictive front door, with two real reasoning bugs fixed\" merged. 4 check run(s), 4 passing.",
-      "observedAt": "2026-09-08T05:28:50Z",
-      "fetchedAt": "2026-10-02T04:22:59.128Z"
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-75",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#75",
-      "kind": "custom",
-      "status": "unverified",
-      "claim": "PR #75 \"docs: correct stale Supabase project claim for codex-system-architecture\" open, not yet merged.",
-      "observedAt": "2026-09-07T07:40:05Z",
-      "fetchedAt": "2026-10-02T04:22:59.128Z"
+      "fetchedAt": "2026-10-02T14:29:52.390Z"
     }
   ]
 }
