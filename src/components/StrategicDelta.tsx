@@ -477,14 +477,12 @@ export default function StrategicDelta({
         <h2>Your next move</h2>
         <p className="sd-purpose">Only from what you have told Codex</p>
       </header>
-      {!pendingRead && (
+      {!pendingRead && (primaryMission || readAvailable) && (
         <p className="sd-mission">
           {primaryMission ? (
             <>Working on <strong>{primaryMission.title}</strong></>
-          ) : readAvailable ? (
-            'Nothing captured yet'
           ) : (
-            'Your missions could not be loaded'
+            'Nothing captured yet'
           )}
         </p>
       )}

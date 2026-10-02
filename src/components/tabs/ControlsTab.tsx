@@ -471,7 +471,7 @@ export default function ControlsTab() {
             ))}
           </select>
         </div>
-        <div style={{ padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 10, background: 'var(--surface-soft)' }}>
+        <div style={{ padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 'var(--radius)', background: 'var(--surface-soft)' }}>
           <div style={{ fontWeight: 600, marginBottom: 4 }}>{MODE_LABELS[effectiveMode]}</div>
           <div style={{ color: 'var(--text-soft)', fontSize: '0.9rem', lineHeight: 1.4 }}>{rec}</div>
         </div>

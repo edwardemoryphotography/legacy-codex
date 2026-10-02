@@ -124,7 +124,8 @@ html:has(.sd[data-cognition="accepted"])::before { opacity: 0.55; }
    quiet frosted pane so the ambient light reads through it. */
 .sd:not(.sd-orb-host) {
   padding: 22px 20px 22px;
-  border-radius: 28px;
+  /* Hero surface on the shared radius scale (STATE.md, 2026-10-01). */
+  border-radius: var(--radius-xl);
   background: linear-gradient(180deg, rgba(26, 30, 60, 0.55), rgba(15, 17, 36, 0.62));
   border: 1px solid rgba(174, 182, 255, 0.12);
   box-shadow:
@@ -180,7 +181,7 @@ html:has(.sd[data-cognition="accepted"])::before { opacity: 0.55; }
 /* Fields: navy wells with a periwinkle focus ring. */
 .mission-invite input,
 .mission-invite textarea {
-  border-radius: 16px !important;
+  border-radius: var(--radius) !important;
   border: 1px solid rgba(174, 182, 255, 0.2) !important;
 }
 .mission-invite input:focus,
@@ -199,7 +200,7 @@ html:has(.sd[data-cognition="accepted"])::before { opacity: 0.55; }
 .sd-known {
   margin-top: 22px;
   padding: 16px 16px 6px;
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   background: rgba(174, 182, 255, 0.05);
   border: 1px solid rgba(174, 182, 255, 0.1);
 }

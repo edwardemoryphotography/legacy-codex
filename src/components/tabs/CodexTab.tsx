@@ -324,7 +324,7 @@ export default function CodexTab() {
             style={{
               width: '100%',
               border: '1px solid var(--line-strong)',
-              borderRadius: 14,
+              borderRadius: 'var(--radius-lg)',
               background: 'var(--field-bg)',
               color: 'var(--text)',
               font: 'inherit',
@@ -442,7 +442,7 @@ function QuickAccessList({
                 className="flex-1 text-left"
                 style={{
                   border: '1px solid var(--line-strong)',
-                  borderRadius: '14px',
+                  borderRadius: 'var(--radius-lg)',
                   padding: '10px 12px',
                   background: 'var(--field-bg)',
                   color: 'inherit',
@@ -492,7 +492,7 @@ function SectionGroup({
     <div
       style={{
         border: '1px solid var(--line)',
-        borderRadius: '16px',
+        borderRadius: 'var(--radius-lg)',
         overflow: 'hidden',
         background: 'var(--card-bg)',
       }}
