@@ -71,10 +71,25 @@ const BLOCKED = mission({
 const BLOCKED_MOVE = "Clear what's blocking “Ship it”: Waiting on Vaughn"
 
 describe('StrategicDelta', () => {
+  it('reads back only what the person supplied in "What Codex has from you"', async () => {
+    renderDelta([PRIMARY])
+    const known = await screen.findByLabelText('What Codex has from you')
+    expect(known.textContent).toContain(PRIMARY.title)
+    expect(known.textContent).toContain('lands on main')
+    // No evidence was linked, so the read-back must say nothing is verified.
+    expect(known.textContent).toContain('None linked yet, so nothing here is verified.')
+  })
+
+  it('shows no read-back before anything is captured', async () => {
+    renderDelta([])
+    await screen.findByLabelText('Your next move')
+    expect(screen.queryByLabelText('What Codex has from you')).toBeNull()
+  })
+
   it('shows a reasoning state, not a prediction, while the read is still pending', () => {
     renderDelta([PRIMARY], { phase: 'orienting' })
 
-    const region = screen.getByLabelText('Strategic Delta')
+    const region = screen.getByLabelText('Your next move')
     expect(region.getAttribute('aria-busy')).toBe('true')
     expect(region.getAttribute('data-state')).toBe('reasoning')
     // Nothing may be asserted as a prediction before the state is read.
@@ -85,7 +100,7 @@ describe('StrategicDelta', () => {
     renderDelta([BLOCKED])
 
     expect(await screen.findByText(BLOCKED_MOVE)).toBeTruthy()
-    const region = screen.getByLabelText('Strategic Delta')
+    const region = screen.getByLabelText('Your next move')
     expect(region.getAttribute('data-state')).toBe('resolved')
     expect(region.getAttribute('data-provenance')).toBe('deterministic')
     expect(screen.getByText('Predicted from your mission state')).toBeTruthy()
@@ -98,9 +113,9 @@ describe('StrategicDelta', () => {
   it('renders the honest cannot-derive state for a clause with no structural signal, never a template', async () => {
     renderDelta([PRIMARY])
 
-    expect(await screen.findByText(/lands on main/)).toBeTruthy()
+    expect((await screen.findAllByText(/lands on main/)).length).toBeGreaterThan(0)
     expect(screen.queryByText(/^Verify (this|that|it)/i)).toBeNull()
-    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-provenance')).toBe('insufficient_context')
+    expect(screen.getByLabelText('Your next move').getAttribute('data-provenance')).toBe('insufficient_context')
     // Insufficient-context still hides "Do this" — there is nothing to accept.
     expect(screen.queryByRole('button', { name: 'Accept this move' })).toBeNull()
   })
@@ -110,7 +125,7 @@ describe('StrategicDelta', () => {
     renderDelta([])
 
     expect(await screen.findByText(/Name the one outcome that matters most/)).toBeTruthy()
-    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-provenance')).toBe('insufficient_context')
+    expect(screen.getByLabelText('Your next move').getAttribute('data-provenance')).toBe('insufficient_context')
     // First-run copy is presentation-only and deliberately avoids
     // implementation language ("mission state", "predict from") for a
     // visitor who has never used the product before.
@@ -119,11 +134,11 @@ describe('StrategicDelta', () => {
     // Nothing to correct when nothing was predicted — the control is absent,
     // not offered as an equal action that cannot run.
     expect(screen.queryByRole('button', { name: 'Correct this' })).toBeNull()
-    expect(screen.getByRole('heading', { name: 'Strategic Delta' })).toBeTruthy()
-    expect(screen.getByText('Your best next move')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Your next move' })).toBeTruthy()
+    expect(screen.getByText('Only from what you have told Codex')).toBeTruthy()
     // Live region stays on the move copy, never on the section — wrapping
     // inputs in aria-live intercepts focus/typing on Safari/iOS.
-    expect(screen.getByLabelText('Strategic Delta').getAttribute('aria-live')).toBeNull()
+    expect(screen.getByLabelText('Your next move').getAttribute('aria-live')).toBeNull()
     expect(screen.getByText(/Name the one outcome that matters most/).getAttribute('aria-live')).toBe('polite')
   })
 
@@ -134,7 +149,7 @@ describe('StrategicDelta', () => {
     renderDelta([], { readAvailable: false })
 
     expect(await screen.findByText(/Name the one outcome that matters most/)).toBeTruthy()
-    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-provenance')).toBe('insufficient_context')
+    expect(screen.getByLabelText('Your next move').getAttribute('data-provenance')).toBe('insufficient_context')
     expect(screen.queryByText('This is your own space — nothing here is shared.')).toBeNull()
     expect(screen.getByText('There is no mission state to predict from. This is the one input that turns everything downstream on.')).toBeTruthy()
     expect(screen.getByText('Not enough state to predict from')).toBeTruthy()
@@ -201,7 +216,7 @@ describe('StrategicDelta', () => {
     // PRIMARY resolves to the honest cannot-derive state — also
     // `insufficient_context`, but about a known clause, not a missing
     // mission. The invite form belongs only to the latter.
-    expect(await screen.findByText(/lands on main/)).toBeTruthy()
+    expect((await screen.findAllByText(/lands on main/)).length).toBeGreaterThan(0)
     expect(screen.queryByLabelText('The outcome that matters most')).toBeNull()
   })
 
@@ -267,7 +282,7 @@ describe('StrategicDelta', () => {
 
     expect(await screen.findByText('Needs a concrete step')).toBeTruthy()
     expect(screen.getByText(/Kept: lands on main/)).toBeTruthy()
-    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-provenance')).toBe('insufficient_context')
+    expect(screen.getByLabelText('Your next move').getAttribute('data-provenance')).toBe('insufficient_context')
     expect(screen.queryByRole('button', { name: 'Accept this move' })).toBeNull()
   })
 
@@ -311,7 +326,7 @@ describe('StrategicDelta', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Record this step' }))
 
     expect(await screen.findByText(step)).toBeTruthy()
-    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-provenance')).toBe('supplied')
+    expect(screen.getByLabelText('Your next move').getAttribute('data-provenance')).toBe('supplied')
     expect(screen.getByText('You supplied this step — not verified')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Accept this move' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Name the concrete step' })).toBeNull()
@@ -350,7 +365,7 @@ describe('StrategicDelta', () => {
 
     expect(await screen.findByRole('button', { name: 'Record this step' })).toBeTruthy()
     expect(screen.getByText('Needs a concrete step')).toBeTruthy()
-    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-provenance')).toBe('insufficient_context')
+    expect(screen.getByLabelText('Your next move').getAttribute('data-provenance')).toBe('insufficient_context')
     expect(onSupplyStep).toHaveBeenCalledTimes(1)
   })
 
@@ -414,7 +429,7 @@ describe('StrategicDelta', () => {
     })
 
     expect((await screen.findByRole('alert')).textContent).toMatch(/not saved/)
-    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-cognition')).toBe('failed')
+    expect(screen.getByLabelText('Your next move').getAttribute('data-cognition')).toBe('failed')
   })
 
   it('keeps a recorded correction visible as something the system learned', async () => {
@@ -458,7 +473,7 @@ describe('StrategicDelta — requestOperation', () => {
     renderDelta([PRIMARY], { requestOperation })
 
     expect(await screen.findByText('Open a PR with the change and request review')).toBeTruthy()
-    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-provenance')).toBe('model')
+    expect(screen.getByLabelText('Your next move').getAttribute('data-provenance')).toBe('model')
     expect(screen.getByText('Model-generated — not verified')).toBeTruthy()
 
     expect(requestOperation).toHaveBeenCalledTimes(1)
@@ -472,8 +487,8 @@ describe('StrategicDelta — requestOperation', () => {
     const requestOperation = vi.fn().mockResolvedValue(null)
     renderDelta([PRIMARY], { requestOperation })
 
-    expect(await screen.findByText(/lands on main/)).toBeTruthy()
-    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-provenance')).toBe('insufficient_context')
+    expect((await screen.findAllByText(/lands on main/)).length).toBeGreaterThan(0)
+    expect(screen.getByLabelText('Your next move').getAttribute('data-provenance')).toBe('insufficient_context')
     expect(screen.queryByText(/^Verify (this|that|it)/i)).toBeNull()
   })
 
@@ -495,7 +510,7 @@ describe('StrategicDelta — requestOperation', () => {
       />,
     )
 
-    await screen.findByText(/lands on main/)
+    await screen.findAllByText(/lands on main/)
     rerender(
       <StrategicDelta
         missions={[PRIMARY]}
@@ -556,8 +571,8 @@ describe('StrategicDelta — requestOperation', () => {
     renderDelta([PRIMARY], { requestOperation })
 
     expect((await screen.findByRole('alert')).textContent).toMatch(/Model-assisted operation generation failed/)
-    expect(screen.getByText(/lands on main/)).toBeTruthy()
-    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-cognition')).toBe('failed')
+    expect(screen.getAllByText(/lands on main/).length).toBeGreaterThan(0)
+    expect(screen.getByLabelText('Your next move').getAttribute('data-cognition')).toBe('failed')
   })
 
   it('clears a model failure once a supplied step becomes the move', async () => {
@@ -577,7 +592,7 @@ describe('StrategicDelta — requestOperation', () => {
     rerender(<StrategicDelta {...props} suppliedOperations={[supplied]} />)
     expect(await screen.findByText(step)).toBeTruthy()
     expect(screen.queryByText(/Model-assisted operation generation failed/)).toBeNull()
-    expect(screen.getByLabelText('Strategic Delta').getAttribute('data-cognition')).not.toBe('failed')
+    expect(screen.getByLabelText('Your next move').getAttribute('data-cognition')).not.toBe('failed')
   })
 })
 

@@ -274,10 +274,10 @@ export function ActionBtn({
   const styles =
     variant === 'primary'
       ? {
-          border: '1px solid var(--teal)',
-          background: 'linear-gradient(180deg, var(--teal-soft), rgba(40, 224, 187, 0.08))',
-          color: 'var(--teal)',
-          boxShadow: '0 10px 24px rgba(40, 224, 187, 0.12)',
+          border: '1px solid var(--action-border)',
+          background: 'var(--action-bg)',
+          color: 'var(--action-text)',
+          boxShadow: 'var(--action-glow)',
         }
       : {
           border: '1px solid var(--line-strong)',
@@ -296,11 +296,11 @@ export function ActionBtn({
       className="interactive-control"
       style={{
         ...styles,
-        borderRadius: 12,
+        borderRadius: 999,
         fontWeight: 700,
         cursor: disabled ? 'not-allowed' : 'pointer',
         minHeight: 44,
-        padding: '10px 14px',
+        padding: '10px 18px',
         opacity: disabled ? 0.5 : 1,
         fontSize: 'inherit',
         transition: 'transform 150ms ease, border-color 150ms ease, background 150ms ease, color 150ms ease, box-shadow 150ms ease, opacity 150ms ease',
