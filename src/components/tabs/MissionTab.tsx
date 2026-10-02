@@ -837,6 +837,10 @@ export default function MissionTab() {
   const primary = findByState(board, 'primary')
   const secondary = findByState(board, 'secondary')
   const missionList = Object.values(board.missions)
+  // The Delta shows its own "Check again" only for a failed read with nothing
+  // to predict from. A later read can fail while earlier missions are still
+  // on screen; then the banner keeps the button so a retry is always offered.
+  const deltaOffersRecheck = loaded && loadFailed && missionList.length === 0
   const parkedOrCandidate = missionList.filter(m => m.state === 'parked' || m.state === 'candidate')
   const challengeCandidates = missionList.filter(
     m => (m.state === 'parked' || m.state === 'candidate') && m.finishLine,
@@ -1044,7 +1048,8 @@ export default function MissionTab() {
         <div className="mission-status" role="alert">
           <p>{connectionError}</p>
           <div className="flex flex-wrap items-center gap-4 mt-3">
-            <ActionBtn onClick={retryConnection}>Try connection again</ActionBtn>
+            {/* The Strategic Delta offers the same retry once a read has failed and it has no mission to predict from; one label, one button. */}
+            {!deltaOffersRecheck && <ActionBtn onClick={retryConnection}>Check again</ActionBtn>}
             <a href="https://legacy-codex.vercel.app">Open main Legacy Codex site</a>
           </div>
         </div>

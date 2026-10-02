@@ -36,7 +36,7 @@ export default function FoundryOperationalReadout({
       style={{
         border: '1px solid var(--line)',
         background: 'rgba(10, 12, 19, 0.38)',
-        borderRadius: 14,
+        borderRadius: 'var(--radius-lg)',
         padding: 18,
       }}
     >

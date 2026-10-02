@@ -76,7 +76,7 @@ export function recommendNextMove(
   })
   if (missionStatus === 'unavailable') return result({
     reason: 'mission_unavailable', kind: 'review', label: 'Reconnect to your mission',
-    nextMove: 'Use “Try connection again” above to reconnect to your saved missions before choosing a move.',
+    nextMove: 'Use “Check again” above to reconnect to your saved missions before choosing a move.',
     why: 'Saved mission context is unavailable. Your typed request alone cannot establish your Primary mission or its constraints.',
     evidenceNeeded: 'A successful account connection and mission read.',
   })
