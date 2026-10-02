@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import MissionTab, { missionToRow } from './MissionTab'
+import MissionTab, { VISITOR_ACCESS_COPY, missionToRow } from './MissionTab'
 import { predictStrategicDelta } from '@/lib/strategicDelta'
 import type { Mission } from '@/types'
 
@@ -295,5 +295,98 @@ describe('MissionTab saves an accepted Secondary step against the Secondary', ()
     fireEvent.click(screen.getByRole('button', { name: 'Save next action' }))
     await waitFor(() => expect(inserts.some(i => i.table === 'actions')).toBe(true))
     expect(inserts.find(i => i.table === 'actions')?.row.mission_id).toBe('m2')
+  })
+})
+
+describe('MissionTab project-review access', () => {
+  const mission: Mission = {
+    id: 'm1',
+    title: 'Print the portfolio',
+    why: '',
+    finishLine: 'Twenty prints are framed and hung',
+    evidenceRequirement: null,
+    state: 'primary',
+    blocker: null,
+    capacityMismatch: false,
+    createdAt: '2026-09-20T00:00:00.000Z',
+    updatedAt: '2026-09-20T00:00:00.000Z',
+  }
+  const lesson = {
+    id: 'l1', missionId: 'm1', scope: 'mission', rule: 'Confirm frame sizes before ordering prints',
+    whenToApply: 'Before any print order', sourceIds: [], sourceRefs: [],
+    confirmedAt: '2026-09-21T00:00:00.000Z', reviewedAt: '2026-09-21T00:00:00.000Z',
+  }
+
+  function respond(status: number, body: unknown) {
+    return { ok: status >= 200 && status < 300, status, json: async () => body }
+  }
+
+  beforeEach(() => {
+    inserts = []
+    connectMissionSession.mockReset()
+    connectMissionSession.mockResolvedValue({ id: 'user-1' })
+    tables = {
+      missions: [{ ...missionToRow(mission, 'user-1'), created_at: mission.createdAt }],
+      evidence_snapshots: [],
+      actions: [],
+      mission_events: [],
+    }
+  })
+
+  it('a visitor (403) gets plain copy, no owner-only review read, no Review project, and no failed state', async () => {
+    const fetchMock = vi.fn<(url: string) => Promise<ReturnType<typeof respond>>>(async () => respond(403, { error: 'Model-assisted candidates are not enabled for this account.' }))
+    vi.stubGlobal('fetch', fetchMock)
+    render(<MissionTab />)
+
+    expect(await screen.findByText(VISITOR_ACCESS_COPY)).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Your missions' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Why this?' })).toBeTruthy()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('missionId='))).toBe(false)
+    expect(screen.queryByText(/not enabled for this account/i)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Review project' })).toBeNull()
+    expect(screen.queryByText('This did not record')).toBeNull()
+    expect(screen.queryByText(/Could not restore the project review/)).toBeNull()
+    expect(document.querySelector('section.sd')!.getAttribute('data-cognition')).not.toBe('failed')
+  })
+
+  it('a 401 (unverified session) is not locked in as a visitor and fails quietly', async () => {
+    const fetchMock = vi.fn(async (url: string) => String(url).includes('capabilities=1')
+      ? respond(401, { error: 'Sign in to use model-assisted candidates.' })
+      : respond(401, { error: 'Sign in to use model-assisted candidates.' }))
+    vi.stubGlobal('fetch', fetchMock)
+    render(<MissionTab />)
+
+    expect(await screen.findByText(/Smart suggestions are unavailable until this session reconnects/)).toBeTruthy()
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => String(url).includes('missionId=m1'))).toBe(true))
+    expect(await screen.findByText('A saved project review could not be loaded. Your saved work is unchanged.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Review project' })).toBeTruthy()
+    expect(screen.queryByText('This did not record')).toBeNull()
+    expect(document.querySelector('section.sd')!.getAttribute('data-cognition')).not.toBe('failed')
+  })
+
+  it('the owner without a model key still restores confirmed lessons', async () => {
+    const fetchMock = vi.fn(async (url: string) => String(url).includes('capabilities=1')
+      ? respond(200, { configured: false })
+      : respond(200, { review: null, lessons: [lesson] }))
+    vi.stubGlobal('fetch', fetchMock)
+    render(<MissionTab />)
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => String(url).includes('missionId=m1'))).toBe(true))
+    expect(screen.queryByText(VISITOR_ACCESS_COPY)).toBeNull()
+    fireEvent.click(await screen.findByRole('button', { name: 'Why this?' }))
+    expect(await screen.findByText(lesson.rule)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Review project' })).toBeTruthy()
+  })
+
+  it('a failed review restore for the owner is a quiet note, not "This did not record"', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => String(url).includes('capabilities=1')
+      ? respond(200, { configured: false })
+      : respond(503, { error: 'Could not restore the project review. Your saved work is unchanged.' })))
+    render(<MissionTab />)
+
+    expect(await screen.findByText('A saved project review could not be loaded. Your saved work is unchanged.')).toBeTruthy()
+    expect(screen.queryByText('This did not record')).toBeNull()
+    expect(document.querySelector('section.sd')!.getAttribute('data-cognition')).not.toBe('failed')
   })
 })

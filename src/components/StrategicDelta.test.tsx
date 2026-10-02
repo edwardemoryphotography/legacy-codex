@@ -608,3 +608,23 @@ describe('StrategicDelta — step entry needs a clause target', () => {
     expect(screen.queryByRole('button', { name: 'Name the concrete step' })).toBeNull()
   })
 })
+
+describe('StrategicDelta failed state is for failed writes, not optional reads', () => {
+  const ACTIVE = mission({ id: 'm1', state: 'primary', title: 'Print the portfolio', finishLine: 'Twenty prints are framed and hung' })
+
+  it('shows a failed optional read as a quiet note, without the failed state', () => {
+    renderDelta([ACTIVE], { projectReviewNotice: 'A saved project review could not be loaded. Your saved work is unchanged.' })
+    const card = document.querySelector('section.sd')!
+    expect(card.getAttribute('data-cognition')).not.toBe('failed')
+    expect(screen.queryByText('This did not record')).toBeNull()
+    const note = screen.getByText('A saved project review could not be loaded. Your saved work is unchanged.')
+    expect(note.getAttribute('role')).toBe('status')
+    expect(note.className).toBe('sd-hint')
+  })
+
+  it('still shows a failed write as the failed state', () => {
+    renderDelta([ACTIVE], { persistError: 'Could not record that against your history — it was not saved.' })
+    expect(document.querySelector('section.sd')!.getAttribute('data-cognition')).toBe('failed')
+    expect(screen.getByText('This did not record')).toBeTruthy()
+  })
+})
