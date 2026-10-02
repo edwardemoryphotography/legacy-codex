@@ -1130,7 +1130,7 @@ export default function MissionTab() {
         projectReviewBusy={projectReviewBusy}
         projectReviewError={projectReviewError}
         projectReviewNotice={projectReviewNotice}
-        requestProjectReview={sessionReady && projectAccess !== 'visitor' ? handleProjectReview : undefined}
+        requestProjectReview={sessionReady && (projectAccess === 'owner' || projectAccess === 'unknown') ? handleProjectReview : undefined}
       >
         {confirmedEmpty ? (
           <form
