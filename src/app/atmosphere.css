@@ -268,3 +268,80 @@ html:has(.sd[data-cognition="accepted"])::before { opacity: 0.55; }
 /* First run already says "Bring one idea"; "Nothing captured yet" repeats
    it and pushes the one action toward the tab bar on a phone. */
 .sd[data-first-run] .sd-mission { display: none; }
+
+/* ─── Sunset Boulevard (preview only) ─────────────────────────────────
+   A third review theme, selected like light via ThemeReview / ?theme=sunset
+   and never present on production. Palette: burnt orange #e76f51, coral
+   #f4a261, sand #e9c46a, deep #264653 — ground darkened to #1e3a46 and
+   status hues lifted so text holds ≥4.5:1 on bg and surface (amber is 4.2:1
+   on surface-soft, so it stays on bg/surface). Fonts are unchanged. Same
+   token names as the Legacy Codex design system's `sunset` theme. */
+:root[data-theme="sunset"] {
+  color-scheme: dark;
+  --bg: #1e3a46;
+  --surface: #264653;
+  --surface-soft: #2d505e;
+  --surface-strong: #355a69;
+  --line: #3a6272;
+  --line-strong: #6f9aab;
+  --text: #fbf3e4;
+  --text-soft: #ecdcc0;
+  --text-dim: #c4d3d2;
+  --teal: #7fd6c2;
+  --teal-soft: rgba(127, 214, 194, 0.14);
+  --amber: #f4a261;
+  --amber-soft: rgba(244, 162, 97, 0.14);
+  --error: #ff9a85;
+  --error-soft: rgba(255, 154, 133, 0.15);
+  --success: #8fdc9a;
+  --success-soft: rgba(143, 220, 154, 0.14);
+  --sd-violet: #d9b0ff;
+  --peri: #f4a261;
+  --peri-deep: #e76f51;
+  --peri-ink: #1b2f38;
+  --action-bg: #e76f51;
+  --action-text: #1b2f38;
+  --action-border: transparent;
+  --action-glow: 0 12px 32px rgba(231, 111, 81, 0.3);
+  --chrome: #1e3a46;
+  --invite-field-bg: rgba(22, 44, 54, 0.92);
+  --card-shadow: 0 30px 70px rgba(8, 20, 26, 0.5);
+  --card-bg: linear-gradient(180deg, rgba(45, 80, 94, 0.72), rgba(38, 70, 83, 0.72));
+  --card-lift: 0 12px 32px rgba(0, 0, 0, 0.14);
+  --field-bg: rgba(22, 44, 54, 0.9);
+  --field-bg-soft: rgba(22, 44, 54, 0.45);
+  --control-bg: linear-gradient(180deg, rgba(45, 80, 94, 0.9), rgba(38, 70, 83, 0.9));
+  --glow-calm: rgba(231, 111, 81, 0.3);
+  --glow-done: rgba(233, 196, 106, 0.3);
+}
+:root[data-theme="sunset"] .codex-tablist {
+  border-top-color: rgba(244, 162, 97, 0.14);
+  background: rgba(30, 58, 70, 0.96);
+  box-shadow: 0 -18px 40px rgba(8, 20, 26, 0.45);
+}
+:root[data-theme="sunset"] .sd:not(.sd-orb-host) {
+  background: linear-gradient(180deg, rgba(45, 80, 94, 0.55), rgba(30, 58, 70, 0.62));
+  border-color: rgba(244, 162, 97, 0.14);
+}
+:root[data-theme="sunset"] .sd .sd-act-primary button:disabled,
+:root[data-theme="sunset"] .sd .mission-invite button:disabled {
+  background: rgba(244, 162, 97, 0.22) !important;
+  color: rgba(251, 243, 228, 0.62) !important;
+}
+:root[data-theme="sunset"] .mission-invite input,
+:root[data-theme="sunset"] .mission-invite textarea {
+  border-color: rgba(244, 162, 97, 0.28) !important;
+}
+:root[data-theme="sunset"] .mission-invite input:focus,
+:root[data-theme="sunset"] .mission-invite input:focus-visible,
+:root[data-theme="sunset"] .mission-invite textarea:focus,
+:root[data-theme="sunset"] .mission-invite textarea:focus-visible {
+  box-shadow: 0 0 0 5px rgba(244, 162, 97, 0.2) !important;
+}
+:root[data-theme="sunset"] .sd-known {
+  background: rgba(244, 162, 97, 0.06);
+  border-color: rgba(244, 162, 97, 0.14);
+}
+:root[data-theme="sunset"] .sd-known dl > div { border-top-color: rgba(244, 162, 97, 0.1); }
+:root[data-theme="sunset"] .sd-known-tag { background: rgba(244, 162, 97, 0.16); }
+:root[data-theme="sunset"] ::-webkit-scrollbar-thumb:hover { background: #8fb3c0; }
