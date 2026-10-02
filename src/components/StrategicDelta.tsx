@@ -132,7 +132,11 @@ interface Props {
   projectReviewAvailable?: boolean
   projectReview?: ProjectReview | null
   projectReviewBusy?: boolean
+  /** A user-requested project review that failed. Shown as a failure. */
   projectReviewError?: string | null
+  /** A failed optional read, e.g. restoring a cached review on load. Never
+   *  a failed write, so it is a quiet note and never the failed state. */
+  projectReviewNotice?: string | null
   requestProjectReview?: (request: ProjectReviewRequest) => Promise<void>
   /** Missing-input controls for insufficient context. Rendered inside the
    *  hero, not below it — and never inside the live region. */
@@ -163,6 +167,7 @@ export default function StrategicDelta({
   projectReview = null,
   projectReviewBusy = false,
   projectReviewError = null,
+  projectReviewNotice = null,
   requestProjectReview,
   children,
 }: Props) {
@@ -408,6 +413,9 @@ export default function StrategicDelta({
   // A model failure only describes the Delta while it is still stuck. Once a
   // supplied step (or anything else) resolves it, the alert would be false.
   const shownOperationError = delta?.provenance === 'insufficient_context' ? operationError : null
+  // "This did not record" (and the alert atmosphere keyed on it) is reserved
+  // for something the person asked to record or run that failed. A failed
+  // optional read is projectReviewNotice and deliberately absent here.
   const cognition: Cognition = persistError || shownOperationError || projectReviewError
     ? 'failed'
     : correcting
@@ -674,6 +682,7 @@ export default function StrategicDelta({
           )}
           {projectReviewAccessError && <p className="sd-hint" role="status">{projectReviewAccessError}</p>}
           {projectReviewError && <p className="sd-fail" role="alert">{projectReviewError}</p>}
+          {projectReviewNotice && <p className="sd-hint" role="status">{projectReviewNotice}</p>}
           {projectReview && !projectReviewBusy && (
             <p className="sd-support">
               Project review saved. Open Why this? for the proposed bigger picture, self-check and sources.

@@ -276,6 +276,9 @@ function newId(): string {
 
 const CAPACITY_LEVELS: CapacityLevel[] = ['low', 'medium', 'high']
 
+export const VISITOR_ACCESS_COPY = 'Smart suggestions are only on Eddie\u2019s account. Everything you write here is saved privately.'
+const RECONNECT_ACCESS_COPY = 'Smart suggestions are unavailable until this session reconnects. Everything you write here is still saved privately.'
+
 export default function MissionTab() {
   const [user, setUser] = useState<User | null>(null)
   const [authStatus, setAuthStatus] = useState('Checking session…')
@@ -308,6 +311,16 @@ export default function MissionTab() {
   const [operationStageConfigured, setOperationStageConfigured] = useState(false)
   const [confirmedLessons, setConfirmedLessons] = useState<ConfirmedLesson[]>([])
   const [projectReviewAccessError, setProjectReviewAccessError] = useState<string | null>(null)
+  // Who the server says this session is for project intelligence. A 401/403
+  // means a visitor (or a session the server cannot verify): the owner-only
+  // review routes will refuse them, so the cached-review read is skipped
+  // rather than fired just to fail. Any 2xx — including `configured: false`
+  // when the model key is missing — is the owner, whose confirmed lessons
+  // still restore without a provider key.
+  const [projectAccess, setProjectAccess] = useState<'checking' | 'owner' | 'visitor' | 'unknown'>('checking')
+  // A failed optional read (restoring a cached review). Shown as a quiet
+  // note, never as a failed write.
+  const [projectReviewNotice, setProjectReviewNotice] = useState<string | null>(null)
   const [lessonNotice, setLessonNotice] = useState('')
   const [projectReview, setProjectReview] = useState<ProjectReview | null>(null)
   const [projectReviewBusy, setProjectReviewBusy] = useState(false)
@@ -449,14 +462,24 @@ export default function MissionTab() {
             ? { Authorization: `Bearer ${sessionResult.data.session.access_token}` }
             : {},
         })
+        if (res.status === 401 || res.status === 403) {
+          if (!cancelled) {
+            setOperationStageConfigured(false)
+            setProjectAccess('visitor')
+            setProjectReviewAccessError(res.status === 403 ? VISITOR_ACCESS_COPY : RECONNECT_ACCESS_COPY)
+          }
+          return
+        }
         const data = await res.json() as { configured?: unknown; error?: string }
         if (!cancelled) {
           setOperationStageConfigured(res.ok && data.configured === true)
+          setProjectAccess(res.ok ? 'owner' : 'unknown')
           setProjectReviewAccessError(res.ok && data.configured === true ? null : data.error || 'Project intelligence is not configured. Your saved work remains available.')
         }
       } catch {
         if (!cancelled) {
           setOperationStageConfigured(false)
+          setProjectAccess('unknown')
           setProjectReviewAccessError('Could not check project intelligence access. Reconnect without clearing your saved work.')
         }
       }
@@ -739,12 +762,16 @@ export default function MissionTab() {
     setProjectReview(null)
     setConfirmedLessons([])
     setProjectReviewError(null)
+    setProjectReviewNotice(null)
     const primary = findByState(board, 'primary')
     const secondary = findByState(board, 'secondary')
     const target = primary && !primary.blocker && !primary.capacityMismatch ? primary : secondary
     // Cached reasoning and human-confirmed lessons need no provider key.
     // Keep reading/retirement available when generation is unavailable.
     if (!loaded || loadFailed || !user || !target) return
+    // Wait for the access check, and never ask the owner-only route on a
+    // visitor's behalf: its refusal is expected, not a failure to report.
+    if (projectAccess === 'checking' || projectAccess === 'visitor') return
     let cancelled = false
     void (async () => {
       try {
@@ -758,11 +785,12 @@ export default function MissionTab() {
           setConfirmedLessons(data.lessons ?? [])
         }
       } catch {
-        if (!cancelled && generation === reviewGeneration.current) setProjectReviewError('Could not restore the project review. Your saved work is unchanged; try Review project again.')
+        // An optional read: nothing the person wrote failed to record.
+        if (!cancelled && generation === reviewGeneration.current) setProjectReviewNotice('A saved project review could not be loaded. Your saved work is unchanged.')
       }
     })()
     return () => { cancelled = true }
-  }, [board, corrections, suppliedSteps, loaded, loadFailed, user, reviewRevision])
+  }, [board, corrections, suppliedSteps, loaded, loadFailed, user, reviewRevision, projectAccess])
 
   useEffect(() => {
     if (!projectReview) return
@@ -1099,7 +1127,8 @@ export default function MissionTab() {
         projectReviewAvailable={operationStageConfigured}
         projectReviewBusy={projectReviewBusy}
         projectReviewError={projectReviewError}
-        requestProjectReview={sessionReady ? handleProjectReview : undefined}
+        projectReviewNotice={projectReviewNotice}
+        requestProjectReview={sessionReady && projectAccess !== 'visitor' ? handleProjectReview : undefined}
       >
         {confirmedEmpty ? (
           <form
