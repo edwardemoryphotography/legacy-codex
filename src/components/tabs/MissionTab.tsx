@@ -1141,14 +1141,6 @@ export default function MissionTab() {
         </ol>
       )}
 
-      <TaskRouter
-        context={routeContext}
-        accountId={sessionReady ? user.id : null}
-        seed={routeSeed}
-        canSave={sessionReady && (routeMission?.state === 'primary' || routeMission?.state === 'secondary')}
-        onPrepare={setRoutedDraft}
-      />
-
       {/* The next-move guide: resolves from real state before the
           user types anything, and renders during the load so its reasoning
           state reflects work that is actually pending. */}
@@ -1227,6 +1219,18 @@ export default function MissionTab() {
           </form>
         ) : null}
       </StrategicDelta>
+
+      {/* The router comes after the next move, not before it: on a phone its
+          composer and preferences pushed the card's one action (first-run
+          "This is what matters", or "Check again") far below the tab bar.
+          "Route this move" still scrolls the composer into view. */}
+      <TaskRouter
+        context={routeContext}
+        accountId={sessionReady ? user.id : null}
+        seed={routeSeed}
+        canSave={sessionReady && (routeMission?.state === 'primary' || routeMission?.state === 'secondary')}
+        onPrepare={setRoutedDraft}
+      />
 
       {lessonNotice && <p role="status" className="mission-status">{lessonNotice}</p>}
 

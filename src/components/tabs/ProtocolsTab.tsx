@@ -104,6 +104,7 @@ export default function ProtocolsTab() {
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: '12px',
+                  minHeight: 44,
                 }}
               >
                 <div>

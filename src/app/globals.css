@@ -1460,6 +1460,16 @@ body {
   font-size: 0.75rem;
   min-height: 1.2em;
 }
+/* The reconnect banner's "Open main Legacy Codex site" was an 18px-tall,
+   unstyled line of text: hard to see as a link and to hit with a thumb. */
+.mission-status a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--text-soft);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 
 .mission-invite {
   position: relative;
@@ -2049,8 +2059,9 @@ body {
 .more-sheet-close {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  /* 44px: Apple's minimum comfortable tap target. */
+  width: 44px;
+  height: 44px;
   border-radius: 999px;
   color: var(--text-dim);
   font-size: 0.9rem;
