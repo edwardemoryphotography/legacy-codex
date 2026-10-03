@@ -1,14 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
-import { resolveEnv, verifyAuth } from '@supabase/server/core'
 import { DAILY_BRIEF_SYSTEM_PROMPT } from '@/lib/cognitiveDoctrine'
-import { buildBriefDirective, type BriefMissionContext, type BriefMode } from '@/lib/dailyBrief'
+import { buildBriefDirective, MAX_FIELD_LENGTH, type BriefMissionContext, type BriefMode } from '@/lib/dailyBrief'
+import { deltaOwner } from '@/lib/supabase/deltaAuth'
 
 export const runtime = 'nodejs'
 
 const MODEL = 'claude-opus-5'
 const MAX_MISSIONS = 40
-const MAX_QUESTION_LENGTH = 2000
 const MODES: BriefMode[] = ['daily_brief', 'triage', 'question']
 
 export async function GET() {
@@ -16,38 +15,12 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  // Same auth pattern as /api/analyze: resolve env before verifying, and
-  // keep the 500-vs-401 split (server misconfiguration is not the caller's
-  // missing/invalid credential). See that route for the full reasoning.
-  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-  const hasJwksConfig = Boolean(process.env.SUPABASE_JWKS || process.env.SUPABASE_JWKS_URL)
-  const { data: authEnv, error: envError } = resolveEnv({
-    ...(url ? { url } : {}),
-  })
-  if (authEnv && !hasJwksConfig) {
-    try {
-      // Never take a verification URL from a request or token. Overrides skip
-      // the SDK's URL parser, so explicitly require HTTPS before fetching keys.
-      const jwks = new URL(`${authEnv.url.replace(/\/$/, '')}/auth/v1/.well-known/jwks.json`)
-      if (jwks.protocol !== 'https:' || jwks.username || jwks.password || jwks.search || jwks.hash) throw new Error('Invalid JWKS URL')
-      authEnv.jwks = jwks
-    } catch {
-      return NextResponse.json({ error: 'Daily Brief authentication is unavailable.' }, { status: 503 })
-    }
-  }
-  const { error: authError } = envError
-    ? { error: envError }
-    : await verifyAuth(req, { auth: 'user', env: authEnv! })
-  if (authError) {
-    if (authError.status === 500) {
-      console.error(`/api/brief: auth misconfigured [${authError.code}] ${authError.message}`)
-      return NextResponse.json(
-        { error: `Server auth is misconfigured: ${authError.message} (${authError.code})` },
-        { status: 500 },
-      )
-    }
-    return NextResponse.json({ error: 'Sign in to use Daily Brief.' }, { status: 401 })
-  }
+  // Every visitor is signed in as an anonymous Supabase guest, so "has a
+  // user" is not a boundary for a paid model call. Use the same owner gate as
+  // the Strategic Delta routes: 401 without a valid session, 403 for any
+  // account that is not the configured owner — both before any model call.
+  const owner = await deltaOwner(req)
+  if ('response' in owner) return owner.response
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
       { error: 'Set ANTHROPIC_API_KEY on the server to enable Daily Brief.' },
@@ -79,19 +52,21 @@ export async function POST(req: NextRequest) {
 
   // Re-narrow on the server rather than trusting the client's shape — the
   // client is expected to send what missionsToBriefContext() produces, but
-  // this route never assumes it did.
+  // this route never assumes it did. Every text field is clamped to the same
+  // 400-character ceiling the client already clips to, so a hand-made
+  // request cannot inflate the prompt.
   const safeMissions: BriefMissionContext[] = missions.map(entry => {
     const r = (entry ?? {}) as Record<string, unknown>
     return {
-      title: typeof r.title === 'string' ? r.title : '',
-      state: typeof r.state === 'string' ? (r.state as BriefMissionContext['state']) : 'candidate',
-      why: typeof r.why === 'string' ? r.why : '',
-      finishLine: typeof r.finishLine === 'string' ? r.finishLine : null,
-      blocker: typeof r.blocker === 'string' ? r.blocker : null,
+      title: clamp(r.title) ?? '',
+      state: (clamp(r.state) ?? 'candidate') as BriefMissionContext['state'],
+      why: clamp(r.why) ?? '',
+      finishLine: clamp(r.finishLine),
+      blocker: clamp(r.blocker),
       capacityMismatch: Boolean(r.capacityMismatch),
     }
   })
-  const safeQuestion = typeof question === 'string' ? question.slice(0, MAX_QUESTION_LENGTH) : undefined
+  const safeQuestion = clamp(question) ?? undefined
   if (mode === 'question' && !safeQuestion?.trim()) {
     return NextResponse.json({ error: 'A question is required for mode "question".' }, { status: 400 })
   }
@@ -118,4 +93,8 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : String(err)
     return NextResponse.json({ error: `Daily Brief failed.\n\n${message}` }, { status: 500 })
   }
+}
+
+function clamp(value: unknown): string | null {
+  return typeof value === 'string' ? value.slice(0, MAX_FIELD_LENGTH) : null
 }

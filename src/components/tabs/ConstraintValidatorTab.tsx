@@ -82,6 +82,9 @@ function evaluate(task: string): EvalResult[] {
 // is bounded by Vercel's 4.5 MB serverless request body limit.
 const MAX_TOTAL_BYTES = 4 * 1024 * 1024
 const ACCEPTED_FILE_TYPES = '.pdf,.txt,.md,.csv,.json,image/*'
+// /api/analyze is owner-only. A visitor's 403 is an expected boundary, not a
+// failure: say so plainly, like Mission does for its owner-only review.
+export const ANALYSIS_VISITOR_COPY = 'Artifact analysis is only on Eddie\u2019s account. Validation above still works here.'
 
 export default function ConstraintValidatorTab() {
   const [input, setInput] = useState('')
@@ -164,6 +167,11 @@ export default function ConstraintValidatorTab() {
       }
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch('/api/analyze', { method: 'POST', body: formData, headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} })
+      if (res.status === 403) {
+        setAnalysisOutput(ANALYSIS_VISITOR_COPY)
+        setAnalyzeStatus('idle')
+        return
+      }
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data?.error ?? `HTTP ${res.status}`)
       setAnalysisOutput(data.text || 'No analysis text returned.')

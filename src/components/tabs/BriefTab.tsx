@@ -10,6 +10,10 @@ import { ActionBtn, Badge, Card, HelperLine, SectionSubtitle, SectionTitle, Text
 
 type Status = 'idle' | 'running' | 'done' | 'error'
 
+// /api/brief is owner-only. A visitor's 403 is an expected boundary, not a
+// failure: say so plainly, like Mission does for its owner-only review.
+export const BRIEF_VISITOR_COPY = 'Brief is only on Eddie\u2019s account. Your missions are still saved privately.'
+
 // A read-only, display-only companion to Mission: it asks Claude about the
 // same real mission rows Mission itself reads, and shows the answer. It
 // never writes anything — no mission_events row, no Strategic Delta
@@ -23,6 +27,7 @@ export default function BriefTab() {
   const [output, setOutput] = useState('')
   const [status, setStatus] = useState<Status>('idle')
   const [activeMode, setActiveMode] = useState<BriefMode | null>(null)
+  const [visitor, setVisitor] = useState(false)
 
   useEffect(() => {
     fetch('/api/brief')
@@ -68,6 +73,12 @@ export default function BriefTab() {
         },
         body: JSON.stringify({ mode, question: q, missions: missionsToBriefContext(missions) }),
       })
+      if (res.status === 403) {
+        setVisitor(true)
+        setStatus('idle')
+        setActiveMode(null)
+        return
+      }
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data?.error ?? `HTTP ${res.status}`)
       setOutput(data.text || 'No brief text returned.')
@@ -86,6 +97,7 @@ export default function BriefTab() {
 
   const missionCount = missions?.length ?? 0
   const busy = status === 'running'
+  const unavailable = !configured || visitor
 
   return (
     <section>
@@ -109,14 +121,16 @@ export default function BriefTab() {
             <Badge tone="muted">
               {missionCount} mission{missionCount === 1 ? '' : 's'} in context
             </Badge>
-            {!configured && <Badge tone="amber">ANTHROPIC_API_KEY not set on server</Badge>}
+            {!configured && !visitor && <Badge tone="amber">ANTHROPIC_API_KEY not set on server</Badge>}
           </div>
 
+          {visitor && <HelperLine>{BRIEF_VISITOR_COPY}</HelperLine>}
+
           <div className="flex flex-wrap gap-2 mb-4">
-            <ActionBtn onClick={() => void run('daily_brief')} disabled={busy || !configured}>
+            <ActionBtn onClick={() => void run('daily_brief')} disabled={busy || unavailable}>
               {busy && activeMode === 'daily_brief' ? 'Thinking…' : 'Daily Brief'}
             </ActionBtn>
-            <ActionBtn variant="secondary" onClick={() => void run('triage')} disabled={busy || !configured}>
+            <ActionBtn variant="secondary" onClick={() => void run('triage')} disabled={busy || unavailable}>
               {busy && activeMode === 'triage' ? 'Thinking…' : 'Triage stalled work'}
             </ActionBtn>
           </div>
@@ -130,7 +144,7 @@ export default function BriefTab() {
               placeholder="Ask anything about your missions…"
             />
             <div className="mt-2">
-              <ActionBtn variant="secondary" onClick={askQuestion} disabled={busy || !configured || !question.trim()}>
+              <ActionBtn variant="secondary" onClick={askQuestion} disabled={busy || unavailable || !question.trim()}>
                 {busy && activeMode === 'question' ? 'Thinking…' : 'Ask'}
               </ActionBtn>
             </div>
