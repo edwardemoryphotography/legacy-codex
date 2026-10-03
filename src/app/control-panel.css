@@ -16,7 +16,9 @@
   --panel-field: rgba(10,11,18,.48);
   --panel-shadow: 0 20px 52px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.07);
   --gradient-brand: linear-gradient(130deg,#3d8bff,#6a6ff5 24%,#a259ff 55%,#b24486 78%,#b04c34);
-  --action-bg: var(--gradient-brand);
+  /* White label on the raw brand gradient measured 3.3:1 at its blue end
+     (WCAG AA needs 4.5:1). A 20% ink veil keeps the hues and clears 4.7:1. */
+  --action-bg: linear-gradient(rgba(8,9,14,.2),rgba(8,9,14,.2)), var(--gradient-brand);
   --action-text: #fff;
   --action-glow: 0 8px 24px rgba(135,91,246,.23);
   --glow-calm: rgba(98,85,180,.20);
@@ -36,7 +38,7 @@
   --panel-glass: rgba(255,255,255,.75);
   --panel-field: rgba(235,235,241,.64);
   --panel-shadow: 0 18px 38px rgba(40,40,70,.10), inset 0 1px 0 #fff;
-  --action-bg: var(--gradient-brand);
+  --action-bg: linear-gradient(rgba(8,9,14,.2),rgba(8,9,14,.2)), var(--gradient-brand);
   --action-text: #fff;
 }
 .codex-header {
@@ -62,7 +64,7 @@
 .sd-copy { min-width: 0; }
 .task-router { padding: 12px 0; scroll-margin-top: 24px; }
 .route-intro { text-align: center; margin: 0 auto 24px; max-width: 640px; }
-.route-eyebrow { display: block; text-transform: uppercase; letter-spacing: .17em; color: var(--text-dim); font-size: .68rem; font-weight: 600; margin-bottom: 12px; }
+.route-eyebrow { display: block; text-transform: uppercase; letter-spacing: .17em; color: var(--text-dim); font-size: .75rem; font-weight: 600; margin-bottom: 12px; }
 .route-intro h2 { font-size: clamp(1.9rem,4vw,2.6rem); line-height: 1.15; letter-spacing: -.045em; font-weight: 650; margin: 0 0 12px; }
 .route-intro h2 span { color: #a47bf5; }
 :root[data-theme="light"] .route-intro h2 span { color: #7850c5; }
@@ -82,7 +84,7 @@
 .route-composer textarea { display: block; width: 100%; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 1.02rem; line-height: 1.65; padding: 0; resize: vertical; min-height: 112px; outline: none; }
 .route-composer textarea::placeholder { color: var(--text-dim); }
 .route-composer-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
-.route-composer-foot > span { color: var(--text-dim); font-size: .72rem; }
+.route-composer-foot > span { color: var(--text-dim); font-size: .75rem; }
 .route-composer-actions { display: flex; gap: 10px; align-items: center; }
 .route-mic { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--line-strong); color: var(--text); background: var(--panel-field); cursor: pointer; }
 .route-composer[data-engaged="true"] .route-mic,.route-composer:focus-within .route-mic { color: #fff; background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.25); }
@@ -99,7 +101,7 @@
 .sd-orb-host[data-interaction="engaged"] .sd-blob { animation-duration: 7s; }
 .sd-orb-host[data-interaction="listening"] .sd-blob { animation-duration: 5s; }
 .route-primary,.route-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; border-radius: 999px; padding: 11px 20px; font-size: .88rem; font-weight: 600; border: 1px solid transparent; transition: transform 180ms,box-shadow 180ms; }
-.route-primary { background: var(--gradient-brand); color: white; box-shadow: var(--action-glow); }
+.route-primary { background: var(--action-bg); color: white; box-shadow: var(--action-glow); }
 .route-primary:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(135,91,246,.32); }
 .route-primary:disabled { opacity: .45; cursor: default; }
 .route-secondary { background: var(--panel-field); color: var(--text); border-color: var(--line-strong); }
@@ -107,7 +109,7 @@
 .route-preferences,.route-result { border: 1px solid var(--line); border-radius: 2rem; padding: 24px; background: var(--panel-glass); box-shadow: var(--panel-shadow); margin-top: 24px; }
 .route-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 22px; }
 .route-card-heading h3,.route-teach h3 { font-size: 1.15rem; font-weight: 600; letter-spacing: -.025em; }
-.route-card-heading > span:last-child { color: var(--text-dim); text-transform: uppercase; letter-spacing: .12em; font-size: .65rem; }
+.route-card-heading > span:last-child { color: var(--text-dim); text-transform: uppercase; letter-spacing: .12em; font-size: .75rem; }
 .route-preference-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; }
 .route-preference-grid label:not(.route-toggle),.route-priority legend { display: block; font-size: .85rem; font-weight: 600; margin-bottom: 10px; }
 .task-router select { width: 100%; padding: 12px 14px; min-height: 46px; border: 1px solid var(--line-strong); border-radius: 1rem; color: var(--text); background: var(--surface-soft); font: inherit; font-size: .92rem; }
@@ -151,13 +153,18 @@
   .route-intro p { font-size: .86rem; }
   .route-composer { padding: 16px; border-radius: 1.65rem; }
   .route-composer-foot { gap: 8px; flex-wrap: wrap; }
-  .route-composer-foot > span { font-size: .64rem; }
   .route-composer-actions { margin-left: auto; gap: 8px; }
   .route-preferences,.route-result { padding: 20px; border-radius: 1.65rem; }
   .route-preference-grid { grid-template-columns: 1fr; gap: 18px; }
-  .route-card-heading > span:last-child { letter-spacing: .06em; font-size: .6rem; }
+  .route-card-heading > span:last-child { letter-spacing: .06em; }
   .route-teach { grid-template-columns: 1fr; gap: 12px; }
   .route-teach .route-secondary { justify-self: start; }
   .route-primary,.route-secondary { padding: 11px 16px; }
+  /* Docked orb: on a phone a fixed 72px field floated over the Codex count
+     badges, Protocol headers and Export button as the page scrolled. Seat it
+     inside the header card instead, so it scrolls away with the header. */
+  .sd-orb-host[data-orb="dock"] { position: absolute; top: 27px; right: 22px; width: 56px; height: 56px; }
 }
+/* "⌘ / Ctrl + Enter" means nothing on a touch-only phone. */
+@media(hover:none) and (pointer:coarse) { .route-composer-foot > span { display: none; } }
 @media(prefers-reduced-motion:reduce) { .route-results { animation: none; } .task-router * { transition: none; scroll-behavior: auto; } }
