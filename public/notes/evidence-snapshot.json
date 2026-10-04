@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-04T13:44:24.315Z",
+  "generatedAt": "2026-10-04T19:14:30.515Z",
   "records": [
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-106",
@@ -9,7 +9,7 @@
       "status": "verified",
       "claim": "PR #106 \"Improve Strategic Delta choices, finish conditions and saved-action resume\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T08:26:43Z",
-      "fetchedAt": "2026-10-04T13:44:18.494Z"
+      "fetchedAt": "2026-10-04T19:14:25.183Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-107",
@@ -19,7 +19,7 @@
       "status": "verified",
       "claim": "PR #107 \"Controls: label the readiness file as sample data with its dates, never live\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T04:09:10Z",
-      "fetchedAt": "2026-10-04T13:44:18.793Z"
+      "fetchedAt": "2026-10-04T19:14:25.446Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-104",
@@ -29,7 +29,7 @@
       "status": "verified",
       "claim": "PR #104 \"Security: owner-gate /api/brief and /api/analyze, clamp inputs\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T00:41:59Z",
-      "fetchedAt": "2026-10-04T13:44:19.141Z"
+      "fetchedAt": "2026-10-04T19:14:25.810Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-103",
@@ -39,7 +39,7 @@
       "status": "verified",
       "claim": "PR #103 \"feat: Origin Atlas tab and current-loop architecture map\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T00:30:16Z",
-      "fetchedAt": "2026-10-04T13:44:19.525Z"
+      "fetchedAt": "2026-10-04T19:14:26.144Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-105",
@@ -49,7 +49,7 @@
       "status": "verified",
       "claim": "PR #105 \"Design polish: next move first, readable buttons, orb in header, bigger tap targets\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-03T00:41:30Z",
-      "fetchedAt": "2026-10-04T13:44:19.869Z"
+      "fetchedAt": "2026-10-04T19:14:26.498Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-99",
@@ -59,7 +59,7 @@
       "status": "verified",
       "claim": "PR #99 \"Add sunset as a third preview-only review theme\" merged. 5 check run(s), 5 passing.",
       "observedAt": "2026-10-02T12:04:06Z",
-      "fetchedAt": "2026-10-04T13:44:20.220Z"
+      "fetchedAt": "2026-10-04T19:14:26.893Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-97",
@@ -69,7 +69,7 @@
       "status": "verified",
       "claim": "PR #97 \"Bring the Control Panel design and task routing into Mission\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T09:19:10Z",
-      "fetchedAt": "2026-10-04T13:44:20.600Z"
+      "fetchedAt": "2026-10-04T19:14:27.180Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-102",
@@ -79,7 +79,7 @@
       "status": "verified",
       "claim": "PR #102 \"Wire mandatory Reality Filter into coding-agent completion\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T09:14:28Z",
-      "fetchedAt": "2026-10-04T13:44:20.948Z"
+      "fetchedAt": "2026-10-04T19:14:27.537Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-101",
@@ -89,7 +89,7 @@
       "status": "verified",
       "claim": "PR #101 \"Reload confirmed lessons after a failed project review\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T08:32:34Z",
-      "fetchedAt": "2026-10-04T13:44:21.289Z"
+      "fetchedAt": "2026-10-04T19:14:27.810Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-100",
@@ -99,7 +99,7 @@
       "status": "unverified",
       "claim": "PR #100 \"Restore sunset preview URL under Vercel rate limit\" open, not yet merged.",
       "observedAt": "2026-10-02T07:30:04Z",
-      "fetchedAt": "2026-10-04T13:44:21.289Z"
+      "fetchedAt": "2026-10-04T19:14:27.810Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-98",
@@ -109,7 +109,7 @@
       "status": "verified",
       "claim": "PR #98 \"Add Brief tab\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T06:31:02Z",
-      "fetchedAt": "2026-10-04T13:44:21.725Z"
+      "fetchedAt": "2026-10-04T19:14:28.132Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-96",
@@ -119,7 +119,7 @@
       "status": "verified",
       "claim": "PR #96 \"fix(mission): don't show visitors a failure for the owner-only review read\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T03:16:53Z",
-      "fetchedAt": "2026-10-04T13:44:22.168Z"
+      "fetchedAt": "2026-10-04T19:14:28.573Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-93",
@@ -129,7 +129,7 @@
       "status": "unverified",
       "claim": "PR #93 \"docs: GitHub flow guide + PR status script for multi-agent work\" open, not yet merged.",
       "observedAt": "2026-10-02T01:49:38Z",
-      "fetchedAt": "2026-10-04T13:44:22.168Z"
+      "fetchedAt": "2026-10-04T19:14:28.573Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-94",
@@ -139,7 +139,7 @@
       "status": "verified",
       "claim": "PR #94 \"design: Kiren-inspired atmosphere for the Mission flow\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-10-02T00:47:59Z",
-      "fetchedAt": "2026-10-04T13:44:22.520Z"
+      "fetchedAt": "2026-10-04T19:14:28.897Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-95",
@@ -149,7 +149,7 @@
       "status": "verified",
       "claim": "PR #95 \"Visual pass 1: radius scale, one reconnect label, trimmed phone chrome\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T00:34:44Z",
-      "fetchedAt": "2026-10-04T13:44:22.899Z"
+      "fetchedAt": "2026-10-04T19:14:29.202Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-92",
@@ -159,7 +159,7 @@
       "status": "verified",
       "claim": "PR #92 \"Carry confirmed lessons into evidence-backed project reviews\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-01T21:16:04Z",
-      "fetchedAt": "2026-10-04T13:44:23.270Z"
+      "fetchedAt": "2026-10-04T19:14:29.478Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-90",
@@ -169,7 +169,7 @@
       "status": "verified",
       "claim": "PR #90 \"Strategic Delta: reconstruct project context and critique the next move\" merged. 5 check run(s), 5 passing.",
       "observedAt": "2026-10-01T14:57:06Z",
-      "fetchedAt": "2026-10-04T13:44:23.620Z"
+      "fetchedAt": "2026-10-04T19:14:29.755Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-91",
@@ -179,7 +179,7 @@
       "status": "verified",
       "claim": "PR #91 \"Redesign Mission and Codex as a calmer personal workspace\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-01T01:20:30Z",
-      "fetchedAt": "2026-10-04T13:44:23.968Z"
+      "fetchedAt": "2026-10-04T19:14:30.125Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-82",
@@ -189,7 +189,7 @@
       "status": "verified",
       "claim": "PR #82 \"Retire obsolete instruction gates and make current user intent authoritative\" merged. 5 check run(s), 4 passing.",
       "observedAt": "2026-09-30T20:31:29Z",
-      "fetchedAt": "2026-10-04T13:44:24.315Z"
+      "fetchedAt": "2026-10-04T19:14:30.515Z"
     },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-89",
@@ -199,7 +199,7 @@
       "status": "unverified",
       "claim": "PR #89 \"Mission: return-to-action — resume your saved action from the front door\" open, not yet merged.",
       "observedAt": "2026-09-24T22:59:58Z",
-      "fetchedAt": "2026-10-04T13:44:24.315Z"
+      "fetchedAt": "2026-10-04T19:14:30.515Z"
     }
   ]
 }
