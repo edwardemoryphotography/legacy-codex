@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { useState } from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/components/ActivityOrb', () => ({
@@ -8,6 +8,7 @@ vi.mock('@/components/ActivityOrb', () => ({
 }))
 import type { DeltaCandidate, Mission, MissionState } from '@/types'
 import { operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
+import type { ProjectReview } from '@/lib/projectReview'
 import StrategicDelta from './StrategicDelta'
 
 function mission(over: Partial<Mission> & { id: string; state: MissionState }): Mission {
@@ -43,6 +44,94 @@ function renderDelta(missions: Mission[], overrides: Partial<React.ComponentProp
   render(<StrategicDelta {...props} />)
   return props
 }
+
+// Rendering contract fixtures, not model-quality or real account proof.
+describe('StrategicDelta — reviewed choice presentation', () => {
+  const target = mission({ id: 'm1', state: 'primary', title: 'Print the portfolio', finishLine: 'Twenty prints are framed and hung' })
+  const review: ProjectReview = {
+    missionId: target.id, finishLine: target.finishLine!, operation: 'Open the print order and confirm the paper size with the lab',
+    decision: 'act', finishWhen: 'The lab confirms the paper size on the order.', clarification: null, resumeActionId: null,
+    alternatives: [{ operation: 'Buy frames for the prints', whyNot: 'The paper size is not confirmed.', sourceIds: ['mission:m1'] }],
+    biggerPicture: 'Hang the finished portfolio.', why: 'Confirming the size prevents buying incompatible frames.',
+    overlooked: 'The frame depends on the print size.', selfCheck: 'The lab may already have confirmed it.', unknowns: [],
+    sources: [{ id: 'mission:m1', kind: 'mission', label: target.title, status: 'human-defined', text: target.finishLine! }],
+    sourceIds: ['mission:m1'], contextKey: 'contract-only', reviewedAt: '2026-10-04T00:00:00.000Z', cached: false, warnings: [], lesson: null,
+  }
+
+  it('shows why now and the move finish condition, with alternatives behind Why this', async () => {
+    renderDelta([target], { projectReview: review })
+    expect(await screen.findByText(review.operation!)).toBeTruthy()
+    expect(screen.getByLabelText('Why now and finish condition').textContent).toContain(review.finishWhen)
+    expect(screen.getByRole('button', { name: 'Accept this move' }).compareDocumentPosition(screen.getByLabelText('Why now and finish condition')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByText(review.alternatives[0].operation)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Why this?' }))
+    expect(screen.getByText(review.alternatives[0].operation)).toBeTruthy()
+  })
+
+  it('never attaches the reviewed explanation to a corrected winner', async () => {
+    renderDelta([target], { projectReview: review, corrections: [{ id: 'c1', missionId: target.id,
+      candidateId: `project-operation:m1:${encodeURIComponent(review.operation!)}`, correctedMove: review.operation!,
+      reason: 'The lab is unavailable.', createdAt: '2026-10-04T00:00:00.000Z' }] })
+    expect(screen.queryByLabelText('Why now and finish condition')).toBeNull()
+  })
+
+  it('keeps a human-supplied step ahead of a deciding question', async () => {
+    const clause = predictStrategicDelta([target], [], [], new Date().toISOString()).proofSteps[0].text
+    const move = 'Open the print order and confirm the paper size with the lab'
+    renderDelta([target], { projectReview: { ...review, decision: 'clarify', operation: null, finishWhen: null, clarification: 'Which paper size?' },
+      suppliedOperations: [{ id: operationCandidateId('clause:m1:0', move), targetId: 'clause:m1:0', clause, missionId: 'm1', kind: 'supplied_operation', move, rank: 0 }] })
+    expect(await screen.findByText(move)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Add the missing context' })).toBeNull()
+    expect(screen.queryByLabelText('Why now and finish condition')).toBeNull()
+  })
+
+  it('discards a review bound to an older finish line', () => {
+    renderDelta([{ ...target, finishLine: 'The digital portfolio is published' }], { projectReview: review })
+    expect(screen.queryByText(review.operation!)).toBeNull()
+    expect(screen.queryByLabelText('Why now and finish condition')).toBeNull()
+  })
+
+  it('asks the deciding question without an accept button or another model request', async () => {
+    const requestOperation = vi.fn()
+    const clarification = 'Has the lab confirmed the paper size?'
+    renderDelta([target], { projectReview: { ...review, decision: 'clarify', operation: null, finishWhen: null, clarification }, requestOperation })
+    expect(await screen.findByText(clarification)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Accept this move' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Add the missing context' }))
+    expect(screen.getByRole('textbox', { name: /What changed/i })).toBeTruthy()
+    expect(requestOperation).not.toHaveBeenCalled()
+  })
+
+  it('keeps a blocker ahead of the review deciding question', () => {
+    renderDelta([{ ...target, blocker: 'The lab is closed' }], { projectReview: { ...review, decision: 'clarify', operation: null, finishWhen: null, clarification: 'Which paper size?' } })
+    expect(screen.queryByRole('button', { name: 'Add the missing context' })).toBeNull()
+    expect(screen.getAllByText(/The lab is closed/).length).toBeGreaterThan(0)
+  })
+
+  it('retires a pending clause request when a project review supersedes it', async () => {
+    let finishRequest: (operation: string | null) => void = () => {}
+    const requestOperation = vi.fn(() => new Promise<string | null>(resolve => { finishRequest = resolve }))
+    const props = { missions: [target], evidence: [], corrections: [], phase: 'resolved' as const, readAvailable: true,
+      onAccept: vi.fn(), onCorrect: vi.fn(), onSupplyStep: vi.fn(), onContextAdded: vi.fn(), onRecheck: vi.fn(), requestOperation }
+    const { rerender } = render(<StrategicDelta {...props} />)
+    await waitFor(() => expect(requestOperation).toHaveBeenCalledOnce())
+    expect(screen.getByLabelText('Your next move').getAttribute('data-cognition')).toBe('deriving')
+    rerender(<StrategicDelta {...props} projectReview={review} />)
+    await waitFor(() => expect(screen.getByLabelText('Your next move').getAttribute('data-cognition')).toBe('settled'))
+    finishRequest(null)
+    expect(requestOperation).toHaveBeenCalledOnce()
+  })
+
+  it('points to the exact saved action and does not seed a new commitment or routing draft', async () => {
+    const onShownAcceptance = vi.fn()
+    renderDelta([target], { projectReview: { ...review, decision: 'resume', resumeActionId: 'a1' }, onShownAcceptance, onRoute: vi.fn() })
+    const link = await screen.findByRole('link', { name: 'Return to this saved action' })
+    expect(link.getAttribute('href')).toBe('#saved-action-a1')
+    expect(onShownAcceptance).toHaveBeenLastCalledWith({ missionId: 'm1', move: review.operation, resumeActionId: 'a1' })
+    expect(screen.queryByRole('button', { name: 'Route this move' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Save it as one action you can return to' })).toBeNull()
+  })
+})
 
 // A compound finish line, because that is the shape the engine aims at:
 // one part at a time rather than the whole outcome restated. With no

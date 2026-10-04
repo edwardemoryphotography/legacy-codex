@@ -7,6 +7,14 @@ export interface ProjectSource {
   text: string
   url?: string
   truncated?: boolean
+  // Set from an authenticated canonical action row, never from model text.
+  commitment?: { id: string; missionId: string; status: string }
+}
+
+export interface ReviewAlternative {
+  operation: string
+  whyNot: string
+  sourceIds: string[]
 }
 
 export interface LessonProposal {
@@ -36,6 +44,11 @@ export interface ProjectReview {
   missionId: string
   finishLine: string
   operation: string | null
+  decision: 'act' | 'resume' | 'clarify'
+  finishWhen: string | null
+  clarification: string | null
+  resumeActionId: string | null
+  alternatives: ReviewAlternative[]
   biggerPicture: string
   why: string
   overlooked: string
@@ -102,21 +115,49 @@ export function relatedProjectSignal(targetText: string, candidate: { id: string
   return { score: shared.length, reason: shared.length ? `Shared context terms: ${shared.slice(0, 8).join(', ')}. Relationship is a hypothesis to check.` : 'No supported relationship signal.' }
 }
 
-export function parseProjectReview(raw: string, sources: ProjectSource[]): Pick<ProjectReview, 'operation' | 'biggerPicture' | 'why' | 'overlooked' | 'selfCheck' | 'unknowns' | 'sourceIds' | 'lesson'> | null {
+export type ReviewProposal = Pick<ProjectReview, 'operation' | 'decision' | 'finishWhen' | 'clarification' | 'resumeActionId' | 'alternatives' | 'biggerPicture' | 'why' | 'overlooked' | 'selfCheck' | 'unknowns' | 'sourceIds' | 'lesson'>
+
+export function parseProjectReview(raw: string, sources: ProjectSource[], missionId: string): ReviewProposal | null {
   try {
     const value: unknown = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null
     const row = value as Record<string, unknown>
     const text = (key: string) => typeof row[key] === 'string' && (row[key] as string).trim() && (row[key] as string).length <= 1_000
-    if (!['biggerPicture', 'why', 'overlooked', 'selfCheck'].every(text)) return null
+    if (!['biggerPicture', 'why', 'overlooked', 'selfCheck'].every(text) || (row.why as string).length > 500) return null
     if (row.operation !== null && (typeof row.operation !== 'string' || !row.operation.trim() || row.operation.length > 240)) return null
     if (!Array.isArray(row.unknowns) || row.unknowns.length > 6 || !row.unknowns.every(x => typeof x === 'string' && x.length <= 500)) return null
     const available = new Set(sources.map(s => s.id))
     if (!Array.isArray(row.sourceIds) || !row.sourceIds.length || row.sourceIds.length > 12 || !row.sourceIds.every(id => typeof id === 'string' && available.has(id))) return null
+    if (!row.sourceIds.includes(`mission:${missionId}`)) return null
+    const shortText = (value: unknown, limit: number) => typeof value === 'string' && Boolean(value.trim()) && value.length <= limit
+    if (!['act', 'resume', 'clarify'].includes(row.decision as string)) return null
+    if (row.decision === 'clarify') {
+      if (row.operation !== null || row.finishWhen !== null || row.resumeActionId !== null || !shortText(row.clarification, 300)) return null
+    } else if (!shortText(row.operation, 240) || !shortText(row.finishWhen, 300) || row.clarification !== null) return null
+    if (row.decision === 'resume') {
+      const action = sources.find(source => source.kind === 'commitment' && source.id === `action:${row.resumeActionId}`)
+      if (!action?.commitment || action.commitment.id !== row.resumeActionId || action.commitment.missionId !== missionId ||
+          !['TODO', 'IN_PROGRESS'].includes(action.commitment.status) || !row.sourceIds.includes(action.id)) return null
+    } else if (row.resumeActionId !== null) return null
+    if (!Array.isArray(row.alternatives) || row.alternatives.length > 2) return null
+    const alternatives: ReviewAlternative[] = []
+    for (const item of row.alternatives) {
+      if (!item || typeof item !== 'object' || !shortText(item.operation, 240) || !shortText(item.whyNot, 500) ||
+          !Array.isArray(item.sourceIds) || !item.sourceIds.length || item.sourceIds.length > 12 ||
+          !item.sourceIds.every((id: unknown) => typeof id === 'string' && available.has(id))) return null
+      const operation = item.operation.trim()
+      if (operation.toLowerCase() === (row.operation as string | null)?.trim().toLowerCase() ||
+          alternatives.some(alternative => alternative.operation.toLowerCase() === operation.toLowerCase())) return null
+      alternatives.push({ operation, whyNot: item.whyNot.trim(), sourceIds: [...new Set(item.sourceIds as string[])] })
+    }
     const lesson = row.lesson == null ? null : parseLessonProposal(row.lesson, sources)
     if (row.lesson != null && !lesson) return null
     return {
       operation: row.operation === null ? null : (row.operation as string).trim(),
+      decision: row.decision as ReviewProposal['decision'],
+      finishWhen: row.finishWhen === null ? null : (row.finishWhen as string).trim(),
+      clarification: row.clarification === null ? null : (row.clarification as string).trim(),
+      resumeActionId: row.resumeActionId as string | null, alternatives,
       biggerPicture: (row.biggerPicture as string).trim(), why: (row.why as string).trim(),
       overlooked: (row.overlooked as string).trim(), selfCheck: (row.selfCheck as string).trim(),
       unknowns: row.unknowns as string[], sourceIds: [...new Set(row.sourceIds as string[])],
