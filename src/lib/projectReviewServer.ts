@@ -3,6 +3,12 @@ import { createClient } from '@supabase/supabase-js'
 import { boundSourceText, githubFileReference, relatedProjectSignal, sourceLinks, type ProjectSource } from './projectReview'
 import { loadConfirmedLessons } from './projectLessonsServer'
 
+// Keep the exact title within the proposal bound. Never truncate a commitment
+// into different work just to make it eligible for a Resume recommendation.
+function resumableTitle(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() && value.trim().length <= 240 ? value.trim() : undefined
+}
+
 export function projectUserClient(url: string, authorization: string) {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY
   if (!key || !authorization.startsWith('Bearer ')) throw new Error('Project context authentication is unavailable.')
@@ -61,7 +67,7 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
   const hasEvidenceConflict = (conflicts.count ?? 0) > 0
   const sources: ProjectSource[] = [{ id: `mission:${target.data.id}`, label: target.data.title, kind: 'mission', status: 'human-defined outcome', ...boundSourceText(JSON.stringify(target.data), 4_000) }]
   for (const row of evidence.data ?? []) sources.push({ id: `evidence:${row.id}`, label: row.source, kind: 'evidence', status: `Derived snapshot: ${row.status}; not canonical evidence truth`, ...boundSourceText(JSON.stringify(row), 2_000) })
-  for (const row of actions.data ?? []) sources.push({ id: `action:${row.id}`, label: row.action_title, kind: 'commitment', status: 'human-reported commitment and progress; not verified completion', commitment: { id: row.id, missionId, status: row.status }, ...boundSourceText(JSON.stringify(row), 2_000) })
+  for (const row of actions.data ?? []) sources.push({ id: `action:${row.id}`, label: row.action_title, kind: 'commitment', status: 'human-reported commitment and progress; not verified completion', commitment: { id: row.id, missionId, status: row.status, actionTitle: resumableTitle(row.action_title) }, ...boundSourceText(JSON.stringify(row), 2_000) })
   for (const row of events.data ?? []) sources.push({ id: `event:${row.id}`, label: row.type === 'delta_corrected' ? 'Your correction' : 'Your project context', kind: row.type === 'delta_corrected' ? 'correction' : 'human_note', status: 'human-reported', ...boundSourceText(JSON.stringify(row), 2_000) })
   for (const row of corrections.data ?? []) sources.push({ id: `event:${row.id}`, label: 'Your correction', kind: 'correction', status: 'human correction; authoritative for this recommendation', ...boundSourceText(JSON.stringify(row), 2_000) })
   const warnings = ['Retrieval considers the 50 most recently updated other projects. Explicit project IDs and shared context terms select up to 4 for deeper reading; up to 8 other project summaries remain visible for discovering less obvious connections. These are relevance hypotheses, not proof of dependencies. Unread details and semantic links may be missed.',
@@ -92,7 +98,7 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
     sources.push({ id: `mission:${mission.id}`, label: mission.title, kind: 'mission', status: packet.reason, ...boundSourceText(JSON.stringify(mission), 2_000) })
     const wrap = (row: object) => JSON.stringify({ missionId: mission.id, project: mission.title, record: row })
     for (const row of packet.evidence) sources.push({ id: `evidence:${row.id}`, label: `${mission.title}: ${row.source}`, kind: 'evidence', status: `Derived snapshot: ${row.status}; not canonical evidence truth`, ...boundSourceText(wrap(row), 1_500) })
-    for (const row of packet.actions) sources.push({ id: `action:${row.id}`, label: `${mission.title}: ${row.action_title}`, kind: 'commitment', status: 'Related project commitment; human-reported, not verified completion', commitment: { id: row.id, missionId: mission.id, status: row.status }, ...boundSourceText(wrap(row), 1_500) })
+    for (const row of packet.actions) sources.push({ id: `action:${row.id}`, label: `${mission.title}: ${row.action_title}`, kind: 'commitment', status: 'Related project commitment; human-reported, not verified completion', commitment: { id: row.id, missionId: mission.id, status: row.status, actionTitle: resumableTitle(row.action_title) }, ...boundSourceText(wrap(row), 1_500) })
     for (const row of packet.notes) sources.push({ id: `event:${row.id}`, label: `${mission.title}: project context`, kind: 'human_note', status: 'Human-reported context on a related project', ...boundSourceText(wrap(row), 1_500) })
     for (const row of packet.corrections) sources.push({ id: `event:${row.id}`, label: `${mission.title}: correction`, kind: 'correction', status: 'Human correction scoped to this related project', ...boundSourceText(wrap(row), 1_500) })
     notes += '\n' + packet.notes.filter(row => row.type === 'delta_context_added').map(row => row.detail).join('\n')
@@ -127,6 +133,6 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
   }).filter(source => source.text.length)
   if (bounded.length !== sources.length) warnings.push(`${sources.length - bounded.length} sources were omitted by the total context limit.`)
   if (bounded.some(source => source.truncated)) warnings.push('Some sources are excerpts. Limits reserve room for evidence and commitments alongside lessons, notes and corrections; inspect originals when a cut could change the interpretation.')
-  const contextKey = createHash('sha256').update(JSON.stringify({ version: 4, target: target.data, sources: bounded, warnings, hasEvidenceConflict })).digest('hex')
+  const contextKey = createHash('sha256').update(JSON.stringify({ version: 5, target: target.data, sources: bounded, warnings, hasEvidenceConflict })).digest('hex')
   return { mission: target.data, sources: bounded, warnings, contextKey, hasEvidenceConflict, lessons }
 }

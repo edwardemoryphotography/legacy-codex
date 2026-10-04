@@ -296,6 +296,25 @@ describe('MissionTab saves an accepted Secondary step against the Secondary', ()
     await waitFor(() => expect(inserts.some(i => i.table === 'actions')).toBe(true))
     expect(inserts.find(i => i.table === 'actions')?.row.mission_id).toBe('m2')
   })
+
+  it.each(['completed', 'paused', 'abandoned'] as const)('keeps the Secondary saved action reachable when Primary is %s', async state => {
+    // Contract data only: no production writes or claim of real-session proof.
+    tables.missions = [{ ...missionToRow({ ...primary, state }, 'user-1'), created_at: primary.createdAt },
+      { ...missionToRow(secondary, 'user-1'), created_at: secondary.createdAt }]
+    tables.actions = [{ id: 'secondary-action', mission_id: 'm2', action_title: step, status: 'TODO',
+      resume_note: 'Continue with the three frame prices', updated_at: secondary.updatedAt,
+      mission: { title: secondary.title, state: 'secondary' } }]
+    const view = render(<MissionTab />)
+    expect(await screen.findByRole('heading', { name: 'Your missions' })).toBeTruthy()
+    await waitFor(() => expect(document.getElementById('saved-action-secondary-action')).toBeTruthy())
+    expect(screen.getByRole('button', { name: 'Start / resume' })).toBeTruthy()
+    expect((screen.getByLabelText('Starting point') as HTMLTextAreaElement).value).toBe('Continue with the three frame prices')
+    view.unmount()
+    render(<MissionTab />)
+    await waitFor(() => expect(document.getElementById('saved-action-secondary-action')).toBeTruthy())
+    expect(screen.queryByLabelText('Name the action to save')).toBeNull()
+    expect(inserts).toEqual([])
+  })
 })
 
 describe('MissionTab project-review access', () => {

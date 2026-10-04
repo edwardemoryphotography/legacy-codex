@@ -6,7 +6,7 @@ import { parseProjectReview, type ProjectSource } from './projectReview'
 const sources: ProjectSource[] = [
   { id: 'mission:m1', kind: 'mission', label: 'Target', status: 'human-defined', text: '{}' },
   { id: 'action:a1', kind: 'commitment', label: 'Existing action', status: 'human-reported', text: '{}',
-    commitment: { id: 'a1', missionId: 'm1', status: 'TODO' } },
+    commitment: { id: 'a1', missionId: 'm1', status: 'TODO', actionTitle: 'Open the saved checklist and complete its next unchecked item' } },
 ]
 const proposal = {
   decision: 'resume', operation: 'Open the saved checklist and complete its next unchecked item',
@@ -19,6 +19,21 @@ const proposal = {
 const parse = (overrides = {}, context = sources) => parseProjectReview(JSON.stringify({ ...proposal, ...overrides }), context, 'm1')
 
 describe('review choice contract', () => {
+  it('rejects a resume operation that names different work from its canonical action', () => {
+    expect(parse({ operation: 'Email the print lab and request a new quote' })).toBeNull()
+  })
+  it('rejects a resume source without its authenticated action title', () => {
+    const untitled = sources.map(s => s.commitment ? { ...s, commitment: { id: 'a1', missionId: 'm1', status: 'TODO' } } : s)
+    expect(parse({}, untitled)).toBeNull()
+  })
+  it('never truncates or paraphrases a commitment to fit the resume contract', () => {
+    for (const actionTitle of ['', '   ', 'x'.repeat(241)]) {
+      const context = sources.map(s => s.commitment ? { ...s, commitment: { ...s.commitment, actionTitle } } : s)
+      expect(parse({}, context)).toBeNull()
+    }
+    expect(parse({ operation: 'Finish the next item on the checklist' })).toBeNull()
+    expect(parse({ operation: `  ${proposal.operation}  ` })).not.toBeNull()
+  })
   it('keeps an exact unfinished action link and observable finish condition', () => {
     expect(parse()).toMatchObject({ decision: 'resume', resumeActionId: 'a1', finishWhen: proposal.finishWhen })
     const active = sources.map(s => s.commitment ? { ...s, commitment: { ...s.commitment, status: 'IN_PROGRESS' } } : s)

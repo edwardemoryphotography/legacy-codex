@@ -1243,7 +1243,7 @@ export default function MissionTab() {
           status and a place to leave yourself a note. */}
       {/* Bound to the mission of the accepted move on screen — the Primary,
           or an actionable Secondary when that is what the Delta aimed at. */}
-      {sessionReady && primary && (
+      {sessionReady && savedMissionId && (
         <SavedActions
           key={savedMissionId}
           missionId={savedMissionId}
