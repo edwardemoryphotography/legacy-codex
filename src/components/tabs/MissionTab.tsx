@@ -299,7 +299,7 @@ export default function MissionTab() {
   const acceptingRef = useRef<Set<string>>(new Set())
   // The accepted move the Delta is actually showing for Primary (reported by
   // StrategicDelta). Distinct from acceptedMoves, which comes from the ledger.
-  const [shownAcceptance, setShownAcceptance] = useState<{ missionId: string; move: string } | null>(null)
+  const [shownAcceptance, setShownAcceptance] = useState<{ missionId: string; move: string; resumeActionId?: string } | null>(null)
   const [routeSeed, setRouteSeed] = useState<RouteSeed | null>(null)
   const [routedDraft, setRoutedDraft] = useState<RoutedActionDraft | null>(null)
   const [routeNotes, setRouteNotes] = useState<{ missionId: string; note: string }[]>([])
@@ -1102,7 +1102,11 @@ export default function MissionTab() {
   }
   const currentDraft = routedDraft && routedDraft.missionId === routeMission?.id
     && routedDraft.contextKey === nextMoveContextKey(routeContext, new Date().toISOString()) ? routedDraft : null
-  const savedMissionId = currentDraft?.missionId ?? shownAcceptance?.missionId ?? primary?.id
+  // Keep the action panel on the same actionable mission while a review
+  // restores. Otherwise a Secondary resume remounts Primary's panel, whose
+  // read invalidates the review again, producing a restore/remount loop.
+  const actionTarget = primary && !primary.blocker && !primary.capacityMismatch ? primary : secondary ?? primary
+  const savedMissionId = currentDraft?.missionId ?? shownAcceptance?.missionId ?? actionTarget?.id
   const now = new Date().toISOString()
 
   return (
@@ -1243,7 +1247,7 @@ export default function MissionTab() {
         <SavedActions
           key={savedMissionId}
           missionId={savedMissionId}
-          suggestedTitle={shownAcceptance && shownAcceptance.missionId === savedMissionId ? shownAcceptance.move : null}
+          suggestedTitle={shownAcceptance && !shownAcceptance.resumeActionId && shownAcceptance.missionId === savedMissionId ? shownAcceptance.move : null}
           routedDraft={currentDraft}
           onActiveChange={handleResumableAction}
         />

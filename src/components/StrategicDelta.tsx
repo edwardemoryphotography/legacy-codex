@@ -94,13 +94,14 @@ interface Props {
    *  Compared by value against the Delta on screen, so a re-prediction that
    *  changes the move — or aims at another mission — is not shown accepted. */
   acceptedMoves?: Readonly<Record<string, string>>
-  /** Reports the accepted move currently on screen and the active mission
+  /** Reports the accepted move (or existing commitment to resume) and active mission
    *  (Primary, or an actionable Secondary) it belongs to, or null. The
    *  saved-action composer seeds from this, never from the ledger alone: an
    *  acceptance of a move the Delta no longer predicts must not reappear as
    *  "the recommendation you accepted", and a Secondary's step must be saved
-   *  against the Secondary. */
-  onShownAcceptance?: (acceptance: { missionId: string; move: string } | null) => void
+   *  against the Secondary. A resume ID points to that saved action and
+   *  must never seed a new-action composer. */
+  onShownAcceptance?: (acceptance: { missionId: string; move: string; resumeActionId?: string } | null) => void
   onRoute?: (delta: Delta) => void
   /** Whether the caller's mission/correction read has actually succeeded
    *  at least once. `missions: []` is ambiguous on its own — it means
@@ -166,13 +167,21 @@ export default function StrategicDelta({
   onRetireLesson,
   projectReviewAccessError = null,
   projectReviewAvailable = true,
-  projectReview = null,
+  projectReview: restoredReview = null,
   projectReviewBusy = false,
   projectReviewError = null,
   projectReviewNotice = null,
   requestProjectReview,
   children,
 }: Props) {
+  // A restored review cannot follow a mission into a revised goal or an
+  // inactive state. Source changes also invalidate it in MissionTab.
+  const projectReview = useMemo(() => {
+    if (!restoredReview) return null
+    const mission = missions.find(row => row.id === restoredReview.missionId)
+    return mission && ['primary', 'secondary'].includes(mission.state) && mission.finishLine === restoredReview.finishLine
+      ? restoredReview : null
+  }, [restoredReview, missions])
   // Set after mount so server and client never disagree about the clock.
   const [now, setNow] = useState<string | null>(null)
   const [showPhaseText, setShowPhaseText] = useState(false)
@@ -189,6 +198,7 @@ export default function StrategicDelta({
   const [awaitingOperation, setAwaitingOperation] = useState(false)
   const [operationError, setOperationError] = useState<string | null>(null)
   const attemptedOperationStates = useRef<Set<string>>(new Set())
+  const operationRequestVersion = useRef(0)
   const whyRef = useRef<HTMLDivElement>(null)
   const correctionRef = useRef<HTMLTextAreaElement>(null)
   const changedRef = useRef<HTMLTextAreaElement>(null)
@@ -245,10 +255,19 @@ export default function StrategicDelta({
     [modelSuggestions, suppliedOperations, reviewedOperation, projectReview],
   )
 
-  const delta = useMemo(
-    () => (now === null ? null : predictStrategicDelta(missions, evidence, corrections, now, suggestedOperations)),
-    [missions, evidence, corrections, now, suggestedOperations],
-  )
+  const delta = useMemo(() => {
+    if (now === null) return null
+    const predicted = predictStrategicDelta(missions, evidence, corrections, now, suggestedOperations)
+    const target = missions.find(mission => mission.id === predicted.missionId)
+    // A deciding question supersedes filler operations for this project,
+    // while supplied steps and conflict/blocker/capacity gates keep priority.
+    if (projectReview?.decision !== 'clarify' || predicted.missionId !== projectReview.missionId ||
+        predicted.provenance === 'supplied' || predicted.situation === 'evidence_conflict' ||
+        !target || target.blocker || target.capacityMismatch) return predicted
+    return { ...predicted, provenance: 'insufficient_context' as const, candidateId: `project:${target.id}`,
+      move: projectReview.clarification!, because: projectReview.why,
+      blockingGap: 'One fact would change the best next move.', wouldChangeIf: projectReview.clarification! }
+  }, [missions, evidence, corrections, now, suggestedOperations, projectReview])
 
   // Fires at most once for each target/rejection state: only when the deterministic pass has
   // genuinely exhausted structural signal for a specific, known clause of
@@ -257,7 +276,15 @@ export default function StrategicDelta({
   // — a failed or empty result stays the honest fallback until the human adds
   // a correction that gives the model a new constraint for the same target.
   useEffect(() => {
+    const version = ++operationRequestVersion.current
+    let started = false
+    // Cancelling an obsolete clause request must also retire its pending
+    // UI. Do not clear the state of a newer request that actually started.
+    queueMicrotask(() => {
+      if (!started && version === operationRequestVersion.current) setAwaitingOperation(false)
+    })
     if (!requestOperation || !baseDelta) return
+    if (projectReview?.missionId === baseDelta.missionId) return
     if (baseDelta.provenance !== 'insufficient_context') return
     const targetId = baseDelta.candidateId
     if (!targetId || !targetId.startsWith('clause:') || !baseDelta.missionId) return
@@ -273,6 +300,7 @@ export default function StrategicDelta({
     if (attemptedOperationStates.current.has(attemptKey)) return
 
     attemptedOperationStates.current.add(attemptKey)
+    started = true
     let cancelled = false
     queueMicrotask(() => {
       if (!cancelled) setOperationError(null)
@@ -320,7 +348,7 @@ export default function StrategicDelta({
     return () => {
       cancelled = true
     }
-  }, [requestOperation, baseDelta, missions, corrections])
+  }, [requestOperation, baseDelta, missions, corrections, projectReview])
 
   useEffect(() => {
     const node =
@@ -414,7 +442,7 @@ export default function StrategicDelta({
 
   // A model failure only describes the Delta while it is still stuck. Once a
   // supplied step (or anything else) resolves it, the alert would be false.
-  const shownOperationError = delta?.provenance === 'insufficient_context' ? operationError : null
+  const shownOperationError = delta?.provenance === 'insufficient_context' && !projectReview ? operationError : null
   // "This did not record" (and the alert atmosphere keyed on it) is reserved
   // for something the person asked to record or run that failed. A failed
   // optional read is projectReviewNotice and deliberately absent here.
@@ -446,17 +474,22 @@ export default function StrategicDelta({
   const committableMission = delta?.missionId
     ? missions.find(m => m.id === delta.missionId && (m.state === 'primary' || m.state === 'secondary')) ?? null
     : null
-  const shownMove = accepted && delta && committableMission ? delta.move : null
+  const selectedReview = delta?.provenance === 'model' && delta.candidateId === reviewedOperation?.id ? projectReview : null
+  const resumeActionId = selectedReview?.decision === 'resume' ? selectedReview.resumeActionId : null
+  // Selecting an existing commitment may point at its panel even before
+  // acceptance. The composer must never seed a second action from it.
+  const shownMove = (accepted || resumeActionId) && delta && committableMission ? delta.move : null
   const shownMissionId = shownMove ? committableMission?.id ?? null : null
   useEffect(() => {
-    onShownAcceptance?.(shownMove && shownMissionId ? { missionId: shownMissionId, move: shownMove } : null)
-  }, [onShownAcceptance, shownMove, shownMissionId])
+    onShownAcceptance?.(shownMove && shownMissionId ? { missionId: shownMissionId, move: shownMove, ...(resumeActionId ? { resumeActionId } : {}) } : null)
+  }, [onShownAcceptance, shownMove, shownMissionId, resumeActionId])
   const hasRecommendation = delta !== null && delta.provenance !== 'insufficient_context'
   // A supplied step is recorded against a clause. Without a clause target
   // (e.g. the only candidate was corrected) there is nothing to aim it at.
   const needsStep = delta?.provenance === 'insufficient_context' && Boolean(delta.missionId) && Boolean(delta.candidateId?.startsWith('clause:'))
   const needsRead = delta?.provenance === 'insufficient_context' && !delta.missionId && !readAvailable
-  const title = delta ? displayTitle(delta, isFirstRun, readAvailable) : null
+  const needsClarification = projectReview?.decision === 'clarify' && delta?.candidateId === `project:${projectReview.missionId}` && delta.provenance === 'insufficient_context'
+  const title = needsClarification ? projectReview.clarification : delta ? displayTitle(delta, isFirstRun, readAvailable) : null
   const aimedMission = delta?.missionId ? missions.find(mission => mission.id === delta.missionId) ?? null : null
   const finishLine = aimedMission?.finishLine ?? null
   const reviewTarget = primaryMission && !primaryMission.blocker && !primaryMission.capacityMismatch
@@ -504,7 +537,7 @@ export default function StrategicDelta({
         </p>
       ) : delta && title ? (
         <>
-          <p className="sd-move" key={hasRecommendation ? delta.move : title} aria-live={hasRecommendation ? 'polite' : undefined}>{title}</p>
+          <p className="sd-move" key={hasRecommendation ? delta.move : title} aria-label={selectedReview ? resumeActionId ? 'Continue your saved action' : 'Do this' : undefined} aria-live={hasRecommendation ? 'polite' : undefined}>{title}</p>
           {retainedStep && !hasRecommendation && (
             <p className="sd-taught">Kept: {retainedStep.move}. It stays on record, and it is not the next step.</p>
           )}
@@ -515,7 +548,7 @@ export default function StrategicDelta({
                 {/* The saved action is a separate, explicit commitment. This
                     only points at it; nothing is saved from here. */}
                 {committableMission && (
-                  <a className="sd-next" href="#saved-action">Save it as one action you can return to</a>
+                  <a className="sd-next" href={resumeActionId ? `#saved-action-${resumeActionId}` : '#saved-action'}>{resumeActionId ? 'Return to this saved action' : 'Save it as one action you can return to'}</a>
                 )}
                 <p className="sd-accepted">
                   Accepted — still a prediction until there&apos;s evidence
@@ -527,6 +560,12 @@ export default function StrategicDelta({
                 <p className="sd-boundary">
                   Accepting records the recommendation. It does not save an action, and it does not prove the work is done.
                 </p>
+                {resumeActionId && <a className="sd-next" href={`#saved-action-${resumeActionId}`}>Return to this saved action</a>}
+              </div>
+            ) : needsClarification ? (
+              <div className="sd-act-primary">
+                <ActionBtn onClick={() => setOpen(open === 'changed' ? null : 'changed')} aria-expanded={open === 'changed'} aria-controls="sd-changed">Add the missing context</ActionBtn>
+                <p className="sd-boundary">This answer could change the best move. No action was proposed.</p>
               </div>
             ) : needsStep ? (
               <div className="sd-act-primary">
@@ -546,7 +585,7 @@ export default function StrategicDelta({
               </div>
             ) : null}
             <div className="sd-act-secondary">
-              {hasRecommendation && onRoute && committableMission && (
+              {hasRecommendation && onRoute && committableMission && !resumeActionId && (
                 <ActionChip onClick={() => onRoute(delta)} variant="secondary">Route this move</ActionChip>
               )}
               <ActionChip
@@ -588,6 +627,13 @@ export default function StrategicDelta({
                 </ActionChip>
               )}
             </div>
+          </div>}
+
+          {/* Keep the action next to the move on a phone; the rationale
+              must not push it below the diagnostic/read-back sections. */}
+          {selectedReview && <div className="sd-review-summary" aria-label="Why now and finish condition">
+            <p className="sd-because"><strong>Why now:</strong> {selectedReview.why}</p>
+            <p className="sd-because"><strong>Finish when:</strong> {selectedReview.finishWhen}</p>
           </div>}
 
           {aimedMission && (
@@ -638,7 +684,7 @@ export default function StrategicDelta({
           {!hasRecommendation && delta.move !== title && (
             <p className="sd-because" aria-live="polite">{delta.move}</p>
           )}
-          {!isFirstRun && delta.because !== delta.move && (
+          {!isFirstRun && !selectedReview && delta.because !== delta.move && (
             <p className={hasRecommendation || delta.move === title ? 'sd-because' : 'sd-support'}>
               {delta.because}
             </p>
@@ -777,13 +823,16 @@ export default function StrategicDelta({
                   <p>{projectReview.biggerPicture}</p>
                   <h3>Why this advances the goal</h3>
                   <p>{projectReview.why}</p>
+                  {projectReview.finishWhen && <><h3>Finish when — proposed</h3><p>{projectReview.finishWhen}</p></>}
+                  {projectReview.clarification && <><h3>The deciding question</h3><p>{projectReview.clarification}</p></>}
+                  {projectReview.alternatives.length > 0 && <><h3>Other moves considered — proposed</h3><ul>{projectReview.alternatives.map(alternative => <li key={alternative.operation}><strong>{alternative.operation}</strong> — {alternative.whyNot}</li>)}</ul></>}
                   <h3>Overlooked connection — proposed</h3>
                   <p>{projectReview.overlooked}</p>
                   <h3>Self-check — still a model proposal</h3>
                   <p>{projectReview.selfCheck}</p>
                   {projectReview.unknowns.length > 0 && <><h3>What remains unknown</h3><ul>{projectReview.unknowns.map((unknown, index) => <li key={index}>{unknown}</li>)}</ul></>}
                   <h3>Sources behind the proposal</h3>
-                  {projectReview.sources.filter(source => projectReview.sourceIds.includes(source.id)).map(source => (
+                  {projectReview.sources.filter(source => projectReview.sourceIds.includes(source.id) || projectReview.alternatives.some(alternative => alternative.sourceIds.includes(source.id))).map(source => (
                     <details key={source.id}>
                       <summary>{source.label} — {source.status}{source.truncated ? ' (excerpt)' : ''}</summary>
                       {source.url && <a href={source.url} target="_blank" rel="noopener noreferrer">Open original source</a>}
