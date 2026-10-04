@@ -32,6 +32,11 @@ describe('project context resume identity', () => {
     const context = await loadProjectContext(contextClient('x'.repeat(241)), 'u1', 'm1')
     expect(context.sources.find(source => source.id === 'action:a1')?.commitment?.actionTitle).toBeUndefined()
   })
+  it('normalizes only outer whitespace and preserves a title at the exact bound', async () => {
+    const actionTitle = 'x'.repeat(240)
+    const context = await loadProjectContext(contextClient(`  ${actionTitle}  `), 'u1', 'm1')
+    expect(context.sources.find(source => source.id === 'action:a1')?.commitment?.actionTitle).toBe(actionTitle)
+  })
   it('invalidates cached context when the canonical action title changes', async () => {
     const before = await loadProjectContext(contextClient('Read the saved print checklist'), 'u1', 'm1')
     const after = await loadProjectContext(contextClient('Call the print lab'), 'u1', 'm1')

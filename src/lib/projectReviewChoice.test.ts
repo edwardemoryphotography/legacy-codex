@@ -40,12 +40,18 @@ describe('review choice contract', () => {
     expect(parse({}, active)).not.toBeNull()
   })
   it('rejects completed, foreign, absent or untyped resume targets', () => {
-    for (const commitment of [undefined, { id: 'a1', missionId: 'm1', status: 'DONE' },
-      { id: 'a1', missionId: 'm2', status: 'TODO' }, { id: 'a2', missionId: 'm1', status: 'TODO' }]) {
+    const valid = sources[1].commitment!
+    for (const commitment of [undefined, { ...valid, status: 'DONE' },
+      { ...valid, missionId: 'm2' }, { ...valid, id: 'a2' }]) {
       expect(parse({}, sources.map(s => s.kind === 'commitment' ? { ...s, commitment } : s))).toBeNull()
     }
     expect(parse({ resumeActionId: 'missing' })).toBeNull()
     expect(parse({ sourceIds: ['mission:m1'] })).toBeNull()
+  })
+  it('accepts a complete canonical title at the exact operation bound', () => {
+    const operation = 'x'.repeat(240)
+    const context = sources.map(s => s.commitment ? { ...s, commitment: { ...s.commitment, actionTitle: operation } } : s)
+    expect(parse({ operation }, context)?.operation).toBe(operation)
   })
   it('requires target mission and real citations for the winner and alternatives', () => {
     expect(parse({ sourceIds: ['action:a1'] })).toBeNull()
