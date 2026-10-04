@@ -6,6 +6,7 @@ import { useLocalStorage } from '@/hooks/useLocalStorage'
 import { useCapture } from '@/hooks/useCapture'
 import type { UIPrefs, CaptureItem, BiometricMode } from '@/types'
 import { supabase } from '@/lib/supabase/client'
+import { TREND_SAMPLE_LABEL, trendDateRange } from '@/lib/biometrics'
 import {
   ActionBtn,
   ActionChip,
@@ -46,7 +47,7 @@ export default function ControlsTab() {
   const [prefs, setPrefs] = useLocalStorage<UIPrefs>(PREFS_KEY, DEFAULT_PREFS)
   const [manualMode, setManualMode] = useLocalStorage<BiometricMode>(MODE_KEY, 'deep_build')
   const [captureText, setCaptureText] = useState('')
-  const [bioSummary, setBioSummary] = useState<{ readiness: number; mode: BiometricMode; source: string } | null>(null)
+  const [bioSummary, setBioSummary] = useState<{ readiness: number; mode: BiometricMode; source: string; dateRange: string | null } | null>(null)
   const [status, setStatus] = useState('')
 
   // Supabase hybrid sync state (augments localStorage when keys + migration + auth are present)
@@ -82,10 +83,11 @@ export default function ControlsTab() {
     }
   }, [prefs])
 
-  // Load lightweight bio summary (mirrors BiometricsTab contract, real data only)
+  // Load lightweight bio summary (mirrors BiometricsTab contract). The file is
+  // sample data, so it is always labelled as sample with its date range.
   useEffect(() => {
     let cancelled = false
-    type RawBioDay = { sleepHours?: number; recoveryScore?: number; focusScore?: number }
+    type RawBioDay = { date?: string; sleepHours?: number; recoveryScore?: number; focusScore?: number }
     fetch('/notes/biometric-trends.json')
       .then(r => r.ok ? r.json() : Promise.reject('no data'))
       .then((raw: unknown) => {
@@ -107,7 +109,7 @@ export default function ControlsTab() {
         if (readiness < 42 || (Number(last.sleepHours) || 0) < 6) mode = 'recovery'
         else if (readiness < 58) mode = 'admin_light'
         else if ((Number(last.focusScore) || 0) > (Number(last.recoveryScore) || 0) + 12) mode = 'creative_edit'
-        setBioSummary({ readiness: Math.min(100, Math.max(0, readiness)), mode, source: wrapper?.source || 'local' })
+        setBioSummary({ readiness: Math.min(100, Math.max(0, readiness)), mode, source: wrapper?.source || 'local', dateRange: trendDateRange(days.map(d => d.date)) })
       })
       .catch(() => {
         if (!cancelled) setBioSummary(null)
@@ -446,7 +448,8 @@ export default function ControlsTab() {
         <div className="flex flex-wrap gap-2 mb-3">
           {bioSummary ? (
             <>
-              <Badge tone="success">Live data</Badge>
+              <Badge tone="amber">{TREND_SAMPLE_LABEL}</Badge>
+              {bioSummary.dateRange && <Badge tone="muted">{bioSummary.dateRange}</Badge>}
               <Badge tone="teal">Readiness: {bioSummary.readiness}</Badge>
               <Badge tone="muted">Source: {bioSummary.source}</Badge>
             </>

@@ -57,3 +57,16 @@ describe('biometrics utils', () => {
     expect(avg([])).toBe(0)
   })
 })
+
+describe('trendDateRange', () => {
+  it('names a single month', async () => {
+    const { trendDateRange } = await import('./biometrics')
+    expect(trendDateRange(['2026-06-10', '2026-06-16'])).toBe('June 2026')
+  })
+  it('spans months and years, ignoring order and unparseable dates', async () => {
+    const { trendDateRange } = await import('./biometrics')
+    expect(trendDateRange(['2026-07-02', 'bad', '2026-06-30'])).toBe('June – July 2026')
+    expect(trendDateRange(['2026-01-03', '2025-12-30'])).toBe('December 2025 – January 2026')
+    expect(trendDateRange([undefined, 'nope'])).toBeNull()
+  })
+})
