@@ -109,3 +109,26 @@ export function summarize(days: BiometricDay[], source: string): BiometricSummar
     days,
   }
 }
+
+// /notes/biometric-trends.json is a static file committed with the repo. Eddie
+// confirmed (2026-10-03) that its contents are SAMPLE data, not his readings,
+// so every surface that shows it labels it as sample and shows its dates. No
+// live biometric bridge exists; never call this source "live".
+export const TREND_SAMPLE_LABEL = 'Sample data · not your live readings'
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+/** "June 2026", or "June – July 2026" / "December 2025 – January 2026"; null when no dates parse. */
+export function trendDateRange(dates: Array<string | undefined>): string | null {
+  const parsed = dates
+    .map(d => (typeof d === 'string' ? /^(\d{4})-(\d{2})/.exec(d) : null))
+    .filter((m): m is RegExpExecArray => m !== null && Number(m[2]) >= 1 && Number(m[2]) <= 12)
+    .map(m => ({ year: Number(m[1]), month: Number(m[2]) - 1 }))
+    .sort((a, b) => a.year - b.year || a.month - b.month)
+  if (!parsed.length) return null
+  const first = parsed[0]
+  const last = parsed[parsed.length - 1]
+  if (first.year === last.year && first.month === last.month) return `${MONTHS[first.month]} ${first.year}`
+  if (first.year === last.year) return `${MONTHS[first.month]} – ${MONTHS[last.month]} ${last.year}`
+  return `${MONTHS[first.month]} ${first.year} – ${MONTHS[last.month]} ${last.year}`
+}

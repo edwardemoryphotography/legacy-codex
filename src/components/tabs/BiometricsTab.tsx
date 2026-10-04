@@ -6,11 +6,14 @@ import type { BiometricDay, BiometricSummary, BiometricMode } from '@/types'
 import {
   parseTrendPayload,
   summarize,
+  TREND_SAMPLE_LABEL,
+  trendDateRange,
 } from '@/lib/biometrics'
 
-// REAL DATA ONLY. This governor never invents, fabricates, simulates,
-// or interpolates biometric values. If a live bridge has not written
-// real records to /notes/biometric-trends.json, the UI renders an
+// This governor never invents, fabricates, simulates, or interpolates
+// biometric values. The committed /notes/biometric-trends.json is SAMPLE
+// data (confirmed by Eddie, 2026-10-03), so it is always labelled as sample
+// with its date range — never as live. With no file, the UI renders an
 // explicit "data required" state with no numeric values and no chart.
 
 const TREND_URL = '/notes/biometric-trends.json'
@@ -69,18 +72,20 @@ export default function BiometricsTab() {
     renderChart(chartRef.current, summary.days)
   }, [summary])
 
+  const dateRange = summary ? trendDateRange(summary.days.map(d => d.date)) : null
+
   const liveStatusLabel =
     status === 'loading'
-      ? 'refreshing live data'
+      ? 'loading data'
       : status === 'available'
-      ? 'live data loaded'
+      ? TREND_SAMPLE_LABEL
       : status === 'unavailable'
       ? 'data required'
       : 'awaiting bridge'
 
   const statusTone =
     status === 'available'
-      ? 'success'
+      ? 'amber'
       : status === 'loading' || status === 'idle'
       ? 'amber'
       : 'error'
@@ -89,11 +94,11 @@ export default function BiometricsTab() {
     status === 'idle'
       ? `Biometric data required. Load from ${TREND_URL}.`
       : status === 'loading'
-      ? `Refreshing live data from ${TREND_URL}…`
+      ? `Loading ${TREND_URL}…`
       : status === 'unavailable'
       ? `Biometric data required. ${reason}`
       : summary
-      ? `${summary.days.length} real record(s) loaded from ${TREND_URL}.`
+      ? `${summary.days.length} sample record(s)${dateRange ? ` from ${dateRange}` : ''}, loaded from ${TREND_URL}. Not your live readings.`
       : `Biometric data required. Load from ${TREND_URL}.`
 
   return (
@@ -210,11 +215,11 @@ export default function BiometricsTab() {
               Trend overlay
             </h3>
             <p className="text-sm mt-1" style={{ color: 'var(--text-soft)' }}>
-              Recovery, focus, and sleep trend lines from live bridge output.
+              Recovery, focus, and sleep trend lines from the loaded file.
             </p>
           </div>
           <ActionBtn onClick={load} disabled={status === 'loading'}>
-            {status === 'loading' ? 'Refreshing…' : 'Refresh live data'}
+            {status === 'loading' ? 'Loading…' : 'Reload data'}
           </ActionBtn>
         </div>
 
@@ -250,7 +255,7 @@ export default function BiometricsTab() {
 
         <p className="text-sm mt-3" style={{ color: 'var(--text-soft)' }}>
           {summary
-            ? `Live data: ${summary.days.length} day record(s) loaded from ${TREND_URL}.`
+            ? `${TREND_SAMPLE_LABEL}: ${summary.days.length} day record(s)${dateRange ? ` from ${dateRange}` : ''}, loaded from ${TREND_URL}.`
             : `No live biometric data loaded. The chart will stay empty until ${TREND_URL} contains real day records.`}
         </p>
       </div>
@@ -262,12 +267,12 @@ export default function BiometricsTab() {
         </h3>
         <p className="text-sm mb-3" style={{ color: 'var(--text-soft)', lineHeight: 1.55 }}>
           {summary
-            ? `${summary.recommendation} Last loaded ${lastLoadedAt ?? '—'}; refreshes use the live file only.`
+            ? `${summary.recommendation} This reads sample data${dateRange ? ` from ${dateRange}` : ''}, not your live readings. Last loaded ${lastLoadedAt ?? '—'}.`
             : 'Readiness scores and lane recommendations appear only when real biometric data is available. Until then the governor abstains rather than guess.'}
         </p>
         <p className="text-sm" style={{ color: 'var(--text-soft)', lineHeight: 1.55 }}>
-          Live bridge target: write normalized metrics to{' '}
-          <code style={{ color: 'var(--amber)', fontSize: '0.85em' }}>notes/biometric-trends.json</code>. This tab reads only that file and refuses fixtures, samples, or fallback values.
+          Live bridge target (not built yet): write normalized metrics to{' '}
+          <code style={{ color: 'var(--amber)', fontSize: '0.85em' }}>notes/biometric-trends.json</code>. This tab reads only that file. Today it holds sample data, so it is labelled as sample, never as live.
         </p>
       </div>
     </section>
