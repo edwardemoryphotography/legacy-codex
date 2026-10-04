@@ -21,7 +21,10 @@ consistent decision:
 - **Act:** one concrete operation, why it wins now, and an observable finish
   condition for that operation. Saving it as an Action stays explicit.
 - **Resume:** the exact supplied unfinished canonical Action on the target
-  mission, cited by ID. The card links to that saved action; it never seeds a new
+  mission, cited by ID, with its canonical title copied exactly (outer whitespace
+  aside). An authentic ID does not authorize different work. Missing or over-bound
+  titles cannot authorize a Resume proposal; they are never shortened to fit.
+  The card links to that saved action; it never seeds a new
   commitment or routing draft from the resume proposal.
 - **Clarify:** one deciding question, with no proposed action or finish claim.
   Add its answer through existing project-context entry, then explicitly review
@@ -33,11 +36,16 @@ actually wins the existing engine's gates. Human-supplied steps, corrections,
 blockers, evidence conflicts and capacity limits keep priority. The full mission
 finish line remains distinct from this move's proposed finish condition.
 
-Old cache contracts are invalidated by context packet version 4 and the new
+Old cache contracts are invalidated by context packet version 5 and the new
 validator. Auth/RLS, owner allowlist, two-call review boundary, context recheck,
 one-hour cache and explicit acceptance remain. No Action or lesson is created by
 reviewing. Review/lesson persistence continues in the existing transitional Delta
 ledger; this does not supersede canonical Mission lifecycle/event ownership.
+
+The saved-action panel follows the resolved actionable mission ID, not the
+presence of a Primary. When Primary is completed, paused or abandoned and a
+Secondary remains active, that Secondary's existing action and starting-point
+note stay reachable after reload. No new action is inserted by restoring it.
 
 ## Retrieval limits
 

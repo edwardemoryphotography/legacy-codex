@@ -53,6 +53,14 @@ This file records project truth and durable lessons; it is not a hidden authoriz
 
 - **2026-10-04 — Review choice quality is a proposal, not proof of intelligence.** The bounded review compares feasible moves on impact, urgency, dependencies, reported capacity and uncertainty; it returns a source-linked action, observable move finish condition, exact unfinished-action resume, or one deciding question. The final response uses a forced output-only tool and runtime ownership/shape checks. Context packet version 4 invalidates earlier review contracts. A reviewed resume points to the existing action card and never seeds the new-action composer. A deciding question must not trigger clause generation or override a supplied step, blocker, capacity limit or evidence conflict. Explanations on the main card attach only to the actual review-selected move. The actionable mission fallback keeps Secondary's saved-action panel stable during review restore. `evidence_snapshots` is labeled derived; canonical `evidence_items` retrieval still needs verified account/workspace plumbing. No schema or ownership superseding decision was made. Tests verify these contracts; only real owner examples can establish recommendation quality. See `docs/STRATEGIC-DELTA-QUALITY.md`.
 
+Repo-local lesson (2026-10-04): a Resume link needs both a mounted target card
+and an exact authenticated commitment title. Gate SavedActions on the resolved
+mission ID, not Primary presence; otherwise a Secondary-only board has a dead
+return link. Validate operation against bounded canonical `action_title` metadata,
+not a clipped display label. Packet version 5 invalidates older contracts. The
+regressions in MissionTab.ui.test.tsx and projectReviewChoice/Server.test.ts check
+these contracts, not real owner-session continuity or recommendation quality.
+
 ## Update protocol
 
 After any session that ships, blocks, or unblocks something for this repo: update `codex-control-panel/STATE.md` (canonical), not this file. Only add to this file's Repo-local notes section above if a note genuinely wouldn't make sense in the cross-project file.

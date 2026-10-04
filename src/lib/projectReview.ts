@@ -8,7 +8,7 @@ export interface ProjectSource {
   url?: string
   truncated?: boolean
   // Set from an authenticated canonical action row, never from model text.
-  commitment?: { id: string; missionId: string; status: string }
+  commitment?: { id: string; missionId: string; status: string; actionTitle?: string }
 }
 
 export interface ReviewAlternative {
@@ -138,6 +138,10 @@ export function parseProjectReview(raw: string, sources: ProjectSource[], missio
       const action = sources.find(source => source.kind === 'commitment' && source.id === `action:${row.resumeActionId}`)
       if (!action?.commitment || action.commitment.id !== row.resumeActionId || action.commitment.missionId !== missionId ||
           !['TODO', 'IN_PROGRESS'].includes(action.commitment.status) || !row.sourceIds.includes(action.id)) return null
+      // An authentic ID alone cannot authorize different work. Missing titles
+      // (including older cached context) fail closed instead of relabeling it.
+      if (typeof action.commitment.actionTitle !== 'string' || !shortText(action.commitment.actionTitle, 240) ||
+          (row.operation as string).trim() !== action.commitment.actionTitle.trim()) return null
     } else if (row.resumeActionId !== null) return null
     if (!Array.isArray(row.alternatives) || row.alternatives.length > 2) return null
     const alternatives: ReviewAlternative[] = []
