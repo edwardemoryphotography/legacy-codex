@@ -903,12 +903,6 @@ export default function MissionTab() {
   )
   const sessionReady = loaded && !!user && !loadFailed
   const confirmedEmpty = sessionReady && missionList.length === 0
-  const stage: 'idea' | 'recommendation' | 'commitment' =
-    sessionReady && primary && resumableMissionId === primary.id
-      ? 'commitment'
-      : sessionReady && primary
-        ? 'recommendation'
-        : 'idea'
 
   const STATE_LABEL: Record<Mission['state'], string> = {
     candidate: 'Candidate',
@@ -1107,6 +1101,12 @@ export default function MissionTab() {
   // read invalidates the review again, producing a restore/remount loop.
   const actionTarget = primary && !primary.blocker && !primary.capacityMismatch ? primary : secondary ?? primary
   const savedMissionId = currentDraft?.missionId ?? shownAcceptance?.missionId ?? actionTarget?.id
+  const stage: 'idea' | 'recommendation' | 'commitment' =
+    sessionReady && savedMissionId && resumableMissionId === savedMissionId
+      ? 'commitment'
+      : sessionReady && savedMissionId
+        ? 'recommendation'
+        : 'idea'
   const now = new Date().toISOString()
 
   return (
