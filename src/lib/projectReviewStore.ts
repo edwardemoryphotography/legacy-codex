@@ -7,7 +7,7 @@ export async function cachedProjectReview(client: ReturnType<typeof projectUserC
   if (!cached.data?.[0]) return null
   try {
     const previous = JSON.parse(cached.data[0].detail) as ProjectReview
-    const valid = parseProjectReview(JSON.stringify(previous), context.sources)
+    const valid = parseProjectReview(JSON.stringify(previous), context.sources, context.mission.id)
     const age = Date.now() - Date.parse(previous.reviewedAt)
     if (previous.missionId !== context.mission.id || previous.finishLine !== context.mission.finish_line || previous.contextKey !== context.contextKey || !valid || !Number.isFinite(age) || age < 0 || age > 3_600_000) return null
     return { ...previous, ...valid, sources: context.sources, warnings: context.warnings, cached: true }

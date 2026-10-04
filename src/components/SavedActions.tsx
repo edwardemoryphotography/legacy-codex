@@ -159,7 +159,7 @@ function ActionCard({ action, onSaved, matchesRecommendation }: { action: SavedA
       setMessage('Could not save this change. Your note is still here. Copy it before refreshing if another tab changed this action.')
     } finally { setBusy(false) }
   }
-  return <article className="commitment-card">
+  return <article id={`saved-action-${action.id}`} tabIndex={-1} className="commitment-card">
     <p className="commitment-meta">{action.mission.title} · {action.status === 'IN_PROGRESS' ? 'In progress' : 'Ready to resume'}{action.mission.state !== 'primary' ? ` · Mission ${action.mission.state}` : ''}</p>
     <h4 className="commitment-title">{action.action_title}</h4>
     {matchesRecommendation && <p className="commitment-same">Same words as the recommendation you accepted.</p>}
