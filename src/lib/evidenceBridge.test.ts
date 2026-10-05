@@ -21,7 +21,11 @@ describe('Evidence continuity using the committed real GitHub snapshot', () => {
   it('preserves the last observation when PR listing succeeds but its checks cannot be read', () => {
     const original = snapshot.records[0]
     const result = mergeEvidenceSnapshot(snapshot, snapshot.records, [repo], [], [original.id])
-    expect(result.records.find(row => row.id === original.id)).toEqual({ ...original, status: 'stale' })
+    const preserved = result.records.find(row => row.id === original.id)!
+    expect(preserved.status).toBe('stale')
+    expect(preserved.kind).toBe(original.kind)
+    expect(preserved.claim).toContain(original.claim)
+    expect(preserved.previousCheckObservation).toEqual({ status: original.status, claim: original.claim, observedAt: original.observedAt, fetchedAt: original.fetchedAt })
     expect(result.unavailableSources).toContain(`check-runs:${original.id}`)
   })
   it('keeps successfully read PR state alongside the last check observation on partial failure', () => {

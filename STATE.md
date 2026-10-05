@@ -61,6 +61,17 @@ not a clipped display label. Packet version 5 invalidates older contracts. The
 regressions in MissionTab.ui.test.tsx and projectReviewChoice/Server.test.ts check
 these contracts, not real owner-session continuity or recommendation quality.
 
+Repo-local lesson (2026-10-05): a failed account routing write must remain an
+ID-bearing browser overlay, not be folded into the durable server projection.
+Focus/reload reads apply the overlay once while its correction ID is absent from
+the account ledger; an exact acknowledgement removes it before using the server
+weights. This prevents both forgetting a human correction and counting one
+correction twice after an ambiguous network failure. The overlay stores only
+bounded route tokens and lane metadata, never the person's task text. Its
+acknowledgement remains bound to the original mission even if the visible
+mission changes, and the UI can retry the exact stored payload after remount.
+Tasks with no valid bounded token are not presented as persistable learning.
+
 ## Update protocol
 
 After any session that ships, blocks, or unblocks something for this repo: update `codex-control-panel/STATE.md` (canonical), not this file. Only add to this file's Repo-local notes section above if a note genuinely wouldn't make sense in the cross-project file.

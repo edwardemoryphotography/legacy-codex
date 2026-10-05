@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildTaskRoute, correctTaskRoute, readRouteLearning } from './taskRouting'
+import { buildTaskRoute, correctTaskRoute, readRouteLearning, routeTokens } from './taskRouting'
 import type { NextMoveContext } from '@/types'
 
 const context: NextMoveContext = {
@@ -40,6 +40,10 @@ describe('Mission task routing', () => {
     expect(readRouteLearning('{')).toEqual({})
     expect(readRouteLearning(JSON.stringify({ '__proto__': 4, build: { execution: 'yes', deployment: 999999 }, implement: { execution: 4 } })))
       .toEqual({ build: { deployment: 20 }, implement: { execution: 4 } })
+  })
+
+  it('never turns prototype keys into persisted correction tokens', () => {
+    expect(routeTokens('Fix __proto__ constructor prototype routing')).toEqual(['routing'])
   })
 
   it('requires a task and does not pretend an unknown task has a specialist match', () => {

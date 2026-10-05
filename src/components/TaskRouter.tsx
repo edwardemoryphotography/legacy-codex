@@ -5,13 +5,37 @@ import type { ConfirmedLesson } from '@/lib/projectReview'
 import { routeTokens } from '@/lib/taskRouting'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { nextMoveContextExpiresAt, nextMoveContextKey } from '@/lib/nextMove'
-import { buildTaskRoute, correctTaskRoute, HANDOFF_TOOLS, readRouteLearning, ROUTE_LANES, type HandoffTool, type RouteLane, type RouteLearning, type RouteOptions, type TaskRoute, type TaskRouteContext } from '@/lib/taskRouting'
+import { applyRouteTokens, buildTaskRoute, correctTaskRoute, HANDOFF_TOOLS, readRouteLearning, ROUTE_LANES, type HandoffTool, type RouteLane, type RouteLearning, type RouteOptions, type TaskRoute, type TaskRouteContext } from '@/lib/taskRouting'
 import { useMotionAllowed } from '@/hooks/useMotionAllowed'
 import { useTaskVoice } from '@/hooks/useTaskVoice'
 import { useOrbInteraction } from '@/components/OrbHost'
 
 export type RoutedActionDraft = { task: string; note: string; missionId: string; contextKey: string }
 export type RouteSeed = { task: string; missionId: string; sequence: number }
+type PendingRouteCorrection = { id: string; accountId: string; missionId: string; tokens: string[]; lane: RouteLane; key: string }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const TOKEN = /^[a-z][a-z0-9_-]{3,30}$/
+const pendingStorageKey = (accountId: string | null) => accountId ? `legacy-codex-pending-route-correction-v1:${accountId}` : null
+const correctionKey = (accountId: string, missionId: string, tokens: string[], lane: RouteLane) => JSON.stringify([accountId, missionId, tokens, lane])
+
+function readPendingCorrection(raw: string | null, accountId: string | null): PendingRouteCorrection | null {
+  try {
+    const value: unknown = JSON.parse(raw ?? 'null')
+    if (!value || typeof value !== 'object') return null
+    const row = value as Partial<PendingRouteCorrection>
+    const tokens = Array.isArray(row.tokens) ? [...new Set(row.tokens)] : []
+    if (!accountId || row.accountId !== accountId || typeof row.missionId !== 'string' || !UUID.test(row.missionId) ||
+        typeof row.id !== 'string' || !UUID.test(row.id) || !ROUTE_LANES.some(item => item.key === row.lane) ||
+        !tokens.length || tokens.length > 40 || tokens.some(token => typeof token !== 'string' || !TOKEN.test(token) || ['proto__', '__proto__', 'constructor', 'prototype'].includes(token)) ||
+        typeof row.key !== 'string' || row.key !== correctionKey(accountId, row.missionId, tokens as string[], row.lane as RouteLane)) return null
+    return { id: row.id, accountId, missionId: row.missionId, tokens: tokens as string[], lane: row.lane as RouteLane, key: row.key }
+  } catch { return null }
+}
+
+function withPendingCorrection(weights: RouteLearning, pending: PendingRouteCorrection | null): RouteLearning {
+  return pending ? applyRouteTokens(pending.tokens, pending.lane, weights) : weights
+}
 
 export default function TaskRouter({ context, accountId, seed, canSave, onPrepare }: {
   context: TaskRouteContext
@@ -30,8 +54,8 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
   const [savedContext, setSavedContext] = useState<{ scope: string; lessons: ConfirmedLesson[]; status: 'ready' | 'unavailable' | 'loading' } | null>(null)
   const [refresh, setRefresh] = useState(0)
   const [saving, setSaving] = useState(false)
-  const pendingCorrection = useRef<{ key: string; id: string; accountId: string; missionId: string; appliedProjection: number; optimisticSnapshot: string } | null>(null)
-  const learningProjection = useRef(0)
+  const pendingCorrection = useRef<PendingRouteCorrection | null>(null)
+  const [pendingSave, setPendingSave] = useState<PendingRouteCorrection | null>(null)
   const generation = useRef(0)
   const [learningScope, setLearningScope] = useState<string | null>(null)
   const [result, setResult] = useState<{ route: TaskRoute; inputKey: string } | null>(null)
@@ -41,6 +65,7 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
   const field = useRef<HTMLTextAreaElement>(null)
   const motionAllowed = useMotionAllowed()
   const storageKey = accountId ? `legacy-codex-route-learning-v1:${accountId}` : null
+  const pendingKey = pendingStorageKey(accountId)
   const missionId = context.mission?.id ?? null
   const scopeKey = JSON.stringify([accountId, missionId, context.learningRevision ?? 0, refresh])
   const scopeRef = useRef(scopeKey)
@@ -58,16 +83,17 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
     // in memory until the person explicitly saves a canonical action.
     let restored: RouteLearning = {}
     try { if (storageKey) restored = readRouteLearning(localStorage.getItem(storageKey)) } catch { /* private mode */ }
-    learningProjection.current += 1
-    // A failed account write may already be represented in this unchanged
-    // browser snapshot, even after switching away from the account and back.
-    if (pendingCorrection.current?.accountId === accountId && pendingCorrection.current.optimisticSnapshot === JSON.stringify(restored)) pendingCorrection.current.appliedProjection = learningProjection.current
+    let pending: PendingRouteCorrection | null = null
+    try { if (pendingKey) pending = readPendingCorrection(localStorage.getItem(pendingKey), accountId) } catch { /* private mode */ }
+    pendingCorrection.current = pending
+    restored = withPendingCorrection(restored, pending)
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLearning(restored)
+    setPendingSave(pending)
     setLearningScope(storageKey)
     setResult(null)
     setMessage('')
-  }, [storageKey, accountId, cancelVoice])
+  }, [storageKey, pendingKey, accountId, cancelVoice])
 
   useEffect(() => {
     const refetch = () => setRefresh(value => value + 1)
@@ -89,17 +115,26 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
         const { data } = await supabase.auth.getSession()
         if (!data.session || data.session.user.id !== accountId) throw new Error('Session changed')
         const pending = pendingCorrection.current
-        const pendingId = pending?.accountId === accountId && pending.missionId === missionId ? pending.id : null
+        const pendingId = pending?.accountId === accountId ? pending.id : null
         const params = new URLSearchParams()
         if (missionId) params.set('missionId', missionId)
-        if (pendingId) params.set('correctionId', pendingId)
+        if (pendingId && pending) {
+          params.set('correctionId', pendingId)
+          params.set('correctionMissionId', pending.missionId)
+        }
         const response = await fetch(`/api/task-routing${params.size ? `?${params}` : ''}`, { headers: { Authorization: `Bearer ${data.session.access_token}` }, cache: 'no-store' })
         const restored = await response.json()
         if (!response.ok || restored.userId !== accountId || restored.missionId !== missionId || !Array.isArray(restored.lessons)) throw new Error('Context unavailable')
         if (cancelled || generation.current !== requestGeneration || scopeRef.current !== scopeKey) return
-        learningProjection.current += 1
-        if (pendingId && pendingCorrection.current?.id === pendingId && restored.savedCorrectionId === pendingId) pendingCorrection.current.appliedProjection = learningProjection.current
-        setLearning(readRouteLearning(JSON.stringify(restored.weights)))
+        let pendingAfterRead = pendingCorrection.current
+        if (pendingId && pendingAfterRead?.id === pendingId && restored.savedCorrectionId === pendingId) {
+          pendingAfterRead = null
+          pendingCorrection.current = null
+          setPendingSave(null)
+          try { if (pendingKey) localStorage.removeItem(pendingKey) } catch { /* session state is already reconciled */ }
+        }
+        const savedWeights = readRouteLearning(JSON.stringify(restored.weights))
+        setLearning(withPendingCorrection(savedWeights, pendingAfterRead))
         setSavedContext({ scope: scopeKey, status: 'ready', lessons: restored.lessons })
       } catch {
         if (cancelled || generation.current !== requestGeneration || scopeRef.current !== scopeKey) return
@@ -156,35 +191,21 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
     setMessage('')
   }
 
-  async function teach() {
-    if (!active || saving || effectiveContext.learningStatus === 'loading') return
-    const key = JSON.stringify([accountId, missionId, task, correction])
-    const retry = Boolean(accountId && missionId && pendingCorrection.current?.key === key && pendingCorrection.current.appliedProjection === learningProjection.current)
-    // An idempotent account retry is one correction, including in fallback weights.
-    const weights = retry ? learning : correctTaskRoute(task, correction, learning)
-    setLearning(weights)
-    route(correction, weights)
-    let localSaved = false
-    try { if (storageKey && storageKey === learningScope) { localStorage.setItem(storageKey, JSON.stringify(weights)); localSaved = true } } catch { /* session fallback */ }
-    if (!accountId || !missionId) {
-      setMessage(localSaved ? 'Correction learned in this browser. Choose a saved project to preserve it across devices.' : 'Correction applied for this session only.')
-      return
-    }
-    const requestScope = scopeKey
+  async function savePendingCorrection(pending: PendingRouteCorrection, localSaved: boolean) {
+    const requestScope = scopeRef.current
     const requestGeneration = generation.current
-    if (pendingCorrection.current?.key !== key) pendingCorrection.current = { key, id: crypto.randomUUID(), accountId, missionId, appliedProjection: learningProjection.current, optimisticSnapshot: JSON.stringify(weights) }
-    pendingCorrection.current.optimisticSnapshot = JSON.stringify(weights)
-    pendingCorrection.current.appliedProjection = learningProjection.current
-    const writeId = pendingCorrection.current.id
     setSaving(true)
     try {
       const { data } = await supabase.auth.getSession()
-      if (!data.session || data.session.user.id !== accountId) throw new Error('Session changed')
-      if (scopeRef.current !== requestScope || generation.current !== requestGeneration) return
-      const response = await fetch('/api/task-routing', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}` }, body: JSON.stringify({ tokens: routeTokens(task), lane: correction, missionId, idempotencyKey: writeId }) })
+      if (!data.session || data.session.user.id !== pending.accountId) throw new Error('Session changed')
+      const response = await fetch('/api/task-routing', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}` }, body: JSON.stringify({ tokens: pending.tokens, lane: pending.lane, missionId: pending.missionId, idempotencyKey: pending.id }) })
       if (!response.ok) throw new Error('Correction unavailable')
+      if (pendingCorrection.current?.id === pending.id) {
+        pendingCorrection.current = null
+        try { if (pendingKey) localStorage.removeItem(pendingKey) } catch { /* server confirmation remains authoritative */ }
+        setPendingSave(null)
+      }
       if (scopeRef.current !== requestScope || generation.current !== requestGeneration) return
-      if (pendingCorrection.current?.id === writeId) pendingCorrection.current = null
       // Reload the durable projection and lessons together; never combine it
       // with browser weights and count the same correction twice.
       setRefresh(value => value + 1)
@@ -195,6 +216,37 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
     } finally {
       if (scopeRef.current === requestScope && generation.current === requestGeneration) setSaving(false)
     }
+  }
+
+  async function teach() {
+    if (!active || saving || effectiveContext.learningStatus === 'loading') return
+    const tokens = routeTokens(task)
+    if (!tokens.length) {
+      setMessage('Use at least one specific word with four or more characters before teaching this route.')
+      return
+    }
+    const key = accountId && missionId ? correctionKey(accountId, missionId, tokens, correction) : ''
+    if (accountId && missionId && pendingCorrection.current && pendingCorrection.current.key !== key) {
+      setMessage('One browser-only correction is still waiting for account confirmation. Retry it before teaching another lane.')
+      return
+    }
+    const retry = Boolean(accountId && missionId && pendingCorrection.current?.key === key)
+    // An idempotent account retry is one correction, including in fallback weights.
+    const weights = retry ? learning : correctTaskRoute(task, correction, learning)
+    setLearning(weights)
+    route(correction, weights)
+    if (!accountId || !missionId) {
+      let localSaved = false
+      try { if (storageKey && storageKey === learningScope) { localStorage.setItem(storageKey, JSON.stringify(weights)); localSaved = true } } catch { /* session fallback */ }
+      setMessage(localSaved ? 'Correction learned in this browser. Choose a saved project to preserve it across devices.' : 'Correction applied for this session only.')
+      return
+    }
+    if (!pendingCorrection.current) pendingCorrection.current = { key, id: crypto.randomUUID(), accountId, missionId, tokens, lane: correction }
+    const pending = pendingCorrection.current
+    setPendingSave(pending)
+    let localSaved = false
+    try { if (pendingKey) { localStorage.setItem(pendingKey, JSON.stringify(pending)); localSaved = true } } catch { /* session fallback */ }
+    await savePendingCorrection(pending, localSaved)
   }
 
   async function copy(prompt: string) {
@@ -242,6 +294,14 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
       </div>
     </form>
     {result && !active && <p className="route-notice" role="status">The task or context changed. Route again before copying or saving.</p>}
+    {pendingSave && <div className="route-teach" aria-label="Pending routing correction">
+      <div><h3>Correction waiting to sync</h3><p>The bounded route tokens and chosen lane remain in this browser; the task text was not stored.</p></div>
+      <button type="button" className="route-secondary" disabled={saving} onClick={() => {
+        let localSaved = false
+        try { localSaved = Boolean(pendingKey && localStorage.getItem(pendingKey)) } catch { /* session-only pending correction */ }
+        void savePendingCorrection(pendingSave, localSaved)
+      }}>Retry account save</button>
+    </div>}
     {active && <div className="route-results">
       <article className="route-result" aria-label="Task route">
         <div className="route-card-heading"><span className="route-badge">{active.secondary ? 'Hybrid route' : 'Single route'}</span><span>Local rules</span></div>
