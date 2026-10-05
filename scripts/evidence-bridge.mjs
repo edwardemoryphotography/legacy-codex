@@ -83,6 +83,7 @@ async function pullRequestEvidence(repo) {
         : `PR #${pr.number} "${pr.title}" open, not yet merged.`,
       observedAt: pr.updated_at,
       fetchedAt: new Date().toISOString(),
+      prReadSucceeded: true,
     })
   }
 

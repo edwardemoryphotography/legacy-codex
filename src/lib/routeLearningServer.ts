@@ -14,10 +14,11 @@ export function parseRouteCorrection(value: unknown): { tokens: string[]; lane: 
 export async function loadRouteLearning(client: Client, userId: string): Promise<RouteLearning> {
   let weights: RouteLearning = {}
   const through = new Date().toISOString()
+  const signal = AbortSignal.timeout(8_000)
   for (let offset = 0; ; offset += 100) {
     const result = await client.from('mission_events').select('detail')
       .eq('user_id', userId).eq('type', 'task_route_corrected').lte('created_at', through)
-      .order('created_at', { ascending: true }).order('id', { ascending: true }).range(offset, offset + 99)
+      .order('created_at', { ascending: true }).order('id', { ascending: true }).range(offset, offset + 99).abortSignal(signal)
     if (result.error) throw new Error('Routing corrections unavailable.')
     for (const row of result.data ?? []) {
       const correction = parseRouteCorrection(JSON.parse(row.detail))

@@ -30,7 +30,8 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
   const [savedContext, setSavedContext] = useState<{ scope: string; lessons: ConfirmedLesson[]; status: 'ready' | 'unavailable' | 'loading' } | null>(null)
   const [refresh, setRefresh] = useState(0)
   const [saving, setSaving] = useState(false)
-  const pendingCorrection = useRef<{ key: string; id: string } | null>(null)
+  const pendingCorrection = useRef<{ key: string; id: string; accountId: string; missionId: string; appliedProjection: number; optimisticSnapshot: string } | null>(null)
+  const learningProjection = useRef(0)
   const generation = useRef(0)
   const [learningScope, setLearningScope] = useState<string | null>(null)
   const [result, setResult] = useState<{ route: TaskRoute; inputKey: string } | null>(null)
@@ -57,12 +58,16 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
     // in memory until the person explicitly saves a canonical action.
     let restored: RouteLearning = {}
     try { if (storageKey) restored = readRouteLearning(localStorage.getItem(storageKey)) } catch { /* private mode */ }
+    learningProjection.current += 1
+    // A failed account write may already be represented in this unchanged
+    // browser snapshot, even after switching away from the account and back.
+    if (pendingCorrection.current?.accountId === accountId && pendingCorrection.current.optimisticSnapshot === JSON.stringify(restored)) pendingCorrection.current.appliedProjection = learningProjection.current
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLearning(restored)
     setLearningScope(storageKey)
     setResult(null)
     setMessage('')
-  }, [storageKey, cancelVoice])
+  }, [storageKey, accountId, cancelVoice])
 
   useEffect(() => {
     const refetch = () => setRefresh(value => value + 1)
@@ -83,10 +88,17 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
         if (!accountId) throw new Error('No account')
         const { data } = await supabase.auth.getSession()
         if (!data.session || data.session.user.id !== accountId) throw new Error('Session changed')
-        const response = await fetch(`/api/task-routing${missionId ? `?missionId=${encodeURIComponent(missionId)}` : ''}`, { headers: { Authorization: `Bearer ${data.session.access_token}` }, cache: 'no-store' })
+        const pending = pendingCorrection.current
+        const pendingId = pending?.accountId === accountId && pending.missionId === missionId ? pending.id : null
+        const params = new URLSearchParams()
+        if (missionId) params.set('missionId', missionId)
+        if (pendingId) params.set('correctionId', pendingId)
+        const response = await fetch(`/api/task-routing${params.size ? `?${params}` : ''}`, { headers: { Authorization: `Bearer ${data.session.access_token}` }, cache: 'no-store' })
         const restored = await response.json()
         if (!response.ok || restored.userId !== accountId || restored.missionId !== missionId || !Array.isArray(restored.lessons)) throw new Error('Context unavailable')
         if (cancelled || generation.current !== requestGeneration || scopeRef.current !== scopeKey) return
+        learningProjection.current += 1
+        if (pendingId && pendingCorrection.current?.id === pendingId && restored.savedCorrectionId === pendingId) pendingCorrection.current.appliedProjection = learningProjection.current
         setLearning(readRouteLearning(JSON.stringify(restored.weights)))
         setSavedContext({ scope: scopeKey, status: 'ready', lessons: restored.lessons })
       } catch {
@@ -145,8 +157,11 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
   }
 
   async function teach() {
-    if (!active || saving) return
-    const weights = correctTaskRoute(task, correction, learning)
+    if (!active || saving || effectiveContext.learningStatus === 'loading') return
+    const key = JSON.stringify([accountId, missionId, task, correction])
+    const retry = Boolean(accountId && missionId && pendingCorrection.current?.key === key && pendingCorrection.current.appliedProjection === learningProjection.current)
+    // An idempotent account retry is one correction, including in fallback weights.
+    const weights = retry ? learning : correctTaskRoute(task, correction, learning)
     setLearning(weights)
     route(correction, weights)
     let localSaved = false
@@ -157,8 +172,9 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
     }
     const requestScope = scopeKey
     const requestGeneration = generation.current
-    const key = JSON.stringify([accountId, missionId, task, correction])
-    if (pendingCorrection.current?.key !== key) pendingCorrection.current = { key, id: crypto.randomUUID() }
+    if (pendingCorrection.current?.key !== key) pendingCorrection.current = { key, id: crypto.randomUUID(), accountId, missionId, appliedProjection: learningProjection.current, optimisticSnapshot: JSON.stringify(weights) }
+    pendingCorrection.current.optimisticSnapshot = JSON.stringify(weights)
+    pendingCorrection.current.appliedProjection = learningProjection.current
     const writeId = pendingCorrection.current.id
     setSaving(true)
     try {
@@ -247,7 +263,7 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
         <div><h3>Teach the router</h3><p>Save corrections to your account when a project is selected.</p></div>
         <label htmlFor="route-correction" className="sr-only">Correct routing lane</label>
         <select id="route-correction" value={correction} onChange={event => setCorrection(event.target.value as RouteLane)}>{ROUTE_LANES.map(lane => <option key={lane.key} value={lane.key}>{lane.label}</option>)}</select>
-        <button type="button" className="route-secondary" disabled={saving} onClick={() => void teach()}>Use this lane</button>
+        <button type="button" className="route-secondary" disabled={saving || effectiveContext.learningStatus === 'loading'} onClick={() => void teach()}>Use this lane</button>
       </div>
     </div>}
     {message && <p className="route-notice" role="status" aria-label="Routing status">{message}</p>}

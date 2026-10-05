@@ -11,16 +11,17 @@ export async function loadConfirmedLessons(client: Client, userId: string, missi
   // Bound new inserts while paging; stable tie ordering prevents equal-time
   // confirmations from falling through a page boundary.
   const through = new Date().toISOString()
+  const signal = AbortSignal.timeout(8_000)
   for (let offset = 0; ; offset += PAGE_SIZE) {
     const confirmed = await client.from('mission_events').select('id,mission_id,detail,created_at')
       .eq('user_id', userId).eq('type', 'delta_lesson_confirmed').lte('created_at', through)
       .order('created_at', { ascending: false }).order('id', { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1)
+      .range(offset, offset + PAGE_SIZE - 1).abortSignal(signal)
     if (confirmed.error) throw new Error('Could not read confirmed lessons.')
     const rows = confirmed.data ?? []
     if (!rows.length) break
     const retired = await client.from('mission_events').select('idempotency_key').eq('user_id', userId)
-      .eq('type', 'delta_lesson_retired').in('idempotency_key', rows.map(row => `lesson:retire:${row.id}`))
+      .eq('type', 'delta_lesson_retired').in('idempotency_key', rows.map(row => `lesson:retire:${row.id}`)).abortSignal(signal)
     if (retired.error) throw new Error('Could not read lesson retirements.')
     const inactive = new Set((retired.data ?? []).map(row => row.idempotency_key))
     for (const row of rows.filter(row => !inactive.has(`lesson:retire:${row.id}`))) {

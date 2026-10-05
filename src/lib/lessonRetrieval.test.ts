@@ -9,8 +9,8 @@ import type { projectUserClient } from './projectReviewServer'
 type Client = ReturnType<typeof projectUserClient>
 function unavailableClient(error: boolean) {
   const query = {
-    select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), lte: vi.fn().mockReturnThis(),
-    order: vi.fn().mockReturnThis(), range: vi.fn().mockResolvedValue({ data: [], error: error ? new Error('Unavailable') : null }),
+    abortSignal: vi.fn().mockResolvedValue({ data: [], error: error ? new Error('Unavailable') : null }), select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), lte: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(), range: vi.fn().mockReturnThis(),
   }
   return { client: { from: vi.fn(() => query) } as unknown as Client, query }
 }

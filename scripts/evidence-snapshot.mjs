@@ -21,7 +21,23 @@ export function mergeEvidenceSnapshot(previous, observations, repos, failedRepos
   const failed = new Set(failedRepos)
   const successful = repos.filter(repo => !failed.has(repo))
   const retained = previous.records.filter(row => failedIds.has(row.id) || !successful.some(repo => row.source.startsWith(`github:${repo}#`)))
-    .map(row => failedIds.has(row.id) || failedRepos.some(repo => row.source.startsWith(`github:${repo}#`)) ? { ...row, status: 'stale' } : row)
+    .map(row => {
+      if (failedIds.has(row.id)) {
+        const current = observations.find(observation => observation.id === row.id)
+        if (current?.prReadSucceeded) {
+          // PR state was read successfully while check state was not. Preserve
+          // the old check observation and timestamps without hiding a merge.
+          const previousCheckObservation = row.previousCheckObservation ?? {
+            status: row.status, claim: row.claim, observedAt: row.observedAt, fetchedAt: row.fetchedAt,
+          }
+          return { ...row, kind: current.kind, status: 'stale',
+            claim: `PR state observed ${current.observedAt}, read ${current.fetchedAt}: ${current.claim} Previous evidence observation (not current): ${previousCheckObservation.claim}`,
+            prObservedAt: current.observedAt, prFetchedAt: current.fetchedAt, previousCheckObservation }
+        }
+        return { ...row, status: 'stale' }
+      }
+      return failedRepos.some(repo => row.source.startsWith(`github:${repo}#`)) ? { ...row, status: 'stale' } : row
+    })
   const freshIds = new Set(fresh.map(row => row.id))
   return { generatedAt: new Date().toISOString(), unavailableSources: [...failedRepos.map(repo => `github:${repo}`), ...failedRecordIds.map(id => `check-runs:${id}`)],
     records: [...fresh, ...retained.filter(row => !freshIds.has(row.id))] }

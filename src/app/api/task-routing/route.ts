@@ -25,11 +25,21 @@ export async function GET(req: NextRequest) {
     if ('response' in auth) return auth.response
     const missionId = req.nextUrl.searchParams.get('missionId')
     if (missionId !== null && !MISSION_UUID.test(missionId)) return NextResponse.json({ error: 'Invalid project scope.' }, { status: 400, headers })
+    const correctionId = req.nextUrl.searchParams.get('correctionId')
+    if (correctionId !== null && (!MISSION_UUID.test(correctionId) || !missionId)) return NextResponse.json({ error: 'Invalid correction scope.' }, { status: 400, headers })
     if (missionId) await verifyMission(auth.client, auth.userId, missionId)
+    // Check a pending write before establishing the weight snapshot cutoff:
+    // a confirmed event must be included in the projection returned below.
+    let savedCorrectionId: string | null = null
+    if (correctionId) {
+      const saved = await auth.client.from('mission_events').select('id').eq('user_id', auth.userId).eq('mission_id', missionId).eq('type', 'task_route_corrected').eq('idempotency_key', `route:correction:${correctionId}`).maybeSingle()
+      if (saved.error) throw new Error('Pending correction could not be read.')
+      if (saved.data) savedCorrectionId = correctionId
+    }
     const [lessons, weights] = await Promise.all([
       loadConfirmedLessons(auth.client, auth.userId, missionId ? [missionId] : []), loadRouteLearning(auth.client, auth.userId),
     ])
-    return NextResponse.json({ userId: auth.userId, missionId, lessons, weights }, { headers })
+    return NextResponse.json({ userId: auth.userId, missionId, lessons, weights, savedCorrectionId }, { headers })
   } catch { return NextResponse.json({ error: 'Saved lessons or routing corrections could not be read.' }, { status: 503, headers }) }
 }
 export async function POST(req: NextRequest) {

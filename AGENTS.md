@@ -209,9 +209,11 @@ human confirmation with a rule, application conditions, scope and frozen
 review source references. `delta_lesson_confirmed` / `delta_lesson_retired`
 are append-only records in the same transitional UI ledger, not canonical
 doctrine, generic audit ownership or verified evidence. Retirements are read
-by exact confirmation ID so old retired rules cannot reappear. The latest 50
-confirmations yield at most 16 active rules scoped to the target/related
-project or account. Confirmation requires a current valid review and is
+by exact confirmation ID so old retired rules cannot reappear. Confirmation
+history is paged in stable timestamp/ID order until at most 16 active scoped
+rules are found; retired or unrelated rows do not consume that selection window.
+Reads have an eight-second cancellation budget and fail explicitly on exhaustion
+rather than returning a deceptively complete partial selection. Confirmation requires a current valid review and is
 idempotent on retries. Confirmation or retirement changes the source hash,
 invalidating reasoning that used the prior rule set. No model may confirm
 its own lesson, rewrite the Goose Cookbook, or start an unbounded loop.
