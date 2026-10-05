@@ -31,7 +31,7 @@ export type TaskRouteStep = { key: RouteLane; label: string; tool: HandoffTool; 
 export type TaskRoute = { task: string; primary: TaskRouteStep; secondary: TaskRouteStep | null; source: 'local-rules'; match: 'general' | 'matched'; learned: boolean; override: boolean; note: string }
 
 export function routeTokens(task: string): string[] {
-  return [...new Set(task.toLowerCase().match(/[a-z][a-z0-9_-]{3,30}/g) ?? [])].filter(token => !['this', 'that', 'with', 'into', 'from', 'have', 'task', 'want', 'should', 'then', 'what', 'your', 'today'].includes(token)).slice(0, 40)
+  return [...new Set(task.toLowerCase().match(/[a-z][a-z0-9_-]{3,30}/g) ?? [])].filter(token => !['this', 'that', 'with', 'into', 'from', 'have', 'task', 'want', 'should', 'then', 'what', 'your', 'today', 'proto__', '__proto__', 'constructor', 'prototype'].includes(token)).slice(0, 40)
 }
 
 export function readRouteLearning(raw: string | null): RouteLearning {

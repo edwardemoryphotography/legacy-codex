@@ -26,13 +26,15 @@ export async function GET(req: NextRequest) {
     const missionId = req.nextUrl.searchParams.get('missionId')
     if (missionId !== null && !MISSION_UUID.test(missionId)) return NextResponse.json({ error: 'Invalid project scope.' }, { status: 400, headers })
     const correctionId = req.nextUrl.searchParams.get('correctionId')
-    if (correctionId !== null && (!MISSION_UUID.test(correctionId) || !missionId)) return NextResponse.json({ error: 'Invalid correction scope.' }, { status: 400, headers })
+    const correctionMissionId = req.nextUrl.searchParams.get('correctionMissionId')
+    if ((correctionId === null) !== (correctionMissionId === null) ||
+        (correctionId !== null && (!MISSION_UUID.test(correctionId) || !MISSION_UUID.test(correctionMissionId!)))) return NextResponse.json({ error: 'Invalid correction scope.' }, { status: 400, headers })
     if (missionId) await verifyMission(auth.client, auth.userId, missionId)
     // Check a pending write before establishing the weight snapshot cutoff:
     // a confirmed event must be included in the projection returned below.
     let savedCorrectionId: string | null = null
-    if (correctionId) {
-      const saved = await auth.client.from('mission_events').select('id').eq('user_id', auth.userId).eq('mission_id', missionId).eq('type', 'task_route_corrected').eq('idempotency_key', `route:correction:${correctionId}`).maybeSingle()
+    if (correctionId && correctionMissionId) {
+      const saved = await auth.client.from('mission_events').select('id').eq('user_id', auth.userId).eq('mission_id', correctionMissionId).eq('type', 'task_route_corrected').eq('idempotency_key', `route:correction:${correctionId}`).maybeSingle()
       if (saved.error) throw new Error('Pending correction could not be read.')
       if (saved.data) savedCorrectionId = correctionId
     }
