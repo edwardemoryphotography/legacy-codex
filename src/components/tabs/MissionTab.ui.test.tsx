@@ -363,7 +363,7 @@ describe('MissionTab project-review access', () => {
     expect(await screen.findByRole('heading', { name: 'Your missions' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Why this?' })).toBeTruthy()
     await new Promise(resolve => setTimeout(resolve, 50))
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('missionId='))).toBe(false)
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/delta-review?missionId='))).toBe(false)
     expect(screen.queryByText(/not enabled for this account/i)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Review project' })).toBeNull()
     expect(screen.queryByText('This did not record')).toBeNull()

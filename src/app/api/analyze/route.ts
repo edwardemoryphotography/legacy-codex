@@ -1,3 +1,4 @@
+import { loadLearnedContext, MISSION_UUID } from '@/lib/learnedContextServer'
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { ARTIFACT_ANALYSIS_DEFAULT_INSTRUCTION, ARTIFACT_ANALYSIS_SYSTEM_PROMPT } from '@/lib/cognitiveDoctrine'
@@ -73,13 +74,16 @@ export async function POST(req: NextRequest) {
   }
   content.push({ type: 'text', text: instruction || ARTIFACT_ANALYSIS_DEFAULT_INSTRUCTION })
 
+  const scope = formData.get('missionId')
+  if (scope !== null && (typeof scope !== 'string' || !MISSION_UUID.test(scope))) return NextResponse.json({ error: 'Invalid mission scope.' }, { status: 400 })
   try {
+    const learnedContext = await loadLearnedContext(owner.url, req.headers.get('Authorization') ?? '', owner.userId, typeof formData.get('missionId') === 'string' && formData.get('missionId') ? [String(formData.get('missionId'))] : [])
     const client = new Anthropic()
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 4096,
       system: ARTIFACT_ANALYSIS_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content }],
+      messages: [{ role: 'user', content: [...content, { type: 'text', text: learnedContext }] }],
     })
 
     const text = response.content
@@ -89,9 +93,9 @@ export async function POST(req: NextRequest) {
       .trim()
 
     return NextResponse.json({ text: text || 'No analysis text returned.' })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: `Analysis failed.\n\n${message}` }, { status: 500 })
+  } catch {
+    console.error('/api/analyze failed [learning-or-provider]')
+    return NextResponse.json({ error: 'Analysis unavailable: saved learning or the model could not be read. Retry without replacing your saved work.' }, { status: 503 })
   }
 }
 

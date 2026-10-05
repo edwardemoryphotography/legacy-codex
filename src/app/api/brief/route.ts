@@ -1,3 +1,4 @@
+import { loadLearnedContext, MISSION_UUID } from '@/lib/learnedContextServer'
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { DAILY_BRIEF_SYSTEM_PROMPT } from '@/lib/cognitiveDoctrine'
@@ -34,7 +35,8 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Malformed request body.' }, { status: 400 })
   }
-  const { mode, question, missions } = (body ?? {}) as {
+  const { mode, question, missions, missionIds } = (body ?? {}) as {
+    missionIds?: unknown
     mode?: unknown
     question?: unknown
     missions?: unknown
@@ -50,14 +52,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Too many missions in one request (max ${MAX_MISSIONS}).` }, { status: 400 })
   }
 
+  if (missionIds !== undefined && (!Array.isArray(missionIds) || missionIds.length !== missions.length || missionIds.length > MAX_MISSIONS || missionIds.some(id => typeof id !== 'string' || !MISSION_UUID.test(id)))) return NextResponse.json({ error: 'Invalid mission scope.' }, { status: 400 })
+
   // Re-narrow on the server rather than trusting the client's shape — the
   // client is expected to send what missionsToBriefContext() produces, but
   // this route never assumes it did. Every text field is clamped to the same
   // 400-character ceiling the client already clips to, so a hand-made
   // request cannot inflate the prompt.
-  const safeMissions: BriefMissionContext[] = missions.map(entry => {
+  const safeMissions: BriefMissionContext[] = missions.map((entry, index) => {
     const r = (entry ?? {}) as Record<string, unknown>
     return {
+      ...(Array.isArray(missionIds) ? { missionId: missionIds[index] as string } : {}),
       title: clamp(r.title) ?? '',
       state: (clamp(r.state) ?? 'candidate') as BriefMissionContext['state'],
       why: clamp(r.why) ?? '',
@@ -74,12 +79,13 @@ export async function POST(req: NextRequest) {
   const directive = buildBriefDirective(mode as BriefMode, safeMissions, safeQuestion)
 
   try {
+    const learnedContext = await loadLearnedContext(owner.url, req.headers.get('Authorization') ?? '', owner.userId, Array.isArray(missionIds) ? missionIds.filter((id): id is string => typeof id === 'string') : [])
     const client = new Anthropic()
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 1024,
       system: DAILY_BRIEF_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: directive }],
+      messages: [{ role: 'user', content: `${directive}\n\n${learnedContext}` }],
     })
 
     const text = response.content
@@ -89,9 +95,9 @@ export async function POST(req: NextRequest) {
       .trim()
 
     return NextResponse.json({ text: text || 'No brief text returned.' })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: `Daily Brief failed.\n\n${message}` }, { status: 500 })
+  } catch {
+    console.error('/api/brief failed [learning-or-provider]')
+    return NextResponse.json({ error: 'Daily Brief unavailable: saved learning or the model could not be read. Retry without replacing your saved work.' }, { status: 503 })
   }
 }
 

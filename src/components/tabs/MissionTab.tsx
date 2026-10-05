@@ -872,6 +872,7 @@ export default function MissionTab() {
         ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
       },
       body: JSON.stringify({
+        missionId: req.missionId,
         missionTitle: req.missionTitle,
         finishLine: req.finishLine,
         clause: req.clause,
@@ -1091,6 +1092,7 @@ export default function MissionTab() {
     mission: routeMission,
     missionStatus: !loaded ? 'loading' : loadFailed || !user ? 'unavailable' : 'ready',
     evidence, evidenceStatus,
+    learningRevision: reviewRevision,
     corrections: sessionReady ? corrections.filter(item => item.missionId === routeMission?.id).map(item => ({ correctedMove: item.correctedMove, reason: item.reason })) : [],
     contextNotes: sessionReady ? routeNotes.filter(item => item.missionId === routeMission?.id).map(item => item.note) : [],
   }

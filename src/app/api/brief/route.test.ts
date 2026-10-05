@@ -11,6 +11,14 @@ vi.mock('@anthropic-ai/sdk', () => ({
   },
 }))
 
+// Isolate provider-format tests from account data. No saved lesson records
+// are fabricated here; this seam is not real-account learning proof.
+vi.mock('@/lib/learnedContextServer', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/learnedContextServer')>()),
+  loadLearnedContext: vi.fn().mockResolvedValue('No saved account data exercised by this isolated provider test.'),
+}))
+
+import { loadLearnedContext } from '@/lib/learnedContextServer'
 import { POST } from './route'
 
 const OWNER_ID = '00000000-0000-4000-8000-000000000001'
@@ -84,4 +92,11 @@ describe('/api/brief owner gate', () => {
       expect(directive).not.toContain(ch.repeat(401))
     }
   })
+  it('fails closed before spending on the model when saved learning cannot be read', async () => {
+    vi.mocked(loadLearnedContext).mockRejectedValueOnce(new Error('Learning unavailable'))
+    const response = await POST(request({ mode: 'daily_brief', missions: [mission] }, userToken(OWNER_ID)))
+    expect(response.status).toBe(503)
+    expect(createMessage).not.toHaveBeenCalled()
+  })
+
 })

@@ -8,6 +8,7 @@ import type { Mission } from '@/types'
 export type BriefMode = 'daily_brief' | 'triage' | 'question'
 
 export interface BriefMissionContext {
+  missionId?: string
   title: string
   state: Mission['state']
   why: string
@@ -25,8 +26,8 @@ function clip(value: string | null | undefined, max = MAX_FIELD_LENGTH): string 
   return value.length > max ? `${value.slice(0, max)}…` : value
 }
 
-// No id, no timestamps — the prompt never needs them, and keeping the
-// payload to exactly these fields keeps the server route's trust surface
+// IDs are attached separately by the server after explicit scope validation.
+// Keeping the client payload to these fields keeps the trust surface
 // explicit (see /api/brief's own re-validation of this same shape).
 export function missionToBriefContext(mission: Mission): BriefMissionContext {
   return {
@@ -52,7 +53,7 @@ export function stalledMissions(missions: BriefMissionContext[]): BriefMissionCo
 }
 
 function describeMission(m: BriefMissionContext): string {
-  const bits = [`"${m.title}" (${m.state}${m.capacityMismatch ? ', capacity mismatch' : ''})`]
+  const bits = [`${m.missionId ? `[project ${m.missionId}] ` : ''}"${m.title}" (${m.state}${m.capacityMismatch ? ', capacity mismatch' : ''})`]
   if (m.why) bits.push(`why: ${m.why}`)
   if (m.finishLine) bits.push(`finish line: ${m.finishLine}`)
   if (m.blocker) bits.push(`blocker: ${m.blocker}`)

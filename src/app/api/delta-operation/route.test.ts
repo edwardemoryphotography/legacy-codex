@@ -26,6 +26,14 @@ vi.mock('@supabase/server/core', async importOriginal => ({
   verifyAuth: mocks.verifyAuth,
 }))
 
+// Isolate provider-format tests from account data. No saved lesson records
+// are fabricated here; this seam is not real-account learning proof.
+vi.mock('@/lib/learnedContextServer', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/learnedContextServer')>()),
+  loadLearnedContext: vi.fn().mockResolvedValue('No saved account data exercised by this isolated provider test.'),
+}))
+
+import { loadLearnedContext } from '@/lib/learnedContextServer'
 import { GET, POST } from './route'
 
 function request(body: unknown, headers: HeadersInit = {}): NextRequest {
@@ -124,4 +132,11 @@ describe('/api/delta-operation', () => {
     expect(response.status).toBe(502)
     expect(await response.json()).toEqual({ error: 'Model operation generation failed.' })
   })
+  it('fails closed before spending on the model when saved learning cannot be read', async () => {
+    vi.mocked(loadLearnedContext).mockRejectedValueOnce(new Error('Learning unavailable'))
+    const response = await POST(request(validBody))
+    expect(response.status).toBe(502)
+    expect(mocks.createMessage).not.toHaveBeenCalled()
+  })
+
 })

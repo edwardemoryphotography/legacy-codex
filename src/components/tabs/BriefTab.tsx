@@ -71,7 +71,7 @@ export default function BriefTab() {
           'Content-Type': 'application/json',
           ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
-        body: JSON.stringify({ mode, question: q, missions: missionsToBriefContext(missions) }),
+        body: JSON.stringify({ mode, question: q, missions: missionsToBriefContext(missions), missionIds: missions.slice(0, 40).map(mission => mission.id) }),
       })
       if (res.status === 403) {
         setVisitor(true)

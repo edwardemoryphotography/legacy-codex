@@ -1,6 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { supabase } from '@/lib/supabase/client'
+import type { ConfirmedLesson } from '@/lib/projectReview'
+import { routeTokens } from '@/lib/taskRouting'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { nextMoveContextExpiresAt, nextMoveContextKey } from '@/lib/nextMove'
 import { buildTaskRoute, correctTaskRoute, HANDOFF_TOOLS, readRouteLearning, ROUTE_LANES, type HandoffTool, type RouteLane, type RouteLearning, type RouteOptions, type TaskRoute, type TaskRouteContext } from '@/lib/taskRouting'
 import { useMotionAllowed } from '@/hooks/useMotionAllowed'
@@ -24,6 +27,11 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
   useOrbInteraction(voice.phase === 'listening' ? 'listening' : engaged || voice.active ? 'engaged' : 'ambient')
   const [options, setOptions] = useState<RouteOptions>({ currentTool: 'Codex', stayHere: false, hybrid: true, priority: 'balanced' })
   const [learning, setLearning] = useState<RouteLearning>({})
+  const [savedContext, setSavedContext] = useState<{ scope: string; lessons: ConfirmedLesson[]; status: 'ready' | 'unavailable' | 'loading' } | null>(null)
+  const [refresh, setRefresh] = useState(0)
+  const [saving, setSaving] = useState(false)
+  const pendingCorrection = useRef<{ key: string; id: string } | null>(null)
+  const generation = useRef(0)
   const [learningScope, setLearningScope] = useState<string | null>(null)
   const [result, setResult] = useState<{ route: TaskRoute; inputKey: string } | null>(null)
   const [correction, setCorrection] = useState<RouteLane>('execution')
@@ -32,10 +40,14 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
   const field = useRef<HTMLTextAreaElement>(null)
   const motionAllowed = useMotionAllowed()
   const storageKey = accountId ? `legacy-codex-route-learning-v1:${accountId}` : null
-  const contextKey = nextMoveContextKey(context, new Date().toISOString())
+  const missionId = context.mission?.id ?? null
+  const scopeKey = JSON.stringify([accountId, missionId, context.learningRevision ?? 0, refresh])
+  const scopeRef = useRef(scopeKey)
+  useLayoutEffect(() => { scopeRef.current = scopeKey }, [scopeKey])
+  const effectiveContext: TaskRouteContext = { ...context, lessons: savedContext?.scope === scopeKey ? savedContext.lessons : [], learningStatus: savedContext?.scope === scopeKey ? savedContext.status : 'loading' }
+  const contextKey = nextMoveContextKey(effectiveContext, new Date().toISOString())
   const inputKey = JSON.stringify([task, options, contextKey, learningScope, learning])
   const active = result?.inputKey === inputKey ? result.route : null
-  const missionId = context.mission?.id ?? null
 
   useEffect(() => { cancelVoice() }, [missionId, cancelVoice])
 
@@ -51,6 +63,42 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
     setResult(null)
     setMessage('')
   }, [storageKey, cancelVoice])
+
+  useEffect(() => {
+    const refetch = () => setRefresh(value => value + 1)
+    window.addEventListener('focus', refetch)
+    window.addEventListener('legacy-codex-learning-changed', refetch)
+    return () => { window.removeEventListener('focus', refetch); window.removeEventListener('legacy-codex-learning-changed', refetch) }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const requestGeneration = ++generation.current
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSaving(false)
+    setResult(null)
+    setSavedContext({ scope: scopeKey, status: 'loading', lessons: [] })
+    async function restore() {
+      try {
+        if (!accountId) throw new Error('No account')
+        const { data } = await supabase.auth.getSession()
+        if (!data.session || data.session.user.id !== accountId) throw new Error('Session changed')
+        const response = await fetch(`/api/task-routing${missionId ? `?missionId=${encodeURIComponent(missionId)}` : ''}`, { headers: { Authorization: `Bearer ${data.session.access_token}` }, cache: 'no-store' })
+        const restored = await response.json()
+        if (!response.ok || restored.userId !== accountId || restored.missionId !== missionId || !Array.isArray(restored.lessons)) throw new Error('Context unavailable')
+        if (cancelled || generation.current !== requestGeneration || scopeRef.current !== scopeKey) return
+        setLearning(readRouteLearning(JSON.stringify(restored.weights)))
+        setSavedContext({ scope: scopeKey, status: 'ready', lessons: restored.lessons })
+      } catch {
+        if (cancelled || generation.current !== requestGeneration || scopeRef.current !== scopeKey) return
+        setSavedContext({ scope: scopeKey, status: 'unavailable', lessons: [] })
+      }
+    }
+    void restore()
+    return () => { cancelled = true }
+  // scopeKey contains the account, exact project, revision and refresh generation.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey])
 
   useEffect(() => {
     if (!seed) return
@@ -90,20 +138,47 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
 
   function route(chosen?: RouteLane, weights = learning) {
     voice.cancel()
-    const routed = buildTaskRoute(task, context, options, weights, chosen)
+    const routed = buildTaskRoute(task, effectiveContext, options, weights, chosen)
     setResult({ route: routed, inputKey: JSON.stringify([task, options, contextKey, learningScope, weights]) })
     setCorrection(routed.primary.key)
     setMessage('')
   }
 
-  function teach() {
-    if (!active) return
+  async function teach() {
+    if (!active || saving) return
     const weights = correctTaskRoute(task, correction, learning)
     setLearning(weights)
     route(correction, weights)
-    let saved = false
-    try { if (storageKey && storageKey === learningScope) { localStorage.setItem(storageKey, JSON.stringify(weights)); saved = true } } catch { /* keep correction usable in session */ }
-    setMessage(saved ? 'Correction learned in this browser for your account.' : 'Correction applied for this session. Browser storage is unavailable.')
+    let localSaved = false
+    try { if (storageKey && storageKey === learningScope) { localStorage.setItem(storageKey, JSON.stringify(weights)); localSaved = true } } catch { /* session fallback */ }
+    if (!accountId || !missionId) {
+      setMessage(localSaved ? 'Correction learned in this browser. Choose a saved project to preserve it across devices.' : 'Correction applied for this session only.')
+      return
+    }
+    const requestScope = scopeKey
+    const requestGeneration = generation.current
+    const key = JSON.stringify([accountId, missionId, task, correction])
+    if (pendingCorrection.current?.key !== key) pendingCorrection.current = { key, id: crypto.randomUUID() }
+    const writeId = pendingCorrection.current.id
+    setSaving(true)
+    try {
+      const { data } = await supabase.auth.getSession()
+      if (!data.session || data.session.user.id !== accountId) throw new Error('Session changed')
+      if (scopeRef.current !== requestScope || generation.current !== requestGeneration) return
+      const response = await fetch('/api/task-routing', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}` }, body: JSON.stringify({ tokens: routeTokens(task), lane: correction, missionId, idempotencyKey: writeId }) })
+      if (!response.ok) throw new Error('Correction unavailable')
+      if (scopeRef.current !== requestScope || generation.current !== requestGeneration) return
+      if (pendingCorrection.current?.id === writeId) pendingCorrection.current = null
+      // Reload the durable projection and lessons together; never combine it
+      // with browser weights and count the same correction twice.
+      setRefresh(value => value + 1)
+      setMessage('Correction saved to your account. Route again with the updated learning.')
+    } catch {
+      if (scopeRef.current !== requestScope || generation.current !== requestGeneration) return
+      setMessage(localSaved ? 'Account save could not be confirmed. Correction is browser-only; retry uses the same write ID.' : 'Account save could not be confirmed. Correction is session-only; retry uses the same write ID.')
+    } finally {
+      if (scopeRef.current === requestScope && generation.current === requestGeneration) setSaving(false)
+    }
   }
 
   async function copy(prompt: string) {
@@ -116,6 +191,7 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
       <span className="route-eyebrow">Control panel</span>
       <h2 id="task-router-title">What should we <span>route</span> next?</h2>
       <p>Bring your own task, or route the move from Strategic Delta.</p>
+      <p className="route-boundary">{effectiveContext.learningStatus === 'ready' ? 'Saved lessons and account routing corrections loaded.' : effectiveContext.learningStatus === 'loading' ? 'Reading saved lessons and routing corrections…' : 'Saved learning unavailable. Routing uses local rules; the handoff names the missing context.'}</p>
       {context.missionStatus === 'ready' && context.mission && <p className="route-target">For {context.mission.title} · {context.mission.state}</p>}
     </div>
     <form onSubmit={event => { event.preventDefault(); if (task.trim()) route() }}>
@@ -155,23 +231,23 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
         <div className="route-card-heading"><span className="route-badge">{active.secondary ? 'Hybrid route' : 'Single route'}</span><span>Local rules</span></div>
         <h3>{active.primary.tool}<span className="route-arrow" aria-hidden="true"> ↗</span></h3>
         <p>{active.primary.label}{active.secondary ? ` → ${active.secondary.label} · ${active.secondary.tool}` : ''}</p>
-        <p className="route-boundary">{active.match === 'general' ? 'No specialist match. Clarify the deliverable first.' : active.override ? 'Your current-tool preference overrides the suggested tool.' : 'Suggested from task keywords.'} {active.learned && 'Your browser-local corrections influenced this route.'}</p>
+        <p className="route-boundary">{active.match === 'general' ? 'No specialist match. Clarify the deliverable first.' : active.override ? 'Your current-tool preference overrides the suggested tool.' : 'Suggested from task keywords.'} {active.learned && 'Your saved or local corrections influenced this route.'}</p>
         {[active.primary, ...(active.secondary ? [active.secondary] : [])].map((step, index) => <details key={step.key} className="route-handoff" open={index === 0}>
           <summary>{index ? 'Follow-up' : 'Prepared'} handoff · {step.tool}</summary>
           <pre tabIndex={0}>{step.prompt}</pre>
           <button type="button" className="route-secondary" onClick={() => void copy(step.prompt)}>Copy {index ? 'follow-up' : 'handoff'}</button>
         </details>)}
         {canSave && context.mission ? <button type="button" className="route-primary" onClick={() => {
-          onPrepare({ task: active.task, note: active.note, missionId: context.mission!.id, contextKey })
+          onPrepare({ task: active.task, note: active.note, missionId: context.mission!.id, contextKey: nextMoveContextKey(context, new Date().toISOString()) })
           setMessage('Handoff prepared below. Review it, then save your next action. An existing unfinished action stays in place.')
           document.getElementById('saved-action')?.scrollIntoView({ block: 'start', behavior: motionAllowed ? 'smooth' : 'auto' })
         }}>Prepare saved action</button> : <p className="route-boundary">Choose an active mission to save this as a resumable action. You can still copy the handoff.</p>}
       </article>
       <div className="route-teach">
-        <div><h3>Teach the router</h3><p>Corrections stay in this browser for your account.</p></div>
+        <div><h3>Teach the router</h3><p>Save corrections to your account when a project is selected.</p></div>
         <label htmlFor="route-correction" className="sr-only">Correct routing lane</label>
         <select id="route-correction" value={correction} onChange={event => setCorrection(event.target.value as RouteLane)}>{ROUTE_LANES.map(lane => <option key={lane.key} value={lane.key}>{lane.label}</option>)}</select>
-        <button type="button" className="route-secondary" onClick={teach}>Use this lane</button>
+        <button type="button" className="route-secondary" disabled={saving} onClick={() => void teach()}>Use this lane</button>
       </div>
     </div>}
     {message && <p className="route-notice" role="status" aria-label="Routing status">{message}</p>}
