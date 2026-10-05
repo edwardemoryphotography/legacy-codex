@@ -1,3 +1,5 @@
+import { operationsEquivalent } from '@/lib/operationEquivalence'
+import { loadLearnedContext, MISSION_UUID } from '@/lib/learnedContextServer'
 // Narrowly bounded model assistance for one stage only: turning a single
 // finish-line clause into a concrete operation, when the deterministic
 // engine has genuinely exhausted structural signal (no blocker, no
@@ -21,9 +23,8 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyAuth } from '@supabase/server/core'
+import { deltaOwner } from '@/lib/supabase/deltaAuth'
 import { isConcreteMove } from '@/lib/strategicDelta'
-import { resolveUserAuthEnv } from '@/lib/supabase/userAuthEnv'
 import { DELTA_OPERATION_SYSTEM_PROMPT } from '@/lib/cognitiveDoctrine'
 
 export const runtime = 'nodejs'
@@ -38,6 +39,7 @@ const MAX_REJECTED_OPERATIONS = 8
 const MAX_CORRECTION_REASON_CHARS = 500
 
 interface RequestBody {
+  missionId?: unknown
   missionTitle?: unknown
   finishLine?: unknown
   clause?: unknown
@@ -47,39 +49,6 @@ interface RequestBody {
 interface RejectedOperation {
   operation: string
   reason: string
-}
-
-function isLocalDevelopment(req: NextRequest): boolean {
-  return process.env.NODE_ENV === 'development' && ['localhost', '127.0.0.1', '::1'].includes(req.nextUrl.hostname)
-}
-
-async function verifyOwner(req: NextRequest): Promise<NextResponse | null> {
-  // Same env resolution as /api/analyze: previews may only have the public
-  // project URL. Auth mode and the account allowlist below are unchanged.
-  const resolved = resolveUserAuthEnv()
-  if (!resolved.env) {
-    console.error(`/api/delta-operation auth misconfigured [${resolved.error}]`)
-    return NextResponse.json({ error: 'Server authentication is misconfigured.' }, { status: 500 })
-  }
-  const { data: auth, error: authError } = await verifyAuth(req, { auth: 'user', env: resolved.env })
-  if (authError) {
-    if (authError.status === 500) {
-      console.error(`/api/delta-operation auth misconfigured [${authError.code}]`)
-      return NextResponse.json(
-        { error: 'Server authentication is misconfigured.' },
-        { status: 500 },
-      )
-    }
-    return NextResponse.json({ error: 'Sign in to use model-assisted candidates.' }, { status: 401 })
-  }
-
-  const userId = auth?.userClaims?.id
-  const allowedUserId = process.env.DELTA_OPERATION_ALLOWED_USER_ID
-  if (!isLocalDevelopment(req) && (!allowedUserId || userId !== allowedUserId)) {
-    return NextResponse.json({ error: 'Model-assisted candidates are not enabled for this account.' }, { status: 403 })
-  }
-
-  return null
 }
 
 function boundedString(value: unknown, maxChars: number): string | null {
@@ -104,14 +73,14 @@ function parseRejectedOperations(value: unknown): RejectedOperation[] | null {
 }
 
 export async function GET(req: NextRequest) {
-  const authResponse = await verifyOwner(req)
-  if (authResponse) return authResponse
+  const owner = await deltaOwner(req)
+  if ('response' in owner) return owner.response
   return NextResponse.json({ configured: Boolean(process.env.ANTHROPIC_API_KEY) })
 }
 
 export async function POST(req: NextRequest) {
-  const authResponse = await verifyOwner(req)
-  if (authResponse) return authResponse
+  const owner = await deltaOwner(req)
+  if ('response' in owner) return owner.response
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
       { error: 'Set ANTHROPIC_API_KEY on the server to enable model-assisted candidates.' },
@@ -140,6 +109,8 @@ export async function POST(req: NextRequest) {
   const clause = boundedString(body.clause, MAX_CLAUSE_CHARS)
   const rejectedOperations = parseRejectedOperations(body.rejectedOperations)
 
+  if (body.missionId !== undefined && (typeof body.missionId !== 'string' || !MISSION_UUID.test(body.missionId))) return NextResponse.json({ error: 'Invalid mission scope.' }, { status: 400 })
+
   if (!missionTitle || !finishLine || !clause || !rejectedOperations) {
     return NextResponse.json(
       { error: 'Request fields are missing, invalid, or too large.' },
@@ -157,12 +128,13 @@ export async function POST(req: NextRequest) {
   ].filter((x): x is string => x !== null).join('\n\n')
 
   try {
+    const learnedContext = await loadLearnedContext(owner.url, req.headers.get('Authorization') ?? '', owner.userId, typeof body.missionId === 'string' ? [body.missionId] : [])
     const client = new Anthropic()
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 200,
       system: DELTA_OPERATION_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userText }],
+      messages: [{ role: 'user', content: `${userText}\n\n${learnedContext}` }],
     })
 
     const raw = response.content
@@ -178,6 +150,7 @@ export async function POST(req: NextRequest) {
     // Sanity check here; the authoritative gate is the same isConcreteMove
     // the deterministic candidates run through once this re-enters the
     // engine's inhibition stage. This just avoids returning obvious junk.
+    if (rejectedOperations.some(item => operationsEquivalent(item.operation, raw))) return NextResponse.json({ operation: null })
     if (!isConcreteMove(raw, { title: missionTitle, finishLine })) {
       return NextResponse.json({ operation: null })
     }

@@ -9,7 +9,7 @@ Eddie selected https://codex-control-panel-two.vercel.app and asked to bring its
 - Handoffs preserve human intent and recorded mission constraints. Evidence statuses and freshness remain explicit. Failed reads never become empty evidence. A changed task, context, preference or correction invalidates the previous handoff.
 - Selecting a provider is a handoff preference, not a connected execution capability. No simulated model calls, execution, progress or confidence percentages.
 - **Prepare saved action** lets the person review and explicitly save the task and handoff together in canonical `actions.action_title` / `actions.resume_note`. The existing one-unfinished-action rule and update concurrency guard still apply. Existing actions are never overwritten by routing.
-- Browser-local correction weights are bounded, account-scoped and token-only. Unsaved tasks are not persisted. Saved action handoffs travel with the existing Mission account; browser accounts on separate preview hosts are distinct.
+- Explicit routing corrections on a selected saved project append token-only records to the caller’s `mission_events`; account-scoped bounded weights are reconstructed from those records. Browser/session-only fallback is labeled when an account save cannot be confirmed. Unsaved tasks are not persisted. Saved action handoffs travel with the existing Mission account; browser accounts on separate preview hosts are distinct.
 - Rounded glass surfaces, spectrum accents, focus glow, preference switches and result reveals follow the chosen Control Panel design. The existing single orb remains driven by real Delta state; motion preferences remain respected. Production remains dark; the existing light theme remains available for local/preview review.
 - Composer engagement immediately fills the whole input with flowing amber, coral, blue, violet and pink, including the gradient edge from Eddie's iPhone reference. Motion follows both system and Controls preferences; reduced motion keeps the color static.
 - The microphone invokes native `SpeechRecognition` or `webkitSpeechRecognition` only from a human tap. Permission pending, actual listening, stopping and errors remain separate. Interim results append to the preexisting draft within the 2,000-character input limit; manual editing, account/mission changes, routing, leaving the page or unmount cancel capture. Nothing auto-routes or saves.
@@ -17,7 +17,7 @@ Eddie selected https://codex-control-panel-two.vercel.app and asked to bring its
 
 ## Scope ruling
 
-Ruling: ship local routing and explicitly saved action handoffs using the existing ownership contract. Do not widen Foundry RLS or create a second routing authority. Canonical `routed_requests` currently requires a Foundry workspace and owner-only access, while Mission uses user-scoped private browser identities. Corrections in this slice are honestly browser-local, not canonical cross-device routing history. A later workspace/account link and forward migration belongs in the canonical routing/event stores after its permissions are reviewed.
+Ruling: ship local routing and explicitly saved action handoffs using the existing ownership contract. Do not widen Foundry RLS or create a second routing authority. Canonical `routed_requests` currently requires a Foundry workspace and owner-only access, while Mission uses user-scoped private browser identities. Corrections in this slice are a transitional Mission-ledger learning projection, not canonical Foundry routing history or a superseding ownership decision. A later workspace/account link and forward migration belongs in the canonical routing/event stores after its permissions are reviewed.
 
 No new database migration, model endpoint, credential, access key UI or external-tool execution is introduced.
 
@@ -34,3 +34,11 @@ No new database migration, model endpoint, credential, access key UI or external
 ## Durable lesson
 
 The task router carries a recommendation into a tool handoff; it does not own priorities or create a commitment. Continuation context belongs with the explicit saved action. Never infer provider connectivity from a tool selector, present keyword scores as probability, or silently retarget a Secondary handoff to Primary.
+
+## Goose inheritance follow-up — 2026-10-05
+
+Every primary and follow-up handoff now carries the public cognitive doctrine and complete, scoped human-confirmed rules. `/api/task-routing` reads lessons and account routing corrections using the caller’s JWT/RLS; explicit project corrections append idempotent token-only events. These reads purchase no model call. No history is inferred from a project title. Learning changes, account/project switches and focus refresh invalidate prepared prompts; unavailable reads are named rather than represented as no prior learning.
+
+`analyze`, `brief` and `delta-operation` read applicable saved rules before calling the model. Analysis currently supplies account rules unless an explicit project ID is provided. Brief sends the IDs of its clipped roster and labels each corresponding project in the directive. Operation assistance receives the exact unresolved project ID. Lesson selection pages beyond retired/unrelated records and keeps conditions/provenance intact under context limits.
+
+Local regressions and query-protocol checks do not prove real-account pagination, retirement propagation, cross-device correction restoration or useful model behavior. Those production owner workflows remain unverified. Evidence polling preserves previous observations on repository or per-PR check-source failures with original timestamps and stale status, using an atomic file replacement.

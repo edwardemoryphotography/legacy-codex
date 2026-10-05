@@ -1,3 +1,6 @@
+import { COGNITIVE_DOCTRINE } from './cognitiveDoctrine'
+import { formatLearnedContext } from './learnedContext'
+import type { ConfirmedLesson } from './projectReview'
 import type { NextMoveContext } from '@/types'
 import { isStale, isValidEvidenceRecord } from './evidence'
 
@@ -18,13 +21,16 @@ export type HandoffTool = typeof HANDOFF_TOOLS[number]
 export type RouteLearning = Record<string, Partial<Record<RouteLane, number>>>
 export type RouteOptions = { currentTool: HandoffTool; stayHere: boolean; hybrid: boolean; priority: 'speed' | 'balanced' | 'accuracy' }
 export type TaskRouteContext = NextMoveContext & {
+  learningRevision?: number
+  lessons?: ConfirmedLesson[]
+  learningStatus?: 'ready' | 'unavailable' | 'loading'
   corrections?: { correctedMove: string; reason: string }[]
   contextNotes?: string[]
 }
 export type TaskRouteStep = { key: RouteLane; label: string; tool: HandoffTool; prompt: string }
 export type TaskRoute = { task: string; primary: TaskRouteStep; secondary: TaskRouteStep | null; source: 'local-rules'; match: 'general' | 'matched'; learned: boolean; override: boolean; note: string }
 
-function tokens(task: string): string[] {
+export function routeTokens(task: string): string[] {
   return [...new Set(task.toLowerCase().match(/[a-z][a-z0-9_-]{3,30}/g) ?? [])].filter(token => !['this', 'that', 'with', 'into', 'from', 'have', 'task', 'want', 'should', 'then', 'what', 'your', 'today'].includes(token)).slice(0, 40)
 }
 
@@ -47,8 +53,12 @@ export function readRouteLearning(raw: string | null): RouteLearning {
 }
 
 export function correctTaskRoute(task: string, key: RouteLane, learning: RouteLearning): RouteLearning {
+  return applyRouteTokens(routeTokens(task), key, learning)
+}
+
+export function applyRouteTokens(tokens: string[], key: RouteLane, learning: RouteLearning): RouteLearning {
   const next = readRouteLearning(JSON.stringify(learning))
-  for (const token of tokens(task)) next[token] = { ...next[token], [key]: Math.min((next[token]?.[key] ?? 0) + 4, 20) }
+  for (const token of tokens) next[token] = { ...next[token], [key]: Math.min((next[token]?.[key] ?? 0) + 4, 20) }
   return readRouteLearning(JSON.stringify(next))
 }
 
@@ -56,7 +66,7 @@ export function buildTaskRoute(task: string, context: TaskRouteContext, options:
   task = task.trim()
   if (!task) throw new Error('Describe a task first.')
   const input = task.toLowerCase()
-  const words = tokens(task)
+  const words = routeTokens(task)
   const ranked = ROUTE_LANES.map(lane => {
     const learned = words.reduce((sum, token) => sum + (learning[token]?.[lane.key] ?? 0), 0)
     const matches = lane.terms.reduce((sum, term) => sum + (new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(input) ? 3 : 0), 0)
@@ -89,6 +99,8 @@ export function buildTaskRoute(task: string, context: TaskRouteContext, options:
     const tool = options.stayHere ? options.currentTool : item.lane.tool
     return { key: item.lane.key, label: item.lane.label, tool, prompt: [
       `Legacy Codex · ${item.lane.label}\n${options.stayHere ? 'Human-selected' : 'Suggested'} tool: ${tool}. This is a handoff, not a connected execution capability.`,
+      COGNITIVE_DOCTRINE,
+      context.learningStatus === 'ready' ? formatLearnedContext(context.lessons ?? [], context.mission ? [context.mission.id] : []) : 'Saved lessons unavailable or not read. Do not claim there are no prior lessons.',
       `Intent (human supplied):\n${task}`,
       `Recorded context:\n${contextText}`,
       `Approach:\n${general ? 'Clarify the intended deliverable before choosing a specialist or starting work.' : item.lane.role}`,

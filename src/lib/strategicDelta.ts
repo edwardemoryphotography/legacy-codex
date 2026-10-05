@@ -1,3 +1,4 @@
+import { operationsEquivalent } from './operationEquivalence'
 // The predictive Strategic Delta engine.
 //
 // Lineage: this is the same function `foundry-console/src/lib/derived-state.ts`
@@ -471,7 +472,7 @@ export function inhibit(candidates: DeltaCandidate[], ctx: DeltaContext): Inhibi
     //    match and a later copy change cannot silently orphan them.
     const correction = ctx.corrections.find(c =>
       c.missionId === candidate.missionId &&
-      (c.candidateId === candidate.id || normalize(c.correctedMove) === normalize(candidate.move)),
+      (c.candidateId === candidate.id || operationsEquivalent(c.correctedMove, candidate.move)),
     )
     if (correction) {
       inhibited.push(kill(candidate, 'corrected', `You said this isn't right: ${correction.reason}`))

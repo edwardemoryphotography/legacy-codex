@@ -71,7 +71,7 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
   for (const row of events.data ?? []) sources.push({ id: `event:${row.id}`, label: row.type === 'delta_corrected' ? 'Your correction' : 'Your project context', kind: row.type === 'delta_corrected' ? 'correction' : 'human_note', status: 'human-reported', ...boundSourceText(JSON.stringify(row), 2_000) })
   for (const row of corrections.data ?? []) sources.push({ id: `event:${row.id}`, label: 'Your correction', kind: 'correction', status: 'human correction; authoritative for this recommendation', ...boundSourceText(JSON.stringify(row), 2_000) })
   const warnings = ['Retrieval considers the 50 most recently updated other projects. Explicit project IDs and shared context terms select up to 4 for deeper reading; up to 8 other project summaries remain visible for discovering less obvious connections. These are relevance hypotheses, not proof of dependencies. Unread details and semantic links may be missed.',
-    'Target context is bounded to 12 evidence rows, 8 commitments, 24 notes/events and 100 corrections. Each related project contributes up to 6 evidence rows, 4 commitments, 8 notes and 20 corrections. Lessons are selected from the latest 50 confirmations, with at most 16 active scoped rules. Older or omitted material may change the interpretation.',
+    'Target context is bounded to 12 evidence rows, 8 commitments, 24 notes/events and 100 corrections. Each related project contributes up to 6 evidence rows, 4 commitments, 8 notes and 20 corrections. Lesson history is paged until at most 16 active scoped rules are found; retired and unrelated rules do not consume the selection window. Older or omitted material may change the interpretation.',
     'Evidence here is the Mission evidence_snapshots read model. evidence_items owns canonical evidence truth; those workspace records are not read without a verified account/workspace link. A snapshot status or a human DONE report does not verify the outcome.']
   let notes = (events.data ?? []).filter(e => e.type === 'delta_context_added').map(e => e.detail).join('\n')
   const targetText = `${target.data.title} ${target.data.why} ${target.data.finish_line ?? ''}\n${notes}`
@@ -81,7 +81,7 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
   const lessons = await loadConfirmedLessons(client, userId, [missionId, ...related.map(item => item.mission.id)])
   for (const lesson of lessons) sources.push({ id: `lesson:${lesson.id}`, label: lesson.rule, kind: 'lesson',
     status: `Human-confirmed operating rule (${lesson.scope === 'account' ? 'across this account' : `only project ${lesson.missionId}`}); apply only under its stated conditions, not verified evidence`,
-    ...boundSourceText(JSON.stringify(lesson), 2_000) })
+    text: JSON.stringify(lesson), truncated: false })
   const packets = await Promise.all(related.map(async ({ mission, reason }) => {
     const rows = await Promise.all([
       client.from('evidence_snapshots').select('id,source,status,claim,observed_at,fetched_at').eq('mission_id', mission.id).order('fetched_at', { ascending: false }).limit(6),
@@ -126,13 +126,17 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
     repository: 6_000, evidence: 5_000, commitment: 4_000, mission: 8_000 }
   let remaining = 40_000
   const bounded = sources.map(source => {
-    const cut = boundSourceText(source.text, Math.max(0, Math.min(remaining, headroom[source.kind])))
+    const allowance = Math.max(0, Math.min(remaining, headroom[source.kind]))
+    // A rule is atomic: never detach conditions or provenance by clipping JSON.
+    const cut = source.kind === 'lesson'
+      ? { text: source.text.length <= allowance ? source.text : '', truncated: false }
+      : boundSourceText(source.text, allowance)
     remaining -= cut.text.length
     headroom[source.kind] -= cut.text.length
     return { ...source, label: source.label.slice(0, 160), status: source.status.slice(0, 300), ...cut, truncated: Boolean(source.truncated || cut.truncated) }
   }).filter(source => source.text.length)
   if (bounded.length !== sources.length) warnings.push(`${sources.length - bounded.length} sources were omitted by the total context limit.`)
   if (bounded.some(source => source.truncated)) warnings.push('Some sources are excerpts. Limits reserve room for evidence and commitments alongside lessons, notes and corrections; inspect originals when a cut could change the interpretation.')
-  const contextKey = createHash('sha256').update(JSON.stringify({ version: 5, target: target.data, sources: bounded, warnings, hasEvidenceConflict })).digest('hex')
+  const contextKey = createHash('sha256').update(JSON.stringify({ version: 6, target: target.data, sources: bounded, warnings, hasEvidenceConflict })).digest('hex')
   return { mission: target.data, sources: bounded, warnings, contextKey, hasEvidenceConflict, lessons }
 }

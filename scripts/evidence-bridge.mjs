@@ -9,8 +9,9 @@
 // repo secret. No fabricated Notion evidence is ever written — this repo's
 // standing rule is real data or an explicit missing state, never a guess.
 
-import { writeFile, mkdir } from 'node:fs/promises'
+import { writeFile, mkdir, readFile, rename, rm } from 'node:fs/promises'
 import path from 'node:path'
+import { mergeEvidenceSnapshot } from './evidence-snapshot.mjs'
 
 const GITHUB_TOKEN = process.env.EVIDENCE_BRIDGE_TOKEN || process.env.GITHUB_TOKEN
 const REPOS = (process.env.EVIDENCE_REPOS || 'edwardemoryphotography/legacy-codex')
@@ -43,6 +44,7 @@ async function pullRequestEvidence(repo) {
     `https://api.github.com/repos/${repo}/pulls?state=all&per_page=20&sort=updated&direction=desc`,
   )
   const records = []
+  const failedRecordIds = []
 
   for (const pr of prs) {
     const merged = Boolean(pr.merged_at)
@@ -64,6 +66,7 @@ async function pullRequestEvidence(repo) {
       } catch {
         // A failed check-run lookup must not erase the PR's own merged
         // status — fall back to 'stale' for the checks claim only.
+        failedRecordIds.push(`github-pr-${repo}-${pr.number}`)
         checksStatus = 'stale'
         checksClaim = 'Check-run data unavailable.'
       }
@@ -80,21 +83,37 @@ async function pullRequestEvidence(repo) {
         : `PR #${pr.number} "${pr.title}" open, not yet merged.`,
       observedAt: pr.updated_at,
       fetchedAt: new Date().toISOString(),
+      prReadSucceeded: true,
     })
   }
 
-  return records
+  return { records, failedRecordIds }
 }
 
 async function main() {
+  let previous
+  let firstPoll = false
+  try { previous = JSON.parse(await readFile(OUTPUT_PATH, 'utf8')) }
+  catch (err) {
+    if (err.code !== 'ENOENT') throw err
+    firstPoll = true
+    previous = { generatedAt: new Date().toISOString(), records: [] }
+  }
+  // Validate before polling, even if all subsequent sources succeed.
+  mergeEvidenceSnapshot(previous, [], [], [])
   const allRecords = []
+  const failedRepos = []
+  const failedRecordIds = []
 
   for (const repo of REPOS) {
     try {
-      allRecords.push(...(await pullRequestEvidence(repo)))
+      const polled = await pullRequestEvidence(repo)
+      allRecords.push(...polled.records)
+      failedRecordIds.push(...polled.failedRecordIds)
     } catch (err) {
       // One unreachable repo must not blank out evidence for the others
       // (spec §8: preserve last verified state on an unreachable source).
+      failedRepos.push(repo)
       console.error(`Failed to pull evidence for ${repo}:`, err.message)
     }
   }
@@ -103,11 +122,16 @@ async function main() {
     console.log('NOTION_TOKEN is set, but the Notion pull is not implemented yet — add it here, do not fake records.')
   }
 
-  const snapshot = { generatedAt: new Date().toISOString(), records: allRecords }
+  if (firstPoll && failedRepos.length === REPOS.length) throw new Error('No previous snapshot and no sources available; refusing to publish empty fresh evidence.')
+  const snapshot = mergeEvidenceSnapshot(previous, allRecords, REPOS, failedRepos, failedRecordIds)
 
   await mkdir(path.dirname(OUTPUT_PATH), { recursive: true })
-  await writeFile(OUTPUT_PATH, `${JSON.stringify(snapshot, null, 2)}\n`)
-  console.log(`Wrote ${allRecords.length} evidence record(s) to ${OUTPUT_PATH}`)
+  const temporary = `${OUTPUT_PATH}.${process.pid}.${Date.now()}.tmp`
+  try {
+    await writeFile(temporary, `${JSON.stringify(snapshot, null, 2)}\n`, { flag: 'wx' })
+    await rename(temporary, OUTPUT_PATH)
+  } finally { await rm(temporary, { force: true }) }
+  console.log(`Wrote ${snapshot.records.length} evidence record(s) to ${OUTPUT_PATH}`)
 }
 
 main().catch(err => {

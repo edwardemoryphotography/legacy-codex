@@ -1,0 +1,26 @@
+Goose capability inheritance — implementation and verification
+
+Scope: implement the gaps in the October 3 audit, authorized October 4.
+No fabricated production data, no credential changes, no model self-confirmation.
+
+1. Replace newest-50 lesson retrieval with stable paginated active/scoped selection; preserve retirement, provenance and explicit read failure.
+2. Add a shared server lesson context for analyze, brief and delta-operation; load with authenticated RLS and explicit mission scope, never by matching a title.
+3. Include doctrine and frozen confirmed lesson context in each task handoff; invalidate prepared routes when learning changes.
+4. Persist explicit routing corrections as account-scoped append-only mission_events; rebuild bounded weights from those records, preserve browser-only fallback with an honest status, never replace canonical Foundry routing ownership.
+5. Strengthen correction equivalence for lexical variants; prevent bypass in both the engine and operation API, without claiming arbitrary semantic paraphrase detection.
+6. Preserve previous evidence records on source failure, marked stale with original observed/fetched timestamps; write atomically and refuse malformed previous snapshots.
+7. Run regressions against actual repository text/data, typecheck, lint, build; review the complete diff, push a reviewable PR, and report deployment and real-account proof separately.
+
+Files: projectLessonsServer.ts, learnedContext.ts, learnedContextServer.ts,
+model route handlers, taskRouting.ts, TaskRouter.tsx, routeLearningServer.ts,
+api/task-routing/route.ts, operationEquivalence.ts, strategicDelta.ts,
+scripts/evidence-bridge.mjs and evidence snapshot merge helper.
+
+Review focus: wrong-account reads, lesson retirement, mission scope, read failures,
+stale browser routes, concurrent corrections, unavailable evidence sources,
+false-positive correction equivalence. No test fixtures presented as real account proof.
+
+Execution: native implementation. User explicitly asked to proceed; no second plan approval.
+Verification: new regressions RED -> GREEN; full npm test -- --run,
+npx tsc --noEmit, npm run lint, npm run build. Real-account model calls remain
+unverified until the owner's authenticated content can be exercised.
