@@ -32,6 +32,7 @@ import {
   reportCapacityMismatch,
   requestPriorityChallenge,
   setFinishLine,
+  setEvidenceRequirement,
   unblock,
   type ActionResult,
   type MissionBoard,
@@ -504,14 +505,14 @@ export default function MissionTab() {
     async (
       run: (b: MissionBoard) => ActionResult,
       affectedIds: string[],
-    ) => {
-      if (!user) return
+    ): Promise<boolean> => {
+      if (!user) return false
       setError('')
       const before = board
       const result = run(before)
       if (result.error) {
         setError(result.error)
-        return
+        return false
       }
       setBoard(result.board)
       beginFieldWork()
@@ -553,7 +554,7 @@ export default function MissionTab() {
                 ? 'Write partially saved — this change persisted but its history entry did not, and reverting it also failed. Reload before making another change.'
                 : 'Write failed — change was not saved. Nothing changed; try again.',
             )
-            return
+            return false
           }
         }
         // A finish-line change replaces the goal an earlier acceptance
@@ -561,9 +562,11 @@ export default function MissionTab() {
         const changedGoal = result.event?.type === 'finish_line_set' ? result.event.missionId : null
         if (changedGoal) setAcceptances(prev => withoutMission(prev, changedGoal))
         flash('Saved')
+        return true
       } catch {
         setBoard(before)
         setError('Write failed — change was not saved. Nothing changed; try again.')
+        return false
       } finally {
         endFieldWork()
       }
@@ -1322,11 +1325,37 @@ export default function MissionTab() {
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-soft)' }}>
                     <strong>Finish line:</strong> {primary.finishLine ?? 'not set'}
                   </div>
-                  {primary.evidenceRequirement && (
+                  {primary.evidenceRequirement ? (
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-soft)' }}>
                       <strong>Evidence required:</strong> {primary.evidenceRequirement}
                     </div>
-                  )}
+                  ) : primary.finishLine ? (
+                    <div className="space-y-2">
+                      <label htmlFor="primary-evidence" style={{ fontSize: '0.85rem', color: 'var(--text-soft)' }}>
+                        What will prove it is done
+                      </label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="primary-evidence"
+                          placeholder="Optional — the proof that closes it"
+                          value={evidenceDrafts[primary.id] ?? ''}
+                          onChange={v => setEvidenceDrafts(prev => ({ ...prev, [primary.id]: v }))}
+                        />
+                        <ActionChip
+                          disabled={!(evidenceDrafts[primary.id] ?? '').trim()}
+                          onClick={async () => {
+                            const ok = await applyAndPersist(
+                              b => setEvidenceRequirement(b, primary.id, evidenceDrafts[primary.id] ?? '', now),
+                              [primary.id],
+                            )
+                            if (ok) setEvidenceDrafts(prev => ({ ...prev, [primary.id]: '' }))
+                          }}
+                        >
+                          Set proof
+                        </ActionChip>
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="flex flex-wrap gap-2 items-center">
                     {primary.blocker ? (
                       <Badge tone="amber" wrap>Blocked: {primary.blocker}</Badge>
@@ -1536,8 +1565,29 @@ export default function MissionTab() {
                     {m.finishLine ? (
                       <>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-soft)' }}>Finish line: {m.finishLine}</div>
-                        {m.evidenceRequirement && (
+                        {m.evidenceRequirement ? (
                           <div style={{ fontSize: '0.8rem', color: 'var(--text-soft)' }}>Evidence required: {m.evidenceRequirement}</div>
+                        ) : (
+                          <div className="space-y-2">
+                            <Input
+                              placeholder="What will prove it is done (optional)"
+                              aria-label={`Evidence requirement for ${m.title}`}
+                              value={evidenceDrafts[m.id] ?? ''}
+                              onChange={v => setEvidenceDrafts(prev => ({ ...prev, [m.id]: v }))}
+                            />
+                            <ActionChip
+                              disabled={!(evidenceDrafts[m.id] ?? '').trim()}
+                              onClick={async () => {
+                                const ok = await applyAndPersist(
+                                  b => setEvidenceRequirement(b, m.id, evidenceDrafts[m.id] ?? '', now),
+                                  [m.id],
+                                )
+                                if (ok) setEvidenceDrafts(prev => ({ ...prev, [m.id]: '' }))
+                              }}
+                            >
+                              Set proof
+                            </ActionChip>
+                          </div>
                         )}
                         {!primary && (
                           <ActionChip onClick={() => applyAndPersist(b => promoteToPrimary(b, m.id, now), [m.id])}>
@@ -1561,13 +1611,15 @@ export default function MissionTab() {
                         />
                         <ActionChip
                           disabled={!(finishLineDrafts[m.id] ?? '').trim()}
-                          onClick={() => {
-                            applyAndPersist(
+                          onClick={async () => {
+                            const ok = await applyAndPersist(
                               b => setFinishLine(b, m.id, finishLineDrafts[m.id] ?? '', now, evidenceDrafts[m.id] ?? ''),
                               [m.id],
                             )
-                            setFinishLineDrafts(prev => ({ ...prev, [m.id]: '' }))
-                            setEvidenceDrafts(prev => ({ ...prev, [m.id]: '' }))
+                            if (ok) {
+                              setFinishLineDrafts(prev => ({ ...prev, [m.id]: '' }))
+                              setEvidenceDrafts(prev => ({ ...prev, [m.id]: '' }))
+                            }
                           }}
                         >
                           Set

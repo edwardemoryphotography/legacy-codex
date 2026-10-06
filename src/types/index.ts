@@ -143,6 +143,7 @@ export interface Mission {
 export type MissionEventType =
   | 'captured'
   | 'finish_line_set'
+  | 'evidence_requirement_set'
   | 'promoted_primary'
   | 'promoted_secondary'
   | 'blocked'

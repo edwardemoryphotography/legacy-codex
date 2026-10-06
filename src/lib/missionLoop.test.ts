@@ -3,6 +3,7 @@ import {
   EMPTY_BOARD,
   captureIdea,
   setFinishLine,
+  setEvidenceRequirement,
   promoteToPrimary,
   promoteToSecondary,
   reportBlocker,
@@ -294,5 +295,25 @@ describe('setFinishLine evidence requirement', () => {
     const { board: next } = setFinishLine(board, 'm1', 'PR merged and tagged', T1)
     expect(next.missions.m1.finishLine).toBe('PR merged and tagged')
     expect(next.missions.m1.evidenceRequirement).toBe('Screenshot of the live page')
+  })
+})
+
+
+describe('setEvidenceRequirement', () => {
+  it('names proof on a lined mission and clears it back to null when blank', () => {
+    let board = captured(EMPTY_BOARD, 'm1', 'Ship the thing')
+    board = setFinishLine(board, 'm1', 'PR merged', T0).board
+    const set = setEvidenceRequirement(board, 'm1', 'Green CI on main', T1)
+    expect(set.error).toBeNull()
+    expect(set.board.missions.m1.evidenceRequirement).toBe('Green CI on main')
+    expect(set.event?.type).toBe('evidence_requirement_set')
+    const cleared = setEvidenceRequirement(set.board, 'm1', '  ', T2)
+    expect(cleared.board.missions.m1.evidenceRequirement).toBeNull()
+  })
+
+  it('rejects naming proof before a finish line exists', () => {
+    const board = captured(EMPTY_BOARD, 'm1', 'Ship the thing')
+    const { error } = setEvidenceRequirement(board, 'm1', 'A screenshot', T1)
+    expect(error).toMatch(/finish line/i)
   })
 })

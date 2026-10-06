@@ -100,6 +100,28 @@ export function setFinishLine(
   }
 }
 
+// ─── Evidence requirement ─────────────────────────────────────────────
+// Optional proof that closes a finish line. Empty clears it back to null.
+// Independent of setFinishLine so a lined mission can name proof later.
+export function setEvidenceRequirement(
+  board: MissionBoard,
+  missionId: string,
+  requirement: string,
+  now: string,
+): ActionResult {
+  const mission = board.missions[missionId]
+  if (!mission) return fail(board, `No mission with id ${missionId}.`)
+  if (!mission.finishLine) return fail(board, 'Set a finish line before naming the evidence that closes it.')
+
+  const evidence = requirement.trim() || null
+  const next: Mission = { ...mission, evidenceRequirement: evidence, updatedAt: now }
+  return {
+    board: putMission(board, next),
+    event: makeEvent(missionId, 'evidence_requirement_set', evidence ?? '', now),
+    error: null,
+  }
+}
+
 // ─── Promotion ──────────────────────────────────────────────────────────
 // Cannot silently replace an occupied Primary/Secondary slot — that path is
 // requestPriorityChallenge + applyPriorityChallenge only (spec §5, §6, §11).
