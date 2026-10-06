@@ -28,6 +28,8 @@ const DEFAULT_PREFS: UIPrefs = {
 }
 
 const MODES: BiometricMode[] = ['deep_build', 'creative_edit', 'admin_light', 'recovery']
+// Used until the person picks a mode. Readiness data never picks it.
+const DEFAULT_MODE: BiometricMode = 'deep_build'
 
 const MODE_LABELS: Record<BiometricMode, string> = {
   deep_build: 'Deep Build',
@@ -45,9 +47,9 @@ const MODE_RECS: Record<BiometricMode, string> = {
 
 export default function ControlsTab() {
   const [prefs, setPrefs] = useLocalStorage<UIPrefs>(PREFS_KEY, DEFAULT_PREFS)
-  const [manualMode, setManualMode] = useLocalStorage<BiometricMode>(MODE_KEY, 'deep_build')
+  const [manualMode, setManualMode] = useLocalStorage<BiometricMode>(MODE_KEY, DEFAULT_MODE)
   const [captureText, setCaptureText] = useState('')
-  const [bioSummary, setBioSummary] = useState<{ readiness: number; mode: BiometricMode; source: string; dateRange: string | null } | null>(null)
+  const [bioSummary, setBioSummary] = useState<{ readiness: number; source: string; dateRange: string | null } | null>(null)
   const [status, setStatus] = useState('')
 
   // Supabase hybrid sync state (augments localStorage when keys + migration + auth are present)
@@ -84,7 +86,8 @@ export default function ControlsTab() {
   }, [prefs])
 
   // Load lightweight bio summary (mirrors BiometricsTab contract). The file is
-  // sample data, so it is always labelled as sample with its date range.
+  // sample data, so it is always labelled as sample with its date range, and
+  // it is display-only: it never picks or overrides the effective mode.
   useEffect(() => {
     let cancelled = false
     type RawBioDay = { date?: string; sleepHours?: number; recoveryScore?: number; focusScore?: number }
@@ -104,12 +107,7 @@ export default function ControlsTab() {
           (Number(last.focusScore) || 0) * 0.32 +
           Math.min(100, (Number(last.sleepHours) || 0) * 12) * 0.2
         )
-        // Simple mode inference (same thresholds as BiometricsTab)
-        let mode: BiometricMode = 'deep_build'
-        if (readiness < 42 || (Number(last.sleepHours) || 0) < 6) mode = 'recovery'
-        else if (readiness < 58) mode = 'admin_light'
-        else if ((Number(last.focusScore) || 0) > (Number(last.recoveryScore) || 0) + 12) mode = 'creative_edit'
-        setBioSummary({ readiness: Math.min(100, Math.max(0, readiness)), mode, source: wrapper?.source || 'local', dateRange: trendDateRange(days.map(d => d.date)) })
+        setBioSummary({ readiness: Math.min(100, Math.max(0, readiness)), source: wrapper?.source || 'local', dateRange: trendDateRange(days.map(d => d.date)) })
       })
       .catch(() => {
         if (!cancelled) setBioSummary(null)
@@ -197,7 +195,9 @@ export default function ControlsTab() {
     }
   }
 
-  const effectiveMode = bioSummary ? bioSummary.mode : manualMode
+  // The person's own choice (or the default) is the mode. Sample readiness
+  // data is shown above for reference and never changes it.
+  const effectiveMode: BiometricMode = MODES.includes(manualMode) ? manualMode : DEFAULT_MODE
   const rec = MODE_RECS[effectiveMode]
 
   // Supabase helpers (non-blocking, fall back to localStorage). Now user_id scoped.
@@ -465,7 +465,6 @@ export default function ControlsTab() {
             onChange={e => {
               const m = e.target.value as BiometricMode
               setManualMode(m)
-              // If bio present, manual still overrides display here
             }}
             style={{ width: '100%', minHeight: 44, padding: '8px', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', font: 'inherit' }}
           >
@@ -479,7 +478,7 @@ export default function ControlsTab() {
           <div style={{ color: 'var(--text-soft)', fontSize: '0.9rem', lineHeight: 1.4 }}>{rec}</div>
         </div>
         <p style={{ marginTop: 10, fontSize: '0.8rem', color: 'var(--text-dim)' }}>
-          Mode influences future tab highlights and recommendations. Biometrics data (if present) auto-detects; manual override always available.
+          Mode influences future tab highlights and recommendations. Your choice sets the mode; readiness data above is for reference and never changes it.
         </p>
       </Card>
 
