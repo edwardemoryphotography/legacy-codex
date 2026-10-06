@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-06T11:02:52.633Z",
+  "generatedAt": "2026-10-06T18:00:07.098Z",
   "unavailableSources": [],
   "records": [
     {
@@ -10,7 +10,7 @@
       "status": "verified",
       "claim": "PR #110 \"Preserve pending route corrections across refresh\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-06T10:36:09Z",
-      "fetchedAt": "2026-10-06T11:02:46.343Z",
+      "fetchedAt": "2026-10-06T17:59:59.282Z",
       "prReadSucceeded": true
     },
     {
@@ -21,7 +21,7 @@
       "status": "verified",
       "claim": "PR #109 \"Carry scoped Goose lessons into model requests and task handoffs\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-05T03:33:16Z",
-      "fetchedAt": "2026-10-06T11:02:46.721Z",
+      "fetchedAt": "2026-10-06T17:59:59.683Z",
       "prReadSucceeded": true
     },
     {
@@ -32,7 +32,7 @@
       "status": "verified",
       "claim": "PR #108 \"fix: preserve exact saved-action Resume identity and reachability\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T20:39:59Z",
-      "fetchedAt": "2026-10-06T11:02:47.106Z",
+      "fetchedAt": "2026-10-06T18:00:00.026Z",
       "prReadSucceeded": true
     },
     {
@@ -43,7 +43,7 @@
       "status": "verified",
       "claim": "PR #106 \"Improve Strategic Delta choices, finish conditions and saved-action resume\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T08:26:43Z",
-      "fetchedAt": "2026-10-06T11:02:47.446Z",
+      "fetchedAt": "2026-10-06T18:00:00.496Z",
       "prReadSucceeded": true
     },
     {
@@ -54,7 +54,7 @@
       "status": "verified",
       "claim": "PR #107 \"Controls: label the readiness file as sample data with its dates, never live\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T04:09:10Z",
-      "fetchedAt": "2026-10-06T11:02:47.854Z",
+      "fetchedAt": "2026-10-06T18:00:00.926Z",
       "prReadSucceeded": true
     },
     {
@@ -65,7 +65,7 @@
       "status": "verified",
       "claim": "PR #104 \"Security: owner-gate /api/brief and /api/analyze, clamp inputs\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T00:41:59Z",
-      "fetchedAt": "2026-10-06T11:02:48.261Z",
+      "fetchedAt": "2026-10-06T18:00:01.349Z",
       "prReadSucceeded": true
     },
     {
@@ -76,7 +76,7 @@
       "status": "verified",
       "claim": "PR #103 \"feat: Origin Atlas tab and current-loop architecture map\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T00:30:16Z",
-      "fetchedAt": "2026-10-06T11:02:48.697Z",
+      "fetchedAt": "2026-10-06T18:00:01.814Z",
       "prReadSucceeded": true
     },
     {
@@ -87,7 +87,7 @@
       "status": "verified",
       "claim": "PR #105 \"Design polish: next move first, readable buttons, orb in header, bigger tap targets\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-03T00:41:30Z",
-      "fetchedAt": "2026-10-06T11:02:49.044Z",
+      "fetchedAt": "2026-10-06T18:00:02.308Z",
       "prReadSucceeded": true
     },
     {
@@ -98,7 +98,7 @@
       "status": "verified",
       "claim": "PR #99 \"Add sunset as a third preview-only review theme\" merged. 5 check run(s), 5 passing.",
       "observedAt": "2026-10-02T12:04:06Z",
-      "fetchedAt": "2026-10-06T11:02:49.398Z",
+      "fetchedAt": "2026-10-06T18:00:02.843Z",
       "prReadSucceeded": true
     },
     {
@@ -109,7 +109,7 @@
       "status": "verified",
       "claim": "PR #97 \"Bring the Control Panel design and task routing into Mission\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T09:19:10Z",
-      "fetchedAt": "2026-10-06T11:02:49.709Z",
+      "fetchedAt": "2026-10-06T18:00:03.299Z",
       "prReadSucceeded": true
     },
     {
@@ -120,7 +120,7 @@
       "status": "verified",
       "claim": "PR #102 \"Wire mandatory Reality Filter into coding-agent completion\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T09:14:28Z",
-      "fetchedAt": "2026-10-06T11:02:50.022Z",
+      "fetchedAt": "2026-10-06T18:00:03.651Z",
       "prReadSucceeded": true
     },
     {
@@ -131,7 +131,7 @@
       "status": "verified",
       "claim": "PR #101 \"Reload confirmed lessons after a failed project review\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T08:32:34Z",
-      "fetchedAt": "2026-10-06T11:02:50.381Z",
+      "fetchedAt": "2026-10-06T18:00:04.047Z",
       "prReadSucceeded": true
     },
     {
@@ -142,7 +142,7 @@
       "status": "unverified",
       "claim": "PR #100 \"Restore sunset preview URL under Vercel rate limit\" open, not yet merged.",
       "observedAt": "2026-10-02T07:30:04Z",
-      "fetchedAt": "2026-10-06T11:02:50.381Z",
+      "fetchedAt": "2026-10-06T18:00:04.047Z",
       "prReadSucceeded": true
     },
     {
@@ -153,7 +153,7 @@
       "status": "verified",
       "claim": "PR #98 \"Add Brief tab\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T06:31:02Z",
-      "fetchedAt": "2026-10-06T11:02:50.806Z",
+      "fetchedAt": "2026-10-06T18:00:04.434Z",
       "prReadSucceeded": true
     },
     {
@@ -164,7 +164,7 @@
       "status": "verified",
       "claim": "PR #96 \"fix(mission): don't show visitors a failure for the owner-only review read\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T03:16:53Z",
-      "fetchedAt": "2026-10-06T11:02:51.188Z",
+      "fetchedAt": "2026-10-06T18:00:05.147Z",
       "prReadSucceeded": true
     },
     {
@@ -175,7 +175,7 @@
       "status": "unverified",
       "claim": "PR #93 \"docs: GitHub flow guide + PR status script for multi-agent work\" open, not yet merged.",
       "observedAt": "2026-10-02T01:49:38Z",
-      "fetchedAt": "2026-10-06T11:02:51.188Z",
+      "fetchedAt": "2026-10-06T18:00:05.147Z",
       "prReadSucceeded": true
     },
     {
@@ -186,7 +186,7 @@
       "status": "verified",
       "claim": "PR #94 \"design: Kiren-inspired atmosphere for the Mission flow\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-10-02T00:47:59Z",
-      "fetchedAt": "2026-10-06T11:02:51.512Z",
+      "fetchedAt": "2026-10-06T18:00:05.482Z",
       "prReadSucceeded": true
     },
     {
@@ -197,7 +197,7 @@
       "status": "verified",
       "claim": "PR #95 \"Visual pass 1: radius scale, one reconnect label, trimmed phone chrome\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T00:34:44Z",
-      "fetchedAt": "2026-10-06T11:02:51.878Z",
+      "fetchedAt": "2026-10-06T18:00:06.015Z",
       "prReadSucceeded": true
     },
     {
@@ -208,7 +208,7 @@
       "status": "verified",
       "claim": "PR #92 \"Carry confirmed lessons into evidence-backed project reviews\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-01T21:16:04Z",
-      "fetchedAt": "2026-10-06T11:02:52.231Z",
+      "fetchedAt": "2026-10-06T18:00:06.544Z",
       "prReadSucceeded": true
     },
     {
@@ -219,7 +219,7 @@
       "status": "verified",
       "claim": "PR #90 \"Strategic Delta: reconstruct project context and critique the next move\" merged. 5 check run(s), 5 passing.",
       "observedAt": "2026-10-01T14:57:06Z",
-      "fetchedAt": "2026-10-06T11:02:52.633Z",
+      "fetchedAt": "2026-10-06T18:00:07.097Z",
       "prReadSucceeded": true
     }
   ]
