@@ -73,6 +73,32 @@ function suppliedStep(missionId: string, index: number, move: string, finishLine
   return { id: operationCandidateId(targetId, move), kind: 'supplied_operation', move, missionId, targetId, clause, rank: 0 }
 }
 
+
+describe('evidence requirement drives the next move', () => {
+  it('asks to name evidence when a single-clause Primary has none set', () => {
+    const missions = [mission({
+      id: 'm1', state: 'primary', title: 'Publish the lighting reference',
+      finishLine: 'The lighting reference is posted where the studio can use it',
+    })]
+    const delta = predictStrategicDelta(missions, [], [], NOW)
+    expect(delta.candidateId).toBe('name-evidence:m1')
+    expect(delta.move).toMatch(/Name the evidence that will prove/)
+  })
+
+  it('asks to produce the named evidence when the requirement is set', () => {
+    const missions = [mission({
+      id: 'm1', state: 'primary', title: 'Publish the lighting reference',
+      finishLine: 'The lighting reference is posted where the studio can use it',
+      evidenceRequirement: 'A screenshot of the posted reference on the studio board',
+    })]
+    const delta = predictStrategicDelta(missions, [], [], NOW)
+    expect(delta.candidateId).toBe('produce-evidence:m1')
+    expect(delta.move).toBe(
+      'Produce the evidence that closes “Publish the lighting reference”: A screenshot of the posted reference on the studio board',
+    )
+  })
+})
+
 describe('summarizeEvidence', () => {
   it('reports none for an empty set rather than guessing', () => {
     expect(summarizeEvidence([], NOW)).toBe('none')

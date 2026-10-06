@@ -342,6 +342,7 @@ export default function MissionTab() {
   const [newWhy, setNewWhy] = useState('')
   const [nameTitle, setNameTitle] = useState('')
   const [nameFinish, setNameFinish] = useState('')
+  const [nameEvidence, setNameEvidence] = useState('')
   const [resumableMissionId, setResumableMissionId] = useState<string | null>(null)
 
   // Capture Idea — shared pipeline with ControlsTab; Mission Screen never
@@ -352,6 +353,7 @@ export default function MissionTab() {
   // Blocker / finish-line / complete inline drafts, keyed by mission id
   const [blockerDraft, setBlockerDraft] = useState('')
   const [finishLineDrafts, setFinishLineDrafts] = useState<Record<string, string>>({})
+  const [evidenceDrafts, setEvidenceDrafts] = useState<Record<string, string>>({})
   const [capacityLevel, setCapacityLevel] = useState<CapacityLevel>('low')
   const [completeConfirmed, setCompleteConfirmed] = useState(false)
   const [completeDetail, setCompleteDetail] = useState('')
@@ -976,7 +978,7 @@ export default function MissionTab() {
       setError(captured.error)
       return
     }
-    const lined = setFinishLine(captured.board, id, nameFinish, nowIso)
+    const lined = setFinishLine(captured.board, id, nameFinish, nowIso, nameEvidence)
     if (lined.error) {
       setError(lined.error)
       return
@@ -1031,6 +1033,7 @@ export default function MissionTab() {
       }
       setNameTitle('')
       setNameFinish('')
+      setNameEvidence('')
     } catch {
       setBoard(before)
       setError('Could not save the new mission — nothing was created. Try again.')
@@ -1209,11 +1212,23 @@ export default function MissionTab() {
                 name="finish_line"
                 className="mission-invite-input"
                 autoComplete="off"
-                enterKeyHint="done"
                 required
                 placeholder="An observable finish line"
                 value={nameFinish}
                 onChange={setNameFinish}
+              />
+            </div>
+            <div className="mission-invite-field">
+              <label htmlFor="mission-evidence">What will prove it is done</label>
+              <Input
+                id="mission-evidence"
+                name="evidence_requirement"
+                className="mission-invite-input"
+                autoComplete="off"
+                enterKeyHint="done"
+                placeholder="Optional — the proof that closes it (a link, a screenshot, a merged PR)"
+                value={nameEvidence}
+                onChange={setNameEvidence}
               />
             </div>
             <ActionBtn
@@ -1521,6 +1536,9 @@ export default function MissionTab() {
                     {m.finishLine ? (
                       <>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-soft)' }}>Finish line: {m.finishLine}</div>
+                        {m.evidenceRequirement && (
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-soft)' }}>Evidence required: {m.evidenceRequirement}</div>
+                        )}
                         {!primary && (
                           <ActionChip onClick={() => applyAndPersist(b => promoteToPrimary(b, m.id, now), [m.id])}>
                             Promote to Primary
@@ -1528,17 +1546,28 @@ export default function MissionTab() {
                         )}
                       </>
                     ) : (
-                      <div className="flex gap-2">
+                      <div className="space-y-2">
                         <Input
                           placeholder="Exact finish line…"
+                          aria-label={`Finish line for ${m.title}`}
                           value={finishLineDrafts[m.id] ?? ''}
                           onChange={v => setFinishLineDrafts(prev => ({ ...prev, [m.id]: v }))}
+                        />
+                        <Input
+                          placeholder="What will prove it is done (optional)"
+                          aria-label={`Evidence requirement for ${m.title}`}
+                          value={evidenceDrafts[m.id] ?? ''}
+                          onChange={v => setEvidenceDrafts(prev => ({ ...prev, [m.id]: v }))}
                         />
                         <ActionChip
                           disabled={!(finishLineDrafts[m.id] ?? '').trim()}
                           onClick={() => {
-                            applyAndPersist(b => setFinishLine(b, m.id, finishLineDrafts[m.id] ?? '', now), [m.id])
+                            applyAndPersist(
+                              b => setFinishLine(b, m.id, finishLineDrafts[m.id] ?? '', now, evidenceDrafts[m.id] ?? ''),
+                              [m.id],
+                            )
                             setFinishLineDrafts(prev => ({ ...prev, [m.id]: '' }))
+                            setEvidenceDrafts(prev => ({ ...prev, [m.id]: '' }))
                           }}
                         >
                           Set

@@ -270,3 +270,29 @@ describe('pause / abandon', () => {
     expect(error).toBeNull()
   })
 })
+
+
+describe('setFinishLine evidence requirement', () => {
+  it('stores a filled evidence requirement on the mission', () => {
+    const board = captured(EMPTY_BOARD, 'm1', 'Ship the thing')
+    const { board: next, error } = setFinishLine(board, 'm1', 'PR merged', T1, 'A green CI check on main')
+    expect(error).toBeNull()
+    expect(next.missions.m1.finishLine).toBe('PR merged')
+    expect(next.missions.m1.evidenceRequirement).toBe('A green CI check on main')
+  })
+
+  it('stores empty evidence as null (same as today)', () => {
+    const board = captured(EMPTY_BOARD, 'm1', 'Ship the thing')
+    const { board: next, error } = setFinishLine(board, 'm1', 'PR merged', T1, '   ')
+    expect(error).toBeNull()
+    expect(next.missions.m1.evidenceRequirement).toBeNull()
+  })
+
+  it('leaves an existing evidence requirement alone when the argument is omitted', () => {
+    let board = captured(EMPTY_BOARD, 'm1', 'Ship the thing')
+    board = setFinishLine(board, 'm1', 'PR merged', T0, 'Screenshot of the live page').board
+    const { board: next } = setFinishLine(board, 'm1', 'PR merged and tagged', T1)
+    expect(next.missions.m1.finishLine).toBe('PR merged and tagged')
+    expect(next.missions.m1.evidenceRequirement).toBe('Screenshot of the live page')
+  })
+})

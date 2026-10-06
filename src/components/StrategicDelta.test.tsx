@@ -165,8 +165,23 @@ describe('StrategicDelta', () => {
     const known = await screen.findByLabelText('What Codex has from you')
     expect(known.textContent).toContain(PRIMARY.title)
     expect(known.textContent).toContain('lands on main')
+    // No evidence requirement was named on this fixture.
+    expect(known.textContent).toContain('Not named yet')
     // No evidence was linked, so the read-back must say nothing is verified.
     expect(known.textContent).toContain('None linked yet, so nothing here is verified.')
+  })
+
+  it('reads back a filled evidence requirement in "What Codex has from you"', async () => {
+    const withProof = {
+      ...PRIMARY,
+      finishLine: 'The lighting reference is posted where the studio can use it',
+      evidenceRequirement: 'A screenshot of the posted reference on the studio board',
+    }
+    renderDelta([withProof])
+    const known = await screen.findByLabelText('What Codex has from you')
+    expect(known.textContent).toContain('What will prove it is done')
+    expect(known.textContent).toContain('A screenshot of the posted reference on the studio board')
+    expect(await screen.findByText(/Produce the evidence that closes/)).toBeTruthy()
   })
 
   it('shows no read-back before anything is captured', async () => {
