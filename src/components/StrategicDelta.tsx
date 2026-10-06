@@ -648,6 +648,10 @@ export default function StrategicDelta({
                   <dt>How you will know it is done</dt>
                   <dd>{finishLine ?? 'Not set yet — add a finish line to get a concrete step.'}</dd>
                 </div>
+                <div>
+                  <dt>What will prove it is done</dt>
+                  <dd>{aimedMission.evidenceRequirement ?? 'Not named yet — add it when you set the finish line.'}</dd>
+                </div>
                 {proofSteps.length > 1 && (
                   <div>
                     <dt>What that asks you to prove</dt>

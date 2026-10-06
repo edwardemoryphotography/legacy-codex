@@ -40,6 +40,11 @@ vi.mock('@/lib/supabase/client', () => ({
         inserts.push({ table, row })
         return Promise.resolve({ error: null })
       },
+      upsert: (rows: Record<string, unknown> | Record<string, unknown>[]) => {
+        const list = Array.isArray(rows) ? rows : [rows]
+        for (const row of list) inserts.push({ table, row })
+        return Promise.resolve({ error: null })
+      },
     }),
   },
 }))
@@ -65,11 +70,57 @@ describe('MissionTab first-run presentation', () => {
 
     expect(await screen.findByLabelText('Your idea or project')).toBeTruthy()
     expect(screen.getByLabelText('How you will know it is done')).toBeTruthy()
+    expect(screen.getByLabelText('What will prove it is done')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'This is what matters' })).toBeTruthy()
     expect(screen.getByRole('list', { name: 'From idea to saved action' })).toBeTruthy()
     expect(screen.queryByText('Nothing parked.')).toBeNull()
     expect(screen.queryByText('Secondary Mission (none active)')).toBeNull()
     expect(screen.getByText('Park an idea you are not ready to commit')).toBeTruthy()
+  })
+
+  it('saves a filled evidence requirement on first-run create, and leaves empty as null', async () => {
+    connectMissionSession.mockResolvedValue({ id: 'user-1' })
+    tables = { missions: [], evidence_snapshots: [], actions: [], mission_events: [] }
+    render(<MissionTab />)
+
+    fireEvent.change(await screen.findByLabelText('Your idea or project'), {
+      target: { value: 'TEST by agent - evidence box' },
+    })
+    fireEvent.change(screen.getByLabelText('How you will know it is done'), {
+      target: { value: 'The proof field is saved on the mission' },
+    })
+    fireEvent.change(screen.getByLabelText('What will prove it is done'), {
+      target: { value: 'A screenshot of the Mission read-back showing the requirement' },
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'This is what matters' }))
+    })
+
+    await waitFor(() => expect(inserts.some(i => i.table === 'missions')).toBe(true))
+    const row = inserts.find(i => i.table === 'missions')!.row
+    expect(row.title).toBe('TEST by agent - evidence box')
+    expect(row.finish_line).toBe('The proof field is saved on the mission')
+    expect(row.evidence_requirement).toBe('A screenshot of the Mission read-back showing the requirement')
+    expect(row.state).toBe('primary')
+  })
+
+  it('saves null evidence_requirement when the optional field is left blank', async () => {
+    connectMissionSession.mockResolvedValue({ id: 'user-1' })
+    tables = { missions: [], evidence_snapshots: [], actions: [], mission_events: [] }
+    render(<MissionTab />)
+
+    fireEvent.change(await screen.findByLabelText('Your idea or project'), {
+      target: { value: 'Ship without naming proof yet' },
+    })
+    fireEvent.change(screen.getByLabelText('How you will know it is done'), {
+      target: { value: 'It is live' },
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'This is what matters' }))
+    })
+
+    await waitFor(() => expect(inserts.some(i => i.table === 'missions')).toBe(true))
+    expect(inserts.find(i => i.table === 'missions')!.row.evidence_requirement).toBeNull()
   })
 
   it('does not present a failed read as an empty first run', async () => {
@@ -409,5 +460,47 @@ describe('MissionTab project-review access', () => {
     expect(await screen.findByText('A saved project review could not be loaded. Your saved work is unchanged.')).toBeTruthy()
     expect(screen.queryByText('This did not record')).toBeNull()
     expect(document.querySelector('section.sd')!.getAttribute('data-cognition')).not.toBe('failed')
+  })
+})
+
+
+describe('MissionTab evidence after finish line exists', () => {
+  const lined: Mission = {
+    id: 'm1',
+    title: 'Write the studio lighting reference',
+    why: '',
+    finishLine: 'The lighting reference is posted where the studio can use it',
+    evidenceRequirement: null,
+    state: 'primary',
+    blocker: null,
+    capacityMismatch: false,
+    createdAt: '2026-09-20T00:00:00.000Z',
+    updatedAt: '2026-09-20T00:00:00.000Z',
+  }
+
+  beforeEach(() => {
+    inserts = []
+    connectMissionSession.mockReset()
+    connectMissionSession.mockResolvedValue({ id: 'user-1' })
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ configured: false }) })))
+    tables = {
+      missions: [{ ...missionToRow(lined, 'user-1'), created_at: lined.createdAt }],
+      evidence_snapshots: [],
+      actions: [],
+      mission_events: [],
+    }
+  })
+
+  it('lets a lined Primary name its evidence requirement later', async () => {
+    render(<MissionTab />)
+    fireEvent.click(await screen.findByText('Review your Primary mission'))
+    const proof = await screen.findByLabelText('What will prove it is done')
+    fireEvent.change(proof, { target: { value: 'A screenshot of the posted reference' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Set proof' }))
+    })
+    await waitFor(() => expect(inserts.some(i => i.table === 'missions' && i.row.evidence_requirement === 'A screenshot of the posted reference')).toBe(true))
+    const event = inserts.find(i => i.table === 'mission_events' && i.row.type === 'evidence_requirement_set')
+    expect(event?.row.detail).toBe('A screenshot of the posted reference')
   })
 })

@@ -76,6 +76,10 @@ export function setFinishLine(
   missionId: string,
   finishLine: string,
   now: string,
+  // Optional. Empty / whitespace becomes null (same as today). Omit to leave
+  // whatever is already on the mission. The missions.evidence_requirement
+  // column already exists; this is the only UI write path for it.
+  evidenceRequirement?: string | null,
 ): ActionResult {
   const mission = board.missions[missionId]
   if (!mission) return fail(board, `No mission with id ${missionId}.`)
@@ -83,10 +87,37 @@ export function setFinishLine(
   const trimmed = finishLine.trim()
   if (!trimmed) return fail(board, 'Finish line cannot be empty.')
 
-  const next: Mission = { ...mission, finishLine: trimmed, updatedAt: now }
+  const evidence =
+    evidenceRequirement === undefined
+      ? mission.evidenceRequirement
+      : ((evidenceRequirement ?? '').trim() || null)
+
+  const next: Mission = { ...mission, finishLine: trimmed, evidenceRequirement: evidence, updatedAt: now }
   return {
     board: putMission(board, next),
     event: makeEvent(missionId, 'finish_line_set', trimmed, now),
+    error: null,
+  }
+}
+
+// ─── Evidence requirement ─────────────────────────────────────────────
+// Optional proof that closes a finish line. Empty clears it back to null.
+// Independent of setFinishLine so a lined mission can name proof later.
+export function setEvidenceRequirement(
+  board: MissionBoard,
+  missionId: string,
+  requirement: string,
+  now: string,
+): ActionResult {
+  const mission = board.missions[missionId]
+  if (!mission) return fail(board, `No mission with id ${missionId}.`)
+  if (!mission.finishLine) return fail(board, 'Set a finish line before naming the evidence that closes it.')
+
+  const evidence = requirement.trim() || null
+  const next: Mission = { ...mission, evidenceRequirement: evidence, updatedAt: now }
+  return {
+    board: putMission(board, next),
+    event: makeEvent(missionId, 'evidence_requirement_set', evidence ?? '', now),
     error: null,
   }
 }
