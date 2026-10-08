@@ -347,7 +347,9 @@ export default function MissionTab() {
   const [recoveryMissionId, setRecoveryMissionId] = useState('')
   const [startingNewPrimary, setStartingNewPrimary] = useState(false)
   const [recoveryBusy, setRecoveryBusy] = useState(false)
-  const nameOutcomeInFlight = useRef(false)
+  // Board reads and writes share one synchronous guard. Neither a stale
+  // refresh nor a second lifecycle write may overwrite a pending mutation.
+  const missionWriteInFlight = useRef(false)
   const [resumableMissionId, setResumableMissionId] = useState<string | null>(null)
 
   // Capture Idea — shared pipeline with ControlsTab; Mission Screen never
@@ -377,6 +379,9 @@ export default function MissionTab() {
   }, [])
 
   const loadAll = useCallback(async (userId: string, isCancelled: () => boolean = () => false) => {
+    if (missionWriteInFlight.current) return
+    missionWriteInFlight.current = true
+    setRecoveryBusy(true)
     setEvidenceStatus('loading')
     try {
       const [missionsRes, evidenceRes, correctionsRes] = await Promise.all([
@@ -424,12 +429,16 @@ export default function MissionTab() {
       }
       setLoaded(true)
       setLoadFailed(false)
+      setError('')
     } catch {
       if (isCancelled()) return
       setEvidenceStatus('unavailable')
       setLoadFailed(true)
       setConnectionError('Could not load your missions. Try again; your saved work has not changed.')
       setLoaded(true)
+    } finally {
+      missionWriteInFlight.current = false
+      setRecoveryBusy(false)
     }
   }, [])
 
@@ -458,6 +467,7 @@ export default function MissionTab() {
   }, [loadAll, connectionAttempt])
 
   function retryConnection() {
+    if (missionWriteInFlight.current) return
     setLoaded(false)
     setLoadFailed(false)
     setConnectionError('')
@@ -510,7 +520,7 @@ export default function MissionTab() {
       run: (b: MissionBoard) => ActionResult,
       affectedIds: string[],
     ): Promise<boolean> => {
-      if (!user) return false
+      if (!user || !loaded || loadFailed || missionWriteInFlight.current) return false
       setError('')
       const before = board
       const result = run(before)
@@ -518,6 +528,8 @@ export default function MissionTab() {
         setError(result.error)
         return false
       }
+      missionWriteInFlight.current = true
+      setRecoveryBusy(true)
       setBoard(result.board)
       beginFieldWork()
       try {
@@ -553,6 +565,10 @@ export default function MissionTab() {
               .from('missions')
               .upsert(compensationRows, { onConflict: 'id' })
             setBoard(before)
+            if (compensateError) {
+              setLoadFailed(true)
+              setConnectionError('A mission change partially saved. Check again to load the account state before making another change.')
+            }
             setError(
               compensateError
                 ? 'Write partially saved — this change persisted but its history entry did not, and reverting it also failed. Reload before making another change.'
@@ -572,10 +588,12 @@ export default function MissionTab() {
         setError('Write failed — change was not saved. Nothing changed; try again.')
         return false
       } finally {
+        missionWriteInFlight.current = false
+        setRecoveryBusy(false)
         endFieldWork()
       }
     },
-    [board, user, flash],
+    [board, user, flash, loaded, loadFailed],
   )
 
   // ─── Strategic Delta ──────────────────────────────────────────────────
@@ -722,6 +740,7 @@ export default function MissionTab() {
   // state the same way retryConnection does, so a later success does not
   // render mission data under a stale "Could not load" alert.
   const handleDeltaRecheck = useCallback(() => {
+    if (missionWriteInFlight.current) return
     if (loadFailed || !user) {
       setLoaded(false)
       setLoadFailed(false)
@@ -903,10 +922,9 @@ export default function MissionTab() {
   const primary = findByState(board, 'primary')
   const secondary = findByState(board, 'secondary')
   const missionList = Object.values(board.missions)
-  // The Delta shows its own "Check again" only for a failed read with nothing
-  // to predict from. A later read can fail while earlier missions are still
-  // on screen; then the banner keeps the button so a retry is always offered.
-  const deltaOffersRecheck = loaded && loadFailed && missionList.length === 0
+  // Failed/ambiguous reads withhold the stale board from prediction. The
+  // Delta owns the single retry until authoritative account state returns.
+  const deltaOffersRecheck = loaded && loadFailed
   const parkedOrCandidate = missionList.filter(m => m.state === 'parked' || m.state === 'candidate')
   const challengeCandidates = missionList.filter(
     m => (m.state === 'parked' || m.state === 'candidate') && m.finishLine,
@@ -930,13 +948,15 @@ export default function MissionTab() {
   }
 
   async function handleNewMission() {
-    if (!user || !newTitle.trim()) return
+    if (!user || !loaded || loadFailed || !newTitle.trim() || missionWriteInFlight.current) return
     const id = newId()
     const result = captureIdea(board, { id, title: newTitle, why: newWhy, now: new Date().toISOString() })
     if (result.error) {
       setError(result.error)
       return
     }
+    missionWriteInFlight.current = true
+    setRecoveryBusy(true)
     setBoard(result.board)
     beginFieldWork()
     try {
@@ -960,6 +980,10 @@ export default function MissionTab() {
           // even though no event was actually written yet for this row.
           const { error: deleteError } = await supabase.from('missions').delete().eq('id', id)
           setBoard(board)
+          if (deleteError) {
+            setLoadFailed(true)
+            setConnectionError('A mission change partially saved. Check again to load the account state before making another change.')
+          }
           setError(
             deleteError
               ? 'Write partially saved — a mission was created but could not be recorded or removed. Reload before continuing.'
@@ -976,12 +1000,14 @@ export default function MissionTab() {
       setBoard(board)
       setError('Could not save the new mission — nothing was created. Try again.')
     } finally {
+      missionWriteInFlight.current = false
+      setRecoveryBusy(false)
       endFieldWork()
     }
   }
 
   async function handleNameOutcome() {
-    if (!user || !nameTitle.trim() || !nameFinish.trim() || nameOutcomeInFlight.current) return
+    if (!user || !loaded || loadFailed || !nameTitle.trim() || !nameFinish.trim() || missionWriteInFlight.current) return
     const id = newId()
     const nowIso = new Date().toISOString()
     const captured = captureIdea(board, { id, title: nameTitle, why: '', now: nowIso })
@@ -1001,7 +1027,7 @@ export default function MissionTab() {
     }
 
     const before = board
-    nameOutcomeInFlight.current = true
+    missionWriteInFlight.current = true
     setRecoveryBusy(true)
     setBoard(promoted.board)
     setError('')
@@ -1036,6 +1062,10 @@ export default function MissionTab() {
           // regardless of how far the loop got.
           const { error: deleteError } = await supabase.from('missions').delete().eq('id', id)
           setBoard(before)
+          if (deleteError) {
+            setLoadFailed(true)
+            setConnectionError('A mission change partially saved. Check again to load the account state before making another change.')
+          }
           setError(
             deleteError
               ? 'Write partially saved — a mission was created but could not be fully recorded or removed. Reload before continuing.'
@@ -1052,7 +1082,7 @@ export default function MissionTab() {
       setBoard(before)
       setError('Could not save the new mission — nothing was created. Try again.')
     } finally {
-      nameOutcomeInFlight.current = false
+      missionWriteInFlight.current = false
       setRecoveryBusy(false)
       endFieldWork()
     }
@@ -1170,7 +1200,7 @@ export default function MissionTab() {
           user types anything, and renders during the load so its reasoning
           state reflects work that is actually pending. */}
       <StrategicDelta
-        missions={Object.values(board.missions)}
+        missions={loadFailed ? [] : missionList}
         evidence={evidence}
         corrections={corrections}
         phase={deltaPhase}
@@ -1211,7 +1241,7 @@ export default function MissionTab() {
                     value={recoveryMissionId}
                     disabled={recoveryBusy}
                     onChange={event => setRecoveryMissionId(event.target.value)}
-                    style={{ width: '100%', minHeight: 44, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', borderRadius: 8, padding: 8, font: 'inherit' }}
+                    style={{ width: '100%', minHeight: 44, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', borderRadius: 'var(--radius)', padding: 8, font: 'inherit' }}
                   >
                     <option value="">Select a mission…</option>
                     {recoverableMissions.map(m => <option key={m.id} value={m.id}>{m.title} — {STATE_LABEL[m.state]}</option>)}
@@ -1224,27 +1254,22 @@ export default function MissionTab() {
                       {recoveryMission.blocker && <p>Still blocked: {recoveryMission.blocker}</p>}
                       {recoveryMission.capacityMismatch && <p>The capacity mismatch you reported is still recorded.</p>}
                       <ActionBtn disabled={recoveryBusy} onClick={async () => {
-                        setRecoveryBusy(true)
-                        try {
-                          await applyAndPersist(b => promoteToPrimary(b, recoveryMission.id, new Date().toISOString()), [recoveryMission.id])
-                        } finally { setRecoveryBusy(false) }
-                      }}>{recoveryBusy ? 'Saving…' : 'Make this Primary'}</ActionBtn>
+                        await applyAndPersist(b => promoteToPrimary(b, recoveryMission.id, new Date().toISOString()), [recoveryMission.id])
+                      }}>{recoveryBusy ? 'Updating…' : 'Make this Primary'}</ActionBtn>
                     </>
                   ) : (
                     <>
                       <div className="mission-invite-field">
                         <label htmlFor="recovery-finish">How you will know it is done</label>
                         <Input id="recovery-finish" value={finishLineDrafts[recoveryMission.id] ?? ''}
+                          disabled={recoveryBusy}
                           onChange={value => setFinishLineDrafts(prev => ({ ...prev, [recoveryMission.id]: value }))}
                           placeholder="An observable finish line" />
                       </div>
                       <ActionBtn disabled={recoveryBusy || !(finishLineDrafts[recoveryMission.id] ?? '').trim()} onClick={async () => {
-                        setRecoveryBusy(true)
-                        try {
-                          const ok = await applyAndPersist(b => setFinishLine(b, recoveryMission.id, finishLineDrafts[recoveryMission.id] ?? '', new Date().toISOString()), [recoveryMission.id])
-                          if (ok) setFinishLineDrafts(prev => ({ ...prev, [recoveryMission.id]: '' }))
-                        } finally { setRecoveryBusy(false) }
-                      }}>{recoveryBusy ? 'Saving…' : 'Save finish line'}</ActionBtn>
+                        const ok = await applyAndPersist(b => setFinishLine(b, recoveryMission.id, finishLineDrafts[recoveryMission.id] ?? '', new Date().toISOString()), [recoveryMission.id])
+                        if (ok) setFinishLineDrafts(prev => ({ ...prev, [recoveryMission.id]: '' }))
+                      }}>{recoveryBusy ? 'Updating…' : 'Save finish line'}</ActionBtn>
                       <p>Then you can make this mission Primary.</p>
                     </>
                   )
@@ -1411,7 +1436,7 @@ export default function MissionTab() {
                           onChange={v => setEvidenceDrafts(prev => ({ ...prev, [primary.id]: v }))}
                         />
                         <ActionChip
-                          disabled={!(evidenceDrafts[primary.id] ?? '').trim()}
+                          disabled={recoveryBusy || !(evidenceDrafts[primary.id] ?? '').trim()}
                           onClick={async () => {
                             const ok = await applyAndPersist(
                               b => setEvidenceRequirement(b, primary.id, evidenceDrafts[primary.id] ?? '', now),
@@ -1435,14 +1460,14 @@ export default function MissionTab() {
                   </div>
 
                   {primary.blocker ? (
-                    <ActionChip onClick={() => applyAndPersist(b => unblock(b, primary.id, now), [primary.id])}>
+                    <ActionChip disabled={recoveryBusy} onClick={() => applyAndPersist(b => unblock(b, primary.id, now), [primary.id])}>
                       Unblock — resume as Primary
                     </ActionChip>
                   ) : (
                     <div className="flex gap-2">
                       <Input placeholder="What's blocking this?" value={blockerDraft} onChange={setBlockerDraft} />
                       <ActionChip
-                        disabled={!blockerDraft.trim()}
+                        disabled={recoveryBusy || !blockerDraft.trim()}
                         onClick={() => {
                           applyAndPersist(b => reportBlocker(b, primary.id, blockerDraft, now), [primary.id])
                           setBlockerDraft('')
@@ -1463,6 +1488,7 @@ export default function MissionTab() {
                       {CAPACITY_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
                     </select>
                     <ActionChip
+                      disabled={recoveryBusy}
                       onClick={() => applyAndPersist(b => reportCapacityMismatch(b, primary.id, capacityLevel, now), [primary.id])}
                     >
                       Does not fit my capacity right now
@@ -1478,7 +1504,7 @@ export default function MissionTab() {
                       </label>
                       <Input placeholder="Evidence detail (link, PR #, artifact)" value={completeDetail} onChange={setCompleteDetail} />
                       <ActionBtn
-                        disabled={!completeConfirmed || !completeDetail.trim()}
+                        disabled={recoveryBusy || !completeConfirmed || !completeDetail.trim()}
                         onClick={() => {
                           applyAndPersist(
                             b => completeMission(b, primary.id, { evidenceConfirmed: completeConfirmed, evidenceDetail: completeDetail }, now),
@@ -1494,10 +1520,10 @@ export default function MissionTab() {
                   </details>
 
                   <div className="flex gap-2">
-                    <ActionChip variant="ghost" onClick={() => applyAndPersist(b => pauseMission(b, primary.id, 'Deliberately paused', now), [primary.id])}>
+                    <ActionChip disabled={recoveryBusy} variant="ghost" onClick={() => applyAndPersist(b => pauseMission(b, primary.id, 'Deliberately paused', now), [primary.id])}>
                       Deliberately pause
                     </ActionChip>
-                    <ActionChip variant="danger" onClick={() => applyAndPersist(b => abandonMission(b, primary.id, 'Abandoned', now), [primary.id])}>
+                    <ActionChip disabled={recoveryBusy} variant="danger" onClick={() => applyAndPersist(b => abandonMission(b, primary.id, 'Abandoned', now), [primary.id])}>
                       Abandon
                     </ActionChip>
                   </div>
@@ -1546,7 +1572,7 @@ export default function MissionTab() {
                             </select>
                           </label>
                           <div className="flex gap-2">
-                            <ActionBtn onClick={confirmChallenge}>Apply — replace Primary</ActionBtn>
+                            <ActionBtn disabled={recoveryBusy} onClick={confirmChallenge}>Apply — replace Primary</ActionBtn>
                             <ActionChip variant="ghost" onClick={() => { setPendingChallenge(null); setChallengeOpen(false) }}>Cancel</ActionChip>
                           </div>
                         </div>
@@ -1568,7 +1594,7 @@ export default function MissionTab() {
                 <div className="space-y-2">
                   <div style={{ fontWeight: 700 }}>{secondary.title}</div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-soft)' }}>{secondary.finishLine}</div>
-                  <ActionChip variant="ghost" onClick={() => applyAndPersist(b => pauseMission(b, secondary.id, 'Deliberately paused', now), [secondary.id])}>
+                  <ActionChip disabled={recoveryBusy} variant="ghost" onClick={() => applyAndPersist(b => pauseMission(b, secondary.id, 'Deliberately paused', now), [secondary.id])}>
                     Pause
                   </ActionChip>
                 </div>
@@ -1645,7 +1671,7 @@ export default function MissionTab() {
                               onChange={v => setEvidenceDrafts(prev => ({ ...prev, [m.id]: v }))}
                             />
                             <ActionChip
-                              disabled={!(evidenceDrafts[m.id] ?? '').trim()}
+                              disabled={recoveryBusy || !(evidenceDrafts[m.id] ?? '').trim()}
                               onClick={async () => {
                                 const ok = await applyAndPersist(
                                   b => setEvidenceRequirement(b, m.id, evidenceDrafts[m.id] ?? '', now),
@@ -1659,7 +1685,7 @@ export default function MissionTab() {
                           </div>
                         )}
                         {!primary && (
-                          <ActionChip onClick={() => applyAndPersist(b => promoteToPrimary(b, m.id, now), [m.id])}>
+                          <ActionChip disabled={recoveryBusy} onClick={() => applyAndPersist(b => promoteToPrimary(b, m.id, now), [m.id])}>
                             Promote to Primary
                           </ActionChip>
                         )}
@@ -1679,7 +1705,7 @@ export default function MissionTab() {
                           onChange={v => setEvidenceDrafts(prev => ({ ...prev, [m.id]: v }))}
                         />
                         <ActionChip
-                          disabled={!(finishLineDrafts[m.id] ?? '').trim()}
+                          disabled={recoveryBusy || !(finishLineDrafts[m.id] ?? '').trim()}
                           onClick={async () => {
                             const ok = await applyAndPersist(
                               b => setFinishLine(b, m.id, finishLineDrafts[m.id] ?? '', now, evidenceDrafts[m.id] ?? ''),

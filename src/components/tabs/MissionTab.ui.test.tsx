@@ -16,8 +16,8 @@ vi.mock('@/lib/supabase/missionSession', () => ({
   missionConnectionMessage: () => 'This version could not open a session. Use the main Legacy Codex site, then try again.',
 }))
 
-function chain(data: unknown[] = [], error: unknown = null) {
-  const promise = Promise.resolve({ data: error ? null : data, error })
+function chain(data: unknown[] = [], error: unknown = null, response?: Promise<{ data: unknown[] | null; error: unknown }>) {
+  const promise = response ?? Promise.resolve({ data: error ? null : data, error })
   const query = {
     select: () => query,
     eq: () => query,
@@ -35,16 +35,17 @@ vi.mock('@/lib/supabase/client', () => ({
       getSession: async () => ({ data: { session: { access_token: 'token', user: { id: 'user-1' } } }, error: null }),
     },
     from: (table: string) => ({
-      ...chain(tables[table] ?? [], failNext[table] ? (failNext[table] = false, { message: 'read failed' }) : null),
+      ...chain(tables[table] ?? [], failNext[table] ? (failNext[table] = false, { message: 'read failed' }) : null, table === 'missions' ? missionReadResponse ?? undefined : undefined),
       insert: (row: Record<string, unknown>) => {
         inserts.push({ table, row })
-        return Promise.resolve({ error: null })
+        return Promise.resolve({ error: failInsert[table] ? { message: 'insert failed' } : null })
       },
       upsert: (rows: Record<string, unknown> | Record<string, unknown>[]) => {
         const list = Array.isArray(rows) ? rows : [rows]
         for (const row of list) inserts.push({ table, row })
-        return Promise.resolve({ error: null })
+        return persistMissionRows ? persistMissionRows() : Promise.resolve({ error: null })
       },
+      delete: () => ({ eq: () => Promise.resolve({ error: failDelete ? { message: 'cleanup failed' } : null }) }),
     }),
   },
 }))
@@ -52,6 +53,191 @@ vi.mock('@/lib/supabase/client', () => ({
 let tables: Record<string, unknown[]> = {}
 let failNext: Record<string, boolean> = {}
 let inserts: Array<{ table: string, row: Record<string, unknown> }> = []
+let persistMissionRows: (() => Promise<{ error: unknown }>) | null = null
+let failInsert: Record<string, boolean> = {}
+let failDelete = false
+let missionReadResponse: Promise<{ data: unknown[] | null; error: unknown }> | null = null
+
+// Regression doubles exercise the real UI/lifecycle, not production proof.
+describe('MissionTab inactive mission recovery', () => {
+  const saved: Mission = {
+    id: 'saved-inactive', title: 'Write the studio lighting reference', why: 'For the studio',
+    finishLine: 'The lighting reference is posted where the studio can use it',
+    evidenceRequirement: 'The posted reference', state: 'abandoned', blocker: 'Awaiting studio access',
+    capacityMismatch: true, createdAt: '2026-09-20T00:00:00.000Z', updatedAt: '2026-09-21T00:00:00.000Z',
+  }
+
+  beforeEach(() => {
+    inserts = []
+    failNext = {}
+    persistMissionRows = null
+    failInsert = {}
+    connectMissionSession.mockReset()
+    connectMissionSession.mockResolvedValue({ id: 'user-1' })
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ configured: false }) })))
+    tables = { missions: [missionToRow(saved, 'user-1')], evidence_snapshots: [], actions: [], mission_events: [] }
+  })
+
+  it.each(['abandoned', 'paused'] as const)('requires explicit selection and promotes the same %s mission with its constraints intact', async state => {
+    tables.missions = [missionToRow({ ...saved, state }, 'user-1')]
+    const view = render(<MissionTab />)
+    const select = await screen.findByLabelText('Choose a saved mission')
+    expect(screen.queryByText('Nothing captured yet')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Make this Primary' })).toBeNull()
+    expect(inserts).toEqual([])
+    fireEvent.change(select, { target: { value: 'saved-inactive' } })
+    expect(screen.getByText('Still blocked: Awaiting studio access')).toBeTruthy()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Make this Primary' })) })
+    const row = inserts.find(i => i.table === 'missions')!.row
+    expect(row).toMatchObject({ id: 'saved-inactive', state: 'primary', blocker: 'Awaiting studio access', capacity_mismatch: true, evidence_requirement: 'The posted reference' })
+    expect(inserts.filter(i => i.table === 'mission_events')).toHaveLength(1)
+    expect(inserts.some(i => i.table === 'actions')).toBe(false)
+    tables.missions = [row]
+    inserts = []
+    view.unmount()
+    render(<MissionTab />)
+    await screen.findByText('Your next move')
+    await waitFor(() => expect(screen.queryByLabelText('Choose a saved mission')).toBeNull())
+    expect(screen.queryByText('Nothing captured yet')).toBeNull()
+    expect(inserts).toEqual([])
+  })
+
+  it('saves a missing finish line before offering explicit promotion', async () => {
+    tables.missions = [missionToRow({ ...saved, finishLine: null }, 'user-1')]
+    render(<MissionTab />)
+    fireEvent.change(await screen.findByLabelText('Choose a saved mission'), { target: { value: 'saved-inactive' } })
+    fireEvent.change(screen.getByLabelText('How you will know it is done'), { target: { value: 'The reference is published' } })
+    expect(screen.queryByRole('button', { name: 'Make this Primary' })).toBeNull()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save finish line' })) })
+    expect(inserts.find(i => i.table === 'missions')!.row).toMatchObject({ id: 'saved-inactive', state: 'abandoned', finish_line: 'The reference is published' })
+    expect(screen.getByRole('button', { name: 'Make this Primary' })).toBeTruthy()
+    expect(inserts.some(i => i.row.type === 'promoted_primary')).toBe(false)
+  })
+
+  it('retains selection and draft after a failed finish-line write', async () => {
+    tables.missions = [missionToRow({ ...saved, finishLine: null }, 'user-1')]
+    persistMissionRows = async () => ({ error: { message: 'write failed' } })
+    render(<MissionTab />)
+    fireEvent.change(await screen.findByLabelText('Choose a saved mission'), { target: { value: 'saved-inactive' } })
+    fireEvent.change(screen.getByLabelText('How you will know it is done'), { target: { value: 'The reference is published' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save finish line' })) })
+    expect((screen.getByLabelText('How you will know it is done') as HTMLInputElement).value).toBe('The reference is published')
+    expect(screen.queryByRole('button', { name: 'Make this Primary' })).toBeNull()
+    expect(inserts.some(i => i.table === 'mission_events')).toBe(false)
+  })
+
+  it('disables the other promotion path until finish-line persistence settles', async () => {
+    tables.missions = [missionToRow({ ...saved, state: 'parked', finishLine: null }, 'user-1')]
+    let settle!: (value: { error: unknown }) => void
+    persistMissionRows = () => new Promise(resolve => { settle = resolve })
+    render(<MissionTab />)
+    fireEvent.change(await screen.findByLabelText('Choose a saved mission'), { target: { value: 'saved-inactive' } })
+    fireEvent.change(screen.getByLabelText('How you will know it is done'), { target: { value: 'The reference is published' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save finish line' }))
+    const otherPromote = await screen.findByRole('button', { name: 'Promote to Primary' })
+    expect((otherPromote as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(otherPromote)
+    expect(inserts.filter(i => i.table === 'missions')).toHaveLength(1)
+    await act(async () => { settle({ error: null }) })
+    expect((screen.getByRole('button', { name: 'Promote to Primary' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('does not record two promotions for rapid repeat taps', async () => {
+    render(<MissionTab />)
+    fireEvent.change(await screen.findByLabelText('Choose a saved mission'), { target: { value: 'saved-inactive' } })
+    const promote = screen.getByRole('button', { name: 'Make this Primary' })
+    await act(async () => { fireEvent.click(promote); fireEvent.click(promote) })
+    expect(inserts.filter(i => i.row.type === 'promoted_primary')).toHaveLength(1)
+  })
+
+  it('does not let a recheck overwrite a promotion that is still saving', async () => {
+    let settle!: (value: { error: unknown }) => void
+    persistMissionRows = () => new Promise(resolve => { settle = resolve })
+    render(<MissionTab />)
+    fireEvent.change(await screen.findByLabelText('Choose a saved mission'), { target: { value: 'saved-inactive' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Make this Primary' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Something changed' }))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Just recheck' })) })
+    expect(screen.queryByLabelText('Choose a saved mission')).toBeNull()
+    await act(async () => { settle({ error: null }) })
+    expect(screen.queryByLabelText('Choose a saved mission')).toBeNull()
+  })
+
+  it('waits for an already-running authoritative read before allowing a lifecycle change', async () => {
+    tables.missions = [missionToRow({ ...saved, state: 'primary' }, 'user-1')]
+    render(<MissionTab />)
+    await screen.findByRole('button', { name: 'Something changed' })
+    let settle!: (value: { data: unknown[]; error: unknown }) => void
+    missionReadResponse = new Promise(resolve => { settle = resolve })
+    fireEvent.click(screen.getByRole('button', { name: 'Something changed' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Just recheck' }))
+    const pause = screen.getByRole('button', { name: 'Deliberately pause' }) as HTMLButtonElement
+    expect(pause.disabled).toBe(true)
+    fireEvent.click(pause)
+    expect(inserts).toEqual([])
+    missionReadResponse = null
+    await act(async () => { settle({ data: tables.missions, error: null }) })
+    expect((screen.getByRole('button', { name: 'Deliberately pause' }) as HTMLButtonElement).disabled).toBe(false)
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Deliberately pause' })) })
+    expect(inserts.find(i => i.table === 'missions')!.row).toMatchObject({ id: 'saved-inactive', state: 'paused' })
+  })
+
+  it('requires an authoritative refresh when both history and compensation fail', async () => {
+    failInsert.mission_events = true
+    let attempts = 0
+    persistMissionRows = async () => ({ error: ++attempts === 1 ? null : { message: 'compensation failed' } })
+    render(<MissionTab />)
+    fireEvent.change(await screen.findByLabelText('Choose a saved mission'), { target: { value: 'saved-inactive' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Make this Primary' })) })
+    expect(screen.getByText(/Write partially saved/)).toBeTruthy()
+    expect(screen.queryByLabelText('Choose a saved mission')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Start a new Primary mission' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Promote to Primary' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Check again' })).toBeTruthy()
+    // A successful authoritative read can restore mutations, even when the
+    // final persisted state differs from the optimistic rollback.
+    tables.missions = [missionToRow({ ...saved, state: 'primary' }, 'user-1')]
+    failInsert = {}
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Check again' })) })
+    await screen.findByText('Connected')
+    expect(screen.queryByText(/Write partially saved/)).toBeNull()
+    expect(screen.queryByLabelText('Choose a saved mission')).toBeNull()
+  })
+
+  it('keeps completed missions in history and creates a new Primary only on submission', async () => {
+    tables.missions = [missionToRow({ ...saved, state: 'completed' }, 'user-1')]
+    render(<MissionTab />)
+    await screen.findByRole('button', { name: 'Start a new Primary mission' })
+    expect(screen.queryByLabelText('Choose a saved mission')).toBeNull()
+    expect(screen.queryByText('Nothing captured yet')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Start a new Primary mission' }))
+    fireEvent.change(screen.getByLabelText('Your idea or project'), { target: { value: 'Publish the next reference' } })
+    fireEvent.change(screen.getByLabelText('How you will know it is done'), { target: { value: 'The new reference is published' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'This is what matters' })) })
+    expect(inserts.filter(i => i.table === 'missions')).toHaveLength(1)
+    expect(inserts.find(i => i.table === 'missions')!.row).toMatchObject({ state: 'primary', title: 'Publish the next reference' })
+    expect(inserts.find(i => i.table === 'missions')!.row.id).not.toBe('saved-inactive')
+    expect(inserts.some(i => i.table === 'actions')).toBe(false)
+  })
+
+  it('withholds new-Primary controls when creation history and cleanup both fail', async () => {
+    tables.missions = [missionToRow({ ...saved, state: 'completed' }, 'user-1')]
+    failInsert.mission_events = true
+    failDelete = true
+    render(<MissionTab />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Start a new Primary mission' }))
+    fireEvent.change(screen.getByLabelText('Your idea or project'), { target: { value: 'Publish the next reference' } })
+    fireEvent.change(screen.getByLabelText('How you will know it is done'), { target: { value: 'The new reference is published' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'This is what matters' })) })
+    expect(screen.getByText(/Write partially saved/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'This is what matters' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Start a new Primary mission' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Check again' })).toBeTruthy()
+    expect(inserts.filter(i => i.table === 'missions')).toHaveLength(1)
+  })
+})
+
+beforeEach(() => { persistMissionRows = null; failInsert = {}; failDelete = false; missionReadResponse = null })
 
 describe('MissionTab first-run presentation', () => {
   beforeEach(() => {
