@@ -344,6 +344,10 @@ export default function MissionTab() {
   const [nameTitle, setNameTitle] = useState('')
   const [nameFinish, setNameFinish] = useState('')
   const [nameEvidence, setNameEvidence] = useState('')
+  const [recoveryMissionId, setRecoveryMissionId] = useState('')
+  const [startingNewPrimary, setStartingNewPrimary] = useState(false)
+  const [recoveryBusy, setRecoveryBusy] = useState(false)
+  const nameOutcomeInFlight = useRef(false)
   const [resumableMissionId, setResumableMissionId] = useState<string | null>(null)
 
   // Capture Idea — shared pipeline with ControlsTab; Mission Screen never
@@ -909,6 +913,10 @@ export default function MissionTab() {
   )
   const sessionReady = loaded && !!user && !loadFailed
   const confirmedEmpty = sessionReady && missionList.length === 0
+  const canChoosePrimary = sessionReady && !primary && !secondary && missionList.length > 0
+  const recoverableMissions = missionList.filter(m => m.state !== 'completed' && m.state !== 'primary' && m.state !== 'secondary')
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  const recoveryMission = recoverableMissions.find(m => m.id === recoveryMissionId) ?? null
 
   const STATE_LABEL: Record<Mission['state'], string> = {
     candidate: 'Candidate',
@@ -973,7 +981,7 @@ export default function MissionTab() {
   }
 
   async function handleNameOutcome() {
-    if (!user || !nameTitle.trim() || !nameFinish.trim()) return
+    if (!user || !nameTitle.trim() || !nameFinish.trim() || nameOutcomeInFlight.current) return
     const id = newId()
     const nowIso = new Date().toISOString()
     const captured = captureIdea(board, { id, title: nameTitle, why: '', now: nowIso })
@@ -993,6 +1001,8 @@ export default function MissionTab() {
     }
 
     const before = board
+    nameOutcomeInFlight.current = true
+    setRecoveryBusy(true)
     setBoard(promoted.board)
     setError('')
     beginFieldWork()
@@ -1037,10 +1047,13 @@ export default function MissionTab() {
       setNameTitle('')
       setNameFinish('')
       setNameEvidence('')
+      setStartingNewPrimary(false)
     } catch {
       setBoard(before)
       setError('Could not save the new mission — nothing was created. Try again.')
     } finally {
+      nameOutcomeInFlight.current = false
+      setRecoveryBusy(false)
       endFieldWork()
     }
   }
@@ -1186,7 +1199,62 @@ export default function MissionTab() {
         projectReviewNotice={projectReviewNotice}
         requestProjectReview={sessionReady && (projectAccess === 'owner' || projectAccess === 'unknown') ? handleProjectReview : undefined}
       >
-        {confirmedEmpty ? (
+        {canChoosePrimary && !startingNewPrimary && (
+          <div className="mission-invite" aria-label="Choose your Primary mission">
+            {recoverableMissions.length > 0 ? (
+              <>
+                <div className="mission-invite-field">
+                  <label htmlFor="recovery-mission">Choose a saved mission</label>
+                  <select
+                    id="recovery-mission"
+                    className="mission-invite-input"
+                    value={recoveryMissionId}
+                    disabled={recoveryBusy}
+                    onChange={event => setRecoveryMissionId(event.target.value)}
+                    style={{ width: '100%', minHeight: 44, background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line)', borderRadius: 8, padding: 8, font: 'inherit' }}
+                  >
+                    <option value="">Select a mission…</option>
+                    {recoverableMissions.map(m => <option key={m.id} value={m.id}>{m.title} — {STATE_LABEL[m.state]}</option>)}
+                  </select>
+                </div>
+                {recoveryMission && (
+                  recoveryMission.finishLine ? (
+                    <>
+                      <p>Finish when: {recoveryMission.finishLine}</p>
+                      {recoveryMission.blocker && <p>Still blocked: {recoveryMission.blocker}</p>}
+                      {recoveryMission.capacityMismatch && <p>The capacity mismatch you reported is still recorded.</p>}
+                      <ActionBtn disabled={recoveryBusy} onClick={async () => {
+                        setRecoveryBusy(true)
+                        try {
+                          await applyAndPersist(b => promoteToPrimary(b, recoveryMission.id, new Date().toISOString()), [recoveryMission.id])
+                        } finally { setRecoveryBusy(false) }
+                      }}>{recoveryBusy ? 'Saving…' : 'Make this Primary'}</ActionBtn>
+                    </>
+                  ) : (
+                    <>
+                      <div className="mission-invite-field">
+                        <label htmlFor="recovery-finish">How you will know it is done</label>
+                        <Input id="recovery-finish" value={finishLineDrafts[recoveryMission.id] ?? ''}
+                          onChange={value => setFinishLineDrafts(prev => ({ ...prev, [recoveryMission.id]: value }))}
+                          placeholder="An observable finish line" />
+                      </div>
+                      <ActionBtn disabled={recoveryBusy || !(finishLineDrafts[recoveryMission.id] ?? '').trim()} onClick={async () => {
+                        setRecoveryBusy(true)
+                        try {
+                          const ok = await applyAndPersist(b => setFinishLine(b, recoveryMission.id, finishLineDrafts[recoveryMission.id] ?? '', new Date().toISOString()), [recoveryMission.id])
+                          if (ok) setFinishLineDrafts(prev => ({ ...prev, [recoveryMission.id]: '' }))
+                        } finally { setRecoveryBusy(false) }
+                      }}>{recoveryBusy ? 'Saving…' : 'Save finish line'}</ActionBtn>
+                      <p>Then you can make this mission Primary.</p>
+                    </>
+                  )
+                )}
+              </>
+            ) : <p>Your saved missions are completed. Start a new outcome when you are ready.</p>}
+            <ActionChip variant="secondary" disabled={recoveryBusy} onClick={() => setStartingNewPrimary(true)}>Start a new Primary mission</ActionChip>
+          </div>
+        )}
+        {confirmedEmpty || (canChoosePrimary && startingNewPrimary) ? (
           <form
             className="mission-invite"
             onSubmit={event => {
@@ -1236,10 +1304,11 @@ export default function MissionTab() {
             </div>
             <ActionBtn
               type="submit"
-              disabled={!nameTitle.trim() || !nameFinish.trim()}
+              disabled={recoveryBusy || !nameTitle.trim() || !nameFinish.trim()}
             >
               This is what matters
             </ActionBtn>
+            {canChoosePrimary && <ActionChip variant="ghost" disabled={recoveryBusy} onClick={() => setStartingNewPrimary(false)}>Back to saved missions</ActionChip>}
           </form>
         ) : null}
       </StrategicDelta>
