@@ -1,7 +1,40 @@
 {
-  "generatedAt": "2026-10-07T21:02:22.293Z",
+  "generatedAt": "2026-10-08T04:49:53.243Z",
   "unavailableSources": [],
   "records": [
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-114",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#114",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #114 \"Protect Mission recovery against overlapping saves and stale reads\" merged. 4 check run(s), 4 passing.",
+      "observedAt": "2026-10-08T02:02:39Z",
+      "fetchedAt": "2026-10-08T04:49:47.235Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-113",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#113",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #113 \"Repair inactive Mission recovery from the front door\" merged. 4 check run(s), 4 passing.",
+      "observedAt": "2026-10-08T01:54:14Z",
+      "fetchedAt": "2026-10-08T04:49:47.598Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-100",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#100",
+      "kind": "custom",
+      "status": "unverified",
+      "claim": "PR #100 \"Restore sunset preview URL under Vercel rate limit\" open, not yet merged.",
+      "observedAt": "2026-10-08T01:45:29Z",
+      "fetchedAt": "2026-10-08T04:49:47.598Z",
+      "prReadSucceeded": true
+    },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-112",
       "missionId": null,
@@ -10,7 +43,7 @@
       "status": "verified",
       "claim": "PR #112 \"Mission: evidence requirement on the finish-line step so Primary can be proven done\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-06T22:49:20Z",
-      "fetchedAt": "2026-10-07T21:02:16.465Z",
+      "fetchedAt": "2026-10-08T04:49:47.912Z",
       "prReadSucceeded": true
     },
     {
@@ -21,7 +54,7 @@
       "status": "verified",
       "claim": "PR #111 \"Controls: your manual mode choice wins; sample readiness data never picks the mode\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-06T22:19:49Z",
-      "fetchedAt": "2026-10-07T21:02:16.893Z",
+      "fetchedAt": "2026-10-08T04:49:48.265Z",
       "prReadSucceeded": true
     },
     {
@@ -32,7 +65,7 @@
       "status": "verified",
       "claim": "PR #110 \"Preserve pending route corrections across refresh\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-06T10:36:09Z",
-      "fetchedAt": "2026-10-07T21:02:17.249Z",
+      "fetchedAt": "2026-10-08T04:49:48.597Z",
       "prReadSucceeded": true
     },
     {
@@ -43,7 +76,7 @@
       "status": "verified",
       "claim": "PR #109 \"Carry scoped Goose lessons into model requests and task handoffs\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-05T03:33:16Z",
-      "fetchedAt": "2026-10-07T21:02:17.613Z",
+      "fetchedAt": "2026-10-08T04:49:48.918Z",
       "prReadSucceeded": true
     },
     {
@@ -54,7 +87,7 @@
       "status": "verified",
       "claim": "PR #108 \"fix: preserve exact saved-action Resume identity and reachability\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T20:39:59Z",
-      "fetchedAt": "2026-10-07T21:02:17.988Z",
+      "fetchedAt": "2026-10-08T04:49:49.220Z",
       "prReadSucceeded": true
     },
     {
@@ -65,7 +98,7 @@
       "status": "verified",
       "claim": "PR #106 \"Improve Strategic Delta choices, finish conditions and saved-action resume\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T08:26:43Z",
-      "fetchedAt": "2026-10-07T21:02:18.324Z",
+      "fetchedAt": "2026-10-08T04:49:49.547Z",
       "prReadSucceeded": true
     },
     {
@@ -76,7 +109,7 @@
       "status": "verified",
       "claim": "PR #107 \"Controls: label the readiness file as sample data with its dates, never live\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T04:09:10Z",
-      "fetchedAt": "2026-10-07T21:02:18.678Z",
+      "fetchedAt": "2026-10-08T04:49:49.869Z",
       "prReadSucceeded": true
     },
     {
@@ -87,7 +120,7 @@
       "status": "verified",
       "claim": "PR #104 \"Security: owner-gate /api/brief and /api/analyze, clamp inputs\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T00:41:59Z",
-      "fetchedAt": "2026-10-07T21:02:18.978Z",
+      "fetchedAt": "2026-10-08T04:49:50.169Z",
       "prReadSucceeded": true
     },
     {
@@ -98,7 +131,7 @@
       "status": "verified",
       "claim": "PR #103 \"feat: Origin Atlas tab and current-loop architecture map\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T00:30:16Z",
-      "fetchedAt": "2026-10-07T21:02:19.381Z",
+      "fetchedAt": "2026-10-08T04:49:50.667Z",
       "prReadSucceeded": true
     },
     {
@@ -109,7 +142,7 @@
       "status": "verified",
       "claim": "PR #105 \"Design polish: next move first, readable buttons, orb in header, bigger tap targets\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-03T00:41:30Z",
-      "fetchedAt": "2026-10-07T21:02:19.785Z",
+      "fetchedAt": "2026-10-08T04:49:51.049Z",
       "prReadSucceeded": true
     },
     {
@@ -120,7 +153,7 @@
       "status": "verified",
       "claim": "PR #99 \"Add sunset as a third preview-only review theme\" merged. 5 check run(s), 5 passing.",
       "observedAt": "2026-10-02T12:04:06Z",
-      "fetchedAt": "2026-10-07T21:02:20.110Z",
+      "fetchedAt": "2026-10-08T04:49:51.427Z",
       "prReadSucceeded": true
     },
     {
@@ -131,7 +164,7 @@
       "status": "verified",
       "claim": "PR #97 \"Bring the Control Panel design and task routing into Mission\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T09:19:10Z",
-      "fetchedAt": "2026-10-07T21:02:20.409Z",
+      "fetchedAt": "2026-10-08T04:49:51.828Z",
       "prReadSucceeded": true
     },
     {
@@ -142,7 +175,7 @@
       "status": "verified",
       "claim": "PR #102 \"Wire mandatory Reality Filter into coding-agent completion\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T09:14:28Z",
-      "fetchedAt": "2026-10-07T21:02:20.778Z",
+      "fetchedAt": "2026-10-08T04:49:52.185Z",
       "prReadSucceeded": true
     },
     {
@@ -153,18 +186,7 @@
       "status": "verified",
       "claim": "PR #101 \"Reload confirmed lessons after a failed project review\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T08:32:34Z",
-      "fetchedAt": "2026-10-07T21:02:21.047Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-100",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#100",
-      "kind": "custom",
-      "status": "unverified",
-      "claim": "PR #100 \"Restore sunset preview URL under Vercel rate limit\" open, not yet merged.",
-      "observedAt": "2026-10-02T07:30:04Z",
-      "fetchedAt": "2026-10-07T21:02:21.047Z",
+      "fetchedAt": "2026-10-08T04:49:52.558Z",
       "prReadSucceeded": true
     },
     {
@@ -175,7 +197,7 @@
       "status": "verified",
       "claim": "PR #98 \"Add Brief tab\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T06:31:02Z",
-      "fetchedAt": "2026-10-07T21:02:21.388Z",
+      "fetchedAt": "2026-10-08T04:49:52.882Z",
       "prReadSucceeded": true
     },
     {
@@ -186,7 +208,7 @@
       "status": "verified",
       "claim": "PR #96 \"fix(mission): don't show visitors a failure for the owner-only review read\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-02T03:16:53Z",
-      "fetchedAt": "2026-10-07T21:02:21.682Z",
+      "fetchedAt": "2026-10-08T04:49:53.243Z",
       "prReadSucceeded": true
     },
     {
@@ -197,29 +219,7 @@
       "status": "unverified",
       "claim": "PR #93 \"docs: GitHub flow guide + PR status script for multi-agent work\" open, not yet merged.",
       "observedAt": "2026-10-02T01:49:38Z",
-      "fetchedAt": "2026-10-07T21:02:21.682Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-94",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#94",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #94 \"design: Kiren-inspired atmosphere for the Mission flow\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-10-02T00:47:59Z",
-      "fetchedAt": "2026-10-07T21:02:21.987Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-95",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#95",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #95 \"Visual pass 1: radius scale, one reconnect label, trimmed phone chrome\" merged. 4 check run(s), 4 passing.",
-      "observedAt": "2026-10-02T00:34:44Z",
-      "fetchedAt": "2026-10-07T21:02:22.293Z",
+      "fetchedAt": "2026-10-08T04:49:53.243Z",
       "prReadSucceeded": true
     }
   ]
