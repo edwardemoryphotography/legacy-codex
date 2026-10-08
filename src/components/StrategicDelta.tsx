@@ -439,6 +439,7 @@ export default function StrategicDelta({
   // `missions` itself, not just the derived delta, is the source of truth
   // for "has this account ever had a mission".
   const isFirstRun = delta?.provenance === 'insufficient_context' && !delta?.missionId && readAvailable && missions.length === 0
+  const needsMissionChoice = readAvailable && missions.length > 0 && !missions.some(m => m.state === 'primary' || m.state === 'secondary')
 
   // A model failure only describes the Delta while it is still stuck. Once a
   // supplied step (or anything else) resolves it, the alert would be false.
@@ -489,7 +490,7 @@ export default function StrategicDelta({
   const needsStep = delta?.provenance === 'insufficient_context' && Boolean(delta.missionId) && Boolean(delta.candidateId?.startsWith('clause:'))
   const needsRead = delta?.provenance === 'insufficient_context' && !delta.missionId && !readAvailable
   const needsClarification = projectReview?.decision === 'clarify' && delta?.candidateId === `project:${projectReview.missionId}` && delta.provenance === 'insufficient_context'
-  const title = needsClarification ? projectReview.clarification : delta ? displayTitle(delta, isFirstRun, readAvailable) : null
+  const title = needsMissionChoice ? 'No active mission' : needsClarification ? projectReview.clarification : delta ? displayTitle(delta, isFirstRun, readAvailable) : null
   const aimedMission = delta?.missionId ? missions.find(mission => mission.id === delta.missionId) ?? null : null
   const finishLine = aimedMission?.finishLine ?? null
   const reviewTarget = primaryMission && !primaryMission.blocker && !primaryMission.capacityMismatch
@@ -525,11 +526,11 @@ export default function StrategicDelta({
           {primaryMission ? (
             <>Working on <strong>{primaryMission.title}</strong></>
           ) : (
-            'Nothing captured yet'
+            missions.length > 0 ? 'Your saved missions are still here' : 'Nothing captured yet'
           )}
         </p>
       )}
-      <p className="sd-status">{eyebrowFor(cognition, pendingRead, isFirstRun)}</p>
+      <p className="sd-status">{needsMissionChoice ? 'Choose what matters now' : eyebrowFor(cognition, pendingRead, isFirstRun)}</p>
 
       {pendingRead ? (
         <p className="sd-phase" aria-live="polite">
@@ -542,7 +543,7 @@ export default function StrategicDelta({
             <p className="sd-taught">Kept: {retainedStep.move}. It stays on record, and it is not the next step.</p>
           )}
 
-          {!isFirstRun && <div className="sd-act">
+          {!isFirstRun && !needsMissionChoice && <div className="sd-act">
             {hasRecommendation && accepted ? (
               <div className="sd-act-primary">
                 {/* The saved action is a separate, explicit commitment. This
@@ -636,7 +637,7 @@ export default function StrategicDelta({
             <p className="sd-because"><strong>Finish when:</strong> {selectedReview.finishWhen}</p>
           </div>}
 
-          {aimedMission && (
+          {aimedMission && !needsMissionChoice && (
             <section className="sd-known" aria-label="What Codex has from you">
               <h3 className="sd-known-title">What Codex has from you</h3>
               <dl>
@@ -685,10 +686,13 @@ export default function StrategicDelta({
             </section>
           )}
 
-          {!hasRecommendation && delta.move !== title && (
+          {needsMissionChoice && (
+            <p className="sd-because">Choose a saved mission to make Primary, or start a new one. Nothing is reactivated until you choose it.</p>
+          )}
+          {!needsMissionChoice && !hasRecommendation && delta.move !== title && (
             <p className="sd-because" aria-live="polite">{delta.move}</p>
           )}
-          {!isFirstRun && !selectedReview && delta.because !== delta.move && (
+          {!needsMissionChoice && !isFirstRun && !selectedReview && delta.because !== delta.move && (
             <p className={hasRecommendation || delta.move === title ? 'sd-because' : 'sd-support'}>
               {delta.because}
             </p>
@@ -699,7 +703,7 @@ export default function StrategicDelta({
               also insufficient_context, but a real mission and finish line
               already exist there — re-showing the "name your mission" form
               would be wrong. */}
-          {delta.provenance === 'insufficient_context' && !delta.missionId && children}
+          {(needsMissionChoice || (delta.provenance === 'insufficient_context' && !delta.missionId)) && children}
 
           {isFirstRun && (
             <div className="sd-act">
@@ -746,7 +750,7 @@ export default function StrategicDelta({
           )}
 
           <p className="sd-provenance">
-            {isFirstRun ? "This is your own space — nothing here is shared." : PROVENANCE_LABEL[delta.provenance]}
+            {needsMissionChoice ? 'No active mission to predict from' : isFirstRun ? "This is your own space — nothing here is shared." : PROVENANCE_LABEL[delta.provenance]}
           </p>
 
           {open === 'why' && (
