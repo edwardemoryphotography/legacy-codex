@@ -6,6 +6,8 @@ import { candidateTargetsClause, operationCandidateId, predictStrategicDelta } f
 import { ActionBtn, ActionChip, Textarea } from '@/components/ui'
 import { OrbSlot, useOrbCognition } from '@/components/OrbHost'
 import ProjectLearning, { type ConfirmLesson, type RetireLesson } from '@/components/ProjectLearning'
+import MissionAssistance from '@/components/MissionAssistance'
+import ReactMarkdown from 'react-markdown'
 import type { ConfirmedLesson, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
 
 // Phases are derived from work that is actually pending — anonymous
@@ -139,7 +141,7 @@ interface Props {
   /** A failed optional read, e.g. restoring a cached review on load. Never
    *  a failed write, so it is a quiet note and never the failed state. */
   projectReviewNotice?: string | null
-  requestProjectReview?: (request: ProjectReviewRequest) => Promise<void>
+  requestProjectReview?: (request: ProjectReviewRequest) => Promise<boolean | void>
   /** Missing-input controls for insufficient context. Rendered inside the
    *  hero, not below it — and never inside the live region. */
   children?: ReactNode
@@ -497,6 +499,9 @@ export default function StrategicDelta({
     ? primaryMission
     : missions.find(m => m.state === 'secondary' && !m.blocker && !m.capacityMismatch) ?? null
   const proofSteps = delta?.proofSteps ?? []
+  const canAssist = readAvailable && projectReviewAvailable && requestProjectReview && reviewTarget?.finishLine &&
+    delta?.missionId === reviewTarget.id && delta.evidenceState !== 'conflict'
+  const evidenceLoop = Boolean(canAssist && (delta?.candidateId?.startsWith('name-evidence:') || delta?.candidateId?.startsWith('produce-evidence:')))
   const retainedStep = delta?.inhibited.find(candidate =>
     candidate.kind === 'supplied_operation' && candidate.move !== delta.move,
   ) ?? null
@@ -538,12 +543,21 @@ export default function StrategicDelta({
         </p>
       ) : delta && title ? (
         <>
-          <p className="sd-move" key={hasRecommendation ? delta.move : title} aria-label={selectedReview ? resumeActionId ? 'Continue your saved action' : 'Do this' : undefined} aria-live={hasRecommendation ? 'polite' : undefined}>{title}</p>
+          {!evidenceLoop && <p className="sd-move" key={hasRecommendation ? delta.move : title} aria-label={selectedReview ? resumeActionId ? 'Continue your saved action' : 'Do this' : undefined} aria-live={hasRecommendation ? 'polite' : undefined}>{title}</p>}
+          {evidenceLoop && <p className="sd-move">Let’s get something useful started.</p>}
+          {selectedReview?.workDraft && <section className="mission-work-draft" aria-label="Working draft">
+            <h3>A starting point for your work</h3>
+            <p className="sd-hint">Model-generated draft — check before using.</p>
+            <ReactMarkdown>{selectedReview.workDraft}</ReactMarkdown>
+          </section>}
+          {canAssist && <MissionAssistance key={`${reviewTarget.id}:${reviewTarget.finishLine}`} missionId={reviewTarget.id}
+            title={reviewTarget.title} finishLine={reviewTarget.finishLine!} question={needsClarification ? projectReview?.clarification : selectedReview ? 'What would you like to change or work on next?' : null}
+            previousReviewKey={projectReview?.contextKey} busy={projectReviewBusy} onSubmit={requestProjectReview} />}
           {retainedStep && !hasRecommendation && (
             <p className="sd-taught">Kept: {retainedStep.move}. It stays on record, and it is not the next step.</p>
           )}
 
-          {!isFirstRun && !needsMissionChoice && <div className="sd-act">
+          {!isFirstRun && !needsMissionChoice && !evidenceLoop && <div className="sd-act">
             {hasRecommendation && accepted ? (
               <div className="sd-act-primary">
                 {/* The saved action is a separate, explicit commitment. This
@@ -563,7 +577,7 @@ export default function StrategicDelta({
                 </p>
                 {resumeActionId && <a className="sd-next" href={`#saved-action-${resumeActionId}`}>Return to this saved action</a>}
               </div>
-            ) : needsClarification ? (
+            ) : needsClarification && !canAssist ? (
               <div className="sd-act-primary">
                 <ActionBtn onClick={() => setOpen(open === 'changed' ? null : 'changed')} aria-expanded={open === 'changed'} aria-controls="sd-changed">Add the missing context</ActionBtn>
                 <p className="sd-boundary">This answer could change the best move. No action was proposed.</p>
@@ -638,8 +652,8 @@ export default function StrategicDelta({
           </div>}
 
           {aimedMission && !needsMissionChoice && (
-            <section className="sd-known" aria-label="What Codex has from you">
-              <h3 className="sd-known-title">What Codex has from you</h3>
+            <details className="sd-known" aria-label="What Codex has from you">
+              <summary className="sd-known-title">What Codex has from you</summary>
               <dl>
                 <div>
                   <dt>What you are finishing</dt>
@@ -683,7 +697,7 @@ export default function StrategicDelta({
                   </dd>
                 </div>
               </dl>
-            </section>
+            </details>
           )}
 
           {needsMissionChoice && (
@@ -692,7 +706,7 @@ export default function StrategicDelta({
           {!needsMissionChoice && !hasRecommendation && delta.move !== title && (
             <p className="sd-because" aria-live="polite">{delta.move}</p>
           )}
-          {!needsMissionChoice && !isFirstRun && !selectedReview && delta.because !== delta.move && (
+          {!evidenceLoop && !needsMissionChoice && !isFirstRun && !selectedReview && delta.because !== delta.move && (
             <p className={hasRecommendation || delta.move === title ? 'sd-because' : 'sd-support'}>
               {delta.because}
             </p>

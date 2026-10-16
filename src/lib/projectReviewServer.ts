@@ -54,7 +54,7 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
     client.from('missions').select('id,title,why,finish_line,state,blocker,updated_at').eq('user_id', userId).neq('id', missionId).order('updated_at', { ascending: false }).limit(50),
     client.from('evidence_snapshots').select('id,source,status,claim,observed_at,fetched_at').eq('mission_id', missionId).order('fetched_at', { ascending: false }).limit(12),
     client.from('actions').select('id,action_title,status,resume_note,updated_at').eq('mission_id', missionId).order('updated_at', { ascending: false }).limit(8),
-    client.from('mission_events').select('id,type,detail,created_at').eq('user_id', userId).eq('mission_id', missionId).in('type', ['delta_context_added', 'delta_step_supplied', 'finish_line_set']).order('created_at', { ascending: false }).limit(24),
+    client.from('mission_events').select('id,type,detail,created_at').eq('user_id', userId).eq('mission_id', missionId).in('type', ['delta_context_added', 'delta_draft_context', 'delta_step_supplied', 'finish_line_set']).order('created_at', { ascending: false }).limit(24),
     client.from('mission_events').select('id,type,detail,created_at').eq('user_id', userId).eq('mission_id', missionId).eq('type', 'delta_corrected').order('created_at', { ascending: false }).limit(100),
     // Safety state must cover every linked row, even when source excerpts
     // are bounded. In particular, a Secondary cannot inherit the Primary's gate.
@@ -68,7 +68,7 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
   const sources: ProjectSource[] = [{ id: `mission:${target.data.id}`, label: target.data.title, kind: 'mission', status: 'human-defined outcome', ...boundSourceText(JSON.stringify(target.data), 4_000) }]
   for (const row of evidence.data ?? []) sources.push({ id: `evidence:${row.id}`, label: row.source, kind: 'evidence', status: `Derived snapshot: ${row.status}; not canonical evidence truth`, ...boundSourceText(JSON.stringify(row), 2_000) })
   for (const row of actions.data ?? []) sources.push({ id: `action:${row.id}`, label: row.action_title, kind: 'commitment', status: 'human-reported commitment and progress; not verified completion', commitment: { id: row.id, missionId, status: row.status, actionTitle: resumableTitle(row.action_title) }, ...boundSourceText(JSON.stringify(row), 2_000) })
-  for (const row of events.data ?? []) sources.push({ id: `event:${row.id}`, label: row.type === 'delta_corrected' ? 'Your correction' : 'Your project context', kind: row.type === 'delta_corrected' ? 'correction' : 'human_note', status: 'human-reported', ...boundSourceText(JSON.stringify(row), 2_000) })
+  for (const row of events.data ?? []) sources.push({ id: `event:${row.id}`, label: row.type === 'delta_draft_context' ? 'Previous working draft' : 'Your project context', kind: row.type === 'delta_draft_context' ? 'model_draft' : 'human_note', status: row.type === 'delta_draft_context' ? 'Earlier model-generated draft; unverified, supplied only for revision' : 'human-reported', ...boundSourceText(row.detail, 6_000) })
   for (const row of corrections.data ?? []) sources.push({ id: `event:${row.id}`, label: 'Your correction', kind: 'correction', status: 'human correction; authoritative for this recommendation', ...boundSourceText(JSON.stringify(row), 2_000) })
   const warnings = ['Retrieval considers the 50 most recently updated other projects. Explicit project IDs and shared context terms select up to 4 for deeper reading; up to 8 other project summaries remain visible for discovering less obvious connections. These are relevance hypotheses, not proof of dependencies. Unread details and semantic links may be missed.',
     'Target context is bounded to 12 evidence rows, 8 commitments, 24 notes/events and 100 corrections. Each related project contributes up to 6 evidence rows, 4 commitments, 8 notes and 20 corrections. Lesson history is paged until at most 16 active scoped rules are found; retired and unrelated rules do not consume the selection window. Older or omitted material may change the interpretation.',
@@ -117,12 +117,12 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
   }
   // Preserve corrections and human context before less relevant projects
   // when the total packet must be clipped.
-  const priority: Record<ProjectSource['kind'], number> = { correction: 1, lesson: 2, human_note: 3, repository: 4, evidence: 5, commitment: 6, mission: 7 }
+  const priority: Record<ProjectSource['kind'], number> = { correction: 1, lesson: 2, human_note: 3, model_draft: 4, repository: 4, evidence: 5, commitment: 6, mission: 7 }
   sources.sort((a, b) => a.id === `mission:${missionId}` ? -1 : b.id === `mission:${missionId}` ? 1 :
     priority[a.kind] - priority[b.kind] || Number(targetSourceIds.has(b.id)) - Number(targetSourceIds.has(a.id)))
   // A long correction/notes history must not crowd out all evidence and
   // commitments. Preserve category headroom as well as the total bound.
-  const headroom: Record<ProjectSource['kind'], number> = { correction: 7_000, lesson: 4_000, human_note: 6_000,
+  const headroom: Record<ProjectSource['kind'], number> = { correction: 7_000, lesson: 4_000, human_note: 8_000, model_draft: 6_000,
     repository: 6_000, evidence: 5_000, commitment: 4_000, mission: 8_000 }
   let remaining = 40_000
   const bounded = sources.map(source => {
@@ -137,6 +137,6 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
   }).filter(source => source.text.length)
   if (bounded.length !== sources.length) warnings.push(`${sources.length - bounded.length} sources were omitted by the total context limit.`)
   if (bounded.some(source => source.truncated)) warnings.push('Some sources are excerpts. Limits reserve room for evidence and commitments alongside lessons, notes and corrections; inspect originals when a cut could change the interpretation.')
-  const contextKey = createHash('sha256').update(JSON.stringify({ version: 6, target: target.data, sources: bounded, warnings, hasEvidenceConflict })).digest('hex')
+  const contextKey = createHash('sha256').update(JSON.stringify({ version: 7, target: target.data, sources: bounded, warnings, hasEvidenceConflict })).digest('hex')
   return { mission: target.data, sources: bounded, warnings, contextKey, hasEvidenceConflict, lessons }
 }

@@ -1,0 +1,51 @@
+/* Interaction is presence; motion only claims work while a request is pending. */
+html::after {
+  inset: -10vh -15vw;
+  height: 120vh;
+  background:
+    radial-gradient(ellipse at 12% 28%, rgba(66, 221, 179, .36), transparent 43%),
+    radial-gradient(ellipse at 85% 48%, rgba(125, 107, 244, .4), transparent 45%),
+    radial-gradient(ellipse at 45% 85%, rgba(233, 174, 94, .25), transparent 40%),
+    radial-gradient(ellipse at 55% 8%, rgba(72, 170, 231, .34), transparent 40%);
+  transition: opacity 700ms ease, transform 900ms ease;
+}
+html:has(.mission-assistance:focus-within)::after,
+html:has(.interactive-control:active)::after { opacity: .55; transform: translateY(-1%); }
+html:has(.sd[data-cognition="deriving"])::after {
+  opacity: 1;
+  animation: mission-aurora 8s ease-in-out infinite alternate;
+}
+html:has(.sd[data-cognition="failed"])::after { opacity: 0; animation: none; }
+@keyframes mission-aurora {
+  from { transform: translate(-2%, 1%) rotate(-3deg) scale(1); }
+  to { transform: translate(3%, -3%) rotate(4deg) scale(1.08); }
+}
+.mission-assistance { display: grid; gap: 14px; margin: 22px 0; }
+.mission-assistance label { font-size: 1.08rem; font-weight: 600; line-height: 1.5; }
+.mission-assistance textarea {
+  width: 100%; min-height: 120px; padding: 16px; resize: vertical;
+  border: 1px solid var(--line-strong); border-radius: var(--radius);
+  background: var(--field-bg); color: var(--text); font: inherit;
+}
+.mission-assistance textarea:focus { outline: 2px solid var(--peri); outline-offset: 3px; }
+.mission-assistance button { justify-self: start; min-height: 48px; }
+.mission-work-draft {
+  margin: 20px 0; padding: 20px; border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg); background: var(--surface-soft);
+  overflow-wrap: anywhere; line-height: 1.65;
+}
+.mission-work-draft h3 { font-size: 1.12rem; font-weight: 700; }
+.mission-work-draft p, .mission-work-draft ul, .mission-work-draft ol { margin: 12px 0; }
+.mission-work-draft ul, .mission-work-draft ol { padding-left: 22px; }
+.mission-work-draft ul { list-style: disc; }
+.mission-work-draft ol { list-style: decimal; }
+.sd-known summary { cursor: pointer; min-height: 44px; }
+@media (max-width: 600px) {
+  .mission-assistance { margin: 16px 0; gap: 12px; }
+  .mission-assistance textarea { min-height: 104px; }
+  .mission-assistance button { width: 100%; }
+  .sd:has(.mission-assistance) .sd-move { font-size: clamp(1.5rem, 6vw, 2rem); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html::after { animation: none !important; transition: none; transform: none !important; }
+}

@@ -1,7 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { PROJECT_REVIEW_OUTPUT, PROJECT_REVIEW_RULES } from '@/lib/projectReviewPrompt'
-import { deltaOwner } from '@/lib/supabase/deltaAuth'
+import { deltaReviewer } from '@/lib/supabase/deltaAuth'
+import { parseAssistanceNote } from '@/lib/missionAssistance'
 import { loadProjectContext, projectUserClient } from '@/lib/projectReviewServer'
 import { parseProjectReview, type ProjectReview } from '@/lib/projectReview'
 import { isConcreteMove } from '@/lib/strategicDelta'
@@ -15,9 +16,9 @@ const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i
 // Rehydration reads the existing proposal only; opening/reloading the page
 // never purchases another model call.
 export async function GET(req: NextRequest) {
-  const owner = await deltaOwner(req)
+  const owner = await deltaReviewer(req)
   if ('response' in owner) return owner.response
-  if (req.nextUrl.searchParams.get('capabilities') === '1') return NextResponse.json({ configured: Boolean(process.env.ANTHROPIC_API_KEY) }, { headers: { 'Cache-Control': 'no-store' } })
+  if (req.nextUrl.searchParams.get('capabilities') === '1') return NextResponse.json({ configured: Boolean(process.env.ANTHROPIC_API_KEY), tester: owner.tester }, { headers: { 'Cache-Control': 'no-store' } })
   const missionId = req.nextUrl.searchParams.get('missionId')
   if (!missionId || !UUID.test(missionId)) return NextResponse.json({ error: 'A saved mission is required.' }, { status: 400 })
   try {
@@ -30,28 +31,54 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const owner = await deltaOwner(req)
+  const owner = await deltaReviewer(req)
   if ('response' in owner) return owner.response
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: 'Project review is unavailable: model access is not configured.' }, { status: 503 })
   const declaredLength = Number(req.headers.get('content-length') ?? '0')
-  if (Number.isFinite(declaredLength) && declaredLength > 4_096) return NextResponse.json({ error: 'Request is too large.' }, { status: 413 })
+  if (Number.isFinite(declaredLength) && declaredLength > 32_768) return NextResponse.json({ error: 'Request is too large.' }, { status: 413 })
   const text = await req.text()
-  if (Buffer.byteLength(text) > 4_096) return NextResponse.json({ error: 'Request is too large.' }, { status: 413 })
-  let body: { missionId?: unknown; finishLine?: unknown }
+  if (Buffer.byteLength(text) > 32_768) return NextResponse.json({ error: 'Request is too large.' }, { status: 413 })
+  let body: { missionId?: unknown; finishLine?: unknown; contextNote?: unknown; requestId?: unknown; previousReviewKey?: unknown }
   try { body = JSON.parse(text) } catch { return NextResponse.json({ error: 'Invalid review request.' }, { status: 400 }) }
   if (!body || typeof body.missionId !== 'string' || !UUID.test(body.missionId) || typeof body.finishLine !== 'string' || !body.finishLine.trim() || body.finishLine.length > 2_000) {
     return NextResponse.json({ error: 'A saved mission and finish line are required.' }, { status: 400 })
   }
   let stage = 'context'
+  const note = parseAssistanceNote(body)
+  if (note === null) return NextResponse.json({ error: 'Add an answer under 6,000 characters and try again.' }, { status: 400 })
+  if (body.previousReviewKey !== undefined && (typeof body.previousReviewKey !== 'string' || !/^[a-f0-9]{64}$/.test(body.previousReviewKey))) return NextResponse.json({ error: 'The previous draft reference is invalid.' }, { status: 400 })
   try {
     const client = projectUserClient(owner.url, req.headers.get('Authorization') ?? '')
-    const context = await loadProjectContext(client, owner.userId, body.missionId)
+    let context = await loadProjectContext(client, owner.userId, body.missionId)
     if (context.mission.finish_line !== body.finishLine) return NextResponse.json({ error: 'The finish line changed. Refresh your project before reviewing.' }, { status: 409 })
     if (!projectIsReviewable(context)) {
       return NextResponse.json({ operation: null, review: null, lessons: context.lessons })
     }
+    if (note) {
+      // The ownership read above precedes the write. Retries reuse the same
+      // request ID, so a failed provider call cannot duplicate the answer.
+      const key = `assistance:${owner.userId}:${body.missionId}:${note.requestId}`
+      const existing = await client.from('mission_events').select('detail').eq('user_id', owner.userId).eq('mission_id', body.missionId).eq('idempotency_key', key).maybeSingle()
+      if (existing.error) throw existing.error
+      if (existing.data && existing.data.detail !== note.note) return NextResponse.json({ error: 'This answer changed. Submit it as a new request.' }, { status: 409 })
+      if (!existing.data) {
+        const previous = body.previousReviewKey ? await cachedProjectReview(client, owner.userId, context) : null
+        if (body.previousReviewKey && previous?.contextKey !== body.previousReviewKey) return NextResponse.json({ error: 'The draft context changed or expired. Refresh before revising it; keep your answer to paste back in.' }, { status: 409 })
+        const rows = [{ user_id: owner.userId, mission_id: body.missionId, type: 'delta_context_added', detail: note.note, idempotency_key: key }]
+        const previousText = previous?.workDraft || previous?.clarification
+        if (previousText) rows.push({ user_id: owner.userId, mission_id: body.missionId, type: 'delta_draft_context', detail: previousText, idempotency_key: `${key}:draft` })
+        const savedNote = await client.from('mission_events').insert(rows)
+        if (savedNote.error && savedNote.error.code !== '23505') return NextResponse.json({ error: 'Your answer could not be saved. Keep it here and retry.' }, { status: 503 })
+      }
+      context = await loadProjectContext(client, owner.userId, body.missionId)
+    }
     const cached = await cachedProjectReview(client, owner.userId, context)
     if (cached) return NextResponse.json({ operation: cached.operation, review: cached, lessons: context.lessons })
+    if (owner.tester) {
+      const reserved = await client.rpc('reserve_mission_review')
+      if (reserved.error) return NextResponse.json({ error: 'Could not reserve an AI request. Your context is saved.' }, { status: 503 })
+      if (reserved.data !== true) return NextResponse.json({ error: 'Please wait a minute before trying again. If your tester allowance is used up, ask Eddie to renew it. Your context is saved.' }, { status: 429 })
+    }
     const model = new Anthropic({ maxRetries: 0, timeout: 40_000 })
     // Full mission/lesson content is represented in the bounded sources.
     // Only identify the target here; do not bypass excerpts with raw records.
@@ -63,7 +90,7 @@ export async function POST(req: NextRequest) {
     const draftText = draft.content.filter(b => b.type === 'text').map(b => b.text).join('\n')
     stage = 'critique'
     const final = await model.messages.create({
-      model: 'claude-opus-5', max_tokens: 2_600, system: PROJECT_REVIEW_RULES,
+      model: 'claude-opus-5', max_tokens: 4_200, system: PROJECT_REVIEW_RULES,
       tools: [PROJECT_REVIEW_OUTPUT], tool_choice: { type: 'tool', name: PROJECT_REVIEW_OUTPUT.name, disable_parallel_tool_use: true },
       messages: [{ role: 'user', content: `Critique the draft independently against the original context. Does the chosen move beat the alternatives on impact, urgency, dependencies, reported capacity and uncertainty? Is resuming a saved action better? Does the finish condition describe an observable result? Does a missing fact change the winner? Find unsupported facts, stale evidence, duplicates and paraphrases of corrected approaches. Revise once; submit through submit_project_review. A self-check is still a model proposal, not verification.\nOriginal context:\n${packet}\nDraft (untrusted proposal):\n${draftText.slice(0, 10_000)}` }],
     })

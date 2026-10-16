@@ -21,6 +21,8 @@ const fields = 'id,mission_id,action_title,status,resume_note,updated_at,mission
 export default function SavedActions({
   missionId,
   suggestedTitle,
+  suggestedNote,
+  resumeDraft,
   routedDraft,
   onActiveChange,
 }: {
@@ -29,6 +31,8 @@ export default function SavedActions({
    *  composer once so the saved action can use the same words. Never
    *  written for them — saving stays an explicit commitment. */
   suggestedTitle?: string | null
+  suggestedNote?: string | null
+  resumeDraft?: { actionId: string; note: string } | null
   /** Explicitly prepared handoff, not a background recommendation. Saved
    *  into the existing action's resume_note only with the matching title. */
   routedDraft?: RoutedActionDraft | null
@@ -97,7 +101,8 @@ export default function SavedActions({
     try {
       const { data, error: writeError } = await supabase.from('actions').insert({
         mission_id: missionId, action_title: title.trim(), status: 'TODO', is_next_action: true,
-        resume_note: routedDraft?.missionId === missionId && title.trim() === routedDraft.task ? routedDraft.note : null,
+        resume_note: routedDraft?.missionId === missionId && title.trim() === routedDraft.task ? routedDraft.note
+          : suggestedTitle === title.trim() ? suggestedNote ?? null : null,
       }).select(fields).single()
       if (writeError || !data) throw writeError ?? new Error('No saved action returned')
       setActions(previous => [data as unknown as SavedAction, ...previous])
@@ -121,13 +126,15 @@ export default function SavedActions({
       {loading ? <p role="status">Reading your saved actions…</p> : error ? (
         <div role="alert"><p>{error}</p><ActionBtn onClick={() => { setLoading(true); void load() }}>Retry saved actions</ActionBtn></div>
       ) : <>
-        {openActions.map(action => <ActionCard key={`${action.id}:${action.updated_at}`} action={action} matchesRecommendation={action.action_title === suggestedTitle} onSaved={saved => {
+        {openActions.map(action => <ActionCard key={`${action.id}:${action.updated_at}`} action={action} draftNote={resumeDraft?.actionId === action.id ? resumeDraft.note : null} matchesRecommendation={action.action_title === suggestedTitle} onSaved={saved => {
           setActions(previous => previous.map(item => item.id === saved.id ? saved : item))
         }} />)}
         {openActions.length > 0 && routedDraft && <p role="status">An unfinished action is already saved. Copy the prepared handoff into its starting point if it belongs to that action, or finish that action before saving another.</p>}
         {!openActions.length && (missionId ? <div className="space-y-3">
           <p>Name one concrete step you want to take. Saving it is a commitment, not proof that it is done.</p>
           <label htmlFor="saved-action-title">Name the action to save</label>
+          {!routedDraft && suggestedNote && title.trim() !== suggestedTitle && <p>The action title changed. This save will not include the earlier draft. Restore the recommended title to keep it, or copy the draft into your new action afterward.</p>}
+          {!routedDraft && suggestedNote && title.trim() === suggestedTitle && <details className="route-handoff"><summary>Draft to keep with this action</summary><pre tabIndex={0}>{suggestedNote}</pre></details>}
           <Input id="saved-action-title" value={title} onChange={value => { setTitleTouched(true); setTitle(value) }} placeholder="What will you do next?" />
           {routedDraft && (title.trim() === routedDraft.task ? <details className="route-handoff"><summary>Handoff to save with this action</summary><pre tabIndex={0}>{routedDraft.note}</pre><p>The task and this starting point will be saved together. No tool has run.</p></details> : <p>The action title changed. This save will use your new title without the earlier handoff. Route the revised task to prepare a matching handoff.</p>)}
           <ActionBtn disabled={saving || !title.trim()} onClick={saveAction}>{saving ? 'Saving…' : 'Save next action'}</ActionBtn>
@@ -142,7 +149,7 @@ export default function SavedActions({
   )
 }
 
-function ActionCard({ action, onSaved, matchesRecommendation }: { action: SavedAction; onSaved: (action: SavedAction) => void; matchesRecommendation?: boolean }) {
+function ActionCard({ action, onSaved, matchesRecommendation, draftNote }: { action: SavedAction; onSaved: (action: SavedAction) => void; matchesRecommendation?: boolean; draftNote?: string | null }) {
   const [note, setNote] = useState(action.resume_note ?? '')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -164,6 +171,7 @@ function ActionCard({ action, onSaved, matchesRecommendation }: { action: SavedA
     <h4 className="commitment-title">{action.action_title}</h4>
     {matchesRecommendation && <p className="commitment-same">Same words as the recommendation you accepted.</p>}
     <label htmlFor={`resume-${action.id}`}>Starting point</label>
+    {draftNote && !note.includes(draftNote) && <div><p>A revised draft is available for this action.</p><ActionBtn disabled={busy} onClick={() => setNote(previous => `${previous}${previous.trim() ? '\n\n' : ''}${draftNote}`)}>Add draft to starting point</ActionBtn><p>Then save the note to keep it with this same action.</p></div>}
     <Textarea id={`resume-${action.id}`} value={note} onChange={setNote} rows={3} placeholder="Where did you stop? What should you do when you return?" />
     <div className="flex flex-wrap gap-3">
       {action.status !== 'IN_PROGRESS' && <ActionBtn disabled={busy} onClick={() => update('IN_PROGRESS')}>Start / resume</ActionBtn>}
