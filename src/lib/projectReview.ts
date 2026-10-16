@@ -2,7 +2,7 @@
 export interface ProjectSource {
   id: string
   label: string
-  kind: 'mission' | 'evidence' | 'commitment' | 'human_note' | 'correction' | 'repository' | 'lesson'
+  kind: 'mission' | 'evidence' | 'commitment' | 'human_note' | 'correction' | 'repository' | 'lesson' | 'model_draft'
   status: string
   text: string
   url?: string
@@ -69,6 +69,7 @@ export interface ProjectReviewRequest {
   finishLine: string
   contextNote?: string
   requestId?: string
+  previousReviewKey?: string
 }
 
 export function boundSourceText(text: string, maxChars = 6_000): { text: string; truncated: boolean } {

@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   if (Number.isFinite(declaredLength) && declaredLength > 32_768) return NextResponse.json({ error: 'Request is too large.' }, { status: 413 })
   const text = await req.text()
   if (Buffer.byteLength(text) > 32_768) return NextResponse.json({ error: 'Request is too large.' }, { status: 413 })
-  let body: { missionId?: unknown; finishLine?: unknown; contextNote?: unknown; requestId?: unknown }
+  let body: { missionId?: unknown; finishLine?: unknown; contextNote?: unknown; requestId?: unknown; previousReviewKey?: unknown }
   try { body = JSON.parse(text) } catch { return NextResponse.json({ error: 'Invalid review request.' }, { status: 400 }) }
   if (!body || typeof body.missionId !== 'string' || !UUID.test(body.missionId) || typeof body.finishLine !== 'string' || !body.finishLine.trim() || body.finishLine.length > 2_000) {
     return NextResponse.json({ error: 'A saved mission and finish line are required.' }, { status: 400 })
@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
   let stage = 'context'
   const note = parseAssistanceNote(body)
   if (note === null) return NextResponse.json({ error: 'Add an answer under 6,000 characters and try again.' }, { status: 400 })
+  if (body.previousReviewKey !== undefined && (typeof body.previousReviewKey !== 'string' || !/^[a-f0-9]{64}$/.test(body.previousReviewKey))) return NextResponse.json({ error: 'The previous draft reference is invalid.' }, { status: 400 })
   try {
     const client = projectUserClient(owner.url, req.headers.get('Authorization') ?? '')
     let context = await loadProjectContext(client, owner.userId, body.missionId)
@@ -56,9 +57,18 @@ export async function POST(req: NextRequest) {
     if (note) {
       // The ownership read above precedes the write. Retries reuse the same
       // request ID, so a failed provider call cannot duplicate the answer.
-      const savedNote = await client.from('mission_events').insert({ user_id: owner.userId, mission_id: body.missionId,
-        type: 'delta_context_added', detail: note.note, idempotency_key: `assistance:${owner.userId}:${body.missionId}:${note.requestId}` })
-      if (savedNote.error && savedNote.error.code !== '23505') return NextResponse.json({ error: 'Your answer could not be saved. Keep it here and retry.' }, { status: 503 })
+      const key = `assistance:${owner.userId}:${body.missionId}:${note.requestId}`
+      const existing = await client.from('mission_events').select('detail').eq('user_id', owner.userId).eq('mission_id', body.missionId).eq('idempotency_key', key).maybeSingle()
+      if (existing.error) throw existing.error
+      if (existing.data && existing.data.detail !== note.note) return NextResponse.json({ error: 'This answer changed. Submit it as a new request.' }, { status: 409 })
+      if (!existing.data) {
+        const previous = body.previousReviewKey ? await cachedProjectReview(client, owner.userId, context) : null
+        if (body.previousReviewKey && previous?.contextKey !== body.previousReviewKey) return NextResponse.json({ error: 'The draft context changed or expired. Refresh before revising it; keep your answer to paste back in.' }, { status: 409 })
+        const rows = [{ user_id: owner.userId, mission_id: body.missionId, type: 'delta_context_added', detail: note.note, idempotency_key: key }]
+        if (previous?.workDraft) rows.push({ user_id: owner.userId, mission_id: body.missionId, type: 'delta_draft_context', detail: previous.workDraft, idempotency_key: `${key}:draft` })
+        const savedNote = await client.from('mission_events').insert(rows)
+        if (savedNote.error && savedNote.error.code !== '23505') return NextResponse.json({ error: 'Your answer could not be saved. Keep it here and retry.' }, { status: 503 })
+      }
       context = await loadProjectContext(client, owner.userId, body.missionId)
     }
     const cached = await cachedProjectReview(client, owner.userId, context)

@@ -25,7 +25,7 @@ export const PROJECT_REVIEW_OUTPUT: Tool = {
   description: 'Return the final source-grounded proposal after comparing choices and critiquing the draft. This records no action, changes no state, and verifies nothing. Choose act, resume an exact unfinished commitment, or ask one deciding question. Include observable completion and evidence for the selected move and alternatives.',
   input_schema: {
     type: 'object', additionalProperties: false,
-    required: ['decision', 'operation', 'finishWhen', 'clarification', 'resumeActionId', 'alternatives', 'biggerPicture', 'why', 'overlooked', 'selfCheck', 'unknowns', 'sourceIds', 'lesson'],
+    required: ['decision', 'operation', 'finishWhen', 'clarification', 'resumeActionId', 'alternatives', 'biggerPicture', 'why', 'overlooked', 'selfCheck', 'unknowns', 'sourceIds', 'lesson', 'workDraft'],
     properties: {
       decision: { type: 'string', enum: ['act', 'resume', 'clarify'] }, workDraft: nullableText(6000),
       operation: nullableText(240), finishWhen: nullableText(300), clarification: nullableText(300), resumeActionId: nullableText(100),

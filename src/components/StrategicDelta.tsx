@@ -552,7 +552,7 @@ export default function StrategicDelta({
           </section>}
           {canAssist && <MissionAssistance key={`${reviewTarget.id}:${reviewTarget.finishLine}`} missionId={reviewTarget.id}
             title={reviewTarget.title} finishLine={reviewTarget.finishLine!} question={needsClarification ? projectReview?.clarification : selectedReview ? 'What would you like to change or work on next?' : null}
-            busy={projectReviewBusy} onSubmit={requestProjectReview} />}
+            previousReviewKey={projectReview?.contextKey} busy={projectReviewBusy} onSubmit={requestProjectReview} />}
           {retainedStep && !hasRecommendation && (
             <p className="sd-taught">Kept: {retainedStep.move}. It stays on record, and it is not the next step.</p>
           )}

@@ -5,8 +5,8 @@ import { ActionBtn } from '@/components/ui'
 import { assistanceQuestion } from '@/lib/missionAssistance'
 import type { ProjectReviewRequest } from '@/lib/projectReview'
 
-export default function MissionAssistance({ missionId, title, finishLine, question, busy, onSubmit }: {
-  missionId: string; title: string; finishLine: string; question?: string | null; busy: boolean
+export default function MissionAssistance({ missionId, title, finishLine, question, previousReviewKey, busy, onSubmit }: {
+  missionId: string; title: string; finishLine: string; question?: string | null; previousReviewKey?: string; busy: boolean
   onSubmit: (request: ProjectReviewRequest) => Promise<boolean | void>
 }) {
   const [answer, setAnswer] = useState('')
@@ -20,7 +20,7 @@ export default function MissionAssistance({ missionId, title, finishLine, questi
     setSending(true)
     if (attempt.current?.text !== text) attempt.current = { text, id: crypto.randomUUID() }
     try {
-      const saved = await onSubmit({ missionId, finishLine, contextNote: text, requestId: attempt.current.id })
+      const saved = await onSubmit({ missionId, finishLine, contextNote: text, requestId: attempt.current.id, previousReviewKey })
       if (saved === true) { setAnswer(''); attempt.current = null }
     } finally { inFlight.current = false; setSending(false) }
   }

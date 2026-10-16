@@ -775,6 +775,7 @@ export default function MissionTab() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify(request),
+        signal: AbortSignal.timeout(110_000),
       })
       const data = await response.json() as { review?: ProjectReview | null; lessons?: ConfirmedLesson[]; error?: string }
       if (!response.ok) throw new Error(data.error || 'Project review could not complete.')
@@ -1367,6 +1368,7 @@ export default function MissionTab() {
           missionId={savedMissionId}
           suggestedTitle={shownAcceptance && !shownAcceptance.resumeActionId && shownAcceptance.missionId === savedMissionId ? shownAcceptance.move : null}
           routedDraft={currentDraft}
+          resumeDraft={shownAcceptance?.resumeActionId && projectReview?.missionId === savedMissionId && projectReview.resumeActionId === shownAcceptance.resumeActionId && projectReview.workDraft ? { actionId: shownAcceptance.resumeActionId, note: draftStartingPoint(projectReview)! } : null}
           suggestedNote={shownAcceptance && !shownAcceptance.resumeActionId && projectReview?.missionId === savedMissionId && projectReview.operation === shownAcceptance.move ? draftStartingPoint(projectReview) : null}
           onActiveChange={handleResumableAction}
         />
