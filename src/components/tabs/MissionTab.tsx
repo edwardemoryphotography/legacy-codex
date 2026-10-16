@@ -47,6 +47,7 @@ import { nextMoveContextKey } from '@/lib/nextMove'
 import type { TaskRouteContext } from '@/lib/taskRouting'
 import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase } from '@/components/StrategicDelta'
 import type { ConfirmedLesson, LessonConfirmation, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
+import { draftStartingPoint } from '@/lib/missionAssistance'
 
 // ─── Supabase row <-> domain mapping ────────────────────────────────────
 // missionLoop.ts operates on the camelCase Mission/MissionEvent domain
@@ -280,7 +281,7 @@ function newId(): string {
 
 const CAPACITY_LEVELS: CapacityLevel[] = ['low', 'medium', 'high']
 
-export const VISITOR_ACCESS_COPY = 'Smart suggestions are only on Eddie\u2019s account. Everything you write here is saved privately.'
+export const VISITOR_ACCESS_COPY = 'AI assistance is not enabled for this account. Everything you write here is saved privately.'
 const RECONNECT_ACCESS_COPY = 'Smart suggestions are unavailable until this session reconnects. Everything you write here is still saved privately.'
 
 export default function MissionTab() {
@@ -325,7 +326,7 @@ export default function MissionTab() {
   // locked in as a visitor; its reads still run and fail quietly. Any 2xx —
   // including `configured: false` when the model key is missing — is the
   // owner, whose confirmed lessons still restore without a provider key.
-  const [projectAccess, setProjectAccess] = useState<'checking' | 'owner' | 'visitor' | 'unknown'>('checking')
+  const [projectAccess, setProjectAccess] = useState<'checking' | 'owner' | 'tester' | 'visitor' | 'unknown'>('checking')
   // A failed optional read (restoring a cached review). Shown as a quiet
   // note, never as a failed write.
   const [projectReviewNotice, setProjectReviewNotice] = useState<string | null>(null)
@@ -495,10 +496,10 @@ export default function MissionTab() {
           }
           return
         }
-        const data = await res.json() as { configured?: unknown; error?: string }
+        const data = await res.json() as { configured?: unknown; tester?: boolean; error?: string }
         if (!cancelled) {
           setOperationStageConfigured(res.ok && data.configured === true)
-          setProjectAccess(res.ok ? 'owner' : 'unknown')
+          setProjectAccess(res.ok ? data.tester ? 'tester' : 'owner' : 'unknown')
           setProjectReviewAccessError(res.ok && data.configured === true ? null : data.error || 'Project intelligence is not configured. Your saved work remains available.')
         }
       } catch {
@@ -780,7 +781,9 @@ export default function MissionTab() {
       if (generation === reviewGeneration.current) {
         setProjectReview(data.review ?? null)
         setConfirmedLessons(data.lessons ?? [])
+        return Boolean(data.review)
       }
+      return false
     } catch (failure) {
       if (generation === reviewGeneration.current) {
         setProjectReviewError(failure instanceof Error ? failure.message : 'Project review could not complete.')
@@ -801,6 +804,7 @@ export default function MissionTab() {
           }
         })()
       }
+      return false
     } finally {
       reviewInFlight.current = false
       setProjectReviewBusy(false)
@@ -1217,7 +1221,7 @@ export default function MissionTab() {
         suppliedOperations={suppliedSteps}
         onContextAdded={handleDeltaContext}
         onRecheck={handleDeltaRecheck}
-        requestOperation={operationStageConfigured ? handleRequestOperation : undefined}
+        requestOperation={operationStageConfigured && projectAccess === 'owner' ? handleRequestOperation : undefined}
         projectReview={projectReview}
         confirmedLessons={confirmedLessons}
         onConfirmLesson={handleConfirmLesson}
@@ -1227,7 +1231,7 @@ export default function MissionTab() {
         projectReviewBusy={projectReviewBusy}
         projectReviewError={projectReviewError}
         projectReviewNotice={projectReviewNotice}
-        requestProjectReview={sessionReady && (projectAccess === 'owner' || projectAccess === 'unknown') ? handleProjectReview : undefined}
+        requestProjectReview={sessionReady && (projectAccess === 'owner' || projectAccess === 'tester' || projectAccess === 'unknown') ? handleProjectReview : undefined}
       >
         {canChoosePrimary && !startingNewPrimary && (
           <div className="mission-invite" aria-label="Choose your Primary mission">
@@ -1363,6 +1367,7 @@ export default function MissionTab() {
           missionId={savedMissionId}
           suggestedTitle={shownAcceptance && !shownAcceptance.resumeActionId && shownAcceptance.missionId === savedMissionId ? shownAcceptance.move : null}
           routedDraft={currentDraft}
+          suggestedNote={shownAcceptance && !shownAcceptance.resumeActionId && projectReview?.missionId === savedMissionId && projectReview.operation === shownAcceptance.move ? draftStartingPoint(projectReview) : null}
           onActiveChange={handleResumableAction}
         />
       )}

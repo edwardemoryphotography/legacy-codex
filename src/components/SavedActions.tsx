@@ -21,6 +21,7 @@ const fields = 'id,mission_id,action_title,status,resume_note,updated_at,mission
 export default function SavedActions({
   missionId,
   suggestedTitle,
+  suggestedNote,
   routedDraft,
   onActiveChange,
 }: {
@@ -29,6 +30,7 @@ export default function SavedActions({
    *  composer once so the saved action can use the same words. Never
    *  written for them — saving stays an explicit commitment. */
   suggestedTitle?: string | null
+  suggestedNote?: string | null
   /** Explicitly prepared handoff, not a background recommendation. Saved
    *  into the existing action's resume_note only with the matching title. */
   routedDraft?: RoutedActionDraft | null
@@ -97,7 +99,8 @@ export default function SavedActions({
     try {
       const { data, error: writeError } = await supabase.from('actions').insert({
         mission_id: missionId, action_title: title.trim(), status: 'TODO', is_next_action: true,
-        resume_note: routedDraft?.missionId === missionId && title.trim() === routedDraft.task ? routedDraft.note : null,
+        resume_note: routedDraft?.missionId === missionId && title.trim() === routedDraft.task ? routedDraft.note
+          : suggestedTitle === title.trim() ? suggestedNote ?? null : null,
       }).select(fields).single()
       if (writeError || !data) throw writeError ?? new Error('No saved action returned')
       setActions(previous => [data as unknown as SavedAction, ...previous])
@@ -128,6 +131,7 @@ export default function SavedActions({
         {!openActions.length && (missionId ? <div className="space-y-3">
           <p>Name one concrete step you want to take. Saving it is a commitment, not proof that it is done.</p>
           <label htmlFor="saved-action-title">Name the action to save</label>
+          {!routedDraft && suggestedNote && title.trim() === suggestedTitle && <details className="route-handoff"><summary>Draft to keep with this action</summary><pre tabIndex={0}>{suggestedNote}</pre></details>}
           <Input id="saved-action-title" value={title} onChange={value => { setTitleTouched(true); setTitle(value) }} placeholder="What will you do next?" />
           {routedDraft && (title.trim() === routedDraft.task ? <details className="route-handoff"><summary>Handoff to save with this action</summary><pre tabIndex={0}>{routedDraft.note}</pre><p>The task and this starting point will be saved together. No tool has run.</p></details> : <p>The action title changed. This save will use your new title without the earlier handoff. Route the revised task to prepare a matching handoff.</p>)}
           <ActionBtn disabled={saving || !title.trim()} onClick={saveAction}>{saving ? 'Saving…' : 'Save next action'}</ActionBtn>

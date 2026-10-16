@@ -41,6 +41,7 @@ export interface LessonConfirmation {
 }
 
 export interface ProjectReview {
+  workDraft?: string | null
   missionId: string
   finishLine: string
   operation: string | null
@@ -66,6 +67,8 @@ export interface ProjectReview {
 export interface ProjectReviewRequest {
   missionId: string
   finishLine: string
+  contextNote?: string
+  requestId?: string
 }
 
 export function boundSourceText(text: string, maxChars = 6_000): { text: string; truncated: boolean } {
@@ -115,13 +118,14 @@ export function relatedProjectSignal(targetText: string, candidate: { id: string
   return { score: shared.length, reason: shared.length ? `Shared context terms: ${shared.slice(0, 8).join(', ')}. Relationship is a hypothesis to check.` : 'No supported relationship signal.' }
 }
 
-export type ReviewProposal = Pick<ProjectReview, 'operation' | 'decision' | 'finishWhen' | 'clarification' | 'resumeActionId' | 'alternatives' | 'biggerPicture' | 'why' | 'overlooked' | 'selfCheck' | 'unknowns' | 'sourceIds' | 'lesson'>
+export type ReviewProposal = Pick<ProjectReview, 'workDraft' | 'operation' | 'decision' | 'finishWhen' | 'clarification' | 'resumeActionId' | 'alternatives' | 'biggerPicture' | 'why' | 'overlooked' | 'selfCheck' | 'unknowns' | 'sourceIds' | 'lesson'>
 
 export function parseProjectReview(raw: string, sources: ProjectSource[], missionId: string): ReviewProposal | null {
   try {
     const value: unknown = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null
     const row = value as Record<string, unknown>
+    if (row.workDraft != null && (typeof row.workDraft !== 'string' || !row.workDraft.trim() || row.workDraft.length > 6_000)) return null
     const text = (key: string) => typeof row[key] === 'string' && (row[key] as string).trim() && (row[key] as string).length <= 1_000
     if (!['biggerPicture', 'why', 'overlooked', 'selfCheck'].every(text) || (row.why as string).length > 500) return null
     if (row.operation !== null && (typeof row.operation !== 'string' || !row.operation.trim() || row.operation.length > 240)) return null
@@ -157,6 +161,7 @@ export function parseProjectReview(raw: string, sources: ProjectSource[], missio
     const lesson = row.lesson == null ? null : parseLessonProposal(row.lesson, sources)
     if (row.lesson != null && !lesson) return null
     return {
+      workDraft: typeof row.workDraft === 'string' ? row.workDraft.trim() : null,
       operation: row.operation === null ? null : (row.operation as string).trim(),
       decision: row.decision as ReviewProposal['decision'],
       finishWhen: row.finishWhen === null ? null : (row.finishWhen as string).trim(),

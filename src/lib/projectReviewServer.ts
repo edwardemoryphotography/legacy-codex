@@ -137,6 +137,6 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
   }).filter(source => source.text.length)
   if (bounded.length !== sources.length) warnings.push(`${sources.length - bounded.length} sources were omitted by the total context limit.`)
   if (bounded.some(source => source.truncated)) warnings.push('Some sources are excerpts. Limits reserve room for evidence and commitments alongside lessons, notes and corrections; inspect originals when a cut could change the interpretation.')
-  const contextKey = createHash('sha256').update(JSON.stringify({ version: 6, target: target.data, sources: bounded, warnings, hasEvidenceConflict })).digest('hex')
+  const contextKey = createHash('sha256').update(JSON.stringify({ version: 7, target: target.data, sources: bounded, warnings, hasEvidenceConflict })).digest('hex')
   return { mission: target.data, sources: bounded, warnings, contextKey, hasEvidenceConflict, lessons }
 }
