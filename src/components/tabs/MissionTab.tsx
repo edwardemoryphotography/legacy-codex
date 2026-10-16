@@ -1225,8 +1225,8 @@ export default function MissionTab() {
         requestOperation={operationStageConfigured && projectAccess === 'owner' ? handleRequestOperation : undefined}
         projectReview={projectReview}
         confirmedLessons={confirmedLessons}
-        onConfirmLesson={handleConfirmLesson}
-        onRetireLesson={handleRetireLesson}
+        onConfirmLesson={projectAccess === 'owner' ? handleConfirmLesson : undefined}
+        onRetireLesson={projectAccess === 'owner' ? handleRetireLesson : undefined}
         projectReviewAccessError={projectReviewAccessError}
         projectReviewAvailable={operationStageConfigured}
         projectReviewBusy={projectReviewBusy}

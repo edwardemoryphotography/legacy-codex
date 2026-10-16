@@ -65,7 +65,8 @@ export async function POST(req: NextRequest) {
         const previous = body.previousReviewKey ? await cachedProjectReview(client, owner.userId, context) : null
         if (body.previousReviewKey && previous?.contextKey !== body.previousReviewKey) return NextResponse.json({ error: 'The draft context changed or expired. Refresh before revising it; keep your answer to paste back in.' }, { status: 409 })
         const rows = [{ user_id: owner.userId, mission_id: body.missionId, type: 'delta_context_added', detail: note.note, idempotency_key: key }]
-        if (previous?.workDraft) rows.push({ user_id: owner.userId, mission_id: body.missionId, type: 'delta_draft_context', detail: previous.workDraft, idempotency_key: `${key}:draft` })
+        const previousText = previous?.workDraft || previous?.clarification
+        if (previousText) rows.push({ user_id: owner.userId, mission_id: body.missionId, type: 'delta_draft_context', detail: previousText, idempotency_key: `${key}:draft` })
         const savedNote = await client.from('mission_events').insert(rows)
         if (savedNote.error && savedNote.error.code !== '23505') return NextResponse.json({ error: 'Your answer could not be saved. Keep it here and retry.' }, { status: 503 })
       }
