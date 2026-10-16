@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { boundSourceText, githubFileReference, relatedProjectSignal, sourceLinks, type ProjectSource } from './projectReview'
+import { selectInvestigationProjects } from './structuralTransfer'
 import { loadConfirmedLessons } from './projectLessonsServer'
 
 // Keep the exact title within the proposal bound. Never truncate a commitment
@@ -20,7 +21,7 @@ export function projectUserClient(url: string, authorization: string) {
 
 // Public GitHub text files only. The destination is built here, never fetched
 // from a model or a returned URL. No redirects, credentials, or private tokens.
-async function readPublicFile(url: string): Promise<ProjectSource> {
+async function readPublicFile(url: string, missionId: string): Promise<ProjectSource> {
   const file = githubFileReference(url)
   if (!file) throw new Error('Unsupported source link.')
   const endpoint = `https://api.github.com/repos/${file.owner}/${file.repository}/contents/${file.path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(file.ref)}`
@@ -44,7 +45,7 @@ async function readPublicFile(url: string): Promise<ProjectSource> {
   if (data.type !== 'file' || data.encoding !== 'base64' || typeof data.content !== 'string' || typeof data.sha !== 'string') throw new Error('Invalid public source.')
   const text = Buffer.from(data.content, 'base64').toString('utf8')
   if (text.includes('\u0000')) throw new Error('Source is not text.')
-  return { id: `repository:${file.owner}/${file.repository}/${file.path}@${data.sha}`, label: `${file.repository}/${file.path}`, kind: 'repository', status: 'fetched source; claims within it are not independently verified', url, ...boundSourceText(text) }
+  return { id: `repository:${file.owner}/${file.repository}/${file.path}@${data.sha}`, label: `${file.repository}/${file.path}`, kind: 'repository', missionId, status: 'fetched source; claims within it are not independently verified', url, ...boundSourceText(text) }
 }
 
 export async function loadProjectContext(client: ReturnType<typeof projectUserClient>, userId: string, missionId: string) {
@@ -59,27 +60,39 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
     // Safety state must cover every linked row, even when source excerpts
     // are bounded. In particular, a Secondary cannot inherit the Primary's gate.
     client.from('evidence_snapshots').select('id', { count: 'exact', head: true }).eq('mission_id', missionId).eq('status', 'conflict'),
+    client.from('mission_events').select('id,mission_id,created_at').eq('user_id', userId).neq('mission_id', missionId).eq('type', 'delta_corrected').order('created_at', { ascending: false }).limit(100),
   ])
   // An unavailable read is not an empty set. Do not call the model on a
   // deceptively complete context packet.
   if (results.some(r => r.error)) throw new Error('Could not read all project context. Your saved work is unchanged.')
-  const [missions, evidence, actions, events, corrections, conflicts] = results
+  const [missions, evidence, actions, events, corrections, conflicts, correctionOrigins] = results
   const hasEvidenceConflict = (conflicts.count ?? 0) > 0
-  const sources: ProjectSource[] = [{ id: `mission:${target.data.id}`, label: target.data.title, kind: 'mission', status: 'human-defined outcome', ...boundSourceText(JSON.stringify(target.data), 4_000) }]
-  for (const row of evidence.data ?? []) sources.push({ id: `evidence:${row.id}`, label: row.source, kind: 'evidence', status: `Derived snapshot: ${row.status}; not canonical evidence truth`, ...boundSourceText(JSON.stringify(row), 2_000) })
-  for (const row of actions.data ?? []) sources.push({ id: `action:${row.id}`, label: row.action_title, kind: 'commitment', status: 'human-reported commitment and progress; not verified completion', commitment: { id: row.id, missionId, status: row.status, actionTitle: resumableTitle(row.action_title) }, ...boundSourceText(JSON.stringify(row), 2_000) })
-  for (const row of events.data ?? []) sources.push({ id: `event:${row.id}`, label: row.type === 'delta_draft_context' ? 'Previous working draft' : 'Your project context', kind: row.type === 'delta_draft_context' ? 'model_draft' : 'human_note', status: row.type === 'delta_draft_context' ? 'Earlier model-generated draft; unverified, supplied only for revision' : 'human-reported', ...boundSourceText(row.detail, 6_000) })
-  for (const row of corrections.data ?? []) sources.push({ id: `event:${row.id}`, label: 'Your correction', kind: 'correction', status: 'human correction; authoritative for this recommendation', ...boundSourceText(JSON.stringify(row), 2_000) })
-  const warnings = ['Retrieval considers the 50 most recently updated other projects. Explicit project IDs and shared context terms select up to 4 for deeper reading; up to 8 other project summaries remain visible for discovering less obvious connections. These are relevance hypotheses, not proof of dependencies. Unread details and semantic links may be missed.',
+  const sources: ProjectSource[] = [{ id: `mission:${target.data.id}`, label: target.data.title, kind: 'mission', missionId, recordedAt: target.data.updated_at, status: 'human-defined outcome', ...boundSourceText(JSON.stringify(target.data), 4_000) }]
+  for (const row of evidence.data ?? []) sources.push({ id: `evidence:${row.id}`, label: row.source, kind: 'evidence', missionId, recordedAt: row.observed_at, status: `Derived snapshot: ${row.status}; not canonical evidence truth`, ...boundSourceText(JSON.stringify(row), 2_000) })
+  for (const row of actions.data ?? []) sources.push({ id: `action:${row.id}`, label: row.action_title, kind: 'commitment', missionId, recordedAt: row.updated_at, status: 'human-reported commitment and progress; not verified completion', commitment: { id: row.id, missionId, status: row.status, actionTitle: resumableTitle(row.action_title) }, ...boundSourceText(JSON.stringify(row), 2_000) })
+  for (const row of events.data ?? []) sources.push({ id: `event:${row.id}`, label: row.type === 'delta_draft_context' ? 'Previous working draft' : 'Your project context', kind: row.type === 'delta_draft_context' ? 'model_draft' : 'human_note', missionId, recordedAt: row.created_at, status: row.type === 'delta_draft_context' ? 'Earlier model-generated draft; unverified, supplied only for revision' : 'human-reported', ...boundSourceText(row.detail, 6_000) })
+  for (const row of corrections.data ?? []) sources.push({ id: `event:${row.id}`, label: 'Your correction', kind: 'correction', missionId, recordedAt: row.created_at, status: 'human correction; authoritative for this recommendation', ...boundSourceText(JSON.stringify(row), 2_000) })
+  const warnings = ['Up to 4 projects are read deeply: confirmed lesson origins, prior correction origins, then shared vocabulary. Provenance candidates can be fetched outside the 50 recent-project window (up to 20). None is a proven structural match. Eight additional summaries remain available; omitted projects and semantic links may be missed.',
     'Target context is bounded to 12 evidence rows, 8 commitments, 24 notes/events and 100 corrections. Each related project contributes up to 6 evidence rows, 4 commitments, 8 notes and 20 corrections. Lesson history is paged until at most 16 active scoped rules are found; retired and unrelated rules do not consume the selection window. Older or omitted material may change the interpretation.',
     'Evidence here is the Mission evidence_snapshots read model. evidence_items owns canonical evidence truth; those workspace records are not read without a verified account/workspace link. A snapshot status or a human DONE report does not verify the outcome.']
-  let notes = (events.data ?? []).filter(e => e.type === 'delta_context_added').map(e => e.detail).join('\n')
+  const notes = (events.data ?? []).filter(e => e.type === 'delta_context_added').map(e => e.detail).join('\n')
+  const linkedFiles = sourceLinks(notes).map(url => ({ url, missionId }))
   const targetText = `${target.data.title} ${target.data.why} ${target.data.finish_line ?? ''}\n${notes}`
-  const related = (missions.data ?? []).map(mission => ({ mission, ...relatedProjectSignal(targetText, mission) }))
+  const lexical = (missions.data ?? []).map(mission => ({ mission, ...relatedProjectSignal(targetText, mission) }))
     .filter(item => item.score >= 2).sort((a, b) => b.score - a.score || b.mission.updated_at.localeCompare(a.mission.updated_at)).slice(0, 4)
   const targetSourceIds = new Set(sources.map(source => source.id))
-  const lessons = await loadConfirmedLessons(client, userId, [missionId, ...related.map(item => item.mission.id)])
-  for (const lesson of lessons) sources.push({ id: `lesson:${lesson.id}`, label: lesson.rule, kind: 'lesson',
+  const lessons = await loadConfirmedLessons(client, userId, [missionId, ...lexical.map(item => item.mission.id)])
+  const lessonOrigins = [...new Set(lessons.filter(lesson => lesson.scope === 'account' && lesson.missionId !== missionId).map(lesson => lesson.missionId))]
+  const correctedOrigins = [...new Set((correctionOrigins.data ?? []).map(row => row.mission_id))] as string[]
+  const candidates = [...(missions.data ?? [])]
+  const missingIds = [...new Set([...lessonOrigins, ...correctedOrigins])].filter(id => !candidates.some(mission => mission.id === id)).slice(0, 20)
+  if (missingIds.length) {
+    const origins = await client.from('missions').select('id,title,why,finish_line,state,blocker,updated_at').eq('user_id', userId).in('id', missingIds)
+    if (origins.error) throw new Error('Could not read prior lesson/correction origins.')
+    candidates.push(...(origins.data ?? []))
+  }
+  const related = selectInvestigationProjects(candidates.map(mission => ({ mission, ...relatedProjectSignal(targetText, mission) })), lessonOrigins, correctedOrigins)
+  for (const lesson of lessons) sources.push({ id: `lesson:${lesson.id}`, label: lesson.rule, kind: 'lesson', missionId: lesson.missionId, recordedAt: lesson.confirmedAt, lesson: { scope: lesson.scope, confirmedAt: lesson.confirmedAt },
     status: `Human-confirmed operating rule (${lesson.scope === 'account' ? 'across this account' : `only project ${lesson.missionId}`}); apply only under its stated conditions, not verified evidence`,
     text: JSON.stringify(lesson), truncated: false })
   const packets = await Promise.all(related.map(async ({ mission, reason }) => {
@@ -95,25 +108,27 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
   }))
   for (const packet of packets) {
     const { mission } = packet
-    sources.push({ id: `mission:${mission.id}`, label: mission.title, kind: 'mission', status: packet.reason, ...boundSourceText(JSON.stringify(mission), 2_000) })
+    sources.push({ id: `mission:${mission.id}`, label: mission.title, kind: 'mission', missionId: mission.id, recordedAt: mission.updated_at, status: packet.reason, ...boundSourceText(JSON.stringify(mission), 2_000) })
     const wrap = (row: object) => JSON.stringify({ missionId: mission.id, project: mission.title, record: row })
-    for (const row of packet.evidence) sources.push({ id: `evidence:${row.id}`, label: `${mission.title}: ${row.source}`, kind: 'evidence', status: `Derived snapshot: ${row.status}; not canonical evidence truth`, ...boundSourceText(wrap(row), 1_500) })
-    for (const row of packet.actions) sources.push({ id: `action:${row.id}`, label: `${mission.title}: ${row.action_title}`, kind: 'commitment', status: 'Related project commitment; human-reported, not verified completion', commitment: { id: row.id, missionId: mission.id, status: row.status, actionTitle: resumableTitle(row.action_title) }, ...boundSourceText(wrap(row), 1_500) })
-    for (const row of packet.notes) sources.push({ id: `event:${row.id}`, label: `${mission.title}: project context`, kind: 'human_note', status: 'Human-reported context on a related project', ...boundSourceText(wrap(row), 1_500) })
-    for (const row of packet.corrections) sources.push({ id: `event:${row.id}`, label: `${mission.title}: correction`, kind: 'correction', status: 'Human correction scoped to this related project', ...boundSourceText(wrap(row), 1_500) })
-    notes += '\n' + packet.notes.filter(row => row.type === 'delta_context_added').map(row => row.detail).join('\n')
+    for (const row of packet.evidence) sources.push({ id: `evidence:${row.id}`, label: `${mission.title}: ${row.source}`, kind: 'evidence', missionId: mission.id, recordedAt: row.observed_at, status: `Derived snapshot: ${row.status}; not canonical evidence truth`, ...boundSourceText(wrap(row), 1_500) })
+    for (const row of packet.actions) sources.push({ id: `action:${row.id}`, label: `${mission.title}: ${row.action_title}`, kind: 'commitment', missionId: mission.id, recordedAt: row.updated_at, status: 'Related project commitment; human-reported, not verified completion', commitment: { id: row.id, missionId: mission.id, status: row.status, actionTitle: resumableTitle(row.action_title) }, ...boundSourceText(wrap(row), 1_500) })
+    for (const row of packet.notes) sources.push({ id: `event:${row.id}`, label: `${mission.title}: project context`, kind: 'human_note', missionId: mission.id, recordedAt: row.created_at, status: 'Human-reported context on a related project', ...boundSourceText(wrap(row), 1_500) })
+    for (const row of packet.corrections) sources.push({ id: `event:${row.id}`, label: `${mission.title}: correction`, kind: 'correction', missionId: mission.id, recordedAt: row.created_at, status: 'Human correction scoped to this related project', ...boundSourceText(wrap(row), 1_500) })
+    for (const url of sourceLinks(packet.notes.filter(row => row.type === 'delta_context_added').map(row => row.detail).join('\n'))) {
+      if (linkedFiles.length < 2 && !linkedFiles.some(link => link.url === url)) linkedFiles.push({ url, missionId: mission.id })
+    }
   }
   const relatedIds = new Set(related.map(item => item.mission.id))
   // Keep a discovery window even without lexical overlap. A model may see
   // a connection in these actual outcomes; it must disclose unread details.
   for (const mission of (missions.data ?? []).filter(row => !relatedIds.has(row.id)).slice(0, 8)) {
-    sources.push({ id: `mission:${mission.id}`, label: mission.title, kind: 'mission',
+    sources.push({ id: `mission:${mission.id}`, label: mission.title, kind: 'mission', missionId: mission.id, recordedAt: mission.updated_at,
       status: 'Other project summary only; relationship unknown and underlying notes/evidence not read',
       ...boundSourceText(JSON.stringify(mission), 800) })
   }
-  for (const link of sourceLinks(notes)) {
-    try { sources.push(await readPublicFile(link)) }
-    catch { warnings.push(`Could not inspect ${link}. Do not claim to know its contents.`) }
+  for (const link of linkedFiles) {
+    try { sources.push(await readPublicFile(link.url, link.missionId)) }
+    catch { warnings.push(`Could not inspect ${link.url}. Do not claim to know its contents.`) }
   }
   // Preserve corrections and human context before less relevant projects
   // when the total packet must be clipped.
@@ -137,6 +152,21 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
   }).filter(source => source.text.length)
   if (bounded.length !== sources.length) warnings.push(`${sources.length - bounded.length} sources were omitted by the total context limit.`)
   if (bounded.some(source => source.truncated)) warnings.push('Some sources are excerpts. Limits reserve room for evidence and commitments alongside lessons, notes and corrections; inspect originals when a cut could change the interpretation.')
-  const contextKey = createHash('sha256').update(JSON.stringify({ version: 7, target: target.data, sources: bounded, warnings, hasEvidenceConflict })).digest('hex')
-  return { mission: target.data, sources: bounded, warnings, contextKey, hasEvidenceConflict, lessons }
+  // The measurement must not miss an intervention simply because its text
+  // fell outside the prompt budget or the latest 24 events.
+  let interventionEvidence: { since: string; eventCount: number; objectiveUpdated: boolean } | null = null
+  const suppliedLessons = lessons.filter(lesson => bounded.some(source => source.id === `lesson:${lesson.id}`))
+  if (suppliedLessons.length) {
+    const earliest = Math.min(...suppliedLessons.map(lesson => Date.parse(lesson.confirmedAt)))
+    if (!Number.isFinite(earliest)) throw new Error('Lesson confirmation time is unavailable.')
+    const since = new Date(earliest).toISOString()
+    const intervened = await client.from('mission_events').select('id', { count: 'exact', head: true })
+      .eq('user_id', userId).eq('mission_id', missionId).gte('created_at', since)
+      .in('type', ['delta_context_added', 'delta_step_supplied', 'finish_line_set', 'delta_corrected'])
+    if (intervened.error || intervened.count === null) throw new Error('Could not determine whether human intervention occurred.')
+    interventionEvidence = { since, eventCount: intervened.count,
+      objectiveUpdated: !Number.isFinite(Date.parse(target.data.updated_at)) || Date.parse(target.data.updated_at) >= earliest }
+  }
+  const contextKey = createHash('sha256').update(JSON.stringify({ version: 8, target: target.data, sources: bounded, warnings, hasEvidenceConflict, interventionEvidence })).digest('hex')
+  return { mission: target.data, sources: bounded, warnings, contextKey, hasEvidenceConflict, lessons, interventionEvidence }
 }

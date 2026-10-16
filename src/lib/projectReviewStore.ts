@@ -1,4 +1,5 @@
 import { parseProjectReview, type ProjectReview } from './projectReview'
+import { measureTransfer } from './structuralTransfer'
 import type { loadProjectContext, projectUserClient } from './projectReviewServer'
 
 export async function cachedProjectReview(client: ReturnType<typeof projectUserClient>, userId: string, context: Awaited<ReturnType<typeof loadProjectContext>>): Promise<ProjectReview | null> {
@@ -10,7 +11,13 @@ export async function cachedProjectReview(client: ReturnType<typeof projectUserC
     const valid = parseProjectReview(JSON.stringify(previous), context.sources, context.mission.id)
     const age = Date.now() - Date.parse(previous.reviewedAt)
     if (previous.missionId !== context.mission.id || previous.finishLine !== context.mission.finish_line || previous.contextKey !== context.contextKey || !valid || !Number.isFinite(age) || age < 0 || age > 3_600_000) return null
-    return { ...previous, ...valid, sources: context.sources, warnings: context.warnings, cached: true }
+    const baseline = previous.transferObservation?.baseline
+      ? parseProjectReview(JSON.stringify(previous.transferObservation.baseline), context.sources.filter(source => source.kind !== 'lesson'), context.mission.id) : null
+    // Recompute the classification; never trust a stored/model-written claim of
+    // inheritance. Old observations without intervention provenance are unknown.
+    const transferObservation = measureTransfer({ baseline, after: valid, sources: context.sources, lessons: context.lessons,
+      missionId: context.mission.id, requestContextAdded: previous.transferObservation?.interventionBasis?.requestContextAdded !== false, reviewedAt: previous.reviewedAt, interventionEvidence: context.interventionEvidence })
+    return { ...previous, ...valid, transferObservation, sources: context.sources, warnings: context.warnings, cached: true }
   } catch { return null }
 }
 
