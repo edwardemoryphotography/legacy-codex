@@ -4,7 +4,8 @@ import { PROJECT_REVIEW_OUTPUT, PROJECT_REVIEW_RULES } from '@/lib/projectReview
 import { deltaReviewer } from '@/lib/supabase/deltaAuth'
 import { parseAssistanceNote } from '@/lib/missionAssistance'
 import { loadProjectContext, projectUserClient } from '@/lib/projectReviewServer'
-import { parseProjectReview, type ProjectReview } from '@/lib/projectReview'
+import { parseProjectReview, type ProjectReview, type ReviewProposal } from '@/lib/projectReview'
+import { measureTransfer } from '@/lib/structuralTransfer'
 import { isConcreteMove } from '@/lib/strategicDelta'
 import { cachedProjectReview, projectIsReviewable } from '@/lib/projectReviewStore'
 
@@ -82,12 +83,24 @@ export async function POST(req: NextRequest) {
     const model = new Anthropic({ maxRetries: 0, timeout: 40_000 })
     // Full mission/lesson content is represented in the bounded sources.
     // Only identify the target here; do not bypass excerpts with raw records.
-    const packet = JSON.stringify({ mission: { id: context.mission.id, title: context.mission.title.slice(0, 160),
-      finishLine: body.finishLine, state: context.mission.state }, sources: context.sources, warnings: context.warnings })
+    const makePacket = (sources = context.sources) => JSON.stringify({ mission: { id: context.mission.id, title: context.mission.title.slice(0, 160),
+      finishLine: body.finishLine, state: context.mission.state }, sources, warnings: context.warnings })
+    const packet = makePacket()
+    const withheld = context.sources.filter(source => source.kind !== 'lesson')
+    const comparingLessons = withheld.length !== context.sources.length
+    let baseline: ReviewProposal | null = null
     stage = 'draft'
-    const draft = await model.messages.create({ model: 'claude-opus-5', max_tokens: 1_600, system: PROJECT_REVIEW_RULES, messages: [{ role: 'user', content: `Compare feasible moves and propose one choice from this context:\n${packet}` }] })
-    if (draft.stop_reason !== 'end_turn') return NextResponse.json({ error: 'The review draft did not complete. No recommendation was accepted.' }, { status: 502 })
-    const draftText = draft.content.filter(b => b.type === 'text').map(b => b.text).join('\n')
+    const draft = await model.messages.create({ model: 'claude-opus-5', max_tokens: comparingLessons ? 4_200 : 1_600,
+      system: PROJECT_REVIEW_RULES,
+      ...(comparingLessons ? { tools: [PROJECT_REVIEW_OUTPUT], tool_choice: { type: 'tool' as const, name: PROJECT_REVIEW_OUTPUT.name, disable_parallel_tool_use: true } } : {}),
+      messages: [{ role: 'user', content: `Compare feasible moves and propose one choice from this context.${comparingLessons ? ' Submit the provisional choice through submit_project_review.' : ''}\n${makePacket(comparingLessons ? withheld : context.sources)}` }] })
+    if (comparingLessons) {
+      const outputs = draft.content.filter((block): block is Anthropic.ToolUseBlock => block.type === 'tool_use' && block.name === PROJECT_REVIEW_OUTPUT.name)
+      baseline = draft.stop_reason === 'tool_use' && outputs.length === 1 ? parseProjectReview(JSON.stringify(outputs[0].input), withheld, body.missionId) : null
+      // A malformed baseline cannot become a measured comparison. Still allow
+      // the normal final critique to help the person, with unavailable metrics.
+    } else if (draft.stop_reason !== 'end_turn') return NextResponse.json({ error: 'The review draft did not complete. No recommendation was accepted.' }, { status: 502 })
+    const draftText = comparingLessons ? JSON.stringify(baseline) : draft.content.filter(b => b.type === 'text').map(b => b.text).join('\n')
     stage = 'critique'
     const final = await model.messages.create({
       model: 'claude-opus-5', max_tokens: 4_200, system: PROJECT_REVIEW_RULES,
@@ -106,7 +119,9 @@ export async function POST(req: NextRequest) {
     stage = 'context-recheck'
     const current = await loadProjectContext(client, owner.userId, body.missionId)
     if (current.contextKey !== context.contextKey) return NextResponse.json({ error: 'Your project changed during review. Review the updated context.' }, { status: 409 })
-    const review: ProjectReview = { ...parsed, missionId: body.missionId, finishLine: body.finishLine, sources: context.sources, warnings: context.warnings, contextKey: context.contextKey, reviewedAt: new Date().toISOString(), cached: false }
+    const reviewedAt = new Date().toISOString()
+    const transferObservation = measureTransfer({ baseline, after: parsed, sources: context.sources, lessons: context.lessons, missionId: body.missionId, requestContextAdded: Boolean(note), reviewedAt, interventionEvidence: context.interventionEvidence })
+    const review: ProjectReview = { ...parsed, transferObservation, missionId: body.missionId, finishLine: body.finishLine, sources: context.sources, warnings: context.warnings, contextKey: context.contextKey, reviewedAt, cached: false }
     // A cached proposal is not an action or evidence. It lives in the existing
     // transitional Delta ledger and is invalidated by context/correction changes.
     stage = 'persistence'

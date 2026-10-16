@@ -1,3 +1,5 @@
+import { parseStructuralBridge, type StructuralBridge, type TransferObservation } from './structuralTransfer'
+
 // Shared transport and validation; all conclusions remain model proposals.
 export interface ProjectSource {
   id: string
@@ -7,6 +9,9 @@ export interface ProjectSource {
   text: string
   url?: string
   truncated?: boolean
+  missionId?: string
+  recordedAt?: string
+  lesson?: { scope: 'mission' | 'account'; confirmedAt: string }
   // Set from an authenticated canonical action row, never from model text.
   commitment?: { id: string; missionId: string; status: string; actionTitle?: string }
 }
@@ -41,6 +46,8 @@ export interface LessonConfirmation {
 }
 
 export interface ProjectReview {
+  structuralBridge?: StructuralBridge | null
+  transferObservation?: TransferObservation
   workDraft?: string | null
   missionId: string
   finishLine: string
@@ -119,7 +126,7 @@ export function relatedProjectSignal(targetText: string, candidate: { id: string
   return { score: shared.length, reason: shared.length ? `Shared context terms: ${shared.slice(0, 8).join(', ')}. Relationship is a hypothesis to check.` : 'No supported relationship signal.' }
 }
 
-export type ReviewProposal = Pick<ProjectReview, 'workDraft' | 'operation' | 'decision' | 'finishWhen' | 'clarification' | 'resumeActionId' | 'alternatives' | 'biggerPicture' | 'why' | 'overlooked' | 'selfCheck' | 'unknowns' | 'sourceIds' | 'lesson'>
+export type ReviewProposal = Pick<ProjectReview, 'structuralBridge' | 'workDraft' | 'operation' | 'decision' | 'finishWhen' | 'clarification' | 'resumeActionId' | 'alternatives' | 'biggerPicture' | 'why' | 'overlooked' | 'selfCheck' | 'unknowns' | 'sourceIds' | 'lesson'>
 
 export function parseProjectReview(raw: string, sources: ProjectSource[], missionId: string): ReviewProposal | null {
   try {
@@ -161,7 +168,11 @@ export function parseProjectReview(raw: string, sources: ProjectSource[], missio
     }
     const lesson = row.lesson == null ? null : parseLessonProposal(row.lesson, sources)
     if (row.lesson != null && !lesson) return null
+    const structuralBridge = row.structuralBridge == null ? null : parseStructuralBridge(row.structuralBridge, sources, missionId)
+    if (row.structuralBridge != null && (!structuralBridge ||
+        ![structuralBridge.priorSourceId, structuralBridge.currentSourceId, ...(structuralBridge.lessonSourceId ? [structuralBridge.lessonSourceId] : [])].every(id => (row.sourceIds as string[]).includes(id)))) return null
     return {
+      structuralBridge,
       workDraft: typeof row.workDraft === 'string' ? row.workDraft.trim() : null,
       operation: row.operation === null ? null : (row.operation as string).trim(),
       decision: row.decision as ReviewProposal['decision'],

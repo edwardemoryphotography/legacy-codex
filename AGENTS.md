@@ -186,15 +186,26 @@ that control rather than failing at runtime.
 for an actionable saved project, including single-clause finish lines. The
 server reads that authenticated account's mission, related missions, evidence
 read model, canonical commitments and notes/corrections through RLS; no admin
-key is used. Explicit IDs and shared meaningful terms select up to four of
-the latest 50 other missions for deeper evidence, commitment and correction
-reads. Up to eight additional summaries allow discovery without lexical
+key is used. Confirmed account-lesson and prior-correction origins take precedence over
+shared terms when selecting up to four projects for deeper reads. Missing
+origins can be fetched beyond the latest fifty-project window (up to twenty);
+all queries stay account-scoped. Selection is an investigation candidate, not
+a structural match. Up to eight additional summaries allow discovery without lexical
 overlap, but their underlying records are explicitly unread. Relationship
 signals remain hypotheses. It reads at most two public GitHub text files explicitly linked
 in project notes. A bounded proposal → critique loop returns a source-attributed
 candidate, proposed bigger picture, overlooked connection, self-check and
 unknowns. The candidate still passes the engine's quality, priority, blocker,
 capacity and correction gates. It is bound to the complete finish line.
+
+An optional structural bridge validates exact supplied excerpts and server project
+provenance; it remains a model hypothesis. With supplied confirmed lessons, the
+first of the existing two calls provides a structured baseline withholding lesson
+records. The final review stores before/after decisions and explicit
+`human_intervention_required`; intervention counts are independent of prompt
+clipping. Sequential critique/sampling confound causation, so all automatic
+inheritance observations remain Unknown. No text difference counts as successful
+transfer. See `docs/verification/structural-transfer-2026-10-16.md`.
 
 `delta_reviewed` stores the proposal in the existing transitional mission UI
 ledger; it is not canonical evidence, an action, or permanent learning. GET

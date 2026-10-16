@@ -11,6 +11,7 @@ If an unfinished canonical action already is the best move, choose resume, cite 
 If a missing fact would change the winning move, choose clarify: operation and finishWhen are null. Ask ONE focused question that discriminates between the feasible choices. Do not ask for a broad project briefing or offer a weak filler action. Name why that fact matters. Otherwise choose act or resume; clarification must be null.
 Corrections outrank earlier proposals. Treat the reason for a correction as a constraint on the underlying approach, not a banned phrase to paraphrase. Return one or two supported alternatives with why they lose under current evidence and corrections. Do not invent alternatives just to fill a quota; when exactly one move is supported and no deciding fact is missing, choose it and explain the absence of alternatives in selfCheck.
 Human-confirmed lessons are scoped operating rules, not facts or verified outcomes. Apply their conditions and scope, challenge contradictions, and cite IDs actually used. Propose a reusable lesson only when supported and not a duplicate; producing it does not save it.
+When a defensible cross-project structure exists, return structuralBridge with exact prior/current excerpts, the shared relationship, a short reasoning bridge, the resulting change in approach, and an observable proof requirement. Cite the prior/current sources in sourceIds. Return null when no supported bridge exists. A vocabulary match is insufficient. Quotes must be exact substrings of source.text (including JSON escaping if present). Use server missionId provenance; earlier model drafts or lesson text alone cannot establish either surface. If applying a confirmed account lesson from that prior project, include its lesson source ID and cite it; otherwise lessonSourceId is null. Do not infer confirmation from a correction, invent a rule ID, apply another project's mission-scoped rule, or describe this bridge as verified transfer.
 Evidence snapshots are DERIVED read models, not canonical evidence truth. Read observed/fetched timestamps; even a 'verified' snapshot may be stale. DONE and progress notes are human reports, not proof. Disclose retrieval warnings and unread records that could change the choice. Never claim code, a deploy, a self-check or a model response establishes the human-facing experience.
 For the draft, give a bounded comparison and provisional choice. For the final, submit only the reviewed proposal through submit_project_review. That is an output format, not an executable tool. Each cited ID must be supplied; the selected proposal must cite the target mission. The why field is at most 500 characters; operation at most 240; finishWhen and clarification at most 300.`
 
@@ -25,7 +26,7 @@ export const PROJECT_REVIEW_OUTPUT: Tool = {
   description: 'Return the final source-grounded proposal after comparing choices and critiquing the draft. This records no action, changes no state, and verifies nothing. Choose act, resume an exact unfinished commitment, or ask one deciding question. Include observable completion and evidence for the selected move and alternatives.',
   input_schema: {
     type: 'object', additionalProperties: false,
-    required: ['decision', 'operation', 'finishWhen', 'clarification', 'resumeActionId', 'alternatives', 'biggerPicture', 'why', 'overlooked', 'selfCheck', 'unknowns', 'sourceIds', 'lesson', 'workDraft'],
+    required: ['decision', 'operation', 'finishWhen', 'clarification', 'resumeActionId', 'alternatives', 'biggerPicture', 'why', 'overlooked', 'selfCheck', 'unknowns', 'sourceIds', 'lesson', 'workDraft', 'structuralBridge'],
     properties: {
       decision: { type: 'string', enum: ['act', 'resume', 'clarify'] }, workDraft: nullableText(6000),
       operation: nullableText(240), finishWhen: nullableText(300), clarification: nullableText(300), resumeActionId: nullableText(100),
@@ -33,6 +34,10 @@ export const PROJECT_REVIEW_OUTPUT: Tool = {
         required: ['operation', 'whyNot', 'sourceIds'], properties: { operation: text(240), whyNot: text(500), sourceIds } } },
       biggerPicture: text(1000), why: text(500), overlooked: text(1000), selfCheck: text(1000),
       unknowns: { type: 'array', maxItems: 6, items: text(500) }, sourceIds,
+      structuralBridge: { anyOf: [{ type: 'null' }, { type: 'object', additionalProperties: false,
+        required: ['priorSourceId', 'currentSourceId', 'priorQuote', 'currentQuote', 'sharedStructure', 'reasoningBridge', 'application', 'proofRequired', 'lessonSourceId'],
+        properties: { priorSourceId: text(600), currentSourceId: text(600), priorQuote: text(600), currentQuote: text(600),
+          sharedStructure: text(600), reasoningBridge: text(600), application: text(600), proofRequired: text(600), lessonSourceId: nullableText(600) } }] },
       lesson: { anyOf: [{ type: 'null' }, { type: 'object', additionalProperties: false,
         required: ['rule', 'whenToApply', 'sourceIds'], properties: { rule: text(1000), whenToApply: text(500), sourceIds } }] },
     },
