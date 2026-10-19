@@ -1,51 +1,486 @@
-/* Interaction is presence; motion only claims work while a request is pending. */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Living Aurora — Cognition Field, State-Driven Motion & Journey Surfaces
+   Loaded last in layout.tsx so hero-mode aurora geometry, 10 state-driven
+   responses, and mobile composer ergonomics govern the primary experience.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Room-scale aurora response to real interaction and pending operations */
 html::after {
   inset: -10vh -15vw;
   height: 120vh;
   background:
-    radial-gradient(ellipse at 12% 28%, rgba(66, 221, 179, .36), transparent 43%),
-    radial-gradient(ellipse at 85% 48%, rgba(125, 107, 244, .4), transparent 45%),
-    radial-gradient(ellipse at 45% 85%, rgba(233, 174, 94, .25), transparent 40%),
-    radial-gradient(ellipse at 55% 8%, rgba(72, 170, 231, .34), transparent 40%);
+    radial-gradient(ellipse 64% 44% at 18% 22%, rgba(62, 228, 224, 0.34), transparent 54%),
+    radial-gradient(ellipse 68% 48% at 82% 28%, rgba(228, 92, 178, 0.34), transparent 56%),
+    radial-gradient(ellipse 62% 50% at 52% 12%, rgba(124, 92, 252, 0.38), transparent 54%),
+    radial-gradient(ellipse 54% 40% at 36% 78%, rgba(56, 232, 176, 0.20), transparent 50%),
+    radial-gradient(ellipse 48% 36% at 68% 82%, rgba(244, 188, 88, 0.18), transparent 48%);
   transition: opacity 700ms ease, transform 900ms ease;
 }
+
+/* State 2 & 3: Touching/focusing composer or actively typing lifts room illumination */
+html:has(.sd[data-interaction="engaged"])::after,
 html:has(.mission-assistance:focus-within)::after,
-html:has(.interactive-control:active)::after { opacity: .55; transform: translateY(-1%); }
-html:has(.sd[data-cognition="deriving"])::after {
-  opacity: 1;
-  animation: mission-aurora 8s ease-in-out infinite alternate;
+html:has(.mission-invite:focus-within)::after,
+html:has(.commitment-panel:focus-within)::after,
+html:has(.interactive-control:active)::after {
+  opacity: 0.58;
+  transform: translateY(-1.2%) scale(1.02);
 }
-html:has(.sd[data-cognition="failed"])::after { opacity: 0; animation: none; }
+
+/* State 4 & 5: Sending a request or waiting for an actual server/model operation */
+html:has(.sd[data-cognition="reconstructing"])::after,
+html:has(.sd[data-cognition="deriving"])::after,
+html:has(.sd-field[data-presence="working"])::after {
+  opacity: 0.92;
+  animation: mission-aurora 7.5s ease-in-out infinite alternate;
+}
+
+/* State 10: Errors immediately stop ambient processing claims */
+html:has(.sd[data-cognition="failed"])::after {
+  opacity: 0.08;
+  animation: none;
+}
+
 @keyframes mission-aurora {
-  from { transform: translate(-2%, 1%) rotate(-3deg) scale(1); }
-  to { transform: translate(3%, -3%) rotate(4deg) scale(1.08); }
+  from { transform: translate(-2%, 1%) rotate(-2deg) scale(1); }
+  to   { transform: translate(2.5%, -2.5%) rotate(3deg) scale(1.06); }
 }
-.mission-assistance { display: grid; gap: 14px; margin: 22px 0; }
-.mission-assistance label { font-size: 1.08rem; font-weight: 600; line-height: 1.5; }
+
+/* ─── Hero Mode: One Singular Luminous Aurora Field ─────────────────────────
+   In hero mode (on Mission), .sd-field expands across the panoramic slot at
+   the top of .sd instead of clipping to a 104px/176px circle. When docked on
+   secondary tabs (data-orb="dock"), it smoothly condenses into the compact
+   floating orb without remounting the DOM node. */
+.sd-orb-host[data-orb="hero"],
+.sd-orb-host[data-orb="hero"] .sd-field,
+.sd:not(.sd-orb-host) .sd-field {
+  width: 100%;
+  height: 100%;
+  min-height: 132px;
+  margin: 0;
+  border-radius: 22px;
+}
+
+.sd-orb-host[data-orb="hero"]::before {
+  inset: -18% -8% -28% -8%;
+  border-radius: 36px;
+  background:
+    radial-gradient(ellipse 75% 65% at 28% 35%, color-mix(in srgb, var(--sd-magenta) 26%, transparent) 0%, transparent 68%),
+    radial-gradient(ellipse 75% 65% at 72% 40%, color-mix(in srgb, var(--sd-cyan) 24%, transparent) 0%, transparent 68%),
+    radial-gradient(ellipse 80% 70% at 50% 20%, color-mix(in srgb, var(--sd-violet) 28%, transparent) 0%, transparent 72%);
+  opacity: 0.9;
+}
+
+.sd-orb-host[data-orb="hero"] .sd-field,
+.sd:not(.sd-orb-host) .sd-field {
+  background:
+    radial-gradient(ellipse 68% 82% at 20% 28%, color-mix(in srgb, var(--sd-magenta) 30%, transparent), transparent 62%),
+    radial-gradient(ellipse 72% 84% at 80% 34%, color-mix(in srgb, var(--sd-cyan) 28%, transparent), transparent 64%),
+    radial-gradient(ellipse 64% 90% at 50% 18%, color-mix(in srgb, var(--sd-violet) 38%, transparent), transparent 68%),
+    radial-gradient(ellipse 52% 60% at 38% 72%, rgba(56, 232, 176, 0.16), transparent 62%),
+    linear-gradient(180deg, rgba(8, 12, 28, 0.86) 0%, rgba(4, 6, 15, 0.35) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -24px 36px rgba(4, 6, 15, 0.72),
+    0 12px 36px -12px rgba(8, 12, 32, 0.75);
+  border: 1px solid rgba(146, 168, 255, 0.14);
+}
+
+/* Unified aurora curtains inside the hero field — flowing horizontal bands
+   rather than three competing circular orbs */
+.sd-orb-host[data-orb="hero"] .sd-field-depth,
+.sd:not(.sd-orb-host) .sd-field-depth {
+  inset: -8% -4%;
+  border-radius: 28px;
+  background:
+    radial-gradient(ellipse 65% 58% at 24% 38%, color-mix(in srgb, var(--sd-magenta) 36%, transparent), transparent 66%),
+    radial-gradient(ellipse 68% 56% at 76% 42%, color-mix(in srgb, var(--sd-cyan) 34%, transparent), transparent 66%),
+    radial-gradient(ellipse 58% 64% at 50% 28%, color-mix(in srgb, var(--sd-indigo) 38%, transparent), transparent 70%),
+    radial-gradient(ellipse 46% 42% at 62% 68%, rgba(56, 232, 176, 0.18), transparent 64%);
+}
+
+.sd-orb-host[data-orb="hero"] .sd-blob-a,
+.sd:not(.sd-orb-host) .sd-blob-a {
+  width: 68%;
+  height: 110%;
+  left: -8%;
+  top: -12%;
+  --sd-dx: 16px;
+  --sd-dy: -6px;
+  background: radial-gradient(ellipse 72% 58% at 45% 45%, color-mix(in srgb, var(--sd-cyan) 56%, transparent), rgba(56, 232, 176, 0.18) 42%, transparent 72%);
+  opacity: 0.62;
+}
+
+.sd-orb-host[data-orb="hero"] .sd-blob-b,
+.sd:not(.sd-orb-host) .sd-blob-b {
+  width: 68%;
+  height: 112%;
+  right: -8%;
+  bottom: -14%;
+  --sd-dx: -18px;
+  --sd-dy: 7px;
+  background: radial-gradient(ellipse 72% 58% at 55% 48%, color-mix(in srgb, var(--sd-magenta) 54%, transparent), color-mix(in srgb, var(--sd-violet) 26%, transparent) 46%, transparent 72%);
+  opacity: 0.58;
+}
+
+.sd-orb-host[data-orb="hero"] .sd-blob-c,
+.sd:not(.sd-orb-host) .sd-blob-c {
+  width: 76%;
+  height: 96%;
+  left: 12%;
+  top: 2%;
+  --sd-dx: 12px;
+  --sd-dy: 8px;
+  background: radial-gradient(ellipse 76% 52% at 50% 42%, color-mix(in srgb, var(--sd-violet) 52%, transparent), color-mix(in srgb, var(--sd-indigo) 28%, transparent) 48%, transparent 74%);
+  opacity: 0.54;
+}
+
+/* Sweeping aurora ribbons (inspired by Gemini Live particle-wave horizon) */
+.sd-orb-host[data-orb="hero"] .sd-field-contour,
+.sd:not(.sd-orb-host) .sd-field-contour {
+  width: 146%;
+  height: 76%;
+  left: -23%;
+  border-radius: 50%;
+  opacity: 0.92;
+}
+
+.sd-orb-host[data-orb="hero"] .sd-field-contour-cyan,
+.sd:not(.sd-orb-host) .sd-field-contour-cyan {
+  top: 8%;
+  --sd-contour-angle: -9deg;
+  background:
+    radial-gradient(ellipse 62% 72% at 46% 0%, transparent 52%, color-mix(in srgb, var(--sd-cyan) 68%, transparent) 68%, rgba(56, 232, 176, 0.34) 75%, transparent 86%);
+}
+
+.sd-orb-host[data-orb="hero"] .sd-field-contour-magenta,
+.sd:not(.sd-orb-host) .sd-field-contour-magenta {
+  top: 26%;
+  --sd-contour-angle: 11deg;
+  background:
+    radial-gradient(ellipse 64% 78% at 54% 100%, transparent 50%, color-mix(in srgb, var(--sd-magenta) 70%, transparent) 67%, color-mix(in srgb, var(--sd-violet) 48%, transparent) 75%, transparent 87%);
+}
+
+/* Subtle magenta, violet, indigo & cyan particle-wave against dark canvas.
+   Visible at rest in hero mode, drifting faster during active engagement. */
+.sd-orb-host[data-orb="hero"] .sd-field-specks,
+.sd:not(.sd-orb-host) .sd-field-specks {
+  inset: 4% 3%;
+  border-radius: 18px;
+  opacity: 0.64;
+  background-image:
+    radial-gradient(1.6px 1.6px at 8% 62%, rgba(228, 92, 178, 0.88), transparent),
+    radial-gradient(1.4px 1.4px at 14% 38%, rgba(168, 100, 250, 0.82), transparent),
+    radial-gradient(1.8px 1.8px at 22% 54%, rgba(62, 228, 224, 0.85), transparent),
+    radial-gradient(1.3px 1.3px at 29% 28%, rgba(102, 112, 255, 0.78), transparent),
+    radial-gradient(1.6px 1.6px at 36% 68%, rgba(228, 92, 178, 0.80), transparent),
+    radial-gradient(1.5px 1.5px at 44% 44%, rgba(62, 228, 224, 0.82), transparent),
+    radial-gradient(1.8px 1.8px at 51% 24%, rgba(255, 255, 255, 0.76), transparent),
+    radial-gradient(1.4px 1.4px at 58% 58%, rgba(168, 100, 250, 0.86), transparent),
+    radial-gradient(1.6px 1.6px at 66% 36%, rgba(56, 232, 176, 0.78), transparent),
+    radial-gradient(1.5px 1.5px at 74% 64%, rgba(228, 92, 178, 0.84), transparent),
+    radial-gradient(1.7px 1.7px at 82% 42%, rgba(86, 152, 252, 0.82), transparent),
+    radial-gradient(1.4px 1.4px at 90% 56%, rgba(244, 188, 88, 0.68), transparent);
+  animation: sdAuroraWave 14s ease-in-out infinite alternate;
+}
+
+@keyframes sdAuroraWave {
+  0%   { transform: translate3d(-4px, 2px, 0) scale(1); }
+  50%  { transform: translate3d(5px, -3px, 0) scale(1.02); }
+  100% { transform: translate3d(-2px, -2px, 0) scale(1.01); }
+}
+
+/* Soft volumetric horizon core and ring in hero mode — blends seamlessly into
+   the aurora canopy without nested pill/capsule outlines */
+.sd-orb-host[data-orb="hero"] .sd-field-core,
+.sd:not(.sd-orb-host) .sd-field-core {
+  inset: -10% -6%;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse 68% 46% at 46% 48%,
+      color-mix(in srgb, white 22%, var(--sd-violet)) 0%,
+      color-mix(in srgb, var(--sd-magenta) 42%, transparent) 28%,
+      color-mix(in srgb, var(--sd-cyan) 34%, transparent) 54%,
+      transparent 76%);
+  box-shadow: none;
+  opacity: 0.88;
+}
+
+.sd-orb-host[data-orb="hero"] .sd-field-ring,
+.sd:not(.sd-orb-host) .sd-field-ring {
+  inset: 0;
+  border-radius: 22px;
+  border: 1px solid transparent;
+  background:
+    radial-gradient(ellipse 85% 32% at 50% 54%,
+      rgba(62, 228, 224, 0.22) 0%,
+      rgba(228, 92, 178, 0.18) 45%,
+      transparent 78%);
+  box-shadow: none;
+  opacity: 0.72;
+}
+
+/* ─── 10 Meaningful State-Driven Visual Responses ────────────────────────── */
+
+/* 2. Touching or focusing the composer (data-interaction="engaged") */
+.sd[data-interaction="engaged"] .sd-field {
+  --sd-energy: 1.55;
+  border-color: rgba(168, 100, 250, 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -20px 34px rgba(4, 6, 15, 0.65),
+    0 14px 42px -10px rgba(124, 92, 252, 0.34);
+}
+.sd[data-interaction="engaged"] .sd-field-specks {
+  opacity: 0.88;
+  animation-duration: 7s;
+}
+.sd[data-interaction="engaged"] .sd-field-core {
+  opacity: 0.96;
+  transform: scale(1.04);
+}
+
+/* 3. Entering a goal / typing in composer (data-presence="typing") */
+.sd[data-cognition] .sd-field[data-presence="typing"] .sd-field-specks {
+  opacity: 0.94;
+  animation-duration: 4.8s;
+}
+.sd[data-cognition] .sd-field[data-presence="typing"] .sd-field-contour {
+  animation-duration: 9s;
+}
+
+/* 4 & 5. Sending an actual request (reconstructing) & waiting for server/model (deriving/working) */
+.sd[data-cognition="reconstructing"] .sd-field,
+.sd[data-cognition="deriving"] .sd-field,
+.sd-field[data-presence="working"] {
+  border-color: rgba(62, 228, 224, 0.38);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -18px 32px rgba(4, 6, 15, 0.58),
+    0 16px 48px -8px rgba(62, 228, 224, 0.32),
+    0 8px 32px -6px rgba(228, 92, 178, 0.28);
+}
+
+/* 6. Receiving a response / supplied draft settled */
+.sd[data-provenance="supplied"][data-cognition="settled"] .sd-field-core {
+  background:
+    radial-gradient(ellipse 75% 65% at 48% 42%,
+      color-mix(in srgb, white 30%, var(--sd-cyan)) 0%,
+      color-mix(in srgb, var(--sd-cyan) 48%, transparent) 34%,
+      color-mix(in srgb, var(--sd-magenta) 38%, transparent) 66%,
+      transparent 100%);
+}
+
+/* 7. Accepting a recommendation (harmonic emerald-teal + warm gold lock) */
+.sd[data-cognition="accepted"] .sd-field {
+  border-color: rgba(56, 232, 176, 0.34);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -22px 34px rgba(4, 6, 15, 0.68),
+    0 12px 36px -10px rgba(56, 232, 176, 0.26);
+}
+.sd[data-cognition="accepted"] .sd-field-core {
+  background:
+    radial-gradient(ellipse 75% 65% at 48% 42%,
+      rgba(56, 232, 176, 0.58) 0%,
+      rgba(62, 228, 224, 0.42) 38%,
+      rgba(244, 188, 88, 0.22) 68%,
+      transparent 100%);
+}
+
+/* 8 & 9. Returning to an interrupted / resumable action (data-resumable="true") */
+.sd[data-resumable="true"][data-cognition="settled"] .sd-field-ring {
+  border-color: color-mix(in srgb, var(--amber) 48%, var(--teal));
+  box-shadow:
+    0 0 24px rgba(244, 188, 88, 0.22),
+    inset 0 0 18px rgba(56, 232, 176, 0.18);
+  opacity: 0.72;
+}
+
+.commitment-panel:has(.commitment-card) {
+  border-color: rgba(56, 232, 176, 0.26);
+  box-shadow:
+    0 20px 56px -18px rgba(0, 0, 0, 0.78),
+    0 0 36px -12px rgba(56, 232, 176, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+/* ─── Composer & Clarification Ergonomics (iOS Keyboard & Touch) ─────────── */
+.mission-assistance {
+  display: grid;
+  gap: 14px;
+  margin: 20px 0 8px;
+  padding: 18px;
+  border: 1px solid rgba(146, 168, 255, 0.18);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, rgba(16, 20, 40, 0.72) 0%, rgba(9, 12, 26, 0.82) 100%);
+  box-shadow:
+    0 14px 36px -14px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.mission-assistance:focus-within,
+.mission-invite:focus-within,
+.commitment-panel:focus-within {
+  border-color: rgba(62, 228, 224, 0.42);
+  box-shadow:
+    0 16px 42px -12px rgba(62, 228, 224, 0.18),
+    0 0 0 1px rgba(168, 100, 250, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.mission-assistance label {
+  font-size: 1.02rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.mission-assistance textarea,
+.mission-invite input,
+.mission-invite textarea,
+.commitment-panel input,
+.commitment-panel textarea,
+.sd-why input,
+.sd-why textarea {
+  scroll-margin-top: 24px;
+  scroll-margin-bottom: calc(148px + env(safe-area-inset-bottom, 0px));
+}
+
 .mission-assistance textarea {
-  width: 100%; min-height: 120px; padding: 16px; resize: vertical;
-  border: 1px solid var(--line-strong); border-radius: var(--radius);
-  background: var(--field-bg); color: var(--text); font: inherit;
+  width: 100%;
+  min-height: 112px;
+  padding: 14px 16px;
+  resize: vertical;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--field-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.5;
 }
-.mission-assistance textarea:focus { outline: 2px solid var(--peri); outline-offset: 3px; }
-.mission-assistance button { justify-self: start; min-height: 48px; }
+
+.mission-assistance textarea:focus {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+  border-color: var(--teal);
+}
+
+.mission-assistance button {
+  justify-self: start;
+  min-height: 48px;
+  border-radius: 999px;
+  padding: 0 22px;
+  background: linear-gradient(135deg, #f3f5ff 0%, #dce4ff 100%) !important;
+  color: #050712 !important;
+  border-color: rgba(255, 255, 255, 0.9) !important;
+  font-weight: 620;
+  box-shadow:
+    0 8px 26px -6px rgba(124, 92, 252, 0.42),
+    0 2px 10px rgba(62, 228, 224, 0.24) !important;
+}
+
 .mission-work-draft {
-  margin: 20px 0; padding: 20px; border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg); background: var(--surface-soft);
-  overflow-wrap: anywhere; line-height: 1.65;
+  margin: 20px 0;
+  padding: 20px;
+  border: 1px solid rgba(146, 168, 255, 0.20);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, rgba(16, 22, 44, 0.78) 0%, rgba(9, 13, 28, 0.86) 100%);
+  box-shadow:
+    0 16px 40px -16px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  overflow-wrap: anywhere;
+  line-height: 1.65;
 }
-.mission-work-draft h3 { font-size: 1.12rem; font-weight: 700; }
-.mission-work-draft p, .mission-work-draft ul, .mission-work-draft ol { margin: 12px 0; }
-.mission-work-draft ul, .mission-work-draft ol { padding-left: 22px; }
+
+.mission-work-draft h3 {
+  font-size: 1.08rem;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.mission-work-draft p,
+.mission-work-draft ul,
+.mission-work-draft ol {
+  margin: 12px 0;
+}
+
+.mission-work-draft ul,
+.mission-work-draft ol {
+  padding-left: 22px;
+}
+
 .mission-work-draft ul { list-style: disc; }
 .mission-work-draft ol { list-style: decimal; }
-.sd-known summary { cursor: pointer; min-height: 44px; }
-@media (max-width: 600px) {
-  .mission-assistance { margin: 16px 0; gap: 12px; }
-  .mission-assistance textarea { min-height: 104px; }
-  .mission-assistance button { width: 100%; }
-  .sd:has(.mission-assistance) .sd-move { font-size: clamp(1.5rem, 6vw, 2rem); }
+
+.sd-known summary {
+  cursor: pointer;
+  min-height: 44px;
 }
+
+@media (min-width: 720px) {
+  .sd-stage {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+  }
+  .sd-field-slot {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    width: 100%;
+    height: 168px;
+    margin: 0 0 8px;
+  }
+  .sd-copy {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+@media (max-width: 600px) {
+  .sd-orb-host[data-orb="hero"],
+  .sd-orb-host[data-orb="hero"] .sd-field,
+  .sd:not(.sd-orb-host) .sd-field {
+    min-height: 124px;
+    border-radius: 20px;
+  }
+  .mission-assistance {
+    margin: 16px 0 6px;
+    padding: 15px;
+    gap: 12px;
+  }
+  .mission-assistance textarea {
+    min-height: 100px;
+  }
+  .mission-assistance button {
+    width: 100%;
+    justify-self: stretch;
+  }
+  .sd:has(.mission-assistance) .sd-move {
+    font-size: clamp(1.55rem, 6.2vw, 2.05rem);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  html::after { animation: none !important; transition: none; transform: none !important; }
+  html::after,
+  .sd-orb-host[data-orb="hero"] .sd-field-specks,
+  .sd:not(.sd-orb-host) .sd-field-specks {
+    animation: none !important;
+    transition: none;
+    transform: none !important;
+  }
+  .sd[data-interaction="engaged"] .sd-field-core {
+    transform: none !important;
+  }
+}
+
+[data-reduced-motion="true"] html::after,
+[data-reduced-motion="true"] .sd-orb-host[data-orb="hero"] .sd-field-specks,
+[data-reduced-motion="true"] .sd:not(.sd-orb-host) .sd-field-specks {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
 }

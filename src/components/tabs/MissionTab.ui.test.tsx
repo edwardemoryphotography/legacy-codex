@@ -690,3 +690,109 @@ describe('MissionTab evidence after finish line exists', () => {
     expect(event?.row.detail).toBe('A screenshot of the posted reference')
   })
 })
+
+describe('MissionTab Vaughn Psych research paper journey', () => {
+  const vaughnMission: Mission = {
+    id: 'm-vaughn',
+    title: 'Psych research paper',
+    why: '',
+    finishLine: 'When it is 8 pages ling',
+    evidenceRequirement: null,
+    state: 'primary',
+    blocker: null,
+    capacityMismatch: false,
+    createdAt: '2026-10-15T17:00:00.000Z',
+    updatedAt: '2026-10-15T17:00:00.000Z',
+  }
+
+  beforeEach(() => {
+    inserts = []
+    connectMissionSession.mockReset()
+    connectMissionSession.mockResolvedValue({ id: 'user-vaughn' })
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false,
+      status: 403,
+      json: async () => ({ error: 'Model-assisted candidates are enabled for the workspace owner only.' }),
+    })))
+    tables = {
+      missions: [{ ...missionToRow(vaughnMission, 'user-vaughn'), created_at: vaughnMission.createdAt }],
+      evidence_snapshots: [],
+      actions: [],
+      mission_events: [],
+    }
+  })
+
+  it('guides Vaughn from "Psych research paper" / "When it is 8 pages ling" to a concrete outline, saved action, and clean reload resume without owner model access', async () => {
+    const view = render(<MissionTab />)
+
+    expect(await screen.findByText('Let’s get something useful started.')).toBeTruthy()
+    const questionInput = await screen.findByLabelText('What is the assignment or topic, and what have you written so far?')
+    expect(questionInput).toBeTruthy()
+
+    fireEvent.change(questionInput, {
+      target: { value: 'Cognitive biases in eyewitness memory; I have 3 peer-reviewed articles and need an outline.' },
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Help me move this forward' }))
+    })
+
+    await waitFor(() => {
+      expect(inserts.some(i => i.table === 'mission_events' && i.row.type === 'delta_context_added')).toBe(true)
+      expect(inserts.some(i => i.table === 'mission_events' && i.row.type === 'delta_assistance_generated')).toBe(true)
+      expect(inserts.some(i => i.table === 'mission_events' && i.row.type === 'delta_step_supplied')).toBe(false)
+    })
+
+    expect(await screen.findByText(/Draft the working thesis and section-by-section outline for “Psych research paper”/)).toBeTruthy()
+    expect(screen.getByText('Structured from your project notes — check before using.')).toBeTruthy()
+    expect(screen.queryByText('Model-generated draft — check before using.')).toBeNull()
+    expect(screen.getByText(/Working Outline — Psych research paper/)).toBeTruthy()
+
+    const sdSection = document.querySelector('section.sd')!
+    expect(sdSection.getAttribute('data-provenance')).toBe('deterministic')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Accept this move' }))
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Save next action' }))
+    })
+
+    const savedActionInsert = inserts.find(i => i.table === 'actions')
+    expect(savedActionInsert).toBeTruthy()
+    expect(savedActionInsert?.row.action_title).toContain('Draft the working thesis and section-by-section outline for “Psych research paper”')
+    expect(String(savedActionInsert?.row.resume_note)).toContain('Structured from your project notes — check before using.')
+
+    // Simulate reload with persisted mission_events and actions
+    const persistedEvents = inserts
+      .filter(i => i.table === 'mission_events')
+      .map((i, idx) => ({ ...i.row, id: `ev-${idx}`, created_at: `2026-10-15T17:01:0${idx}.000Z` }))
+    const persistedActions = inserts
+      .filter(i => i.table === 'actions')
+      .map((i, idx) => ({
+        ...i.row,
+        id: `act-${idx}`,
+        created_at: `2026-10-15T17:02:0${idx}.000Z`,
+        updated_at: `2026-10-15T17:02:0${idx}.000Z`,
+        mission: { title: vaughnMission.title, state: vaughnMission.state },
+      }))
+
+    view.unmount()
+    inserts = []
+    tables = {
+      missions: [{ ...missionToRow(vaughnMission, 'user-vaughn'), created_at: vaughnMission.createdAt }],
+      evidence_snapshots: [],
+      actions: persistedActions,
+      mission_events: persistedEvents,
+    }
+
+    render(<MissionTab />)
+    expect(await screen.findByText('Draft the working thesis and section-by-section outline for “Psych research paper” using your note: Cognitive biases in eyewitness memory; I have 3 peer-reviewed articles…', { selector: '.sd-move' })).toBeTruthy()
+    expect(screen.getByText('Structured from your project notes — check before using.')).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Start / resume' })).toBeTruthy()
+    await waitFor(() => expect(document.querySelector('section.sd')?.getAttribute('data-resumable')).toBe('true'))
+    expect(inserts).toHaveLength(0)
+  })
+})
+

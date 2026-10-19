@@ -2,27 +2,27 @@
    Panel (e56c3e2). Existing Mission state, orb identity and theme guard stay
    authoritative. Ornament reacts to focus/results, never simulated AI work. */
 :root {
-  --bg: #08090e;
-  --surface: #191a23;
-  --surface-soft: #1e202a;
-  --surface-strong: #292b37;
-  --line: rgba(255,255,255,.10);
-  --line-strong: rgba(255,255,255,.19);
-  --text: #f5f5f7;
-  --text-soft: #c3c3ce;
-  --text-dim: #9a9aa9;
-  --chrome: #101119;
-  --panel-glass: rgba(28,29,38,.72);
-  --panel-field: rgba(10,11,18,.48);
-  --panel-shadow: 0 20px 52px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.07);
-  --gradient-brand: linear-gradient(130deg,#3d8bff,#6a6ff5 24%,#a259ff 55%,#b24486 78%,#b04c34);
+  --bg: #03040a;
+  --surface: #0a0d1d;
+  --surface-soft: #10142b;
+  --surface-strong: #171d3c;
+  --line: rgba(142, 162, 255, .13);
+  --line-strong: rgba(170, 188, 255, .24);
+  --text: #f3f5ff;
+  --text-soft: #c5cbe8;
+  --text-dim: #8e96be;
+  --chrome: #050711;
+  --panel-glass: linear-gradient(180deg, rgba(10, 14, 30, .54) 0%, rgba(5, 7, 17, .74) 100%);
+  --panel-field: rgba(5, 8, 20, .68);
+  --panel-shadow: 0 28px 68px rgba(1, 2, 8, .65), inset 0 1px 0 rgba(190, 205, 255, .09);
+  --gradient-brand: linear-gradient(130deg, #3282ff, #6563f8 26%, #9e52ff 54%, #df4ba2 78%, #34dec8);
   /* White label on the raw brand gradient measured 3.3:1 at its blue end
      (WCAG AA needs 4.5:1). A 20% ink veil keeps the hues and clears 4.7:1. */
-  --action-bg: linear-gradient(rgba(8,9,14,.2),rgba(8,9,14,.2)), var(--gradient-brand);
+  --action-bg: linear-gradient(rgba(5, 7, 16, .22), rgba(5, 7, 16, .22)), var(--gradient-brand);
   --action-text: #fff;
-  --action-glow: 0 8px 24px rgba(135,91,246,.23);
-  --glow-calm: rgba(98,85,180,.20);
-  --glow-think: rgba(150,98,232,.25);
+  --action-glow: 0 10px 30px rgba(114, 96, 250, .32);
+  --glow-calm: rgba(74, 96, 236, .28);
+  --glow-think: rgba(154, 88, 246, .34);
 }
 :root[data-theme="light"] {
   --bg: #f2f2f7;
@@ -43,24 +43,25 @@
 }
 .codex-header {
   border: 1px solid var(--line);
-  border-radius: 2rem;
-  background: var(--panel-glass);
+  border-radius: 1.75rem;
+  background: rgba(8, 11, 24, .56);
   box-shadow: var(--panel-shadow);
-  backdrop-filter: blur(24px);
-  padding: 18px 24px;
-  margin-bottom: 26px;
+  backdrop-filter: blur(22px) saturate(1.18);
+  -webkit-backdrop-filter: blur(22px) saturate(1.18);
+  padding: 14px 20px;
+  margin-bottom: 20px;
 }
-.codex-brandmark { padding: 9px; width: 46px; height: 46px; border-radius: 15px; stroke: white; background: var(--gradient-brand); box-shadow: 0 5px 18px rgba(136,95,240,.26); }
-.codex-header h1 { font-size: 1.25rem; letter-spacing: -.04em; }
+.codex-brandmark { padding: 9px; width: 42px; height: 42px; border-radius: 14px; stroke: white; background: var(--gradient-brand); box-shadow: 0 6px 22px rgba(118, 92, 248, .34); }
+.codex-header h1 { font-size: 1.18rem; letter-spacing: -.035em; }
 .codex-brand-eyebrow { display: none; }
-.codex-tablist { background: var(--panel-glass); }
-.codex-tab[aria-selected="true"] { background: var(--panel-glass); border-color: var(--line-strong); border-radius: 1.2rem; box-shadow: var(--panel-shadow); }
-.mission-space { gap: 24px; }
-.sd:not(.sd-orb-host), .commitment-panel, .mission-disclosure { border-radius: 2rem; background: var(--panel-glass); border-color: var(--line); box-shadow: var(--panel-shadow); }
-.sd:not(.sd-orb-host) { padding: 30px; }
-.sd-move { font-family: var(--font-sans); font-size: clamp(1.8rem,3vw,2.65rem); line-height: 1.15; letter-spacing: -.045em; }
-.sd-stage { grid-template-columns: minmax(0,1fr) 152px; gap: 26px; align-items: center; }
-.sd-field-slot { --sd-field-size: 152px; margin: 0; }
+.codex-tablist { background: rgba(5, 7, 16, .88); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); }
+.codex-tab[aria-selected="true"] { background: rgba(22, 28, 58, .72); border-color: var(--line-strong); border-radius: 1.15rem; box-shadow: 0 8px 24px rgba(2, 4, 14, .45), inset 0 1px 0 rgba(190, 206, 255, .12); }
+.mission-space { gap: 20px; }
+.sd:not(.sd-orb-host), .commitment-panel, .mission-disclosure { border-radius: 1.85rem; background: var(--panel-glass); border-color: var(--line); box-shadow: var(--panel-shadow); }
+.sd:not(.sd-orb-host) { padding: 24px; }
+.sd-move { font-family: var(--font-sans); font-size: clamp(1.65rem, 3vw, 2.45rem); line-height: 1.16; letter-spacing: -.038em; }
+.sd-stage { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: stretch; }
+.sd-field-slot { width: 100%; height: 148px; margin: 0; border-radius: 1.45rem; }
 .sd-copy { min-width: 0; }
 .task-router { padding: 12px 0; scroll-margin-top: 24px; }
 .route-intro { text-align: center; margin: 0 auto 24px; max-width: 640px; }
@@ -142,12 +143,12 @@
 @keyframes route-card-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @media(min-width:1024px) { .codex-shell { max-width: 1220px; margin: auto; grid-template-columns: 150px minmax(0,1fr); gap: 28px; } .codex-header { margin-bottom: 0; } .codex-tablist { background: transparent; } }
 @media(max-width:700px) {
-  .codex-header { border-radius: 1.65rem; padding: 14px; margin-bottom: 18px; }
-  .codex-brandmark { width: 40px; height: 40px; padding: 7px; }
-  .codex-header h1 { font-size: 1.1rem; }
-  .sd-stage { display: block; }
-  .sd-field-slot { --sd-field-size: 104px; float: right; margin: -2px -4px 8px 8px; shape-outside: circle(50%); shape-margin: 8px; }
-  .sd:not(.sd-orb-host) { padding: 22px; }
+  .codex-header { border-radius: 1.5rem; padding: 12px 14px; margin-bottom: 14px; }
+  .codex-brandmark { width: 38px; height: 38px; padding: 7px; }
+  .codex-header h1 { font-size: 1.08rem; }
+  .sd-stage { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .sd-field-slot { width: 100%; height: 132px; float: none; margin: 0; shape-outside: none; border-radius: 1.35rem; }
+  .sd:not(.sd-orb-host) { padding: 20px 18px 22px; }
   .route-intro { margin-bottom: 20px; }
   .route-intro h2 { font-size: 1.85rem; }
   .route-intro p { font-size: .86rem; }
@@ -163,7 +164,7 @@
   /* Docked orb: on a phone a fixed 72px field floated over the Codex count
      badges, Protocol headers and Export button as the page scrolled. Seat it
      inside the header card instead, so it scrolls away with the header. */
-  .sd-orb-host[data-orb="dock"] { position: absolute; top: 27px; right: 22px; width: 56px; height: 56px; }
+  .sd-orb-host[data-orb="dock"] { position: absolute; top: 20px; right: 18px; width: 48px; height: 48px; }
 }
 /* "⌘ / Ctrl + Enter" means nothing on a touch-only phone. */
 @media(hover:none) and (pointer:coarse) { .route-composer-foot > span { display: none; } }

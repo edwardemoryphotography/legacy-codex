@@ -142,6 +142,10 @@ interface Props {
    *  a failed write, so it is a quiet note and never the failed state. */
   projectReviewNotice?: string | null
   requestProjectReview?: (request: ProjectReviewRequest) => Promise<boolean | void>
+  /** Honest deterministic project-note assistance when model review is unavailable or restricted. */
+  onAssistWithContext?: (request: ProjectReviewRequest) => Promise<boolean | void>
+  /** True when the active mission has a saved action in progress that can be resumed. */
+  resumable?: boolean
   /** Missing-input controls for insufficient context. Rendered inside the
    *  hero, not below it — and never inside the live region. */
   children?: ReactNode
@@ -174,6 +178,8 @@ export default function StrategicDelta({
   projectReviewError = null,
   projectReviewNotice = null,
   requestProjectReview,
+  onAssistWithContext,
+  resumable = false,
   children,
 }: Props) {
   // A restored review cannot follow a mission into a revised goal or an
@@ -499,14 +505,26 @@ export default function StrategicDelta({
     ? primaryMission
     : missions.find(m => m.state === 'secondary' && !m.blocker && !m.capacityMismatch) ?? null
   const proofSteps = delta?.proofSteps ?? []
-  const canAssist = readAvailable && projectReviewAvailable && requestProjectReview && reviewTarget?.finishLine &&
-    delta?.missionId === reviewTarget.id && delta.evidenceState !== 'conflict'
+  const assistHandler = projectReviewAvailable && requestProjectReview ? requestProjectReview : onAssistWithContext
+  const canAssist = Boolean(
+    readAvailable &&
+    assistHandler &&
+    reviewTarget?.finishLine &&
+    delta?.missionId === reviewTarget.id &&
+    delta.evidenceState !== 'conflict',
+  )
   const evidenceLoop = Boolean(canAssist && (delta?.candidateId?.startsWith('name-evidence:') || delta?.candidateId?.startsWith('produce-evidence:')))
+  const activeSuppliedCandidate =
+    delta?.provenance === 'supplied' || delta?.provenance === 'deterministic'
+      ? suppliedOperations.find(candidate => candidate.id === delta.candidateId) ?? null
+      : null
+  const activeWorkDraft = selectedReview?.workDraft ?? activeSuppliedCandidate?.workDraft ?? null
+  const activeWorkDraftIsModel = Boolean(selectedReview?.workDraft)
   const retainedStep = delta?.inhibited.find(candidate =>
     candidate.kind === 'supplied_operation' && candidate.move !== delta.move,
   ) ?? null
   const provenance = delta?.provenance ?? 'deterministic'
-  useOrbCognition({ cognition, provenance, recording })
+  useOrbCognition({ cognition, provenance, recording, resumable })
 
   return (
     <section
@@ -515,6 +533,7 @@ export default function StrategicDelta({
       data-cognition={cognition}
       data-provenance={provenance}
       data-recording={recording ? 'true' : undefined}
+      data-resumable={resumable ? 'true' : undefined}
       data-first-run={isFirstRun ? 'true' : undefined}
       aria-busy={reconstructing || recording}
       aria-label="Your next move"
@@ -544,20 +563,39 @@ export default function StrategicDelta({
       ) : delta && title ? (
         <>
           {!evidenceLoop && <p className="sd-move" key={hasRecommendation ? delta.move : title} aria-label={selectedReview ? resumeActionId ? 'Continue your saved action' : 'Do this' : undefined} aria-live={hasRecommendation ? 'polite' : undefined}>{title}</p>}
-          {evidenceLoop && <p className="sd-move">Let’s get something useful started.</p>}
-          {selectedReview?.workDraft && <section className="mission-work-draft" aria-label="Working draft">
+          {evidenceLoop && <p className="sd-move" aria-live="polite">Let’s get something useful started.</p>}
+          {activeWorkDraft && <section className="mission-work-draft" aria-label="Working draft">
             <h3>A starting point for your work</h3>
-            <p className="sd-hint">Model-generated draft — check before using.</p>
-            <ReactMarkdown>{selectedReview.workDraft}</ReactMarkdown>
+            <p className="sd-hint">
+              {activeWorkDraftIsModel
+                ? 'Model-generated draft — check before using.'
+                : 'Structured from your project notes — check before using.'}
+            </p>
+            <ReactMarkdown>{activeWorkDraft}</ReactMarkdown>
           </section>}
-          {canAssist && <MissionAssistance key={`${reviewTarget.id}:${reviewTarget.finishLine}`} missionId={reviewTarget.id}
-            title={reviewTarget.title} finishLine={reviewTarget.finishLine!} question={needsClarification ? projectReview?.clarification : selectedReview ? 'What would you like to change or work on next?' : null}
-            previousReviewKey={projectReview?.contextKey} busy={projectReviewBusy} onSubmit={requestProjectReview} />}
+          {canAssist && reviewTarget && assistHandler && (
+            <MissionAssistance
+              key={`${reviewTarget.id}:${reviewTarget.finishLine}:${activeSuppliedCandidate?.id ?? 'initial'}`}
+              missionId={reviewTarget.id}
+              title={reviewTarget.title}
+              finishLine={reviewTarget.finishLine!}
+              question={
+                needsClarification
+                  ? projectReview?.clarification
+                  : selectedReview || activeSuppliedCandidate
+                    ? 'What would you like to change or work on next?'
+                    : null
+              }
+              previousReviewKey={projectReview?.contextKey}
+              busy={projectReviewBusy || recording}
+              onSubmit={assistHandler}
+            />
+          )}
           {retainedStep && !hasRecommendation && (
             <p className="sd-taught">Kept: {retainedStep.move}. It stays on record, and it is not the next step.</p>
           )}
 
-          {!isFirstRun && !needsMissionChoice && !evidenceLoop && <div className="sd-act">
+          {!isFirstRun && !needsMissionChoice && <div className="sd-act">
             {hasRecommendation && accepted ? (
               <div className="sd-act-primary">
                 {/* The saved action is a separate, explicit commitment. This
@@ -646,9 +684,9 @@ export default function StrategicDelta({
 
           {/* Keep the action next to the move on a phone; the rationale
               must not push it below the diagnostic/read-back sections. */}
-          {selectedReview && <div className="sd-review-summary" aria-label="Why now and finish condition">
-            <p className="sd-because"><strong>Why now:</strong> {selectedReview.why}</p>
-            <p className="sd-because"><strong>Finish when:</strong> {selectedReview.finishWhen}</p>
+          {(selectedReview || (activeSuppliedCandidate?.why && activeSuppliedCandidate?.finishWhen)) && <div className="sd-review-summary" aria-label="Why now and finish condition">
+            <p className="sd-because"><strong>Why now:</strong> {selectedReview?.why ?? activeSuppliedCandidate?.why}</p>
+            <p className="sd-because"><strong>Finish when:</strong> {selectedReview?.finishWhen ?? activeSuppliedCandidate?.finishWhen}</p>
           </div>}
 
           {aimedMission && !needsMissionChoice && (

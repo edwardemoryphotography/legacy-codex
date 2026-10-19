@@ -8,6 +8,7 @@ export type OrbCognition = {
   cognition: string
   provenance: string
   recording: boolean
+  resumable?: boolean
 }
 
 type OrbHostValue = {
@@ -29,6 +30,19 @@ const RESTING: OrbCognition = {
   cognition: 'insufficient',
   provenance: 'insufficient_context',
   recording: false,
+  resumable: false,
+}
+
+function isComposerElement(target: EventTarget | null): target is HTMLElement {
+  if (!(target instanceof HTMLElement)) return false
+  if (target instanceof HTMLTextAreaElement) return true
+  if (target instanceof HTMLInputElement) {
+    const type = target.type || 'text'
+    return type !== 'checkbox' && type !== 'radio' && type !== 'button' && type !== 'submit'
+  }
+  return Boolean(
+    target.closest('.mission-invite, .mission-assistance, .commitment-panel, .route-composer, .sd-why'),
+  )
 }
 
 export function OrbHostProvider({
@@ -41,6 +55,28 @@ export function OrbHostProvider({
   const [slot, setSlot] = useState<HTMLElement | null>(null)
   const [cognition, setCognition] = useState<OrbCognition | null>(null)
   const [interaction, setInteraction] = useState<OrbHostValue['interaction']>('ambient')
+
+  useEffect(() => {
+    function onFocusIn(event: FocusEvent) {
+      if (!isComposerElement(event.target)) return
+      setInteraction(current => (current === 'listening' ? current : 'engaged'))
+    }
+    function onFocusOut(event: FocusEvent) {
+      if (!isComposerElement(event.target)) return
+      window.requestAnimationFrame(() => {
+        if (!isComposerElement(document.activeElement)) {
+          setInteraction(current => (current === 'listening' ? current : 'ambient'))
+        }
+      })
+    }
+    document.addEventListener('focusin', onFocusIn)
+    document.addEventListener('focusout', onFocusOut)
+    return () => {
+      document.removeEventListener('focusin', onFocusIn)
+      document.removeEventListener('focusout', onFocusOut)
+    }
+  }, [])
+
   const value = useMemo(
     () => ({ placed, slot, setSlot, cognition, setCognition, interaction, setInteraction }),
     [placed, slot, cognition, interaction],
@@ -157,6 +193,7 @@ export function PersistentOrb() {
       data-cognition={live.cognition}
       data-provenance={live.provenance}
       data-recording={live.recording ? 'true' : undefined}
+      data-resumable={live.resumable ? 'true' : undefined}
       data-interaction={host.interaction}
     >
       <CognitionField />
@@ -187,15 +224,15 @@ export function OrbSlot() {
  *  Leaving mid-read settles the companion instead of freezing it on work
  *  that is no longer on screen. */
 export function useOrbCognition(next: OrbCognition) {
-  const { cognition, provenance, recording } = next
+  const { cognition, provenance, recording, resumable } = next
   const setCognition = useContext(OrbHostContext)?.setCognition
   const latest = useRef(next)
 
   useEffect(() => {
-    const snapshot = { cognition, provenance, recording }
+    const snapshot = { cognition, provenance, recording, resumable }
     latest.current = snapshot
     setCognition?.(snapshot)
-  }, [setCognition, cognition, provenance, recording])
+  }, [setCognition, cognition, provenance, recording, resumable])
 
   useEffect(() => {
     const publish = setCognition
@@ -210,6 +247,7 @@ export function useOrbCognition(next: OrbCognition) {
             cognition: current.provenance === 'insufficient_context' ? 'insufficient' : 'settled',
             provenance: current.provenance,
             recording: false,
+            resumable: current.resumable,
           }
         : current)
     }
