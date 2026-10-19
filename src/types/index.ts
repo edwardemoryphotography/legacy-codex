@@ -168,6 +168,9 @@ export type MissionEventType =
   // Distinct from delta_corrected: the text is the operation to evaluate,
   // not a reason for rejecting the fallback.
   | 'delta_step_supplied'
+  // A deterministic starting step & working framework generated from the
+  // user's project notes when external model review is unavailable.
+  | 'delta_assistance_generated'
 
 export interface MissionEvent {
   id: string
@@ -259,6 +262,11 @@ export type DeltaCandidateKind =
   // gate and inhibition as a model suggestion. Never a correction, and never
   // written to the actions table.
   | 'supplied_operation'
+  // A deterministic step constructed from user-supplied project notes when
+  // external model providers are unavailable; ranked below model_suggested
+  // and supplied_operation so a subsequent model review or human-supplied
+  // step outranks it.
+  | 'deterministic_assistance'
   // Kept so the human can see it was considered and rejected, never selected.
   | 'whole_mission'
 

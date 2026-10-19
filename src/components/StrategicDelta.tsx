@@ -514,9 +514,10 @@ export default function StrategicDelta({
     delta.evidenceState !== 'conflict',
   )
   const evidenceLoop = Boolean(canAssist && (delta?.candidateId?.startsWith('name-evidence:') || delta?.candidateId?.startsWith('produce-evidence:')))
-  const activeSuppliedCandidate = delta?.provenance === 'supplied'
-    ? suppliedOperations.find(candidate => candidate.id === delta.candidateId) ?? null
-    : null
+  const activeSuppliedCandidate =
+    delta?.provenance === 'supplied' || delta?.provenance === 'deterministic'
+      ? suppliedOperations.find(candidate => candidate.id === delta.candidateId) ?? null
+      : null
   const activeWorkDraft = selectedReview?.workDraft ?? activeSuppliedCandidate?.workDraft ?? null
   const activeWorkDraftIsModel = Boolean(selectedReview?.workDraft)
   const retainedStep = delta?.inhibited.find(candidate =>

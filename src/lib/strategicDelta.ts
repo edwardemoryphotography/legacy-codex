@@ -272,6 +272,7 @@ const RANK = {
   // reconciling contradictory evidence.
   suppliedOperation: 140,
   modelSuggestion: 150,
+  deterministicAssistance: 160,
   primaryEvidence: 300,
   promoteToPrimary: 500,
   setFinishLine: 600,
@@ -312,7 +313,11 @@ function admitClauseOperation(
   if (!suggestion.missionId || !targetMissionIds.has(suggestion.missionId)) return false
   const projectOwner = [primary, secondary].find(m => m?.id === suggestion.missionId)
   if (suggestion.targetId === `project:${suggestion.missionId}`) {
-    return (suggestion.kind === 'model_suggested' || suggestion.kind === 'supplied_operation') && Boolean(projectOwner?.finishLine) &&
+    return (
+      suggestion.kind === 'model_suggested' ||
+      suggestion.kind === 'supplied_operation' ||
+      suggestion.kind === 'deterministic_assistance'
+    ) && Boolean(projectOwner?.finishLine) &&
       suggestion.projectFinishLine === projectOwner?.finishLine
   }
   const target = parseClauseId(suggestion.targetId)
@@ -416,7 +421,8 @@ export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
   // The caller's rank is ignored. Every one still has to survive `inhibit`,
   // including the `isConcreteMove` gate.
   const supplied = ctx.suggestedOperations.filter(suggestion => suggestion.kind === 'supplied_operation')
-  const modelled = ctx.suggestedOperations.filter(suggestion => suggestion.kind !== 'supplied_operation')
+  const modelled = ctx.suggestedOperations.filter(suggestion => suggestion.kind === 'model_suggested')
+  const assisted = ctx.suggestedOperations.filter(suggestion => suggestion.kind === 'deterministic_assistance')
   const seenSupplied = new Set<string>()
   // Oldest first in, so a repeated step keeps the newest copy and the newest
   // distinct step outranks an earlier one without leaving the supplied band.
@@ -435,6 +441,19 @@ export function generateCandidates(ctx: DeltaContext): DeltaCandidate[] {
   for (const suggestion of modelled) {
     if (!admitClauseOperation(suggestion, primary, secondary, clauseMissionIds)) continue
     out.push({ ...suggestion, kind: 'model_suggested', rank: RANK.modelSuggestion })
+  }
+  const seenAssisted = new Set<string>()
+  for (let index = assisted.length - 1; index >= 0; index -= 1) {
+    const suggestion = assisted[index]
+    if (!suggestion || seenAssisted.has(suggestion.id)) continue
+    seenAssisted.add(suggestion.id)
+    if (!admitClauseOperation(suggestion, primary, secondary, clauseMissionIds)) continue
+    const fromNewest = seenAssisted.size - 1
+    out.push({
+      ...suggestion,
+      kind: 'deterministic_assistance',
+      rank: RANK.deterministicAssistance + fromNewest * 0.01,
+    })
   }
 
   return out
@@ -651,7 +670,15 @@ function describeBecause(
   // When the move is a concrete operation for one clause of the finish
   // line, the useful explanation is which clause it targets and why that
   // one — not why the mission matters in general.
-  if ((winner?.kind === 'model_suggested' || winner?.kind === 'supplied_operation') && winner.missionId) {
+  if (
+    (winner?.kind === 'model_suggested' ||
+      winner?.kind === 'supplied_operation' ||
+      winner?.kind === 'deterministic_assistance') &&
+    winner.missionId
+  ) {
+    if (winner.kind === 'deterministic_assistance') {
+      return winner.why || 'Structured directly from the project context you shared. It passed the same concrete-move check as any other step, and it is not a model-generated prediction or verified completion evidence.'
+    }
     if (winner.projectFinishLine) {
       if (winner.kind === 'supplied_operation') {
         return winner.why || 'Structured directly from the project context you shared. It passed the same concrete-move check as any other step, and it is not a model-generated prediction or verified completion evidence.'
@@ -732,9 +759,12 @@ export function selectStrategicDelta(ctx: DeltaContext): StrategicDelta {
   const aimedAt =
     winnerMission ?? (primaryDeferred ? ctx.secondary ?? ctx.primary : ctx.primary ?? ctx.secondary) ?? null
   const clauseTexts = decomposeFinishLine(aimedAt?.finishLine ?? null)
-  const winnerTarget = winner?.kind === 'model_suggested' || winner?.kind === 'supplied_operation'
-    ? parseClauseId(winner.targetId)
-    : null
+  const winnerTarget =
+    winner?.kind === 'model_suggested' ||
+    winner?.kind === 'supplied_operation' ||
+    winner?.kind === 'deterministic_assistance'
+      ? parseClauseId(winner.targetId)
+      : null
   const targetClauseIndex = winner
     ? winnerTarget?.index ?? null
     : clauseTexts.length > 0

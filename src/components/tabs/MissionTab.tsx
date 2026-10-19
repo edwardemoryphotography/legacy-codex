@@ -170,6 +170,7 @@ export function rowToSuppliedStep(row: MissionEventRow): DeltaCandidate | null {
       workDraft?: unknown
       finishWhen?: unknown
       why?: unknown
+      kind?: unknown
     }
     if (typeof parsed.step !== 'string' || parsed.step.trim().length === 0) return null
     if (
@@ -179,9 +180,11 @@ export function rowToSuppliedStep(row: MissionEventRow): DeltaCandidate | null {
       return null
     }
     const step = parsed.step.trim()
+    const isDeterministicAssistance =
+      row.type === 'delta_assistance_generated' || parsed.kind === 'deterministic_assistance'
     return {
       id: operationCandidateId(parsed.targetId, step),
-      kind: 'supplied_operation',
+      kind: isDeterministicAssistance ? 'deterministic_assistance' : 'supplied_operation',
       move: step,
       missionId: row.mission_id,
       targetId: parsed.targetId,
@@ -241,7 +244,12 @@ function acceptanceFromDetail(detail: string): LedgerAcceptance | null {
 // been replaced, so it must not come back as "Accepted" after reload.
 // finish_line_set covers older acceptance rows that did not record their
 // finish line (the only in-app way to change a finish line writes it).
-const INVALIDATES_ACCEPTANCE = new Set(['delta_corrected', 'delta_step_supplied', 'finish_line_set'])
+const INVALIDATES_ACCEPTANCE = new Set([
+  'delta_corrected',
+  'delta_step_supplied',
+  'delta_assistance_generated',
+  'finish_line_set',
+])
 
 /** mission id → the latest acceptance still standing in the event ledger:
  *  the newest delta_accepted per mission, unless a correction, supplied step
@@ -407,7 +415,7 @@ export default function MissionTab() {
       const [missionsRes, evidenceRes, correctionsRes] = await Promise.all([
         supabase.from('missions').select('*').eq('user_id', userId),
         supabase.from('evidence_snapshots').select('*'),
-        supabase.from('mission_events').select('*').eq('user_id', userId).in('type', ['delta_accepted', 'delta_corrected', 'delta_step_supplied', 'finish_line_set', 'delta_context_added']).order('created_at', { ascending: true }),
+        supabase.from('mission_events').select('*').eq('user_id', userId).in('type', ['delta_accepted', 'delta_corrected', 'delta_step_supplied', 'delta_assistance_generated', 'finish_line_set', 'delta_context_added']).order('created_at', { ascending: true }),
       ])
       if (isCancelled()) return
       if (missionsRes.error) throw missionsRes.error
@@ -434,7 +442,7 @@ export default function MissionTab() {
       )
       setSuppliedSteps(
         eventRows
-          .filter(row => row.type === 'delta_step_supplied')
+          .filter(row => row.type === 'delta_step_supplied' || row.type === 'delta_assistance_generated')
           .map(rowToSuppliedStep)
           .filter((step): step is DeltaCandidate => step !== null),
       )
@@ -779,18 +787,19 @@ export default function MissionTab() {
       const detail = JSON.stringify({
         step: assistance.step,
         targetId,
+        kind: 'deterministic_assistance',
         ...(clauses.length > 0 ? { clause: clauses[0] } : { projectFinishLine: mission.finishLine }),
         workDraft: assistance.workDraft,
         finishWhen: assistance.finishWhen,
         why: assistance.why,
       })
-      const savedStep = await recordDeltaEvent('delta_step_supplied', mission.id, detail)
+      const savedStep = await recordDeltaEvent('delta_assistance_generated', mission.id, detail)
       if (!savedStep) return false
       setRouteNotes(previous => [...previous, { missionId: mission.id, note }])
       const supplied = rowToSuppliedStep({
         id: newId(),
         mission_id: mission.id,
-        type: 'delta_step_supplied',
+        type: 'delta_assistance_generated',
         detail,
         created_at: new Date().toISOString(),
       })

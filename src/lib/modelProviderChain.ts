@@ -30,6 +30,7 @@ export interface TextGenerationRequest {
   userContent: string
   maxTokens: number
   timeoutMs?: number
+  deadlineAt?: number
   skipAnthropic?: boolean
 }
 
@@ -45,6 +46,7 @@ export interface ReviewStepRequest {
   requireToolOutput: boolean
   tool: Tool
   timeoutMs?: number
+  deadlineAt?: number
 }
 
 export interface ReviewStepResult {
@@ -54,7 +56,20 @@ export interface ReviewStepResult {
   provider: ModelProviderId
 }
 
-async function callGeminiText(req: TextGenerationRequest): Promise<string> {
+function nextAttemptTimeoutMs(
+  deadlineAt: number,
+  remainingProviders: number,
+  maxAttemptMs = 25_000,
+): number {
+  const remainingMs = deadlineAt - Date.now()
+  if (remainingMs <= 0) {
+    throw new Error('Model request deadline exceeded')
+  }
+  const fairShare = Math.floor(remainingMs / Math.max(1, remainingProviders))
+  return Math.max(1, Math.min(maxAttemptMs, fairShare, remainingMs))
+}
+
+async function callGeminiText(req: TextGenerationRequest, timeoutMs: number): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
   const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL
@@ -63,7 +78,7 @@ async function callGeminiText(req: TextGenerationRequest): Promise<string> {
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(req.timeoutMs ?? 40_000),
+      signal: AbortSignal.timeout(timeoutMs),
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: req.system }] },
         contents: [{ role: 'user', parts: [{ text: req.userContent }] }],
@@ -82,7 +97,7 @@ async function callGeminiText(req: TextGenerationRequest): Promise<string> {
     .trim()
 }
 
-async function callOpenAIText(req: TextGenerationRequest): Promise<string> {
+async function callOpenAIText(req: TextGenerationRequest, timeoutMs: number): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY?.trim()
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
   const model = process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL
@@ -92,7 +107,7 @@ async function callOpenAIText(req: TextGenerationRequest): Promise<string> {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
-    signal: AbortSignal.timeout(req.timeoutMs ?? 40_000),
+    signal: AbortSignal.timeout(timeoutMs),
     body: JSON.stringify({
       model,
       max_tokens: req.maxTokens,
@@ -120,11 +135,15 @@ export async function runProviderChainText(req: TextGenerationRequest): Promise<
     throw new Error('No model provider configured')
   }
 
+  const deadlineAt = req.deadlineAt ?? Date.now() + (req.timeoutMs ?? 45_000)
   let lastError: unknown = null
-  for (const provider of providers) {
+  for (let i = 0; i < providers.length; i += 1) {
+    const provider = providers[i]!
+    const remainingProviders = providers.length - i
     try {
+      const attemptTimeoutMs = nextAttemptTimeoutMs(deadlineAt, remainingProviders, req.timeoutMs ?? 25_000)
       if (provider === 'anthropic') {
-        const client = new Anthropic()
+        const client = new Anthropic({ maxRetries: 0, timeout: attemptTimeoutMs })
         const response = await client.messages.create({
           model: ANTHROPIC_MODEL,
           max_tokens: req.maxTokens,
@@ -139,11 +158,11 @@ export async function runProviderChainText(req: TextGenerationRequest): Promise<
         return { text, provider: 'anthropic' }
       }
       if (provider === 'gemini') {
-        const text = await callGeminiText(req)
+        const text = await callGeminiText(req, attemptTimeoutMs)
         return { text, provider: 'gemini' }
       }
       if (provider === 'openai') {
-        const text = await callOpenAIText(req)
+        const text = await callOpenAIText(req, attemptTimeoutMs)
         return { text, provider: 'openai' }
       }
     } catch (err) {
@@ -153,7 +172,7 @@ export async function runProviderChainText(req: TextGenerationRequest): Promise<
   throw lastError ?? new Error('All configured model providers failed')
 }
 
-async function callGeminiReviewStep(req: ReviewStepRequest): Promise<ReviewStepResult> {
+async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): Promise<ReviewStepResult> {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
   const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL
@@ -195,7 +214,7 @@ async function callGeminiReviewStep(req: ReviewStepRequest): Promise<ReviewStepR
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(req.timeoutMs ?? 40_000),
+      signal: AbortSignal.timeout(timeoutMs),
       body: JSON.stringify(body),
     },
   )
@@ -250,7 +269,7 @@ async function callGeminiReviewStep(req: ReviewStepRequest): Promise<ReviewStepR
   }
 }
 
-async function callOpenAIReviewStep(req: ReviewStepRequest): Promise<ReviewStepResult> {
+async function callOpenAIReviewStep(req: ReviewStepRequest, timeoutMs: number): Promise<ReviewStepResult> {
   const apiKey = process.env.OPENAI_API_KEY?.trim()
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
   const model = process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL
@@ -287,7 +306,7 @@ async function callOpenAIReviewStep(req: ReviewStepRequest): Promise<ReviewStepR
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
-    signal: AbortSignal.timeout(req.timeoutMs ?? 40_000),
+    signal: AbortSignal.timeout(timeoutMs),
     body: JSON.stringify(payload),
   })
   if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`)
@@ -341,11 +360,15 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
     throw new Error('No model provider configured')
   }
 
+  const deadlineAt = req.deadlineAt ?? Date.now() + (req.timeoutMs ?? 45_000)
   let lastError: unknown = null
-  for (const provider of providers) {
+  for (let i = 0; i < providers.length; i += 1) {
+    const provider = providers[i]!
+    const remainingProviders = providers.length - i
     try {
+      const attemptTimeoutMs = nextAttemptTimeoutMs(deadlineAt, remainingProviders, req.timeoutMs ?? 25_000)
       if (provider === 'anthropic') {
-        const model = new Anthropic({ maxRetries: 0, timeout: req.timeoutMs ?? 40_000 })
+        const model = new Anthropic({ maxRetries: 0, timeout: attemptTimeoutMs })
         const response = await model.messages.create({
           model: ANTHROPIC_MODEL,
           max_tokens: req.maxTokens,
@@ -387,10 +410,10 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
         }
       }
       if (provider === 'gemini') {
-        return await callGeminiReviewStep(req)
+        return await callGeminiReviewStep(req, attemptTimeoutMs)
       }
       if (provider === 'openai') {
-        return await callOpenAIReviewStep(req)
+        return await callOpenAIReviewStep(req, attemptTimeoutMs)
       }
     } catch (err) {
       lastError = err
@@ -398,3 +421,4 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
   }
   throw lastError ?? new Error('All configured model providers failed')
 }
+

@@ -739,7 +739,8 @@ describe('MissionTab Vaughn Psych research paper journey', () => {
 
     await waitFor(() => {
       expect(inserts.some(i => i.table === 'mission_events' && i.row.type === 'delta_context_added')).toBe(true)
-      expect(inserts.some(i => i.table === 'mission_events' && i.row.type === 'delta_step_supplied')).toBe(true)
+      expect(inserts.some(i => i.table === 'mission_events' && i.row.type === 'delta_assistance_generated')).toBe(true)
+      expect(inserts.some(i => i.table === 'mission_events' && i.row.type === 'delta_step_supplied')).toBe(false)
     })
 
     expect(await screen.findByText(/Draft the working thesis and section-by-section outline for “Psych research paper”/)).toBeTruthy()
@@ -748,7 +749,7 @@ describe('MissionTab Vaughn Psych research paper journey', () => {
     expect(screen.getByText(/Working Outline — Psych research paper/)).toBeTruthy()
 
     const sdSection = document.querySelector('section.sd')!
-    expect(sdSection.getAttribute('data-provenance')).toBe('supplied')
+    expect(sdSection.getAttribute('data-provenance')).toBe('deterministic')
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Accept this move' }))
