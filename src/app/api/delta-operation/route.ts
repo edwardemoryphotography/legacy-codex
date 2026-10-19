@@ -26,6 +26,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { deltaOwner } from '@/lib/supabase/deltaAuth'
 import { isConcreteMove } from '@/lib/strategicDelta'
 import { DELTA_OPERATION_SYSTEM_PROMPT } from '@/lib/cognitiveDoctrine'
+import { isModelChainConfigured, runProviderChainText } from '@/lib/modelProviderChain'
 
 export const runtime = 'nodejs'
 
@@ -75,15 +76,15 @@ function parseRejectedOperations(value: unknown): RejectedOperation[] | null {
 export async function GET(req: NextRequest) {
   const owner = await deltaOwner(req)
   if ('response' in owner) return owner.response
-  return NextResponse.json({ configured: Boolean(process.env.ANTHROPIC_API_KEY) })
+  return NextResponse.json({ configured: isModelChainConfigured() })
 }
 
 export async function POST(req: NextRequest) {
   const owner = await deltaOwner(req)
   if ('response' in owner) return owner.response
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!isModelChainConfigured()) {
     return NextResponse.json(
-      { error: 'Set ANTHROPIC_API_KEY on the server to enable model-assisted candidates.' },
+      { error: 'Set ANTHROPIC_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY on the server to enable model-assisted candidates.' },
       { status: 503 },
     )
   }
@@ -129,19 +130,42 @@ export async function POST(req: NextRequest) {
 
   try {
     const learnedContext = await loadLearnedContext(owner.url, req.headers.get('Authorization') ?? '', owner.userId, typeof body.missionId === 'string' ? [body.missionId] : [])
-    const client = new Anthropic()
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 200,
-      system: DELTA_OPERATION_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: `${userText}\n\n${learnedContext}` }],
-    })
-
-    const raw = response.content
-      .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-      .map(block => block.text)
-      .join(' ')
-      .trim()
+    let raw = ''
+    if (process.env.ANTHROPIC_API_KEY?.trim()) {
+      try {
+        const client = new Anthropic()
+        const response = await client.messages.create({
+          model: MODEL,
+          max_tokens: 200,
+          system: DELTA_OPERATION_SYSTEM_PROMPT,
+          messages: [{ role: 'user', content: `${userText}\n\n${learnedContext}` }],
+        })
+        raw = response.content
+          .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+          .map(block => block.text)
+          .join(' ')
+          .trim()
+      } catch (anthropicErr) {
+        if (!process.env.GEMINI_API_KEY?.trim() && !process.env.OPENAI_API_KEY?.trim()) {
+          throw anthropicErr
+        }
+        const fallback = await runProviderChainText({
+          system: DELTA_OPERATION_SYSTEM_PROMPT,
+          userContent: `${userText}\n\n${learnedContext}`,
+          maxTokens: 200,
+          skipAnthropic: true,
+        })
+        raw = fallback.text
+      }
+    } else {
+      const fallback = await runProviderChainText({
+        system: DELTA_OPERATION_SYSTEM_PROMPT,
+        userContent: `${userText}\n\n${learnedContext}`,
+        maxTokens: 200,
+        skipAnthropic: true,
+      })
+      raw = fallback.text
+    }
 
     if (!raw || raw.toUpperCase() === 'NONE' || raw.length > MAX_OPERATION_CHARS) {
       return NextResponse.json({ operation: null })

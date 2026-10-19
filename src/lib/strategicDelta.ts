@@ -312,7 +312,7 @@ function admitClauseOperation(
   if (!suggestion.missionId || !targetMissionIds.has(suggestion.missionId)) return false
   const projectOwner = [primary, secondary].find(m => m?.id === suggestion.missionId)
   if (suggestion.targetId === `project:${suggestion.missionId}`) {
-    return suggestion.kind === 'model_suggested' && Boolean(projectOwner?.finishLine) &&
+    return (suggestion.kind === 'model_suggested' || suggestion.kind === 'supplied_operation') && Boolean(projectOwner?.finishLine) &&
       suggestion.projectFinishLine === projectOwner?.finishLine
   }
   const target = parseClauseId(suggestion.targetId)
@@ -652,7 +652,12 @@ function describeBecause(
   // line, the useful explanation is which clause it targets and why that
   // one — not why the mission matters in general.
   if ((winner?.kind === 'model_suggested' || winner?.kind === 'supplied_operation') && winner.missionId) {
-    if (winner.projectFinishLine) return 'Proposed from your saved project context, then critiqued once against its sources and your corrections. Open Why this? to inspect the evidence and uncertainties.'
+    if (winner.projectFinishLine) {
+      if (winner.kind === 'supplied_operation') {
+        return winner.why || 'Structured directly from the project context you shared. It passed the same concrete-move check as any other step, and it is not a model-generated prediction or verified completion evidence.'
+      }
+      return 'Proposed from your saved project context, then critiqued once against its sources and your corrections. Open Why this? to inspect the evidence and uncertainties.'
+    }
     const owner = [ctx.primary, ctx.secondary].find(m => m?.id === winner.missionId)
     const total = decomposeFinishLine(owner?.finishLine ?? null).length
     if (winner.kind === 'supplied_operation') {

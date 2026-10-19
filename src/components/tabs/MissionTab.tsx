@@ -17,7 +17,7 @@ import type {
   StrategicDelta as Delta,
 } from '@/types'
 import { beginFieldWork, endFieldWork } from '@/lib/cognitionPresence'
-import { clauseTextFor, operationCandidateId } from '@/lib/strategicDelta'
+import { clauseTextFor, decomposeFinishLine, operationCandidateId } from '@/lib/strategicDelta'
 import {
   EMPTY_BOARD,
   abandonMission,
@@ -47,7 +47,7 @@ import { nextMoveContextKey } from '@/lib/nextMove'
 import type { TaskRouteContext } from '@/lib/taskRouting'
 import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase } from '@/components/StrategicDelta'
 import type { ConfirmedLesson, LessonConfirmation, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
-import { draftStartingPoint } from '@/lib/missionAssistance'
+import { buildDeterministicAssistance, draftStartingPoint } from '@/lib/missionAssistance'
 
 // ─── Supabase row <-> domain mapping ────────────────────────────────────
 // missionLoop.ts operates on the camelCase Mission/MissionEvent domain
@@ -162,9 +162,22 @@ export function rowToCorrection(row: MissionEventRow): DeltaCorrection | null {
  *  never admitted. */
 export function rowToSuppliedStep(row: MissionEventRow): DeltaCandidate | null {
   try {
-    const parsed = JSON.parse(row.detail) as { step?: unknown; targetId?: unknown; clause?: unknown }
+    const parsed = JSON.parse(row.detail) as {
+      step?: unknown
+      targetId?: unknown
+      clause?: unknown
+      projectFinishLine?: unknown
+      workDraft?: unknown
+      finishWhen?: unknown
+      why?: unknown
+    }
     if (typeof parsed.step !== 'string' || parsed.step.trim().length === 0) return null
-    if (typeof parsed.targetId !== 'string' || !parsed.targetId.startsWith('clause:')) return null
+    if (
+      typeof parsed.targetId !== 'string' ||
+      (!parsed.targetId.startsWith('clause:') && !parsed.targetId.startsWith('project:'))
+    ) {
+      return null
+    }
     const step = parsed.step.trim()
     return {
       id: operationCandidateId(parsed.targetId, step),
@@ -173,6 +186,12 @@ export function rowToSuppliedStep(row: MissionEventRow): DeltaCandidate | null {
       missionId: row.mission_id,
       targetId: parsed.targetId,
       ...(typeof parsed.clause === 'string' && parsed.clause.trim() ? { clause: parsed.clause } : {}),
+      ...(typeof parsed.projectFinishLine === 'string' && parsed.projectFinishLine.trim()
+        ? { projectFinishLine: parsed.projectFinishLine }
+        : {}),
+      ...(typeof parsed.workDraft === 'string' && parsed.workDraft.trim() ? { workDraft: parsed.workDraft } : {}),
+      ...(typeof parsed.finishWhen === 'string' && parsed.finishWhen.trim() ? { finishWhen: parsed.finishWhen } : {}),
+      ...(typeof parsed.why === 'string' && parsed.why.trim() ? { why: parsed.why } : {}),
       rank: 0,
     }
   } catch {
@@ -737,6 +756,51 @@ export default function MissionTab() {
     [recordDeltaEvent],
   )
 
+  const handleAssistWithContext = useCallback(
+    async (request: ProjectReviewRequest): Promise<boolean> => {
+      const note = request.contextNote?.trim()
+      const mission = board.missions[request.missionId]
+      if (!mission || !mission.finishLine || !note) return false
+      if (note.length > 6_000) {
+        setDeltaError('Keep each project note under 6,000 characters. Add another note for more context.')
+        return false
+      }
+      const savedNote = await recordDeltaEvent('delta_context_added', mission.id, note)
+      if (!savedNote) return false
+      const priorNotes = routeNotes.filter(item => item.missionId === mission.id).map(item => item.note)
+      const assistance = buildDeterministicAssistance({
+        title: mission.title,
+        finishLine: mission.finishLine,
+        contextNote: note,
+        priorNotes,
+      })
+      const clauses = decomposeFinishLine(mission.finishLine)
+      const targetId = clauses.length > 0 ? `clause:${mission.id}:0` : `project:${mission.id}`
+      const detail = JSON.stringify({
+        step: assistance.step,
+        targetId,
+        ...(clauses.length > 0 ? { clause: clauses[0] } : { projectFinishLine: mission.finishLine }),
+        workDraft: assistance.workDraft,
+        finishWhen: assistance.finishWhen,
+        why: assistance.why,
+      })
+      const savedStep = await recordDeltaEvent('delta_step_supplied', mission.id, detail)
+      if (!savedStep) return false
+      setRouteNotes(previous => [...previous, { missionId: mission.id, note }])
+      const supplied = rowToSuppliedStep({
+        id: newId(),
+        mission_id: mission.id,
+        type: 'delta_step_supplied',
+        detail,
+        created_at: new Date().toISOString(),
+      })
+      if (supplied) setSuppliedSteps(prev => [...prev, supplied])
+      setAcceptances(prev => withoutMission(prev, mission.id))
+      return true
+    },
+    [board.missions, recordDeltaEvent, routeNotes],
+  )
+
   // After a failed read, "Check again" is a reconnect: it resets the failure
   // state the same way retryConnection does, so a later success does not
   // render mission data under a stale "Could not load" alert.
@@ -787,7 +851,15 @@ export default function MissionTab() {
       return false
     } catch (failure) {
       if (generation === reviewGeneration.current) {
-        setProjectReviewError(failure instanceof Error ? failure.message : 'Project review could not complete.')
+        const message = failure instanceof Error ? failure.message : 'Project review could not complete.'
+        if (request.contextNote?.trim()) {
+          const fallbackSaved = await handleAssistWithContext(request)
+          if (fallbackSaved) {
+            setProjectReviewNotice(`${message} Structured a deterministic starting point directly from your note instead.`)
+            return true
+          }
+        }
+        setProjectReviewError(message)
         // A failed review may have superseded an in-flight restore that already
         // cleared the lessons. Reload human-confirmed lessons so they stay visible.
         void (async () => {
@@ -811,7 +883,7 @@ export default function MissionTab() {
       setProjectReviewBusy(false)
       endFieldWork()
     }
-  }, [])
+  }, [handleAssistWithContext])
 
   // Restore only a cached proposal that the server has checked against
   // current account-scoped notes, corrections, evidence and commitments.
@@ -1233,6 +1305,8 @@ export default function MissionTab() {
         projectReviewError={projectReviewError}
         projectReviewNotice={projectReviewNotice}
         requestProjectReview={sessionReady && (projectAccess === 'owner' || projectAccess === 'tester' || projectAccess === 'unknown') ? handleProjectReview : undefined}
+        onAssistWithContext={sessionReady ? handleAssistWithContext : undefined}
+        resumable={Boolean(sessionReady && savedMissionId && resumableMissionId === savedMissionId)}
       >
         {canChoosePrimary && !startingNewPrimary && (
           <div className="mission-invite" aria-label="Choose your Primary mission">
@@ -1343,18 +1417,6 @@ export default function MissionTab() {
         ) : null}
       </StrategicDelta>
 
-      {/* The router comes after the next move, not before it: on a phone its
-          composer and preferences pushed the card's one action (first-run
-          "This is what matters", or "Check again") far below the tab bar.
-          "Route this move" still scrolls the composer into view. */}
-      <TaskRouter
-        context={routeContext}
-        accountId={sessionReady ? user.id : null}
-        seed={routeSeed}
-        canSave={sessionReady && (routeMission?.state === 'primary' || routeMission?.state === 'secondary')}
-        onPrepare={setRoutedDraft}
-      />
-
       {lessonNotice && <p role="status" className="mission-status">{lessonNotice}</p>}
 
       {/* Accepting a Delta is a prediction, not a commitment — SavedActions
@@ -1369,9 +1431,32 @@ export default function MissionTab() {
           suggestedTitle={shownAcceptance && !shownAcceptance.resumeActionId && shownAcceptance.missionId === savedMissionId ? shownAcceptance.move : null}
           routedDraft={currentDraft}
           resumeDraft={shownAcceptance?.resumeActionId && projectReview?.missionId === savedMissionId && projectReview.resumeActionId === shownAcceptance.resumeActionId && projectReview.workDraft ? { actionId: shownAcceptance.resumeActionId, note: draftStartingPoint(projectReview)! } : null}
-          suggestedNote={shownAcceptance && !shownAcceptance.resumeActionId && projectReview?.missionId === savedMissionId && projectReview.operation === shownAcceptance.move ? draftStartingPoint(projectReview) : null}
+          suggestedNote={
+            shownAcceptance && !shownAcceptance.resumeActionId && projectReview?.missionId === savedMissionId && projectReview.operation === shownAcceptance.move
+              ? draftStartingPoint(projectReview)
+              : shownAcceptance && !shownAcceptance.resumeActionId
+                ? (() => {
+                    const matched = suppliedSteps.find(step => step.missionId === savedMissionId && step.move === shownAcceptance.move && step.workDraft)
+                    return matched ? draftStartingPoint({ workDraft: matched.workDraft, finishWhen: matched.finishWhen, source: 'supplied' }) : null
+                  })()
+                : null
+          }
           onActiveChange={handleResumableAction}
         />
+      )}
+
+      {/* Keep external tool routing behind progressive disclosure unless explicitly triggered via "Route this move". */}
+      {sessionReady && (routeMission || routeSeed) && (
+        <details className="mission-disclosure" open={Boolean(routeSeed)}>
+          <summary>Route this move to an external tool</summary>
+          <TaskRouter
+            context={routeContext}
+            accountId={sessionReady ? user.id : null}
+            seed={routeSeed}
+            canSave={sessionReady && (routeMission?.state === 'primary' || routeMission?.state === 'secondary')}
+            onPrepare={setRoutedDraft}
+          />
+        </details>
       )}
 
       {!loaded ? (

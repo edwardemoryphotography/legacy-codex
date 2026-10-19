@@ -19,35 +19,35 @@
    the action tokens are given a light value so buttons stay readable. */
 
 :root {
-  --bg: #0d0f1f;
-  --surface: #14172d;
-  --surface-soft: #191c36;
-  --surface-strong: #20244a;
-  --line: #262a4a;
-  --line-strong: #363b66;
-  --text: #eceefb;
-  --text-soft: #b8bcda;
-  --text-dim: #8d92b6;
-  --chrome: #0d0f1f;
-  --invite-field-bg: rgba(10, 12, 28, 0.92);
-  --card-shadow: 0 30px 70px rgba(4, 5, 16, 0.5);
-  --card-bg: linear-gradient(180deg, rgba(27, 31, 60, 0.72), rgba(18, 21, 42, 0.72));
-  --field-bg: rgba(12, 14, 32, 0.9);
-  --field-bg-soft: rgba(12, 14, 32, 0.45);
-  --control-bg: linear-gradient(180deg, rgba(30, 34, 64, 0.9), rgba(20, 23, 46, 0.9));
+  --bg: #03040a;
+  --surface: #0a0d1d;
+  --surface-soft: #10142b;
+  --surface-strong: #171d3c;
+  --line: rgba(140, 158, 255, 0.14);
+  --line-strong: rgba(164, 180, 255, 0.26);
+  --text: #f3f5ff;
+  --text-soft: #c5cbe8;
+  --text-dim: #8e96be;
+  --chrome: #03040a;
+  --invite-field-bg: rgba(6, 9, 22, 0.88);
+  --card-shadow: 0 32px 80px rgba(1, 2, 8, 0.72);
+  --card-bg: linear-gradient(180deg, rgba(14, 18, 40, 0.62), rgba(7, 10, 24, 0.76));
+  --field-bg: rgba(6, 9, 22, 0.86);
+  --field-bg-soft: rgba(8, 11, 26, 0.52);
+  --control-bg: linear-gradient(180deg, rgba(18, 24, 52, 0.88), rgba(10, 14, 32, 0.92));
 
-  --peri: #aeb6ff;
-  --peri-deep: #939cf4;
-  --peri-ink: #11142a;
+  --peri: #b4beff;
+  --peri-deep: #8b98ff;
+  --peri-ink: #070916;
   --action-bg: var(--peri);
   --action-text: var(--peri-ink);
   --action-border: transparent;
-  --action-glow: 0 12px 32px rgba(132, 144, 255, 0.3);
+  --action-glow: 0 12px 34px rgba(114, 128, 255, 0.34);
 
-  --glow-calm: rgba(98, 110, 230, 0.38);
-  --glow-think: rgba(150, 98, 232, 0.34);
-  --glow-alert: rgba(206, 86, 96, 0.34);
-  --glow-done: rgba(222, 176, 92, 0.3);
+  --glow-calm: rgba(76, 98, 240, 0.34);
+  --glow-think: rgba(154, 88, 246, 0.38);
+  --glow-alert: rgba(218, 78, 96, 0.34);
+  --glow-done: rgba(56, 218, 168, 0.28);
   --atmo-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
@@ -72,32 +72,47 @@ body::after {
   content: "";
   position: fixed;
   z-index: 0;
-  inset: -20vh -30vw auto;
-  height: 78vh;
+  inset: -18vh -24vw auto;
+  height: 86vh;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 1400ms var(--atmo-ease);
+  transition: opacity 1200ms var(--atmo-ease);
 }
 
 html::before {
   opacity: 1;
   background:
-    radial-gradient(60% 70% at 50% 0%, var(--glow-calm), transparent 70%),
-    radial-gradient(40% 50% at 92% 18%, rgba(110, 124, 220, 0.16), transparent 70%);
+    radial-gradient(64% 62% at 50% 0%, rgba(72, 92, 238, 0.32), transparent 72%),
+    radial-gradient(48% 46% at 18% 12%, rgba(46, 212, 204, 0.16), transparent 68%),
+    radial-gradient(48% 50% at 84% 16%, rgba(198, 74, 168, 0.18), transparent 70%);
 }
-html::after { background: radial-gradient(60% 70% at 50% 0%, var(--glow-think), transparent 70%); }
-body::before { background: radial-gradient(60% 70% at 50% 0%, var(--glow-alert), transparent 70%); }
-body::after { background: radial-gradient(60% 70% at 50% 0%, var(--glow-done), transparent 70%); }
+html::after {
+  background:
+    radial-gradient(62% 65% at 48% 4%, var(--glow-think), transparent 70%),
+    radial-gradient(45% 48% at 22% 18%, rgba(48, 224, 210, 0.24), transparent 68%),
+    radial-gradient(45% 48% at 80% 20%, rgba(232, 82, 168, 0.24), transparent 68%);
+}
+body::before {
+  background:
+    radial-gradient(60% 70% at 50% 0%, var(--glow-alert), transparent 70%),
+    radial-gradient(40% 45% at 75% 14%, rgba(242, 158, 76, 0.18), transparent 70%);
+}
+body::after {
+  background:
+    radial-gradient(60% 68% at 50% 0%, var(--glow-done), transparent 70%),
+    radial-gradient(44% 48% at 78% 14%, rgba(240, 190, 88, 0.22), transparent 68%);
+}
 
 html:has(.sd[data-cognition="deriving"])::after,
 html:has(.sd[data-cognition="correcting"])::after,
 html:has(.sd[data-cognition="reconstructing"])::after { opacity: 1; }
 
 html:has(.sd[data-cognition="failed"]) body::before { opacity: 1; }
-html:has(.sd[data-cognition="failed"])::before { opacity: 0.35; }
+html:has(.sd[data-cognition="failed"])::before { opacity: 0.28; }
 
-html:has(.sd[data-cognition="accepted"]) body::after { opacity: 1; }
-html:has(.sd[data-cognition="accepted"])::before { opacity: 0.55; }
+html:has(.sd[data-cognition="accepted"]) body::after,
+html:has(.sd[data-resumable="true"]) body::after { opacity: 1; }
+html:has(.sd[data-cognition="accepted"])::before { opacity: 0.5; }
 
 :root[data-theme="light"]::before,
 :root[data-theme="light"]::after,

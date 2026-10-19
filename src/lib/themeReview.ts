@@ -5,7 +5,7 @@ export const PRODUCTION_HOST = 'legacy-codex.vercel.app'
 export const THEME_KEY = 'codex_review_theme'
 export type ReviewTheme = 'dark' | 'light' | 'sunset'
 
-export const THEME_COLOR: Record<ReviewTheme, string> = { dark: '#0a0a0f', light: '#f5f4fa', sunset: '#1e3a46' }
+export const THEME_COLOR: Record<ReviewTheme, string> = { dark: '#03040a', light: '#f5f4fa', sunset: '#1e3a46' }
 
 /** Runs before first paint (see layout.tsx) so a stored light or sunset theme does not
  *  flash dark. Kept dependency-free: it is inlined as a string. */

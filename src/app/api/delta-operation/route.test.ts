@@ -55,6 +55,8 @@ describe('/api/delta-operation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     process.env.ANTHROPIC_API_KEY = 'test-key'
+    vi.stubEnv('GEMINI_API_KEY', '')
+    vi.stubEnv('OPENAI_API_KEY', '')
     process.env.DELTA_OPERATION_ALLOWED_USER_ID = 'owner-1'
     // A Vercel preview's shape: only the public project URL is configured.
     vi.stubEnv('SUPABASE_URL', '')
@@ -139,4 +141,59 @@ describe('/api/delta-operation', () => {
     expect(mocks.createMessage).not.toHaveBeenCalled()
   })
 
+  it('falls back from Claude to Gemini when Claude fails and GEMINI_API_KEY is configured', async () => {
+    vi.stubEnv('GEMINI_API_KEY', 'gemini-test-key')
+    mocks.createMessage.mockRejectedValueOnce(new mocks.FakeApiError(529))
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [{ text: 'Capture a screenshot of the Strategic Delta recommendation and its explanation.' }],
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+
+    const response = await POST(request(validBody))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      operation: 'Capture a screenshot of the Strategic Delta recommendation and its explanation.',
+    })
+    fetchSpy.mockRestore()
+  })
+
+  it('falls back to OpenAI when both Claude and Gemini fail and OPENAI_API_KEY is configured', async () => {
+    vi.stubEnv('GEMINI_API_KEY', 'gemini-test-key')
+    vi.stubEnv('OPENAI_API_KEY', 'openai-test-key')
+    mocks.createMessage.mockRejectedValueOnce(new mocks.FakeApiError(529))
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('Gemini rate limit', { status: 429 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: 'Record a correction on the Strategic Delta and verify the rejected move stays inhibited.',
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      )
+
+    const response = await POST(request(validBody))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      operation: 'Record a correction on the Strategic Delta and verify the rejected move stays inhibited.',
+    })
+    fetchSpy.mockRestore()
+  })
 })

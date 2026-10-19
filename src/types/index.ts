@@ -277,6 +277,12 @@ export interface DeltaCandidate {
   clause?: string
   /** A source-grounded project review is bound to the complete finish line. */
   projectFinishLine?: string
+  /** Optional starting-point draft structured from the user's supplied notes. */
+  workDraft?: string
+  /** Optional concrete completion condition for this step. */
+  finishWhen?: string
+  /** Optional approachable explanation of why this step advances the goal. */
+  why?: string
   /** Lower ranks are higher leverage. */
   rank: number
 }

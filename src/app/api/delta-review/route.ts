@@ -8,6 +8,7 @@ import { parseProjectReview, type ProjectReview, type ReviewProposal } from '@/l
 import { measureTransfer } from '@/lib/structuralTransfer'
 import { isConcreteMove } from '@/lib/strategicDelta'
 import { cachedProjectReview, projectIsReviewable } from '@/lib/projectReviewStore'
+import { isModelChainConfigured, runProviderChainReviewStep } from '@/lib/modelProviderChain'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -19,7 +20,7 @@ const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i
 export async function GET(req: NextRequest) {
   const owner = await deltaReviewer(req)
   if ('response' in owner) return owner.response
-  if (req.nextUrl.searchParams.get('capabilities') === '1') return NextResponse.json({ configured: Boolean(process.env.ANTHROPIC_API_KEY), tester: owner.tester }, { headers: { 'Cache-Control': 'no-store' } })
+  if (req.nextUrl.searchParams.get('capabilities') === '1') return NextResponse.json({ configured: isModelChainConfigured(), tester: owner.tester }, { headers: { 'Cache-Control': 'no-store' } })
   const missionId = req.nextUrl.searchParams.get('missionId')
   if (!missionId || !UUID.test(missionId)) return NextResponse.json({ error: 'A saved mission is required.' }, { status: 400 })
   try {
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const owner = await deltaReviewer(req)
   if ('response' in owner) return owner.response
-  if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: 'Project review is unavailable: model access is not configured.' }, { status: 503 })
+  if (!isModelChainConfigured()) return NextResponse.json({ error: 'Project review is unavailable: model access is not configured.' }, { status: 503 })
   const declaredLength = Number(req.headers.get('content-length') ?? '0')
   if (Number.isFinite(declaredLength) && declaredLength > 32_768) return NextResponse.json({ error: 'Request is too large.' }, { status: 413 })
   const text = await req.text()
@@ -80,7 +81,6 @@ export async function POST(req: NextRequest) {
       if (reserved.error) return NextResponse.json({ error: 'Could not reserve an AI request. Your context is saved.' }, { status: 503 })
       if (reserved.data !== true) return NextResponse.json({ error: 'Please wait a minute before trying again. If your tester allowance is used up, ask Eddie to renew it. Your context is saved.' }, { status: 429 })
     }
-    const model = new Anthropic({ maxRetries: 0, timeout: 40_000 })
     // Full mission/lesson content is represented in the bounded sources.
     // Only identify the target here; do not bypass excerpts with raw records.
     const makePacket = (sources = context.sources) => JSON.stringify({ mission: { id: context.mission.id, title: context.mission.title.slice(0, 160),
@@ -90,27 +90,30 @@ export async function POST(req: NextRequest) {
     const comparingLessons = withheld.length !== context.sources.length
     let baseline: ReviewProposal | null = null
     stage = 'draft'
-    const draft = await model.messages.create({ model: 'claude-opus-5', max_tokens: comparingLessons ? 4_200 : 1_600,
+    const draft = await runProviderChainReviewStep({
+      maxTokens: comparingLessons ? 4_200 : 1_600,
       system: PROJECT_REVIEW_RULES,
-      ...(comparingLessons ? { tools: [PROJECT_REVIEW_OUTPUT], tool_choice: { type: 'tool' as const, name: PROJECT_REVIEW_OUTPUT.name, disable_parallel_tool_use: true } } : {}),
-      messages: [{ role: 'user', content: `Compare feasible moves and propose one choice from this context.${comparingLessons ? ' Submit the provisional choice through submit_project_review.' : ''}\n${makePacket(comparingLessons ? withheld : context.sources)}` }] })
+      requireToolOutput: comparingLessons,
+      tool: PROJECT_REVIEW_OUTPUT,
+      userContent: `Compare feasible moves and propose one choice from this context.${comparingLessons ? ' Submit the provisional choice through submit_project_review.' : ''}\n${makePacket(comparingLessons ? withheld : context.sources)}`,
+    })
     if (comparingLessons) {
-      const outputs = draft.content.filter((block): block is Anthropic.ToolUseBlock => block.type === 'tool_use' && block.name === PROJECT_REVIEW_OUTPUT.name)
-      baseline = draft.stop_reason === 'tool_use' && outputs.length === 1 ? parseProjectReview(JSON.stringify(outputs[0].input), withheld, body.missionId) : null
+      baseline = draft.stopReason === 'tool_use' && draft.toolInput ? parseProjectReview(JSON.stringify(draft.toolInput), withheld, body.missionId) : null
       // A malformed baseline cannot become a measured comparison. Still allow
       // the normal final critique to help the person, with unavailable metrics.
-    } else if (draft.stop_reason !== 'end_turn') return NextResponse.json({ error: 'The review draft did not complete. No recommendation was accepted.' }, { status: 502 })
-    const draftText = comparingLessons ? JSON.stringify(baseline) : draft.content.filter(b => b.type === 'text').map(b => b.text).join('\n')
+    } else if (draft.stopReason !== 'end_turn') return NextResponse.json({ error: 'The review draft did not complete. No recommendation was accepted.' }, { status: 502 })
+    const draftText = comparingLessons ? JSON.stringify(baseline) : draft.text
     stage = 'critique'
-    const final = await model.messages.create({
-      model: 'claude-opus-5', max_tokens: 4_200, system: PROJECT_REVIEW_RULES,
-      tools: [PROJECT_REVIEW_OUTPUT], tool_choice: { type: 'tool', name: PROJECT_REVIEW_OUTPUT.name, disable_parallel_tool_use: true },
-      messages: [{ role: 'user', content: `Critique the draft independently against the original context. Does the chosen move beat the alternatives on impact, urgency, dependencies, reported capacity and uncertainty? Is resuming a saved action better? Does the finish condition describe an observable result? Does a missing fact change the winner? Find unsupported facts, stale evidence, duplicates and paraphrases of corrected approaches. Revise once; submit through submit_project_review. A self-check is still a model proposal, not verification.\nOriginal context:\n${packet}\nDraft (untrusted proposal):\n${draftText.slice(0, 10_000)}` }],
+    const final = await runProviderChainReviewStep({
+      maxTokens: 4_200,
+      system: PROJECT_REVIEW_RULES,
+      requireToolOutput: true,
+      tool: PROJECT_REVIEW_OUTPUT,
+      userContent: `Critique the draft independently against the original context. Does the chosen move beat the alternatives on impact, urgency, dependencies, reported capacity and uncertainty? Is resuming a saved action better? Does the finish condition describe an observable result? Does a missing fact change the winner? Find unsupported facts, stale evidence, duplicates and paraphrases of corrected approaches. Revise once; submit through submit_project_review. A self-check is still a model proposal, not verification.\nOriginal context:\n${packet}\nDraft (untrusted proposal):\n${draftText.slice(0, 10_000)}`,
     })
     stage = 'validation'
-    const outputs = final.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use' && b.name === PROJECT_REVIEW_OUTPUT.name)
-    const parsed = final.stop_reason === 'tool_use' && outputs.length === 1
-      ? parseProjectReview(JSON.stringify(outputs[0].input), context.sources, body.missionId) : null
+    const parsed = final.stopReason === 'tool_use' && final.toolInput
+      ? parseProjectReview(JSON.stringify(final.toolInput), context.sources, body.missionId) : null
     if (!parsed || (parsed.operation && !isConcreteMove(parsed.operation, { title: context.mission.title, finishLine: context.mission.finish_line }))) {
       return NextResponse.json({ error: 'The review did not return a grounded choice with a finish condition. No recommendation was accepted.' }, { status: 502 })
     }
