@@ -308,6 +308,30 @@ function newId(): string {
 
 const CAPACITY_LEVELS: CapacityLevel[] = ['low', 'medium', 'high']
 
+// Only a resumable mission ID is held locally. The project's actual title,
+// finish line and lifecycle continue to come exclusively from Supabase.
+function missionSetupKey(userId: string): string {
+  return `legacy-codex:pending-mission-setup:${userId}`
+}
+
+function rememberMissionSetup(userId: string, missionId: string | null): void {
+  try {
+    if (missionId) window.localStorage.setItem(missionSetupKey(userId), missionId)
+    else window.localStorage.removeItem(missionSetupKey(userId))
+  } catch {
+    // Storage may be unavailable in private browsing. Manual saved-project
+    // recovery remains available without relying on browser storage.
+  }
+}
+
+function readMissionSetup(userId: string): string | null {
+  try {
+    return window.localStorage.getItem(missionSetupKey(userId))
+  } catch {
+    return null
+  }
+}
+
 export const VISITOR_ACCESS_COPY = 'AI assistance is not enabled for this account. Everything you write here is saved privately.'
 const RECONNECT_ACCESS_COPY = 'Smart suggestions are unavailable until this session reconnects. Everything you write here is still saved privately.'
 
@@ -371,6 +395,7 @@ export default function MissionTab() {
   // Beginning never deletes or silently replaces an existing mission.
   const [entryMode, setEntryMode] = useState<'workspace' | 'capture'>('workspace')
   const [freshMissionId, setFreshMissionId] = useState<string | null>(null)
+  const [savedProjectChoice, setSavedProjectChoice] = useState('')
   const [freshChangeWhat, setFreshChangeWhat] = useState('')
   const [freshChangeWhy, setFreshChangeWhy] = useState('')
   const [freshChallenge, setFreshChallenge] = useState<PriorityChallenge | null>(null)
@@ -1023,6 +1048,23 @@ export default function MissionTab() {
     m => (m.state === 'parked' || m.state === 'candidate') && m.finishLine,
   )
   const sessionReady = loaded && !!user && !loadFailed
+  const resumableProjects = missionList
+    .filter(m => m.state !== 'primary' && m.state !== 'secondary' && m.state !== 'completed')
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+
+  useEffect(() => {
+    if (!sessionReady || !user) return
+    const missionId = readMissionSetup(user.id)
+    if (!missionId) return
+    const saved = board.missions[missionId]
+    if (!saved || saved.state === 'primary' || saved.state === 'secondary' || saved.state === 'completed') {
+      rememberMissionSetup(user.id, null)
+      return
+    }
+    setFreshMissionId(missionId)
+    setEntryMode('capture')
+  }, [sessionReady, user, board.missions])
+
   const confirmedEmpty = sessionReady && missionList.length === 0
   const canChoosePrimary = sessionReady && !primary && !secondary && missionList.length > 0
   const recoverableMissions = missionList.filter(m => m.state !== 'completed' && m.state !== 'primary' && m.state !== 'secondary')
@@ -1085,7 +1127,10 @@ export default function MissionTab() {
           return
         }
       }
-      if (entryMode === 'capture') setFreshMissionId(id)
+      if (entryMode === 'capture') {
+        rememberMissionSetup(user.id, id)
+        setFreshMissionId(id)
+      }
       setNewTitle('')
       setNewWhy('')
       setShowNewMission(false)
@@ -1268,7 +1313,10 @@ export default function MissionTab() {
         {status && <p className="mission-status" role="status">{status}</p>}
         {error && <p className="mission-status" role="alert" style={{ color: 'var(--error)' }}>{error}</p>}
         <div className="mission-invite" aria-label="Start from Step 1">
-          <ActionChip variant="ghost" disabled={recoveryBusy} onClick={() => setEntryMode('workspace')}>
+          <ActionChip variant="ghost" disabled={recoveryBusy} onClick={() => {
+            if (user) rememberMissionSetup(user.id, null)
+            setEntryMode('workspace')
+          }}>
             Back to saved work
           </ActionChip>
           {!freshMission ? (
@@ -1336,6 +1384,7 @@ export default function MissionTab() {
                         setShownAcceptance(null)
                         setRouteSeed(null)
                         setRoutedDraft(null)
+                        rememberMissionSetup(user.id, null)
                         setEntryMode('workspace')
                       }
                     }}>
@@ -1391,6 +1440,7 @@ export default function MissionTab() {
                               setShownAcceptance(null)
                               setRouteSeed(null)
                               setRoutedDraft(null)
+                              rememberMissionSetup(user.id, null)
                               setEntryMode('workspace')
                             }
                           }}>
@@ -1401,7 +1451,10 @@ export default function MissionTab() {
                       )}
                     </div>
                   )}
-                  <ActionChip variant="ghost" disabled={recoveryBusy} onClick={() => setEntryMode('workspace')}>
+                  <ActionChip variant="ghost" disabled={recoveryBusy} onClick={() => {
+                    rememberMissionSetup(user.id, null)
+                    setEntryMode('workspace')
+                  }}>
                     Keep this project saved for later
                   </ActionChip>
                 </div>
@@ -1440,6 +1493,7 @@ export default function MissionTab() {
             {' '}You can start from the beginning without losing any of it.
           </p>
           <ActionBtn onClick={() => {
+            rememberMissionSetup(user.id, null)
             setFreshMissionId(null)
             setFreshChallenge(null)
             setFreshChangeWhat('')
@@ -1451,6 +1505,51 @@ export default function MissionTab() {
           }}>
             Start from Step 1
           </ActionBtn>
+          {resumableProjects.length > 0 && (
+            <div className="space-y-2" aria-label="Continue a saved project">
+              <p>
+                Continue saved setup: <strong>{resumableProjects[0].title}</strong>
+              </p>
+              <ActionChip variant="secondary" disabled={recoveryBusy} onClick={() => {
+                const missionId = resumableProjects[0].id
+                rememberMissionSetup(user.id, missionId)
+                setFreshMissionId(missionId)
+                setFreshChallenge(null)
+                setFreshChangeWhat('')
+                setFreshChangeWhy('')
+                setEntryMode('capture')
+              }}>
+                Continue this saved project
+              </ActionChip>
+              {resumableProjects.length > 1 && (
+                <div className="mission-invite-field">
+                  <label htmlFor="saved-project-resume">Or choose another saved project</label>
+                  <select
+                    id="saved-project-resume"
+                    className="mission-invite-input"
+                    value={savedProjectChoice}
+                    onChange={event => setSavedProjectChoice(event.target.value)}
+                  >
+                    <option value="">Select a saved project…</option>
+                    {resumableProjects.map(project => (
+                      <option key={project.id} value={project.id}>{project.title}</option>
+                    ))}
+                  </select>
+                  <ActionChip variant="secondary" disabled={!savedProjectChoice || recoveryBusy} onClick={() => {
+                    if (!resumableProjects.some(project => project.id === savedProjectChoice)) return
+                    rememberMissionSetup(user.id, savedProjectChoice)
+                    setFreshMissionId(savedProjectChoice)
+                    setFreshChallenge(null)
+                    setFreshChangeWhat('')
+                    setFreshChangeWhy('')
+                    setEntryMode('capture')
+                  }}>
+                    Continue selected project
+                  </ActionChip>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
