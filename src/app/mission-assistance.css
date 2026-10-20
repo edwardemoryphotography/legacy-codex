@@ -484,3 +484,122 @@ html:has(.sd[data-cognition="failed"])::after {
   transition: none !important;
   transform: none !important;
 }
+
+
+/* ─── iPhone Mission recovery: constrain real saved project names ────────────
+   A native <select> containing long mission titles can contribute its
+   intrinsic min-content width to .mission-space's implicit grid track.
+   That stretches the entire Mission panel (including the panoramic aurora)
+   wider than the mobile viewport. Use bounded tracks and controls instead
+   of hiding the overflow, so every action remains reachable. */
+.mission-space {
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.mission-space > *,
+.mission-space .sd:not(.sd-orb-host),
+.mission-space .sd-stage,
+.mission-space .sd-copy,
+.mission-space .mission-path,
+.mission-space .mission-invite {
+  min-width: 0;
+  max-width: 100%;
+}
+.mission-space .mission-invite {
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+}
+.mission-space .mission-invite > *,
+.mission-space .mission-invite form,
+.mission-space .mission-invite-field {
+  min-width: 0;
+  max-width: 100%;
+}
+.mission-space .mission-invite select,
+.mission-space .mission-invite input,
+.mission-space .mission-invite textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.mission-space .mission-invite select {
+  min-height: 48px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 16px;
+  color: var(--text);
+  background: var(--invite-field-bg);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  text-overflow: ellipsis;
+}
+.mission-space .mission-invite p,
+.mission-space .mission-invite h2,
+.mission-space .mission-invite strong,
+.mission-space .mission-invite label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mission-space .mission-invite button {
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.mission-entry {
+  padding: 16px;
+  border-radius: 22px;
+  border: 1px solid rgba(146, 168, 255, 0.2);
+  background: linear-gradient(160deg, rgba(14, 19, 39, 0.7), rgba(8, 11, 26, 0.42));
+}
+.mission-entry-eyebrow {
+  display: block;
+  color: var(--text-dim);
+  font-size: 0.73rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.mission-entry-current-title {
+  color: var(--text);
+  font-size: 0.94rem;
+  font-weight: 600;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.mission-entry-support {
+  margin-top: 5px;
+  font-size: 0.83rem;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+.mission-resume-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.mission-resume-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.45;
+  font-weight: 600;
+  font-size: 0.91rem;
+}
+@media (max-width: 600px) {
+  .mission-entry { padding: 14px; gap: 12px; }
+  .mission-entry-current-title, .mission-resume-title { font-size: 0.88rem; }
+}

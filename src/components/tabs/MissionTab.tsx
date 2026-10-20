@@ -1312,7 +1312,7 @@ export default function MissionTab() {
         </span>
         {status && <p className="mission-status" role="status">{status}</p>}
         {error && <p className="mission-status" role="alert" style={{ color: 'var(--error)' }}>{error}</p>}
-        <div className="mission-invite" aria-label="Start from Step 1">
+        <div className="mission-invite mission-entry" aria-label="Start from Step 1">
           <ActionChip variant="ghost" disabled={recoveryBusy} onClick={() => {
             if (user) rememberMissionSetup(user.id, null)
             setEntryMode('workspace')
@@ -1487,11 +1487,16 @@ export default function MissionTab() {
 
 
       {sessionReady && missionList.length > 0 && (
-        <div className="mission-invite" aria-label="Begin a new project">
-          <p>
-            {primary ? <>Continuing saved work: <strong>{primary.title}</strong>.</> : 'Your previous projects are still saved.'}
-            {' '}You can start from the beginning without losing any of it.
-          </p>
+        <div className="mission-invite mission-entry" aria-label="Begin a new project">
+          <div>
+            <span className="mission-entry-eyebrow">Your current focus</span>
+            <p className="mission-entry-current-title" title={primary?.title ?? 'Saved projects'}>
+              {primary?.title ?? 'Your previous projects are still saved.'}
+            </p>
+            <p className="mission-entry-support">
+              Start a new project without losing your saved work.
+            </p>
+          </div>
           <ActionBtn onClick={() => {
             rememberMissionSetup(user.id, null)
             setFreshMissionId(null)
@@ -1506,10 +1511,13 @@ export default function MissionTab() {
             Start from Step 1
           </ActionBtn>
           {resumableProjects.length > 0 && (
-            <div className="space-y-2" aria-label="Continue a saved project">
-              <p>
-                Continue saved setup: <strong>{resumableProjects[0].title}</strong>
-              </p>
+            <div className="mission-resume-group" aria-label="Continue a saved project">
+              <div>
+                <span className="mission-entry-eyebrow">Continue saved setup</span>
+                <p className="mission-resume-title" title={resumableProjects[0].title}>
+                  {resumableProjects[0].title}
+                </p>
+              </div>
               <ActionChip variant="secondary" disabled={recoveryBusy} onClick={() => {
                 const missionId = resumableProjects[0].id
                 rememberMissionSetup(user.id, missionId)
