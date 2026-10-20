@@ -367,6 +367,13 @@ export default function MissionTab() {
 
   // New-mission form
   const [showNewMission, setShowNewMission] = useState(false)
+  // Separate a person's choice to begin again from the account's saved Primary.
+  // Beginning never deletes or silently replaces an existing mission.
+  const [entryMode, setEntryMode] = useState<'workspace' | 'capture'>('workspace')
+  const [freshMissionId, setFreshMissionId] = useState<string | null>(null)
+  const [freshChangeWhat, setFreshChangeWhat] = useState('')
+  const [freshChangeWhy, setFreshChangeWhy] = useState('')
+  const [freshChallenge, setFreshChallenge] = useState<PriorityChallenge | null>(null)
   const [newTitle, setNewTitle] = useState('')
   const [newWhy, setNewWhy] = useState('')
   const [nameTitle, setNameTitle] = useState('')
@@ -1078,6 +1085,7 @@ export default function MissionTab() {
           return
         }
       }
+      if (entryMode === 'capture') setFreshMissionId(id)
       setNewTitle('')
       setNewWhy('')
       setShowNewMission(false)
@@ -1246,6 +1254,165 @@ export default function MissionTab() {
         : 'idea'
   const now = new Date().toISOString()
 
+
+  const freshMission = freshMissionId ? board.missions[freshMissionId] ?? null : null
+
+  // Starting over is a view of the first step, not a reset of the database.
+  // The existing active Primary and its actions remain accessible on return.
+  if (sessionReady && entryMode === 'capture') {
+    return (
+      <section className="mission-space">
+        <span className="session-status" role="status">
+          <span className="session-dot connected" aria-hidden="true" /> Connected
+        </span>
+        {status && <p className="mission-status" role="status">{status}</p>}
+        {error && <p className="mission-status" role="alert" style={{ color: 'var(--error)' }}>{error}</p>}
+        <div className="mission-invite" aria-label="Start from Step 1">
+          <ActionChip variant="ghost" disabled={recoveryBusy} onClick={() => setEntryMode('workspace')}>
+            Back to saved work
+          </ActionChip>
+          {!freshMission ? (
+            <form onSubmit={event => { event.preventDefault(); void handleNewMission() }}>
+              <p>Step 1 of 3 — Capture</p>
+              <h2>What do you want to work on?</h2>
+              <p>Begin in your own words. Your previous projects and actions stay saved.</p>
+              <div className="mission-invite-field">
+                <label htmlFor="fresh-idea">Your idea or project</label>
+                <Textarea
+                  id="fresh-idea"
+                  className="mission-invite-input"
+                  value={newTitle}
+                  onChange={setNewTitle}
+                  required
+                  rows={3}
+                  placeholder="What is on your mind?"
+                />
+              </div>
+              <ActionBtn type="submit" disabled={recoveryBusy || !newTitle.trim()}>
+                Capture this idea
+              </ActionBtn>
+            </form>
+          ) : (
+            <div className="space-y-3">
+              <p role="status">Saved project: <strong>{freshMission.title}</strong></p>
+              {!freshMission.finishLine ? (
+                <form onSubmit={event => {
+                  event.preventDefault()
+                  void (async () => {
+                    const ok = await applyAndPersist(
+                      b => setFinishLine(b, freshMission.id, nameFinish, new Date().toISOString()),
+                      [freshMission.id],
+                    )
+                    if (ok) setNameFinish('')
+                  })()
+                }}>
+                  <p>Step 2 of 3 — Clarify</p>
+                  <h2>How will you know it is finished?</h2>
+                  <div className="mission-invite-field">
+                    <label htmlFor="fresh-finish-line">Your finish line</label>
+                    <Input
+                      id="fresh-finish-line"
+                      className="mission-invite-input"
+                      value={nameFinish}
+                      onChange={setNameFinish}
+                      required
+                      placeholder="What result would count as finished?"
+                    />
+                  </div>
+                  <ActionBtn type="submit" disabled={recoveryBusy || !nameFinish.trim()}>
+                    Save finish line
+                  </ActionBtn>
+                  <p>You can return later; this project is already saved without taking over your current focus.</p>
+                </form>
+              ) : (
+                <div className="space-y-3">
+                  <p>Step 3 of 3 — Choose</p>
+                  <h2>Make this your focus?</h2>
+                  <p>Finish line: {freshMission.finishLine}</p>
+                  {!primary || primary.id === freshMission.id ? (
+                    <ActionBtn disabled={recoveryBusy} onClick={async () => {
+                      if (primary?.id === freshMission.id ||
+                        await applyAndPersist(b => promoteToPrimary(b, freshMission.id, new Date().toISOString()), [freshMission.id])) {
+                        setShownAcceptance(null)
+                        setRouteSeed(null)
+                        setRoutedDraft(null)
+                        setEntryMode('workspace')
+                      }
+                    }}>
+                      Continue with this mission
+                    </ActionBtn>
+                  ) : (
+                    <div className="space-y-3">
+                      <p>
+                        Your current Primary is <strong>{primary.title}</strong>.
+                        You can keep that work, or explicitly make this new project your Primary.
+                      </p>
+                      {!freshChallenge ? (
+                        <>
+                          <div className="mission-invite-field">
+                            <label htmlFor="fresh-challenge-what">What has changed?</label>
+                            <Input id="fresh-challenge-what" value={freshChangeWhat}
+                              onChange={value => { setFreshChangeWhat(value); setFreshChallenge(null) }}
+                              placeholder="What makes the new project your priority?" />
+                          </div>
+                          <div className="mission-invite-field">
+                            <label htmlFor="fresh-challenge-why">Why is the change important?</label>
+                            <Input id="fresh-challenge-why" value={freshChangeWhy}
+                              onChange={value => { setFreshChangeWhy(value); setFreshChallenge(null) }}
+                              placeholder="Why now?" />
+                          </div>
+                          <ActionBtn disabled={recoveryBusy || !freshChangeWhat.trim() || !freshChangeWhy.trim()}
+                            onClick={() => {
+                              const result = requestPriorityChallenge(board, {
+                                candidateMissionId: freshMission.id,
+                                displacedMissionId: primary.id,
+                                what: freshChangeWhat,
+                                why: freshChangeWhy,
+                              })
+                              if (result.error) { setError(result.error); return }
+                              setFreshChallenge(result.challenge)
+                            }}>
+                            Review priority change
+                          </ActionBtn>
+                        </>
+                      ) : (
+                        <div className="space-y-3">
+                          <p>
+                            <strong>{primary.title}</strong> will be parked, not deleted.
+                            <strong> {freshMission.title}</strong> will become your Primary.
+                          </p>
+                          <ActionBtn disabled={recoveryBusy} onClick={async () => {
+                            const ok = await applyAndPersist(
+                              b => applyPriorityChallenge(b, freshChallenge, 'parked', new Date().toISOString()),
+                              [freshChallenge.candidateMissionId, freshChallenge.displacedMissionId],
+                            )
+                            if (ok) {
+                              setFreshChallenge(null)
+                              setShownAcceptance(null)
+                              setRouteSeed(null)
+                              setRoutedDraft(null)
+                              setEntryMode('workspace')
+                            }
+                          }}>
+                            Confirm and continue
+                          </ActionBtn>
+                          <ActionChip variant="ghost" onClick={() => setFreshChallenge(null)}>Back</ActionChip>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <ActionChip variant="ghost" disabled={recoveryBusy} onClick={() => setEntryMode('workspace')}>
+                    Keep this project saved for later
+                  </ActionChip>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section className="mission-space">
       <span className="session-status" role="status">
@@ -1262,6 +1429,28 @@ export default function MissionTab() {
             {!deltaOffersRecheck && <ActionBtn onClick={retryConnection}>Check again</ActionBtn>}
             <a href="https://legacy-codex.vercel.app">Open main Legacy Codex site</a>
           </div>
+        </div>
+      )}
+
+
+      {sessionReady && missionList.length > 0 && (
+        <div className="mission-invite" aria-label="Begin a new project">
+          <p>
+            {primary ? <>Continuing saved work: <strong>{primary.title}</strong>.</> : 'Your previous projects are still saved.'}
+            {' '}You can start from the beginning without losing any of it.
+          </p>
+          <ActionBtn onClick={() => {
+            setFreshMissionId(null)
+            setFreshChallenge(null)
+            setFreshChangeWhat('')
+            setFreshChangeWhy('')
+            setNewTitle('')
+            setNewWhy('')
+            setNameFinish('')
+            setEntryMode('capture')
+          }}>
+            Start from Step 1
+          </ActionBtn>
         </div>
       )}
 
