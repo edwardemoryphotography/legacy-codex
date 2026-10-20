@@ -593,8 +593,30 @@ export default function MissionTab() {
       setBoard(result.board)
       beginFieldWork()
       try {
-        const rows = affectedIds.map(id => missionToRow(result.board.missions[id], user.id))
-        const { error: upsertError } = await supabase.from('missions').upsert(rows, { onConflict: 'id' })
+        // A priority challenge changes two missions protected by a partial
+        // unique index (one Primary per user). A bulk UPSERT can promote the
+        // candidate before it demotes the old Primary, causing HTTP 409 /
+        // PostgreSQL 23505. Use one owner-scoped database transaction for
+        // BOTH lifecycle updates and their audit event.
+        if (result.event?.type === 'priority_challenge_applied') {
+          const candidateId = result.event.missionId
+          const displacedId = affectedIds.find(id => id !== candidateId)
+          const displacedNextState = displacedId ? result.board.missions[displacedId]?.state : null
+          if (!displacedId || !displacedNextState) {
+            throw new Error('Priority challenge has no displaced mission')
+          }
+          const { data, error: challengeError } = await supabase.rpc('apply_priority_challenge_atomic', {
+            p_candidate_id: candidateId,
+            p_displaced_id: displacedId,
+            p_displaced_next_state: displacedNextState,
+            p_event_detail: result.event.detail,
+          })
+          if (challengeError || data !== true) {
+            throw challengeError ?? new Error('Atomic priority challenge was not confirmed')
+          }
+        } else {
+          const rows = affectedIds.map(id => missionToRow(result.board.missions[id], user.id))
+          const { error: upsertError } = await supabase.from('missions').upsert(rows, { onConflict: 'id' })
         if (upsertError) throw upsertError
 
         if (result.event) {
@@ -637,6 +659,7 @@ export default function MissionTab() {
             return false
           }
         }
+        }
         // A finish-line change replaces the goal an earlier acceptance
         // agreed with; drop it the same way the reload fold does.
         const changedGoal = result.event?.type === 'finish_line_set' ? result.event.missionId : null
@@ -645,7 +668,9 @@ export default function MissionTab() {
         return true
       } catch {
         setBoard(before)
-        setError('Write failed — change was not saved. Nothing changed; try again.')
+        setError(result.event?.type === 'priority_challenge_applied'
+          ? 'Primary switch was not saved. Your original Primary and new project remain unchanged. Recheck the saved missions before trying again.'
+          : 'Write failed — change was not saved. Nothing changed; try again.')
         return false
       } finally {
         missionWriteInFlight.current = false
@@ -1260,15 +1285,17 @@ export default function MissionTab() {
     if (!pendingChallenge) return
     const candidateId = pendingChallenge.candidateMissionId
     const displacedId = pendingChallenge.displacedMissionId
-    await applyAndPersist(
+    const saved = await applyAndPersist(
       b => applyPriorityChallenge(b, pendingChallenge, challengeDisplacedNext, new Date().toISOString()),
       [candidateId, displacedId],
     )
-    setPendingChallenge(null)
-    setChallengeOpen(false)
-    setChallengeCandidateId('')
-    setChallengeWhat('')
-    setChallengeWhy('')
+    if (saved) {
+      setPendingChallenge(null)
+      setChallengeOpen(false)
+      setChallengeCandidateId('')
+      setChallengeWhat('')
+      setChallengeWhy('')
+    }
   }
 
   const evidenceGroups = groupByMission(evidence)
