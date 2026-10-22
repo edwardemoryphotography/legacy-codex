@@ -79,3 +79,15 @@ describe('buildDeterministicAssistance', () => {
     expect(result.constraintCheck).toEqual({ checked: ['slides'], conflicts: [] })
   })
 })
+
+describe('review findings on PR #122', () => {
+  it('does not take a deadline from the displaced mission title', () => {
+    expect(extractDeadline('finish it — it matters most — displaced Essay due Friday to parked')).toBeNull()
+  })
+
+  it('does not count quantities echoed from the finish line as budgets', () => {
+    const result = buildDeterministicAssistance({ title: 'Essay', finishLine: 'Write ~10 pages', contextNote: 'outline it' })
+    expect(result.constraintCheck.conflicts).toEqual([])
+    expect(result.workDraft).toContain('Core Analysis / Evidence Sections (~')
+  })
+})

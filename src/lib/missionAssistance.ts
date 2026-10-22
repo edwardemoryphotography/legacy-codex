@@ -112,9 +112,16 @@ function pageLabel(pages: number): string {
   return `~${text} page${pages > 1 ? 's' : ''}`
 }
 
-/** Pulls a stated deadline ("due in 3 days", "deadline Friday") out of free text. */
+/**
+ * Pulls a stated deadline ("due in 3 days", "deadline Friday") out of a
+ * priority-challenge detail. The detail ends with a generated
+ * " — displaced <title> to <state>" suffix (missionLoop.applyPriorityChallenge);
+ * that suffix names another project, so only the person's own words are read.
+ */
 export function extractDeadline(text: string): string | null {
-  const match = /\b((?:due|deadline)\b[^—\n.;]*)/i.exec(text)
+  const suffix = text.lastIndexOf(' — displaced ')
+  const ownWords = suffix >= 0 ? text.slice(0, suffix) : text
+  const match = /\b((?:due|deadline)\b[^—\n.;]*)/i.exec(ownWords)
   return match ? match[1].trim() : null
 }
 
@@ -131,11 +138,14 @@ function deadlineLine(deadline?: { text: string; saidAt: string } | null): strin
  * replaces it and the conflict is reported for the event record.
  */
 function guarded(
+  generatedBudget: string,
   draft: string,
   unbudgeted: () => string,
   declared: DeclaredQuantity[],
 ): { workDraft: string; constraintCheck: DeterministicAssistance['constraintCheck'] } {
-  const conflicts = quantityConflicts(draft, declared)
+  // Only the generated budget lines are checked: the draft also echoes the
+  // person's own finish line and note, which may contain "~N unit" text.
+  const conflicts = quantityConflicts(generatedBudget, declared)
   const checked = declared.map(q => q.unit)
   if (conflicts.length === 0) return { workDraft: draft, constraintCheck: { checked, conflicts } }
   return { workDraft: unbudgeted(), constraintCheck: { checked, conflicts } }
@@ -192,20 +202,25 @@ export function buildDeterministicAssistance(input: {
       '- **One-sentence working claim:** ',
     ]
     const budget = pageCount && pageCount >= 2 ? splitPages(pageCount, [0.15, 0.35, 0.35, 0.15]) : null
+    const budgetLines = budget
+      ? [
+          `- **Introduction & thesis (${pageLabel(budget[0])}):** Frame the question and state the core claim.`,
+          `- **Background & key findings (${pageLabel(budget[1])}):** Summarize the main concepts from your course/assignment materials.`,
+          `- **Analysis & discussion (${pageLabel(budget[2])}):** Compare evidence, limitations, and implications.`,
+          `- **Conclusion (${pageLabel(budget[3])}):** Synthesize how the evidence answers your research question.`,
+        ]
+      : []
     const draft = [
       ...head,
       ...(budget
         ? [
             '',
             `### 3. Section budget toward your ${pageTarget!.min === pageTarget!.max ? pageCount : `${pageTarget!.min}-${pageTarget!.max}`}-page target (${finishLine})`,
-            `- **Introduction & thesis (${pageLabel(budget[0])}):** Frame the question and state the core claim.`,
-            `- **Background & key findings (${pageLabel(budget[1])}):** Summarize the main concepts from your course/assignment materials.`,
-            `- **Analysis & discussion (${pageLabel(budget[2])}):** Compare evidence, limitations, and implications.`,
-            `- **Conclusion (${pageLabel(budget[3])}):** Synthesize how the evidence answers your research question.`,
+            ...budgetLines,
           ]
         : []),
     ].join('\n')
-    return { step, finishWhen, why, ...guarded(draft, () => head.join('\n'), declared) }
+    return { step, finishWhen, why, ...guarded(budget ? budget.map(pageLabel).join(' ') : '', draft, () => head.join('\n'), declared) }
   }
 
   if (isWritingOrResearch) {
@@ -242,7 +257,7 @@ export function buildDeterministicAssistance(input: {
       '- [ ] Write the one-sentence working thesis at the top of your document.',
       '- [ ] Paste the section headings above into your draft and add one bullet under each from your own course notes.',
     ].join('\n')
-    return { step, finishWhen, why, ...guarded(outline(budgetedPlan), () => outline(unbudgetedPlan), declared) }
+    return { step, finishWhen, why, ...guarded(budget ? budget.map(pageLabel).join(' ') : '', outline(budgetedPlan), () => outline(unbudgetedPlan), declared) }
   }
 
   const step = `Outline the first concrete work block for “${title}” based on your note: ${shortNote}`
@@ -259,6 +274,6 @@ export function buildDeterministicAssistance(input: {
     `2. **Draft the opening part:** Complete the first part before expanding the rest.`,
     `3. **Check against finish line:** Verify what remains to reach *${finishLine}*.`,
   ].join('\n')
-  return { step, finishWhen, why, ...guarded(workDraft, () => workDraft, declared) }
+  return { step, finishWhen, why, ...guarded('', workDraft, () => workDraft, declared) }
 }
 
