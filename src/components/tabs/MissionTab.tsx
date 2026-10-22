@@ -47,7 +47,7 @@ import { nextMoveContextKey } from '@/lib/nextMove'
 import type { TaskRouteContext } from '@/lib/taskRouting'
 import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase } from '@/components/StrategicDelta'
 import type { ConfirmedLesson, LessonConfirmation, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
-import { buildDeterministicAssistance, draftStartingPoint } from '@/lib/missionAssistance'
+import { buildDeterministicAssistance, draftStartingPoint, extractDeadline } from '@/lib/missionAssistance'
 
 // ─── Supabase row <-> domain mapping ────────────────────────────────────
 // missionLoop.ts operates on the camelCase Mission/MissionEvent domain
@@ -356,6 +356,9 @@ export default function MissionTab() {
   const [routeSeed, setRouteSeed] = useState<RouteSeed | null>(null)
   const [routedDraft, setRoutedDraft] = useState<RoutedActionDraft | null>(null)
   const [routeNotes, setRouteNotes] = useState<{ missionId: string; note: string }[]>([])
+  // Deadlines a person stated while changing priority ("it's due in 3 days"),
+  // newest last, so assistance can respect them instead of losing them.
+  const [statedDeadlines, setStatedDeadlines] = useState<{ missionId: string; text: string; saidAt: string }[]>([])
   const [loaded, setLoaded] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
   const [connectionAttempt, setConnectionAttempt] = useState(0)
@@ -447,7 +450,7 @@ export default function MissionTab() {
       const [missionsRes, evidenceRes, correctionsRes] = await Promise.all([
         supabase.from('missions').select('*').eq('user_id', userId),
         supabase.from('evidence_snapshots').select('*'),
-        supabase.from('mission_events').select('*').eq('user_id', userId).in('type', ['delta_accepted', 'delta_corrected', 'delta_step_supplied', 'delta_assistance_generated', 'finish_line_set', 'delta_context_added']).order('created_at', { ascending: true }),
+        supabase.from('mission_events').select('*').eq('user_id', userId).in('type', ['delta_accepted', 'delta_corrected', 'delta_step_supplied', 'delta_assistance_generated', 'finish_line_set', 'delta_context_added', 'priority_challenge_applied']).order('created_at', { ascending: true }),
       ])
       if (isCancelled()) return
       if (missionsRes.error) throw missionsRes.error
@@ -466,6 +469,10 @@ export default function MissionTab() {
       setBoard({ missions })
       const eventRows = (correctionsRes.data ?? []) as Array<MissionEventRow & { type?: string }>
       setRouteNotes(eventRows.filter(row => row.type === 'delta_context_added').map(row => ({ missionId: row.mission_id, note: row.detail })))
+      setStatedDeadlines(eventRows.flatMap(row => {
+        const text = row.type === 'priority_challenge_applied' ? extractDeadline(row.detail) : null
+        return text ? [{ missionId: row.mission_id, text, saidAt: row.created_at }] : []
+      }))
       setCorrections(
         eventRows
           .filter(row => row.type === 'delta_corrected')
@@ -613,6 +620,10 @@ export default function MissionTab() {
           })
           if (challengeError || data !== true) {
             throw challengeError ?? new Error('Atomic priority challenge was not confirmed')
+          }
+          const deadlineText = extractDeadline(result.event.detail)
+          if (deadlineText) {
+            setStatedDeadlines(prev => [...prev, { missionId: candidateId, text: deadlineText, saidAt: result.event!.createdAt }])
           }
         } else {
           const rows = affectedIds.map(id => missionToRow(result.board.missions[id], user.id))
@@ -838,6 +849,7 @@ export default function MissionTab() {
         finishLine: mission.finishLine,
         contextNote: note,
         priorNotes,
+        deadline: statedDeadlines.filter(item => item.missionId === mission.id).at(-1) ?? null,
       })
       const clauses = decomposeFinishLine(mission.finishLine)
       const targetId = clauses.length > 0 ? `clause:${mission.id}:0` : `project:${mission.id}`
@@ -849,6 +861,7 @@ export default function MissionTab() {
         workDraft: assistance.workDraft,
         finishWhen: assistance.finishWhen,
         why: assistance.why,
+        constraintCheck: assistance.constraintCheck,
       })
       const savedStep = await recordDeltaEvent('delta_assistance_generated', mission.id, detail)
       if (!savedStep) return false
@@ -864,7 +877,7 @@ export default function MissionTab() {
       setAcceptances(prev => withoutMission(prev, mission.id))
       return true
     },
-    [board.missions, recordDeltaEvent, routeNotes],
+    [board.missions, recordDeltaEvent, routeNotes, statedDeadlines],
   )
 
   // After a failed read, "Check again" is a reconnect: it resets the failure
