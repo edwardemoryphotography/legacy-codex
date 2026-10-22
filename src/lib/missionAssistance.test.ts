@@ -139,3 +139,13 @@ describe("Vaughn's case: a complete 3-page paper", () => {
     expect(result.constraintCheck).toMatchObject({ compared: ['pages'], conflicts: [], correction: null })
   })
 })
+
+describe('deadline extraction ignores causal "due to"', () => {
+  it('finds no deadline in a causal phrase', () => {
+    expect(extractDeadline('Plans changed due to bad weather — it matters now')).toBeNull()
+  })
+
+  it('keeps looking past a causal phrase for a real deadline', () => {
+    expect(extractDeadline('Moved up due to the storm, and it is due Friday')).toBe('due Friday')
+  })
+})

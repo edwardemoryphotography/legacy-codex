@@ -135,7 +135,8 @@ function pageLabel(pages: number): string {
 export function extractDeadline(text: string): string | null {
   const suffix = text.lastIndexOf(' — displaced ')
   const ownWords = suffix >= 0 ? text.slice(0, suffix) : text
-  const match = /\b((?:due|deadline)\b[^—\n.;]*)/i.exec(ownWords)
+  // "due to" is causal ("changed due to bad weather"), not a deadline; skip it and keep looking.
+  const match = /\b((?:due(?!\s+to\b)|deadline)\b[^—\n.;,]*)/i.exec(ownWords)
   return match ? match[1].trim() : null
 }
 
