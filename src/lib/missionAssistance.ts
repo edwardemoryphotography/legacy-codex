@@ -27,8 +27,22 @@ export interface DeterministicAssistance {
   finishWhen: string
   why: string
   workDraft: string
-  /** Result of checking every number in workDraft against the numbers the person declared. */
-  constraintCheck: { checked: string[]; conflicts: QuantityConflict[] }
+  constraintCheck: ConstraintCheck
+}
+
+/**
+ * Stored with the delta_assistance_generated event. `declared` lists units the
+ * person stated; `compared` lists only units the generated plan budgeted and
+ * that were actually checked against them. A declared unit absent from
+ * `compared` was not validated, because the plan made no claim about it.
+ */
+export interface ConstraintCheck {
+  source: 'deterministic_quantity_guard'
+  declared: string[]
+  compared: string[]
+  conflicts: QuantityConflict[]
+  /** Set when a contradicting budget was removed; `notice` is shown to the person. */
+  correction: { action: 'removed_budget'; notice: string } | null
 }
 
 /**
@@ -132,23 +146,40 @@ function deadlineLine(deadline?: { text: string; saidAt: string } | null): strin
   return [`- **Deadline you mentioned:** ${deadline.text}${when}`]
 }
 
+function amountText(amount: number): string {
+  return Number.isInteger(amount) ? `${amount}` : `${Math.floor(amount) || ''}½`
+}
+
 /**
  * Verifies a finished draft against the person's declared numbers. A plan
  * whose budgets disagree is never shown as-is: the caller's unbudgeted plan
- * replaces it and the conflict is reported for the event record.
+ * replaces it, a correction notice telling the person what was removed and
+ * why is placed at the top of the draft, and the conflict is returned for the
+ * event record.
  */
-function guarded(
+export function applyQuantityGuard(
   generatedBudget: string,
   draft: string,
   unbudgeted: () => string,
   declared: DeclaredQuantity[],
-): { workDraft: string; constraintCheck: DeterministicAssistance['constraintCheck'] } {
-  // Only the generated budget lines are checked: the draft also echoes the
+): { workDraft: string; constraintCheck: ConstraintCheck } {
+  // Only the generated budget labels are checked: the draft also echoes the
   // person's own finish line and note, which may contain "~N unit" text.
+  const planned = plannedQuantities(generatedBudget)
   const conflicts = quantityConflicts(generatedBudget, declared)
-  const checked = declared.map(q => q.unit)
-  if (conflicts.length === 0) return { workDraft: draft, constraintCheck: { checked, conflicts } }
-  return { workDraft: unbudgeted(), constraintCheck: { checked, conflicts } }
+  const base = {
+    source: 'deterministic_quantity_guard' as const,
+    declared: declared.map(q => q.unit),
+    compared: declared.filter(q => planned.has(q.unit)).map(q => q.unit),
+    conflicts,
+  }
+  if (conflicts.length === 0) return { workDraft: draft, constraintCheck: { ...base, correction: null } }
+  const reasons = conflicts.map(c => `it added up to ${amountText(c.planned)} ${c.unit} but you said ${c.declared} ${c.unit}`)
+  const notice = `**Correction:** I removed the section budget because ${reasons.join(', and ')}. The sections below have no length targets — split your ${conflicts.map(c => `${c.declared} ${c.unit}`).join(' and ')} across them yourself.`
+  return {
+    workDraft: `${notice}\n\n${unbudgeted()}`,
+    constraintCheck: { ...base, correction: { action: 'removed_budget', notice } },
+  }
 }
 
 function summarizeNote(note: string, maxLen = 72): string {
@@ -220,7 +251,7 @@ export function buildDeterministicAssistance(input: {
           ]
         : []),
     ].join('\n')
-    return { step, finishWhen, why, ...guarded(budget ? budget.map(pageLabel).join(' ') : '', draft, () => head.join('\n'), declared) }
+    return { step, finishWhen, why, ...applyQuantityGuard(budget ? budget.map(pageLabel).join(' ') : '', draft, () => head.join('\n'), declared) }
   }
 
   if (isWritingOrResearch) {
@@ -257,7 +288,7 @@ export function buildDeterministicAssistance(input: {
       '- [ ] Write the one-sentence working thesis at the top of your document.',
       '- [ ] Paste the section headings above into your draft and add one bullet under each from your own course notes.',
     ].join('\n')
-    return { step, finishWhen, why, ...guarded(budget ? budget.map(pageLabel).join(' ') : '', outline(budgetedPlan), () => outline(unbudgetedPlan), declared) }
+    return { step, finishWhen, why, ...applyQuantityGuard(budget ? budget.map(pageLabel).join(' ') : '', outline(budgetedPlan), () => outline(unbudgetedPlan), declared) }
   }
 
   const step = `Outline the first concrete work block for “${title}” based on your note: ${shortNote}`
@@ -274,6 +305,6 @@ export function buildDeterministicAssistance(input: {
     `2. **Draft the opening part:** Complete the first part before expanding the rest.`,
     `3. **Check against finish line:** Verify what remains to reach *${finishLine}*.`,
   ].join('\n')
-  return { step, finishWhen, why, ...guarded('', workDraft, () => workDraft, declared) }
+  return { step, finishWhen, why, ...applyQuantityGuard('', workDraft, () => workDraft, declared) }
 }
 

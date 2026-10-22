@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyQuantityGuard,
   buildDeterministicAssistance,
   declaredQuantities,
   extractDeadline,
@@ -74,9 +75,18 @@ describe('buildDeterministicAssistance', () => {
     expect(result.workDraft).toContain('**Deadline you mentioned:** due Friday')
   })
 
-  it('reports which declared units were checked, even with no budget', () => {
+  it('does not claim a declared unit was validated when the plan budgeted none of it', () => {
     const result = buildDeterministicAssistance({ title: 'Deck', finishLine: '12 slides ready', contextNote: 'start' })
-    expect(result.constraintCheck).toEqual({ checked: ['slides'], conflicts: [] })
+    expect(result.constraintCheck).toEqual({
+      source: 'deterministic_quantity_guard', declared: ['slides'], compared: [], conflicts: [], correction: null,
+    })
+  })
+
+  it('lists pages as compared only when a page budget was generated and checked', () => {
+    const paper = buildDeterministicAssistance({ title: 'Psych paper', finishLine: 'When I have written 3 pages', contextNote: 'start' })
+    expect(paper.constraintCheck).toMatchObject({ declared: ['pages'], compared: ['pages'], conflicts: [], correction: null })
+    const oneDay = buildDeterministicAssistance({ title: 'Plan the shoot', finishLine: '3 pages of notes', contextNote: 'start' })
+    expect(oneDay.constraintCheck).toMatchObject({ declared: ['pages'], compared: [] })
   })
 })
 
@@ -89,5 +99,43 @@ describe('review findings on PR #122', () => {
     const result = buildDeterministicAssistance({ title: 'Essay', finishLine: 'Write ~10 pages', contextNote: 'outline it' })
     expect(result.constraintCheck.conflicts).toEqual([])
     expect(result.workDraft).toContain('Core Analysis / Evidence Sections (~')
+  })
+})
+
+describe('applyQuantityGuard correction', () => {
+  const declared = [{ unit: 'pages', min: 3, max: 3 }]
+  const unbudgeted = () => '## Working Outline\n1. **Opening**'
+
+  it('replaces a contradicting budget and tells the person what was removed and why', () => {
+    const result = applyQuantityGuard('(~1 page) (~1 page) (~2 pages) (~1 page)', 'OLD DRAFT (~5 pages)', unbudgeted, declared)
+    expect(result.workDraft).not.toContain('OLD DRAFT')
+    expect(result.workDraft.startsWith('**Correction:** I removed the section budget because it added up to 5 pages but you said 3 pages.')).toBe(true)
+    expect(result.workDraft).toContain('## Working Outline')
+    expect(result.constraintCheck).toEqual({
+      source: 'deterministic_quantity_guard',
+      declared: ['pages'],
+      compared: ['pages'],
+      conflicts: [{ unit: 'pages', declared: '3', planned: 5 }],
+      correction: { action: 'removed_budget', notice: result.workDraft.split('\n\n')[0] },
+    })
+  })
+
+  it('keeps a matching budget untouched with no correction', () => {
+    const result = applyQuantityGuard('(~½ page) (~½ page) (~1½ pages) (~½ page)', 'GOOD DRAFT', unbudgeted, declared)
+    expect(result.workDraft).toBe('GOOD DRAFT')
+    expect(result.constraintCheck.correction).toBeNull()
+  })
+})
+
+describe("Vaughn's case: a complete 3-page paper", () => {
+  it('gets a full four-section paper budget totalling 3 pages, with no clarification step', () => {
+    const result = buildDeterministicAssistance({
+      title: 'Research paper', finishLine: 'When I have written 3 pages', contextNote: 'It is the introduction to a research paper',
+    })
+    expect(result.workDraft).toContain('Introduction & Working Thesis (~½ page)')
+    expect(result.workDraft).toContain('Discussion, Limitations & Conclusion (~½ page)')
+    expect(result.workDraft).not.toContain('**Correction:**')
+    expect(result.step).toMatch(/^Draft the working thesis and section-by-section outline/)
+    expect(result.constraintCheck).toMatchObject({ compared: ['pages'], conflicts: [], correction: null })
   })
 })
