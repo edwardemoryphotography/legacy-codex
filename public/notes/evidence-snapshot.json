@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-24T03:32:39.981Z",
+  "generatedAt": "2026-10-24T08:41:43.389Z",
   "unavailableSources": [],
   "records": [
     {
@@ -10,7 +10,7 @@
       "status": "verified",
       "claim": "PR #122 \"Mission assistance agrees with the numbers the person declared\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-22T22:55:33Z",
-      "fetchedAt": "2026-10-24T03:32:34.091Z",
+      "fetchedAt": "2026-10-24T08:41:37.414Z",
       "prReadSucceeded": true
     },
     {
@@ -21,7 +21,7 @@
       "status": "verified",
       "claim": "PR #121 \"Fix live 409 when switching Primary missions (atomic database transaction)\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-20T03:09:51Z",
-      "fetchedAt": "2026-10-24T03:32:34.872Z",
+      "fetchedAt": "2026-10-24T08:41:37.784Z",
       "prReadSucceeded": true
     },
     {
@@ -32,7 +32,7 @@
       "status": "verified",
       "claim": "PR #120 \"Fix iPhone Mission screen overflow from long saved project names\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-20T02:54:51Z",
-      "fetchedAt": "2026-10-24T03:32:35.158Z",
+      "fetchedAt": "2026-10-24T08:41:38.119Z",
       "prReadSucceeded": true
     },
     {
@@ -43,7 +43,7 @@
       "status": "verified",
       "claim": "PR #119 \"Restore unfinished mission setup after reopening the site\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-20T02:31:33Z",
-      "fetchedAt": "2026-10-24T03:32:35.466Z",
+      "fetchedAt": "2026-10-24T08:41:38.512Z",
       "prReadSucceeded": true
     },
     {
@@ -54,7 +54,7 @@
       "status": "verified",
       "claim": "PR #118 \"Make Step 1 accessible while preserving existing missions\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-20T00:32:11Z",
-      "fetchedAt": "2026-10-24T03:32:35.773Z",
+      "fetchedAt": "2026-10-24T08:41:38.857Z",
       "prReadSucceeded": true
     },
     {
@@ -65,7 +65,7 @@
       "status": "verified",
       "claim": "PR #117 \"feat(mission): Living Aurora visual system, Vaughn journey & multi-tier intelligence chain\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-19T21:08:13Z",
-      "fetchedAt": "2026-10-24T03:32:36.084Z",
+      "fetchedAt": "2026-10-24T08:41:39.264Z",
       "prReadSucceeded": true
     },
     {
@@ -76,7 +76,7 @@
       "status": "verified",
       "claim": "PR #116 \"Ground cross-project reconstruction and record honest transfer observations\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-16T15:54:53Z",
-      "fetchedAt": "2026-10-24T03:32:36.352Z",
+      "fetchedAt": "2026-10-24T08:41:39.570Z",
       "prReadSucceeded": true
     },
     {
@@ -87,7 +87,7 @@
       "status": "verified",
       "claim": "PR #115 \"Repair Mission assistance for the real Vaughn workflow\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-16T02:44:43Z",
-      "fetchedAt": "2026-10-24T03:32:36.697Z",
+      "fetchedAt": "2026-10-24T08:41:39.928Z",
       "prReadSucceeded": true
     },
     {
@@ -98,7 +98,7 @@
       "status": "verified",
       "claim": "PR #114 \"Protect Mission recovery against overlapping saves and stale reads\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-08T02:02:39Z",
-      "fetchedAt": "2026-10-24T03:32:36.982Z",
+      "fetchedAt": "2026-10-24T08:41:40.234Z",
       "prReadSucceeded": true
     },
     {
@@ -109,7 +109,7 @@
       "status": "verified",
       "claim": "PR #113 \"Repair inactive Mission recovery from the front door\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-08T01:54:14Z",
-      "fetchedAt": "2026-10-24T03:32:37.320Z",
+      "fetchedAt": "2026-10-24T08:41:40.572Z",
       "prReadSucceeded": true
     },
     {
@@ -120,7 +120,7 @@
       "status": "unverified",
       "claim": "PR #100 \"Restore sunset preview URL under Vercel rate limit\" open, not yet merged.",
       "observedAt": "2026-10-08T01:45:29Z",
-      "fetchedAt": "2026-10-24T03:32:37.320Z",
+      "fetchedAt": "2026-10-24T08:41:40.572Z",
       "prReadSucceeded": true
     },
     {
@@ -131,7 +131,7 @@
       "status": "verified",
       "claim": "PR #112 \"Mission: evidence requirement on the finish-line step so Primary can be proven done\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-06T22:49:20Z",
-      "fetchedAt": "2026-10-24T03:32:37.605Z",
+      "fetchedAt": "2026-10-24T08:41:40.881Z",
       "prReadSucceeded": true
     },
     {
@@ -142,7 +142,7 @@
       "status": "verified",
       "claim": "PR #111 \"Controls: your manual mode choice wins; sample readiness data never picks the mode\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-06T22:19:49Z",
-      "fetchedAt": "2026-10-24T03:32:37.922Z",
+      "fetchedAt": "2026-10-24T08:41:41.177Z",
       "prReadSucceeded": true
     },
     {
@@ -153,7 +153,7 @@
       "status": "verified",
       "claim": "PR #110 \"Preserve pending route corrections across refresh\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-06T10:36:09Z",
-      "fetchedAt": "2026-10-24T03:32:38.205Z",
+      "fetchedAt": "2026-10-24T08:41:41.437Z",
       "prReadSucceeded": true
     },
     {
@@ -164,7 +164,7 @@
       "status": "verified",
       "claim": "PR #109 \"Carry scoped Goose lessons into model requests and task handoffs\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-05T03:33:16Z",
-      "fetchedAt": "2026-10-24T03:32:38.493Z",
+      "fetchedAt": "2026-10-24T08:41:41.777Z",
       "prReadSucceeded": true
     },
     {
@@ -175,7 +175,7 @@
       "status": "verified",
       "claim": "PR #108 \"fix: preserve exact saved-action Resume identity and reachability\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T20:39:59Z",
-      "fetchedAt": "2026-10-24T03:32:38.792Z",
+      "fetchedAt": "2026-10-24T08:41:42.087Z",
       "prReadSucceeded": true
     },
     {
@@ -186,7 +186,7 @@
       "status": "verified",
       "claim": "PR #106 \"Improve Strategic Delta choices, finish conditions and saved-action resume\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T08:26:43Z",
-      "fetchedAt": "2026-10-24T03:32:39.077Z",
+      "fetchedAt": "2026-10-24T08:41:42.473Z",
       "prReadSucceeded": true
     },
     {
@@ -197,7 +197,7 @@
       "status": "verified",
       "claim": "PR #107 \"Controls: label the readiness file as sample data with its dates, never live\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T04:09:10Z",
-      "fetchedAt": "2026-10-24T03:32:39.363Z",
+      "fetchedAt": "2026-10-24T08:41:42.773Z",
       "prReadSucceeded": true
     },
     {
@@ -208,7 +208,7 @@
       "status": "verified",
       "claim": "PR #104 \"Security: owner-gate /api/brief and /api/analyze, clamp inputs\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T00:41:59Z",
-      "fetchedAt": "2026-10-24T03:32:39.654Z",
+      "fetchedAt": "2026-10-24T08:41:43.092Z",
       "prReadSucceeded": true
     },
     {
@@ -219,7 +219,7 @@
       "status": "verified",
       "claim": "PR #103 \"feat: Origin Atlas tab and current-loop architecture map\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T00:30:16Z",
-      "fetchedAt": "2026-10-24T03:32:39.981Z",
+      "fetchedAt": "2026-10-24T08:41:43.389Z",
       "prReadSucceeded": true
     }
   ]
