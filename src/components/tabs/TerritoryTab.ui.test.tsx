@@ -24,7 +24,7 @@ vi.mock('@/lib/supabase/client', () => ({
       : table === 'evidence_snapshots'
         ? { select: () => ({ not: () => ({ order: async () => db.evidence }) }) }
       : table === 'mission_events'
-        ? { select: () => ({ eq: () => ({ order: () => ({ limit: async () => db.events }) }) }) }
+        ? { select: () => ({ eq: () => ({ order: () => ({ limit: async () => db.events }), in: () => ({ order: () => ({ range: async () => db.events }) }) }) }) }
         : { select: () => ({ eq: async () => ({ data: db.missions, error: null }) }) },
   },
 }))

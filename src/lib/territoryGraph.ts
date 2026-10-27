@@ -33,8 +33,12 @@ export interface GraphEdge {
 }
 
 export const PER_KIND_LIMIT = 3
-const CELL = 340
-const RING = 125
+// Children are drawn as 112×34 boxes around a 150×44 mission box. Adjacent
+// child centres at least CHILD_GAP apart cannot overlap (|dx| > 112 whenever
+// |dy| < 34), and MIN_RING keeps side children clear of the mission box.
+export const CHILD_GAP = 130
+const MIN_RING = 140
+const ringFor = (count: number) => (count < 2 ? MIN_RING : Math.max(MIN_RING, Math.ceil(CHILD_GAP / (2 * Math.sin(Math.PI / count)))))
 const GROUP_ORDER: TerritoryGroup[] = ['active', 'paused', 'completed', 'abandoned']
 
 function parse(detail: string): Record<string, unknown> | null {
@@ -56,11 +60,7 @@ export function buildTerritoryGraph(missions: Mission[], actions: OpenAction[], 
   const nodes: GraphNode[] = []
   const edges: GraphEdge[] = []
 
-  ordered.forEach((mission, index) => {
-    const cx = CELL / 2 + (index % columns) * CELL
-    const cy = CELL / 2 + Math.floor(index / columns) * CELL
-    nodes.push({ id: `mission:${mission.id}`, kind: 'mission', missionId: mission.id, label: mission.title || 'Untitled mission', x: cx, y: cy })
-
+  const placed = ordered.map(mission => {
     const own = events.filter(e => e.mission_id === mission.id)
     const children: { id: string; kind: GraphNodeKind; label: string; edge: string; provenance: string }[] = []
     const action = actions.find(a => a.mission_id === mission.id)
@@ -76,14 +76,25 @@ export function buildTerritoryGraph(missions: Mission[], actions: OpenAction[], 
     })
     evidence.filter(e => e.mission_id === mission.id).slice(0, PER_KIND_LIMIT).forEach(e =>
       children.push({ id: `evidence:${e.id}`, kind: 'evidence', label: e.claim, edge: `evidence (${e.status})`, provenance: 'evidence_snapshots.mission_id' }))
+    return { mission, children }
+  })
 
+  // One cell size for the whole graph, from its busiest mission, so the grid
+  // stays regular and no ring reaches into a neighbouring cell.
+  const ring = ringFor(Math.max(0, ...placed.map(p => p.children.length)))
+  const cell = 2 * ring + 2 * 70
+  placed.forEach(({ mission, children }, index) => {
+    const cx = cell / 2 + (index % columns) * cell
+    const cy = cell / 2 + Math.floor(index / columns) * cell
+    nodes.push({ id: `mission:${mission.id}`, kind: 'mission', missionId: mission.id, label: mission.title || 'Untitled mission', x: cx, y: cy })
+    const r = ringFor(children.length)
     children.forEach((child, i) => {
       const angle = -Math.PI / 2 + (2 * Math.PI * i) / children.length
-      nodes.push({ id: child.id, kind: child.kind, missionId: mission.id, label: child.label, x: Math.round(cx + RING * Math.cos(angle)), y: Math.round(cy + RING * Math.sin(angle)) })
+      nodes.push({ id: child.id, kind: child.kind, missionId: mission.id, label: child.label, x: Math.round(cx + r * Math.cos(angle)), y: Math.round(cy + r * Math.sin(angle)) })
       edges.push({ from: `mission:${mission.id}`, to: child.id, label: child.edge, provenance: child.provenance })
     })
   })
 
   const rows = Math.max(1, Math.ceil(ordered.length / columns))
-  return { nodes, edges, width: columns * CELL, height: rows * CELL }
+  return { nodes, edges, width: columns * cell, height: rows * cell }
 }

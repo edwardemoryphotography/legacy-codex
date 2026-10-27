@@ -242,7 +242,7 @@ A read-only map of the person's own saved missions, in the More sheet. Missions 
 The **Graph** view (List | Graph toggle; `src/lib/territoryGraph.ts`, `src/components/TerritoryGraph.tsx`) draws only stored relationships, and each edge carries the table it came from:
 - unfinished action (`actions.mission_id`)
 - blocker (`missions.blocker`)
-- confirmed lesson (`mission_events · delta_lesson_confirmed`, minus retired ones)
+- confirmed lesson (`mission_events · delta_lesson_confirmed`, minus retired ones). Lessons, retirements and corrections are read by type, separately from the newest-500 activity window, and paged up to 5,000; the view says so if that cap is hit
 - correction (`mission_events · delta_corrected`)
 - evidence with its saved status (`evidence_snapshots.mission_id`)
 

@@ -14,13 +14,15 @@ const when = (iso: string) => new Date(iso).toLocaleDateString(undefined, { mont
 
 export const GRAPH_PARTIAL_COPY = 'Some saved links could not be read right now, so the graph is missing them. Nothing was changed.'
 
+export const GRAPH_TRUNCATED_COPY = 'Only your newest 5,000 lessons and corrections were read, so older ones may be missing from the graph.'
+
 export const EVENTS_READ_FAILED_COPY = 'Mission history could not be read right now, so last activity uses each mission’s own saved time and reported capacity is unknown.'
 
 // Territory: the person's own saved missions, grouped by saved state, with
 // Active State taken from data Mission already keeps. Read-only — every
 // model call goes through /api/brief and is display-only.
 export default function TerritoryTab() {
-  const { missions, loadError, actions, actionsRead, events, eventsRead, evidence, evidenceRead } = useMissionTerritory({ withEvents: true })
+  const { missions, loadError, actions, actionsRead, events, eventsRead, evidence, evidenceRead, links, linksRead, linksTruncated } = useMissionTerritory({ withEvents: true })
   const [view, setView] = useState<'list' | 'graph'>('list')
   const brief = useBriefRunner()
   const [openId, setOpenId] = useState<string | null>(null)
@@ -70,8 +72,9 @@ export default function TerritoryTab() {
             </div>
             {view === 'graph' && (
               <>
-                {[actionsRead, eventsRead, evidenceRead].includes('failed') && <HelperLine variant="error">{GRAPH_PARTIAL_COPY}</HelperLine>}
-                <TerritoryGraph {...buildTerritoryGraph(missions, actions, events, evidence)} blocked={new Set(missions.filter(m => m.state === 'blocked').map(m => m.id))} onOpen={select} />
+                {[actionsRead, linksRead, evidenceRead].includes('failed') && <HelperLine variant="error">{GRAPH_PARTIAL_COPY}</HelperLine>}
+                {linksTruncated && <HelperLine>{GRAPH_TRUNCATED_COPY}</HelperLine>}
+                <TerritoryGraph {...buildTerritoryGraph(missions, actions, links, evidence)} blocked={new Set(missions.filter(m => m.state === 'blocked').map(m => m.id))} onOpen={select} />
               </>
             )}
             {view === 'list' && groups.map(({ group, cards }) => (

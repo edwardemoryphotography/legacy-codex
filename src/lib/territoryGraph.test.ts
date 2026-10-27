@@ -53,4 +53,18 @@ describe('buildTerritoryGraph', () => {
     expect(a.edges.filter(e => e.label === 'correction')).toHaveLength(PER_KIND_LIMIT)
     expect(a.nodes).toEqual(b.nodes)
   })
+
+  it('keeps a fully populated mission readable: no two drawn boxes overlap', () => {
+    const kinds = ['delta_lesson_confirmed', 'delta_corrected'] as const
+    const events = kinds.flatMap(type => Array.from({ length: 3 }, (_, i) => ev({ id: `${type}${i}`, type, detail: JSON.stringify({ rule: `rule ${i}`, reason: `reason ${i}` }) })))
+    const snaps = Array.from({ length: 3 }, (_, i) => ({ ...evidence, id: `s${i}` }))
+    const g = buildTerritoryGraph([mission({ blocker: 'b' }), mission({ id: 'm2', title: 'Beta', blocker: 'b' })], [action, { ...action, id: 'a2', mission_id: 'm2' }], events.concat(events.map(e => ({ ...e, id: `${e.id}x`, mission_id: 'm2' }))), snaps.concat(snaps.map(s => ({ ...s, id: `${s.id}x`, mission_id: 'm2' }))))
+    expect(g.nodes.filter(n => n.missionId === 'm1')).toHaveLength(12)
+    const box = (n: (typeof g.nodes)[number]) => (n.kind === 'mission' ? { w: 150, h: 44 } : { w: 112, h: 34 })
+    for (const a of g.nodes) for (const b of g.nodes) {
+      if (a === b) continue
+      const overlap = Math.abs(a.x - b.x) < (box(a).w + box(b).w) / 2 && Math.abs(a.y - b.y) < (box(a).h + box(b).h) / 2
+      expect(overlap, `${a.id} overlaps ${b.id}`).toBe(false)
+    }
+  })
 })
