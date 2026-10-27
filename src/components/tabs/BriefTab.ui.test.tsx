@@ -105,5 +105,7 @@ describe('BriefTab Architect Scan and Break Wall', () => {
     render(<BriefTab />)
     expect(await screen.findByText(ACTIONS_READ_FAILED_COPY)).toBeTruthy()
     expect(screen.getByText(/uses the saved blocker: waiting on lab/)).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Architect Scan' }) as HTMLButtonElement).disabled).toBe(true)
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Break Wall' }) as HTMLButtonElement).disabled).toBe(false))
   })
 })

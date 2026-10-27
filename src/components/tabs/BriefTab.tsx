@@ -22,7 +22,7 @@ interface OpenAction {
 
 type Wall = 'blocker' | 'action'
 
-export const ACTIONS_READ_FAILED_COPY = 'Unfinished actions could not be read right now, so Break Wall can only use saved blockers. Nothing was changed.'
+export const ACTIONS_READ_FAILED_COPY = 'Unfinished actions could not be read right now, so Architect Scan is off and Break Wall can only use saved blockers. Nothing was changed.'
 
 // /api/brief is owner-only. A visitor's 403 is an expected boundary, not a
 // failure: say so plainly, like Mission does for its owner-only review.
@@ -84,6 +84,9 @@ export default function BriefTab() {
   const focusAction = focus ? actions?.find(a => a.mission_id === focus.id) ?? null : null
   const walls: Wall[] = [...(focus?.blocker?.trim() ? ['blocker' as const] : []), ...(focusAction ? ['action' as const] : [])]
   const chosenWall = walls.includes(wall as Wall) ? (wall as Wall) : walls[0]
+  // An unread action list is not an empty one: Architect Scan would report a
+  // saved commitment as unsaved, so it waits for a successful read.
+  const actionsPending = actions === null && !actionsError
 
   const requestBody = (mode: BriefMode, q?: string) => {
     if ((mode !== 'architect' && mode !== 'unblock') || !focus) {
@@ -186,10 +189,10 @@ export default function BriefTab() {
               ))}
             </Select>
             <div className="flex flex-wrap gap-2 mt-3">
-              <ActionBtn variant="secondary" onClick={() => void run('architect')} disabled={busy || unavailable || !focus}>
+              <ActionBtn variant="secondary" onClick={() => void run('architect')} disabled={busy || unavailable || !focus || actions === null}>
                 {busy && activeMode === 'architect' ? 'Thinking…' : 'Architect Scan'}
               </ActionBtn>
-              <ActionBtn variant="secondary" onClick={() => void run('unblock')} disabled={busy || unavailable || !chosenWall}>
+              <ActionBtn variant="secondary" onClick={() => void run('unblock')} disabled={busy || unavailable || !chosenWall || actionsPending}>
                 {busy && activeMode === 'unblock' ? 'Thinking…' : 'Break Wall'}
               </ActionBtn>
             </div>
