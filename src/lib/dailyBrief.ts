@@ -80,6 +80,25 @@ export function parseBriefTarget(mode: BriefMode, raw: unknown, mission: BriefMi
   return { error: 'Break Wall needs kind "blocker" or "action".' }
 }
 
+// The request body for any mode asked about ONE mission (Brief's picker and
+// Territory's detail panel). Only that mission and its id are sent.
+export function singleMissionRequest(
+  mode: BriefMode,
+  mission: Mission,
+  action: { action_title: string; status: string; resume_note: string | null } | null,
+  wall: BriefTargetKind,
+  question?: string,
+) {
+  const base = { mode, missions: [missionToBriefContext(mission)], missionIds: [mission.id] }
+  if (mode !== 'architect' && mode !== 'unblock') return { ...base, question }
+  const target: BriefTarget = {
+    kind: mode === 'architect' ? 'mission' : wall,
+    evidenceRequirement: clip(mission.evidenceRequirement),
+    action: action ? actionToBriefContext(action) : null,
+  }
+  return { ...base, target }
+}
+
 export function missionsToBriefContext(missions: Mission[]): BriefMissionContext[] {
   return missions.slice(0, MAX_MISSIONS).map(missionToBriefContext)
 }
