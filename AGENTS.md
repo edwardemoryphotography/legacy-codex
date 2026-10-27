@@ -239,6 +239,15 @@ do not establish a successful owner review or useful reasoning.
 
 A read-only map of the person's own saved missions, in the More sheet. Missions are grouped Active (primary, secondary, blocked, candidate) / Paused (paused, parked) / Completed / Abandoned by `GROUP_OF_STATE`, and every card still shows its real saved state. A card shows the saved finish line, blocker, unfinished action and last activity: the latest of the mission row, its action and its events in the newest-500 `mission_events` read window. Active State uses existing data only. The primary mission is shown with its reported capacity, parsed from Mission's own `capacity_mismatch_reported` detail, and its unfinished action as next safe action. On a reported mismatch it points to Mission's existing Secondary rule instead of adding a separate recovery protocol. Empty fields read `Unknown: nothing saved yet`, and failed reads say they failed. Tapping a card opens the same `MissionBriefPanel` used by Brief, with Triage and Ask scoped to that one mission.
 
+The **Graph** view (List | Graph toggle; `src/lib/territoryGraph.ts`, `src/components/TerritoryGraph.tsx`) draws only stored relationships, and each edge carries the table it came from:
+- unfinished action (`actions.mission_id`)
+- blocker (`missions.blocker`)
+- confirmed lesson (`mission_events · delta_lesson_confirmed`, minus retired ones)
+- correction (`mission_events · delta_corrected`)
+- evidence with its saved status (`evidence_snapshots.mission_id`)
+
+It shows up to three of each kind per mission. Missions are never linked to each other, because no stored, human-confirmed mission link exists. Adding a "link these two missions" control would mean a new `mission_events` type. That needs no migration, but it would be a new write to saved data, so it waits for Eddie's decision. Layout is deterministic: missions are ordered by group, title, then id, with children on a ring. Node dragging is view-only and never saved. Touch pans natively, the mouse pans by dragging, and a "Read the graph as a list" fallback lists every edge with its provenance. No dependency was added.
+
 ### Styling system
 
 The design uses CSS custom properties defined in `src/app/globals.css` as the single source of truth for colour, surface, and radius tokens. These are mirrored into the Tailwind theme in `tailwind.config.ts` under shortened aliases (`bg`, `surface`, `tx`, `teal`, `amber`, `error`, `success`, `line`, `codex`/`codex-sm`/`codex-lg` border-radius). Inline `style` props use `var(--*)` directly for values that would be verbose as utility classes. The app ships dark. A light token set under `:root[data-theme="light"]` exists for review only: `ThemeReview.tsx` renders a switch (and honours `?theme=`) only when `layout.tsx` marks the build as `VERCEL_ENV === 'preview'` or local development (`data-theme-review="on"`), never on a production deployment. Eddie reviewed both on 2026-09-23 and chose **dark** for production; light stays a preview-only option. Fixed chrome and the Mission card shadow read `--chrome` / `--card-shadow` so both themes can set them.

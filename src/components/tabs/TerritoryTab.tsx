@@ -3,6 +3,8 @@
 import { useState, type ReactNode } from 'react'
 import { UNKNOWN_LINE } from '@/lib/dailyBrief'
 import { activeState, GROUP_LABELS, groupTerritory, type TerritoryCard } from '@/lib/territory'
+import { buildTerritoryGraph } from '@/lib/territoryGraph'
+import TerritoryGraph from '@/components/TerritoryGraph'
 import { useBriefRunner } from '@/hooks/useBriefRunner'
 import { useMissionTerritory, type ReadState } from '@/hooks/useMissionTerritory'
 import MissionBriefPanel, { BriefOutput, BRIEF_VISITOR_COPY } from '@/components/MissionBriefPanel'
@@ -10,13 +12,16 @@ import { ActionBtn, Badge, Card, FieldLabel, HelperLine, SectionSubtitle, Sectio
 
 const when = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 
+export const GRAPH_PARTIAL_COPY = 'Some saved links could not be read right now, so the graph is missing them. Nothing was changed.'
+
 export const EVENTS_READ_FAILED_COPY = 'Mission history could not be read right now, so last activity uses each mission’s own saved time and reported capacity is unknown.'
 
 // Territory: the person's own saved missions, grouped by saved state, with
 // Active State taken from data Mission already keeps. Read-only — every
 // model call goes through /api/brief and is display-only.
 export default function TerritoryTab() {
-  const { missions, loadError, actions, actionsRead, events, eventsRead } = useMissionTerritory({ withEvents: true })
+  const { missions, loadError, actions, actionsRead, events, eventsRead, evidence, evidenceRead } = useMissionTerritory({ withEvents: true })
+  const [view, setView] = useState<'list' | 'graph'>('list')
   const brief = useBriefRunner()
   const [openId, setOpenId] = useState<string | null>(null)
 
@@ -59,7 +64,17 @@ export default function TerritoryTab() {
           <>
             <ActiveStateCard actionsRead={actionsRead} eventsRead={eventsRead} state={activeState(missions, actions, events)} />
             {eventsRead === 'failed' && <HelperLine variant="error">{EVENTS_READ_FAILED_COPY}</HelperLine>}
-            {groups.map(({ group, cards }) => (
+            <div className="flex gap-2 mb-3" role="group" aria-label="Territory view">
+              <ActionBtn variant={view === 'list' ? 'primary' : 'secondary'} onClick={() => setView('list')}>List</ActionBtn>
+              <ActionBtn variant={view === 'graph' ? 'primary' : 'secondary'} onClick={() => setView('graph')}>Graph</ActionBtn>
+            </div>
+            {view === 'graph' && (
+              <>
+                {[actionsRead, eventsRead, evidenceRead].includes('failed') && <HelperLine variant="error">{GRAPH_PARTIAL_COPY}</HelperLine>}
+                <TerritoryGraph {...buildTerritoryGraph(missions, actions, events, evidence)} blocked={new Set(missions.filter(m => m.state === 'blocked').map(m => m.id))} onOpen={select} />
+              </>
+            )}
+            {view === 'list' && groups.map(({ group, cards }) => (
               <div key={group} className="mb-4">
                 <h3 className="font-bold mb-2" style={{ fontSize: '0.95rem' }}>
                   {GROUP_LABELS[group]} <span style={{ color: 'var(--text-dim)', fontWeight: 600 }}>({cards.length})</span>

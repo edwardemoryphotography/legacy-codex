@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import TerritoryTab, { EVENTS_READ_FAILED_COPY } from './TerritoryTab'
+import TerritoryTab, { EVENTS_READ_FAILED_COPY, GRAPH_PARTIAL_COPY } from './TerritoryTab'
 
 vi.mock('@/lib/supabase/missionSession', () => ({
   connectMissionSession: async () => ({ id: 'owner-1' }),
@@ -13,6 +13,7 @@ const db = vi.hoisted(() => ({
   missions: [] as Record<string, unknown>[],
   actions: { data: [] as Record<string, unknown>[], error: null as unknown },
   events: { data: [] as Record<string, unknown>[], error: null as unknown },
+  evidence: { data: [] as Record<string, unknown>[], error: null as unknown },
 }))
 
 vi.mock('@/lib/supabase/client', () => ({
@@ -20,6 +21,8 @@ vi.mock('@/lib/supabase/client', () => ({
     auth: { getSession: async () => ({ data: { session: { access_token: 'token' } }, error: null }) },
     from: (table: string) => table === 'actions'
       ? { select: () => ({ not: () => ({ neq: async () => db.actions }) }) }
+      : table === 'evidence_snapshots'
+        ? { select: () => ({ not: () => ({ order: async () => db.evidence }) }) }
       : table === 'mission_events'
         ? { select: () => ({ eq: () => ({ order: () => ({ limit: async () => db.events }) }) }) }
         : { select: () => ({ eq: async () => ({ data: db.missions, error: null }) }) },
@@ -44,7 +47,33 @@ describe('TerritoryTab', () => {
     db.missions = []
     db.actions = { data: [], error: null }
     db.events = { data: [], error: null }
+    db.evidence = { data: [], error: null }
     stubFetch()
+  })
+
+  it('Graph view draws saved links, lists them as text, and opens the same detail panel', async () => {
+    db.missions = [row({ blocker: 'waiting on lab' }), row({ id: 'm2', title: 'Other mission', state: 'paused' })]
+    db.evidence = { data: [{ id: 's1', mission_id: 'm1', kind: 'merged_pr', status: 'unverified', claim: 'PR merged', observed_at: '2026-01-01T00:00:00Z' }], error: null }
+    render(<TerritoryTab />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Graph' }))
+    const graph = await screen.findByTestId('territory-graph')
+    expect(within(graph).getByRole('group', { name: /2 missions, 2 saved links/ })).toBeTruthy()
+    expect(screen.getByText(/\(missions\.blocker\)/)).toBeTruthy()
+    expect(screen.getByText(/\(evidence_snapshots\.mission_id\)/)).toBeTruthy()
+    expect(screen.getByText('No saved links yet.')).toBeTruthy()
+    const node = within(graph).getByRole('button', { name: /Blocker: waiting on lab/ })
+    fireEvent.pointerDown(node, { pointerId: 1, clientX: 10, clientY: 10 })
+    fireEvent.pointerUp(node, { pointerId: 1, clientX: 10, clientY: 10 })
+    expect(await screen.findByRole('heading', { name: 'Primary mission' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Architect Scan' })).toBeTruthy()
+  })
+
+  it('says the graph is missing links when a read fails', async () => {
+    db.missions = [row({})]
+    db.evidence = { data: [], error: { message: 'network' } }
+    render(<TerritoryTab />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Graph' }))
+    expect(await screen.findByText(GRAPH_PARTIAL_COPY)).toBeTruthy()
   })
 
   it('shows Unknown instead of inventing anything when no missions are saved', async () => {
