@@ -1,14 +1,28 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { connectMissionSession, missionConnectionMessage } from '@/lib/supabase/missionSession'
 import { rowToMission, type MissionRow } from './MissionTab'
-import { missionsToBriefContext, type BriefMode } from '@/lib/dailyBrief'
+import { actionToBriefContext, missionToBriefContext, missionsToBriefContext, UNKNOWN_LINE, type BriefMode, type BriefTarget } from '@/lib/dailyBrief'
 import type { Mission } from '@/types'
-import { ActionBtn, Badge, Card, HelperLine, SectionSubtitle, SectionTitle, Textarea } from '@/components/ui'
+import { ActionBtn, Badge, Card, FieldLabel, HelperLine, SectionSubtitle, SectionTitle, Select, Textarea } from '@/components/ui'
 
 type Status = 'idle' | 'running' | 'done' | 'error'
+
+// The one unfinished saved action per mission (see the unique index in
+// 20260906002630_enforce_one_unfinished_mission_action.sql).
+interface OpenAction {
+  id: string
+  mission_id: string
+  action_title: string
+  status: string
+  resume_note: string | null
+}
+
+type Wall = 'blocker' | 'action'
+
+export const ACTIONS_READ_FAILED_COPY = 'Unfinished actions could not be read right now, so Architect Scan is off and Break Wall can only use saved blockers. Nothing was changed.'
 
 // /api/brief is owner-only. A visitor's 403 is an expected boundary, not a
 // failure: say so plainly, like Mission does for its owner-only review.
@@ -25,9 +39,17 @@ export default function BriefTab() {
   const [configured, setConfigured] = useState(false)
   const [question, setQuestion] = useState('')
   const [output, setOutput] = useState('')
+  // Names the mission (and wall) a single-mission result answered, so it is
+  // never read as being about whatever the picker shows now.
+  const [outputLabel, setOutputLabel] = useState('')
+  const requestRef = useRef(0)
   const [status, setStatus] = useState<Status>('idle')
   const [activeMode, setActiveMode] = useState<BriefMode | null>(null)
   const [visitor, setVisitor] = useState(false)
+  const [actions, setActions] = useState<OpenAction[] | null>(null)
+  const [actionsError, setActionsError] = useState(false)
+  const [focusId, setFocusId] = useState('')
+  const [wall, setWall] = useState<Wall | ''>('')
 
   useEffect(() => {
     fetch('/api/brief')
@@ -45,7 +67,13 @@ export default function BriefTab() {
         const { data, error } = await supabase.from('missions').select('*').eq('user_id', user.id)
         if (cancelled) return
         if (error) throw error
-        setMissions(((data ?? []) as MissionRow[]).map(rowToMission))
+        const loaded = ((data ?? []) as MissionRow[]).map(rowToMission)
+        setMissions(loaded)
+        setFocusId((loaded.find(m => m.state === 'primary') ?? loaded[0])?.id ?? '')
+        const open = await supabase.from('actions').select('id,mission_id,action_title,status,resume_note').not('mission_id', 'is', null).neq('status', 'DONE')
+        if (cancelled) return
+        if (open.error) setActionsError(true)
+        else setActions((open.data ?? []) as OpenAction[])
       } catch (err) {
         if (!cancelled) setLoadError(missionConnectionMessage(err))
       }
@@ -56,11 +84,45 @@ export default function BriefTab() {
     }
   }, [])
 
+  const focus = missions?.find(m => m.id === focusId) ?? null
+  const focusAction = focus ? actions?.find(a => a.mission_id === focus.id) ?? null : null
+  const walls: Wall[] = [...(focus?.blocker?.trim() ? ['blocker' as const] : []), ...(focusAction ? ['action' as const] : [])]
+  const chosenWall = walls.includes(wall as Wall) ? (wall as Wall) : walls[0]
+  // An unread action list is not an empty one: Architect Scan would report a
+  // saved commitment as unsaved, so it waits for a successful read.
+  const actionsPending = actions === null && !actionsError
+
+  const requestBody = (mode: BriefMode, q?: string) => {
+    if ((mode !== 'architect' && mode !== 'unblock') || !focus) {
+      return { mode, question: q, missions: missionsToBriefContext(missions ?? []), missionIds: (missions ?? []).slice(0, 40).map(mission => mission.id) }
+    }
+    const target: BriefTarget = {
+      kind: mode === 'architect' ? 'mission' : chosenWall,
+      evidenceRequirement: focus.evidenceRequirement,
+      action: focusAction ? actionToBriefContext(focusAction) : null,
+    }
+    return { mode, missions: [missionToBriefContext(focus)], missionIds: [focus.id], target }
+  }
+
+  // Changing the mission or wall drops the old answer and any reply still in flight.
+  const changeTarget = (update: () => void) => {
+    requestRef.current += 1
+    update()
+    setOutput('')
+    setOutputLabel('')
+    setStatus('idle')
+    setActiveMode(null)
+  }
+
   const run = async (mode: BriefMode, q?: string) => {
     if (!missions) return
+    const request = ++requestRef.current
+    const wallLabel = chosenWall === 'action' ? `unfinished action: ${focusAction?.action_title}` : `blocker: ${focus?.blocker}`
+    const label = mode === 'architect' ? `Architect Scan · ${focus?.title}` : mode === 'unblock' ? `Break Wall · ${focus?.title} · ${wallLabel}` : ''
     setStatus('running')
     setActiveMode(mode)
     setOutput('')
+    setOutputLabel('')
     try {
       const {
         data: { session },
@@ -71,8 +133,9 @@ export default function BriefTab() {
           'Content-Type': 'application/json',
           ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
-        body: JSON.stringify({ mode, question: q, missions: missionsToBriefContext(missions), missionIds: missions.slice(0, 40).map(mission => mission.id) }),
+        body: JSON.stringify(requestBody(mode, q)),
       })
+      if (request !== requestRef.current) return
       if (res.status === 403) {
         setVisitor(true)
         setStatus('idle')
@@ -80,11 +143,15 @@ export default function BriefTab() {
         return
       }
       const data = await res.json()
+      if (request !== requestRef.current) return
       if (!res.ok || data.error) throw new Error(data?.error ?? `HTTP ${res.status}`)
       setOutput(data.text || 'No brief text returned.')
+      setOutputLabel(label)
       setStatus('done')
     } catch (err) {
+      if (request !== requestRef.current) return
       setOutput(err instanceof Error ? err.message : String(err))
+      setOutputLabel(label)
       setStatus('error')
     }
   }
@@ -135,6 +202,43 @@ export default function BriefTab() {
             </ActionBtn>
           </div>
 
+          <Card className="mb-4">
+            <FieldLabel htmlFor="brief-mission">One mission</FieldLabel>
+            <Select id="brief-mission" value={focusId} onChange={id => changeTarget(() => { setFocusId(id); setWall('') })}>
+              {missions.map(m => (
+                <option key={m.id} value={m.id}>
+                  {m.title || 'Untitled mission'} · {m.state}
+                </option>
+              ))}
+            </Select>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <ActionBtn variant="secondary" onClick={() => void run('architect')} disabled={busy || unavailable || !focus || actions === null}>
+                {busy && activeMode === 'architect' ? 'Thinking…' : 'Architect Scan'}
+              </ActionBtn>
+              <ActionBtn variant="secondary" onClick={() => void run('unblock')} disabled={busy || unavailable || !chosenWall || actionsPending}>
+                {busy && activeMode === 'unblock' ? 'Thinking…' : 'Break Wall'}
+              </ActionBtn>
+            </div>
+            <div className="mt-3">
+              {walls.length > 1 ? (
+                <>
+                  <FieldLabel htmlFor="brief-wall">Wall to break</FieldLabel>
+                  <Select id="brief-wall" value={chosenWall} onChange={value => changeTarget(() => setWall(value as Wall))}>
+                    <option value="blocker">Blocker: {focus?.blocker}</option>
+                    <option value="action">Unfinished action: {focusAction?.action_title}</option>
+                  </Select>
+                </>
+              ) : chosenWall ? (
+                <HelperLine>
+                  Break Wall uses the saved {chosenWall === 'blocker' ? `blocker: ${focus?.blocker}` : `unfinished action: ${focusAction?.action_title}`}
+                </HelperLine>
+              ) : (
+                <HelperLine>Break Wall needs a saved blocker{actionsError ? '' : ' or unfinished action'} on this mission. {UNKNOWN_LINE}.</HelperLine>
+              )}
+              {actionsError && <HelperLine variant="error">{ACTIONS_READ_FAILED_COPY}</HelperLine>}
+            </div>
+          </Card>
+
           <div className="mb-4">
             <Textarea
               value={question}
@@ -153,7 +257,10 @@ export default function BriefTab() {
       )}
 
       {output && (
-        <Card style={{ whiteSpace: 'pre-wrap', fontSize: '0.92rem', lineHeight: 1.6 }}>{output}</Card>
+        <Card style={{ whiteSpace: 'pre-wrap', fontSize: '0.92rem', lineHeight: 1.6 }}>
+          {outputLabel && <Badge tone="muted">{outputLabel}</Badge>}
+          {outputLabel ? `\n${output}` : output}
+        </Card>
       )}
     </section>
   )

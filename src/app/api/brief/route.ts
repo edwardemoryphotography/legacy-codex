@@ -1,15 +1,22 @@
 import { loadLearnedContext, MISSION_UUID } from '@/lib/learnedContextServer'
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
-import { DAILY_BRIEF_SYSTEM_PROMPT } from '@/lib/cognitiveDoctrine'
-import { buildBriefDirective, MAX_FIELD_LENGTH, type BriefMissionContext, type BriefMode } from '@/lib/dailyBrief'
+import { ARCHITECT_SCAN_SYSTEM_PROMPT, BREAK_WALL_SYSTEM_PROMPT, DAILY_BRIEF_SYSTEM_PROMPT } from '@/lib/cognitiveDoctrine'
+import { buildBriefDirective, MAX_FIELD_LENGTH, parseBriefTarget, presentBriefText, SINGLE_MISSION_MODES, type BriefMissionContext, type BriefMode, type BriefTarget } from '@/lib/dailyBrief'
 import { deltaOwner } from '@/lib/supabase/deltaAuth'
 
 export const runtime = 'nodejs'
 
 const MODEL = 'claude-opus-5'
 const MAX_MISSIONS = 40
-const MODES: BriefMode[] = ['daily_brief', 'triage', 'question']
+const MODES: BriefMode[] = ['daily_brief', 'triage', 'question', 'architect', 'unblock']
+const SYSTEM_PROMPTS: Record<BriefMode, string> = {
+  daily_brief: DAILY_BRIEF_SYSTEM_PROMPT,
+  triage: DAILY_BRIEF_SYSTEM_PROMPT,
+  question: DAILY_BRIEF_SYSTEM_PROMPT,
+  architect: ARCHITECT_SCAN_SYSTEM_PROMPT,
+  unblock: BREAK_WALL_SYSTEM_PROMPT,
+}
 
 export async function GET() {
   return NextResponse.json({ configured: Boolean(process.env.ANTHROPIC_API_KEY) })
@@ -35,8 +42,9 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Malformed request body.' }, { status: 400 })
   }
-  const { mode, question, missions, missionIds } = (body ?? {}) as {
+  const { mode, question, missions, missionIds, target } = (body ?? {}) as {
     missionIds?: unknown
+    target?: unknown
     mode?: unknown
     question?: unknown
     missions?: unknown
@@ -76,7 +84,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'A question is required for mode "question".' }, { status: 400 })
   }
 
-  const directive = buildBriefDirective(mode as BriefMode, safeMissions, safeQuestion)
+  // Architect Scan and Break Wall answer about exactly one scoped mission, so
+  // the model never sees (or links to) the rest of the roster.
+  let safeTarget: BriefTarget | undefined
+  if (SINGLE_MISSION_MODES.includes(mode as BriefMode)) {
+    if (safeMissions.length !== 1 || !Array.isArray(missionIds)) {
+      return NextResponse.json({ error: 'Choose exactly one saved mission.' }, { status: 400 })
+    }
+    const parsed = parseBriefTarget(mode as BriefMode, target, safeMissions[0])
+    if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    safeTarget = parsed.target
+  }
+
+  const directive = buildBriefDirective(mode as BriefMode, safeMissions, safeQuestion, safeTarget)
 
   try {
     const learnedContext = await loadLearnedContext(owner.url, req.headers.get('Authorization') ?? '', owner.userId, Array.isArray(missionIds) ? missionIds.filter((id): id is string => typeof id === 'string') : [])
@@ -84,7 +104,7 @@ export async function POST(req: NextRequest) {
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 1024,
-      system: DAILY_BRIEF_SYSTEM_PROMPT,
+      system: SYSTEM_PROMPTS[mode as BriefMode],
       messages: [{ role: 'user', content: `${directive}\n\n${learnedContext}` }],
     })
 
@@ -94,7 +114,7 @@ export async function POST(req: NextRequest) {
       .join('\n')
       .trim()
 
-    return NextResponse.json({ text: text || 'No brief text returned.' })
+    return NextResponse.json({ text: presentBriefText(mode as BriefMode, text) })
   } catch {
     console.error('/api/brief failed [learning-or-provider]')
     return NextResponse.json({ error: 'Daily Brief unavailable: saved learning or the model could not be read. Retry without replacing your saved work.' }, { status: 503 })
