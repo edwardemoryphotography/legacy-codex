@@ -92,6 +92,35 @@ describe('/api/brief owner gate', () => {
       expect(directive).not.toContain(ch.repeat(401))
     }
   })
+  it('Architect Scan sends only the chosen mission, its system prompt, and learning scoped to it', async () => {
+    const id = '00000000-0000-4000-8000-0000000000aa'
+    const response = await POST(request({ mode: 'architect', missions: [mission], missionIds: [id], target: { kind: 'mission' } }, userToken(OWNER_ID)))
+    expect(response.status).toBe(200)
+    const call = createMessage.mock.calls[0][0]
+    expect(call.system).toContain('Architect Scan')
+    expect(call.messages[0].content).toContain('Intended end-state: write exactly "Intended end-state: Unknown: nothing saved yet"')
+    expect(vi.mocked(loadLearnedContext).mock.calls[0][3]).toEqual([id])
+  })
+
+  it('rejects Architect Scan and Break Wall without exactly one scoped mission or a saved wall, before any model call', async () => {
+    const id = '00000000-0000-4000-8000-0000000000aa'
+    const bad = [
+      { mode: 'architect', missions: [mission, mission], missionIds: [id, id], target: { kind: 'mission' } },
+      { mode: 'architect', missions: [mission], target: { kind: 'mission' } },
+      { mode: 'unblock', missions: [mission], missionIds: [id], target: { kind: 'blocker' } },
+      { mode: 'unblock', missions: [mission], missionIds: [id], target: { kind: 'action', action: { title: 'x', status: 'DONE' } } },
+    ]
+    for (const body of bad) expect((await POST(request(body, userToken(OWNER_ID)))).status).toBe(400)
+    expect(createMessage).not.toHaveBeenCalled()
+  })
+
+  it('Break Wall turns NONE into plain Unknown copy', async () => {
+    createMessage.mockResolvedValueOnce({ content: [{ type: 'text', text: 'NONE' }] })
+    const response = await POST(request({ mode: 'unblock', missions: [{ ...mission, blocker: 'stuck' }], missionIds: ['00000000-0000-4000-8000-0000000000aa'], target: { kind: 'blocker' } }, userToken(OWNER_ID)))
+    expect((await response.json()).text).toMatch(/^Unknown: nothing saved yet/)
+    expect(createMessage.mock.calls[0][0].system).toContain('30 minutes')
+  })
+
   it('fails closed before spending on the model when saved learning cannot be read', async () => {
     vi.mocked(loadLearnedContext).mockRejectedValueOnce(new Error('Learning unavailable'))
     const response = await POST(request({ mode: 'daily_brief', missions: [mission] }, userToken(OWNER_ID)))

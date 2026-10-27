@@ -3,8 +3,12 @@ import {
   buildBriefDirective,
   missionToBriefContext,
   missionsToBriefContext,
+  parseBriefTarget,
+  presentBriefText,
   stalledMissions,
+  UNKNOWN_LINE,
   type BriefMissionContext,
+  type BriefTarget,
 } from './dailyBrief'
 import type { Mission } from '@/types'
 
@@ -110,5 +114,84 @@ describe('buildBriefDirective', () => {
     const ctx: BriefMissionContext[] = [missionToBriefContext(mission())]
     expect(buildBriefDirective('question', ctx, 'What should I do today?')).toContain('What should I do today?')
     expect(buildBriefDirective('question', ctx, '   ')).toMatch(/what matters most right now/i)
+  })
+})
+
+describe('Architect Scan and Break Wall directives', () => {
+  const target = (overrides: Partial<BriefTarget> = {}): BriefTarget => ({ kind: 'mission', evidenceRequirement: null, action: null, ...overrides })
+
+  it('architect writes the Unknown line verbatim for every empty saved field', () => {
+    const ctx = missionToBriefContext(mission({ finishLine: null, blocker: null, why: '' }))
+    const directive = buildBriefDirective('architect', [ctx], undefined, target())
+    expect(directive).toContain(`Intended end-state: write exactly "Intended end-state: ${UNKNOWN_LINE}"`)
+    expect(directive).toContain(`What's blocking: write exactly "What's blocking: ${UNKNOWN_LINE}"`)
+    expect(directive).toContain(`Next safe action: write exactly "Next safe action: ${UNKNOWN_LINE}"`)
+    expect(directive).toContain(`Real leverage: write exactly "Real leverage: ${UNKNOWN_LINE}"`)
+    expect(directive).toMatch(/finish line, evidence requirement, blocker, unfinished action, why/)
+  })
+
+  it('architect grounds lines in saved fields and names the saved action as the next safe action', () => {
+    const ctx = missionToBriefContext(mission({ blocker: 'waiting on print lab' }))
+    const directive = buildBriefDirective('architect', [ctx], undefined, target({ evidenceRequirement: 'Order receipt', action: { title: 'Email the lab', status: 'TODO', resumeNote: null } }))
+    expect(directive).toContain('Deployed and verified')
+    expect(directive).toContain('Order receipt')
+    expect(directive).toContain('waiting on print lab')
+    expect(directive).toContain('Next safe action: name the unfinished saved action above')
+    expect(directive).toContain('"Email the lab" (TODO)')
+    expect(directive).not.toContain(`Intended end-state: write exactly`)
+  })
+
+  it('architect and unblock never include other missions', () => {
+    const ctx = [missionToBriefContext(mission({ title: 'Chosen' })), missionToBriefContext(mission({ title: 'Other one' }))]
+    for (const mode of ['architect', 'unblock'] as const) {
+      const directive = buildBriefDirective(mode, ctx, undefined, target({ kind: mode === 'architect' ? 'mission' : 'blocker' }))
+      expect(directive).toContain('Chosen')
+      expect(directive).not.toContain('Other one')
+    }
+  })
+
+  it('unblock targets exactly the chosen wall and allows NONE when ungroundable', () => {
+    const ctx = missionToBriefContext(mission({ blocker: 'no tripod plate' }))
+    expect(buildBriefDirective('unblock', [ctx], undefined, target({ kind: 'blocker' }))).toContain('Saved blocker: no tripod plate')
+    const directive = buildBriefDirective('unblock', [ctx], undefined, target({ kind: 'action', action: { title: 'Pack the bag', status: 'IN_PROGRESS', resumeNote: 'lens cloth missing' } }))
+    expect(directive).toContain('Saved unfinished action: "Pack the bag" (IN_PROGRESS) — resume note: lens cloth missing')
+    expect(directive).toMatch(/30 minutes/)
+    expect(directive).toContain('output exactly: NONE')
+  })
+
+  it('refuses to pick a mission when no target was given', () => {
+    expect(buildBriefDirective('architect', [missionToBriefContext(mission())])).toMatch(/do not pick one/)
+  })
+})
+
+describe('parseBriefTarget', () => {
+  const ctx = missionToBriefContext(mission({ blocker: null }))
+
+  it('accepts only kind "mission" for architect', () => {
+    expect(parseBriefTarget('architect', { kind: 'mission' }, ctx)).toEqual({ target: { kind: 'mission', evidenceRequirement: null, action: null } })
+    expect(parseBriefTarget('architect', { kind: 'blocker' }, ctx)).toHaveProperty('error')
+  })
+
+  it('rejects a Break Wall blocker the mission never saved, and a missing or finished action', () => {
+    expect(parseBriefTarget('unblock', { kind: 'blocker' }, ctx)).toHaveProperty('error')
+    expect(parseBriefTarget('unblock', { kind: 'action' }, ctx)).toHaveProperty('error')
+    expect(parseBriefTarget('unblock', { kind: 'action', action: { title: 'Done thing', status: 'DONE' } }, ctx)).toHaveProperty('error')
+    expect(parseBriefTarget('unblock', { kind: 'nonsense' }, ctx)).toHaveProperty('error')
+  })
+
+  it('clamps every target text field to 400 characters', () => {
+    const parsed = parseBriefTarget('unblock', { kind: 'action', evidenceRequirement: 'e'.repeat(900), action: { title: 't'.repeat(900), status: 'TODO', resumeNote: 'n'.repeat(900) } }, ctx)
+    if (!('target' in parsed)) throw new Error('expected a target')
+    expect(parsed.target.evidenceRequirement).toHaveLength(400)
+    expect(parsed.target.action?.title).toHaveLength(400)
+    expect(parsed.target.action?.resumeNote).toHaveLength(400)
+  })
+})
+
+describe('presentBriefText', () => {
+  it('turns a Break Wall NONE into plain Unknown copy and leaves other text alone', () => {
+    expect(presentBriefText('unblock', 'NONE')).toMatch(/^Unknown: nothing saved yet/)
+    expect(presentBriefText('architect', 'NONE')).toBe('NONE')
+    expect(presentBriefText('daily_brief', '')).toBe('No brief text returned.')
   })
 })
