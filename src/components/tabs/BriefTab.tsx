@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { connectMissionSession, missionConnectionMessage } from '@/lib/supabase/missionSession'
 import { rowToMission, type MissionRow } from './MissionTab'
@@ -39,6 +39,10 @@ export default function BriefTab() {
   const [configured, setConfigured] = useState(false)
   const [question, setQuestion] = useState('')
   const [output, setOutput] = useState('')
+  // Names the mission (and wall) a single-mission result answered, so it is
+  // never read as being about whatever the picker shows now.
+  const [outputLabel, setOutputLabel] = useState('')
+  const requestRef = useRef(0)
   const [status, setStatus] = useState<Status>('idle')
   const [activeMode, setActiveMode] = useState<BriefMode | null>(null)
   const [visitor, setVisitor] = useState(false)
@@ -100,11 +104,25 @@ export default function BriefTab() {
     return { mode, missions: [missionToBriefContext(focus)], missionIds: [focus.id], target }
   }
 
+  // Changing the mission or wall drops the old answer and any reply still in flight.
+  const changeTarget = (update: () => void) => {
+    requestRef.current += 1
+    update()
+    setOutput('')
+    setOutputLabel('')
+    setStatus('idle')
+    setActiveMode(null)
+  }
+
   const run = async (mode: BriefMode, q?: string) => {
     if (!missions) return
+    const request = ++requestRef.current
+    const wallLabel = chosenWall === 'action' ? `unfinished action: ${focusAction?.action_title}` : `blocker: ${focus?.blocker}`
+    const label = mode === 'architect' ? `Architect Scan · ${focus?.title}` : mode === 'unblock' ? `Break Wall · ${focus?.title} · ${wallLabel}` : ''
     setStatus('running')
     setActiveMode(mode)
     setOutput('')
+    setOutputLabel('')
     try {
       const {
         data: { session },
@@ -117,6 +135,7 @@ export default function BriefTab() {
         },
         body: JSON.stringify(requestBody(mode, q)),
       })
+      if (request !== requestRef.current) return
       if (res.status === 403) {
         setVisitor(true)
         setStatus('idle')
@@ -124,11 +143,15 @@ export default function BriefTab() {
         return
       }
       const data = await res.json()
+      if (request !== requestRef.current) return
       if (!res.ok || data.error) throw new Error(data?.error ?? `HTTP ${res.status}`)
       setOutput(data.text || 'No brief text returned.')
+      setOutputLabel(label)
       setStatus('done')
     } catch (err) {
+      if (request !== requestRef.current) return
       setOutput(err instanceof Error ? err.message : String(err))
+      setOutputLabel(label)
       setStatus('error')
     }
   }
@@ -181,7 +204,7 @@ export default function BriefTab() {
 
           <Card className="mb-4">
             <FieldLabel htmlFor="brief-mission">One mission</FieldLabel>
-            <Select id="brief-mission" value={focusId} onChange={id => { setFocusId(id); setWall('') }}>
+            <Select id="brief-mission" value={focusId} onChange={id => changeTarget(() => { setFocusId(id); setWall('') })}>
               {missions.map(m => (
                 <option key={m.id} value={m.id}>
                   {m.title || 'Untitled mission'} · {m.state}
@@ -200,7 +223,7 @@ export default function BriefTab() {
               {walls.length > 1 ? (
                 <>
                   <FieldLabel htmlFor="brief-wall">Wall to break</FieldLabel>
-                  <Select id="brief-wall" value={chosenWall} onChange={value => setWall(value as Wall)}>
+                  <Select id="brief-wall" value={chosenWall} onChange={value => changeTarget(() => setWall(value as Wall))}>
                     <option value="blocker">Blocker: {focus?.blocker}</option>
                     <option value="action">Unfinished action: {focusAction?.action_title}</option>
                   </Select>
@@ -234,7 +257,10 @@ export default function BriefTab() {
       )}
 
       {output && (
-        <Card style={{ whiteSpace: 'pre-wrap', fontSize: '0.92rem', lineHeight: 1.6 }}>{output}</Card>
+        <Card style={{ whiteSpace: 'pre-wrap', fontSize: '0.92rem', lineHeight: 1.6 }}>
+          {outputLabel && <Badge tone="muted">{outputLabel}</Badge>}
+          {outputLabel ? `\n${output}` : output}
+        </Card>
       )}
     </section>
   )

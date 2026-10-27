@@ -98,6 +98,18 @@ describe('BriefTab Architect Scan and Break Wall', () => {
     expect(body.target).toMatchObject({ kind: 'action', action: { title: 'Email the lab', status: 'TODO' } })
   })
 
+  it('labels a result with its mission and drops it when another mission is picked', async () => {
+    db.missions = [{ ...missionRow, blocker: 'waiting on lab' }, { ...missionRow, id: 'mission-2', title: 'Second mission' }]
+    stubFetch(200, { text: 'Open the lab order page.' })
+    render(<BriefTab />)
+    const button = await screen.findByRole('button', { name: 'Break Wall' })
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(button)
+    expect(await screen.findByText('Break Wall · UI test mission · blocker: waiting on lab')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('One mission'), { target: { value: 'mission-2' } })
+    expect(screen.queryByText(/Open the lab order page/)).toBeNull()
+  })
+
   it('says unfinished actions could not be read instead of claiming none exist', async () => {
     db.missions = [{ ...missionRow, blocker: 'waiting on lab' }]
     db.actions = { data: [], error: { message: 'network' } }
