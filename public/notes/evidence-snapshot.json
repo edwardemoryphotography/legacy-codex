@@ -1,7 +1,40 @@
 {
-  "generatedAt": "2026-10-27T17:33:54.240Z",
+  "generatedAt": "2026-10-27T23:32:39.928Z",
   "unavailableSources": [],
   "records": [
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-125",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#125",
+      "kind": "custom",
+      "status": "unverified",
+      "claim": "PR #125 \"Territory phase 2 to main: Territory tab (re-land of #124)\" open, not yet merged.",
+      "observedAt": "2026-10-27T23:29:26Z",
+      "fetchedAt": "2026-10-27T23:32:33.705Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-124",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#124",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #124 \"Territory phase 2: Territory tab, list view\" merged. 4 check run(s), 4 passing.",
+      "observedAt": "2026-10-27T23:25:48Z",
+      "fetchedAt": "2026-10-27T23:32:34.026Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-123",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#123",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #123 \"Territory phase 1: Architect Scan and Break Wall in Brief\" merged. 4 check run(s), 4 passing.",
+      "observedAt": "2026-10-27T23:19:45Z",
+      "fetchedAt": "2026-10-27T23:32:34.378Z",
+      "prReadSucceeded": true
+    },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-122",
       "missionId": null,
@@ -10,7 +43,7 @@
       "status": "verified",
       "claim": "PR #122 \"Mission assistance agrees with the numbers the person declared\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-22T22:55:33Z",
-      "fetchedAt": "2026-10-27T17:33:46.940Z",
+      "fetchedAt": "2026-10-27T23:32:34.686Z",
       "prReadSucceeded": true
     },
     {
@@ -21,7 +54,7 @@
       "status": "verified",
       "claim": "PR #121 \"Fix live 409 when switching Primary missions (atomic database transaction)\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-20T03:09:51Z",
-      "fetchedAt": "2026-10-27T17:33:47.400Z",
+      "fetchedAt": "2026-10-27T23:32:35.036Z",
       "prReadSucceeded": true
     },
     {
@@ -32,7 +65,7 @@
       "status": "verified",
       "claim": "PR #120 \"Fix iPhone Mission screen overflow from long saved project names\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-20T02:54:51Z",
-      "fetchedAt": "2026-10-27T17:33:47.803Z",
+      "fetchedAt": "2026-10-27T23:32:35.376Z",
       "prReadSucceeded": true
     },
     {
@@ -43,7 +76,7 @@
       "status": "verified",
       "claim": "PR #119 \"Restore unfinished mission setup after reopening the site\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-20T02:31:33Z",
-      "fetchedAt": "2026-10-27T17:33:48.247Z",
+      "fetchedAt": "2026-10-27T23:32:36.171Z",
       "prReadSucceeded": true
     },
     {
@@ -54,7 +87,7 @@
       "status": "verified",
       "claim": "PR #118 \"Make Step 1 accessible while preserving existing missions\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-20T00:32:11Z",
-      "fetchedAt": "2026-10-27T17:33:48.644Z",
+      "fetchedAt": "2026-10-27T23:32:36.471Z",
       "prReadSucceeded": true
     },
     {
@@ -65,7 +98,7 @@
       "status": "verified",
       "claim": "PR #117 \"feat(mission): Living Aurora visual system, Vaughn journey & multi-tier intelligence chain\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-19T21:08:13Z",
-      "fetchedAt": "2026-10-27T17:33:49.087Z",
+      "fetchedAt": "2026-10-27T23:32:36.794Z",
       "prReadSucceeded": true
     },
     {
@@ -76,7 +109,7 @@
       "status": "verified",
       "claim": "PR #116 \"Ground cross-project reconstruction and record honest transfer observations\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-16T15:54:53Z",
-      "fetchedAt": "2026-10-27T17:33:49.468Z",
+      "fetchedAt": "2026-10-27T23:32:37.123Z",
       "prReadSucceeded": true
     },
     {
@@ -87,7 +120,7 @@
       "status": "verified",
       "claim": "PR #115 \"Repair Mission assistance for the real Vaughn workflow\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-16T02:44:43Z",
-      "fetchedAt": "2026-10-27T17:33:49.873Z",
+      "fetchedAt": "2026-10-27T23:32:37.448Z",
       "prReadSucceeded": true
     },
     {
@@ -98,7 +131,7 @@
       "status": "verified",
       "claim": "PR #114 \"Protect Mission recovery against overlapping saves and stale reads\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-08T02:02:39Z",
-      "fetchedAt": "2026-10-27T17:33:50.250Z",
+      "fetchedAt": "2026-10-27T23:32:37.726Z",
       "prReadSucceeded": true
     },
     {
@@ -109,7 +142,7 @@
       "status": "verified",
       "claim": "PR #113 \"Repair inactive Mission recovery from the front door\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-08T01:54:14Z",
-      "fetchedAt": "2026-10-27T17:33:50.637Z",
+      "fetchedAt": "2026-10-27T23:32:38.017Z",
       "prReadSucceeded": true
     },
     {
@@ -120,7 +153,7 @@
       "status": "unverified",
       "claim": "PR #100 \"Restore sunset preview URL under Vercel rate limit\" open, not yet merged.",
       "observedAt": "2026-10-08T01:45:29Z",
-      "fetchedAt": "2026-10-27T17:33:50.637Z",
+      "fetchedAt": "2026-10-27T23:32:38.017Z",
       "prReadSucceeded": true
     },
     {
@@ -131,7 +164,7 @@
       "status": "verified",
       "claim": "PR #112 \"Mission: evidence requirement on the finish-line step so Primary can be proven done\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-06T22:49:20Z",
-      "fetchedAt": "2026-10-27T17:33:51.074Z",
+      "fetchedAt": "2026-10-27T23:32:38.335Z",
       "prReadSucceeded": true
     },
     {
@@ -142,7 +175,7 @@
       "status": "verified",
       "claim": "PR #111 \"Controls: your manual mode choice wins; sample readiness data never picks the mode\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-06T22:19:49Z",
-      "fetchedAt": "2026-10-27T17:33:51.454Z",
+      "fetchedAt": "2026-10-27T23:32:38.658Z",
       "prReadSucceeded": true
     },
     {
@@ -153,7 +186,7 @@
       "status": "verified",
       "claim": "PR #110 \"Preserve pending route corrections across refresh\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-06T10:36:09Z",
-      "fetchedAt": "2026-10-27T17:33:51.885Z",
+      "fetchedAt": "2026-10-27T23:32:38.978Z",
       "prReadSucceeded": true
     },
     {
@@ -164,7 +197,7 @@
       "status": "verified",
       "claim": "PR #109 \"Carry scoped Goose lessons into model requests and task handoffs\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-05T03:33:16Z",
-      "fetchedAt": "2026-10-27T17:33:52.257Z",
+      "fetchedAt": "2026-10-27T23:32:39.324Z",
       "prReadSucceeded": true
     },
     {
@@ -175,7 +208,7 @@
       "status": "verified",
       "claim": "PR #108 \"fix: preserve exact saved-action Resume identity and reachability\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T20:39:59Z",
-      "fetchedAt": "2026-10-27T17:33:52.632Z",
+      "fetchedAt": "2026-10-27T23:32:39.633Z",
       "prReadSucceeded": true
     },
     {
@@ -186,40 +219,7 @@
       "status": "verified",
       "claim": "PR #106 \"Improve Strategic Delta choices, finish conditions and saved-action resume\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-04T08:26:43Z",
-      "fetchedAt": "2026-10-27T17:33:52.992Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-107",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#107",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #107 \"Controls: label the readiness file as sample data with its dates, never live\" merged. 4 check run(s), 4 passing.",
-      "observedAt": "2026-10-04T04:09:10Z",
-      "fetchedAt": "2026-10-27T17:33:53.378Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-104",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#104",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #104 \"Security: owner-gate /api/brief and /api/analyze, clamp inputs\" merged. 4 check run(s), 4 passing.",
-      "observedAt": "2026-10-04T00:41:59Z",
-      "fetchedAt": "2026-10-27T17:33:53.798Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-103",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#103",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #103 \"feat: Origin Atlas tab and current-loop architecture map\" merged. 4 check run(s), 4 passing.",
-      "observedAt": "2026-10-04T00:30:16Z",
-      "fetchedAt": "2026-10-27T17:33:54.240Z",
+      "fetchedAt": "2026-10-27T23:32:39.928Z",
       "prReadSucceeded": true
     }
   ]
