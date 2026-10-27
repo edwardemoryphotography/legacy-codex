@@ -13,6 +13,7 @@ import CodexTab from './tabs/CodexTab'
 import ControlsTab from './tabs/ControlsTab'
 import BriefTab from './tabs/BriefTab'
 import OriginTab from './tabs/OriginTab'
+import TerritoryTab from './tabs/TerritoryTab'
 import { OrbHostProvider, PersistentOrb } from './OrbHost'
 import ThemeReview from './ThemeReview'
 
@@ -32,6 +33,7 @@ const TABS: Tab[] = [
   { id: 'codex',                 label: 'Codex' },
   { id: 'controls',             label: 'Controls' },
   { id: 'brief',                 label: 'Brief' },
+  { id: 'territory',             label: 'Territory' },
   { id: 'origin',                label: 'Origin Atlas' },
 ]
 
@@ -269,6 +271,7 @@ export default function CodexApp() {
           {activeTab === 'codex'                && <CodexTab />}
           {activeTab === 'controls'             && <ControlsTab />}
           {activeTab === 'brief'                 && <BriefTab />}
+          {activeTab === 'territory'             && <TerritoryTab />}
           {activeTab === 'origin'                && <OriginTab />}
         </div>
       </main>

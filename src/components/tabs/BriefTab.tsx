@@ -1,32 +1,13 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { supabase } from '@/lib/supabase/client'
-import { connectMissionSession, missionConnectionMessage } from '@/lib/supabase/missionSession'
-import { rowToMission, type MissionRow } from './MissionTab'
-import { actionToBriefContext, missionToBriefContext, missionsToBriefContext, UNKNOWN_LINE, type BriefMode, type BriefTarget } from '@/lib/dailyBrief'
-import type { Mission } from '@/types'
+import { useState } from 'react'
+import { missionsToBriefContext } from '@/lib/dailyBrief'
+import { useBriefRunner } from '@/hooks/useBriefRunner'
+import { useMissionTerritory } from '@/hooks/useMissionTerritory'
+import MissionBriefPanel, { BriefOutput, BRIEF_VISITOR_COPY } from '@/components/MissionBriefPanel'
 import { ActionBtn, Badge, Card, FieldLabel, HelperLine, SectionSubtitle, SectionTitle, Select, Textarea } from '@/components/ui'
 
-type Status = 'idle' | 'running' | 'done' | 'error'
-
-// The one unfinished saved action per mission (see the unique index in
-// 20260906002630_enforce_one_unfinished_mission_action.sql).
-interface OpenAction {
-  id: string
-  mission_id: string
-  action_title: string
-  status: string
-  resume_note: string | null
-}
-
-type Wall = 'blocker' | 'action'
-
-export const ACTIONS_READ_FAILED_COPY = 'Unfinished actions could not be read right now, so Architect Scan is off and Break Wall can only use saved blockers. Nothing was changed.'
-
-// /api/brief is owner-only. A visitor's 403 is an expected boundary, not a
-// failure: say so plainly, like Mission does for its owner-only review.
-export const BRIEF_VISITOR_COPY = 'Brief is only on Eddie\u2019s account. Your missions are still saved privately.'
+export { ACTIONS_READ_FAILED_COPY, BRIEF_VISITOR_COPY } from '@/components/MissionBriefPanel'
 
 // A read-only, display-only companion to Mission: it asks Claude about the
 // same real mission rows Mission itself reads, and shows the answer. It
@@ -34,137 +15,24 @@ export const BRIEF_VISITOR_COPY = 'Brief is only on Eddie\u2019s account. Your m
 // provenance, nothing Mission's accept/correct lifecycle has to account
 // for. See src/lib/dailyBrief.ts and src/app/api/brief/route.ts.
 export default function BriefTab() {
-  const [missions, setMissions] = useState<Mission[] | null>(null)
-  const [loadError, setLoadError] = useState('')
-  const [configured, setConfigured] = useState(false)
+  const { missions, loadError, actions, actionsRead } = useMissionTerritory()
+  const brief = useBriefRunner()
   const [question, setQuestion] = useState('')
-  const [output, setOutput] = useState('')
-  // Names the mission (and wall) a single-mission result answered, so it is
-  // never read as being about whatever the picker shows now.
-  const [outputLabel, setOutputLabel] = useState('')
-  const requestRef = useRef(0)
-  const [status, setStatus] = useState<Status>('idle')
-  const [activeMode, setActiveMode] = useState<BriefMode | null>(null)
-  const [visitor, setVisitor] = useState(false)
-  const [actions, setActions] = useState<OpenAction[] | null>(null)
-  const [actionsError, setActionsError] = useState(false)
-  const [focusId, setFocusId] = useState('')
-  const [wall, setWall] = useState<Wall | ''>('')
+  const [chosenId, setChosenId] = useState('')
 
-  useEffect(() => {
-    fetch('/api/brief')
-      .then(res => res.json())
-      .then(data => setConfigured(Boolean(data.configured)))
-      .catch(() => setConfigured(false))
-  }, [])
+  const focus = missions?.find(m => m.id === chosenId) ?? missions?.find(m => m.state === 'primary') ?? missions?.[0] ?? null
+  const focusAction = focus ? actions.find(a => a.mission_id === focus.id) ?? null : null
+  const missionCount = missions?.length ?? 0
+  const busy = brief.status === 'running'
+  const unavailable = !brief.configured || brief.visitor
 
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        const user = await connectMissionSession()
-        if (cancelled) return
-        const { data, error } = await supabase.from('missions').select('*').eq('user_id', user.id)
-        if (cancelled) return
-        if (error) throw error
-        const loaded = ((data ?? []) as MissionRow[]).map(rowToMission)
-        setMissions(loaded)
-        setFocusId((loaded.find(m => m.state === 'primary') ?? loaded[0])?.id ?? '')
-        const open = await supabase.from('actions').select('id,mission_id,action_title,status,resume_note').not('mission_id', 'is', null).neq('status', 'DONE')
-        if (cancelled) return
-        if (open.error) setActionsError(true)
-        else setActions((open.data ?? []) as OpenAction[])
-      } catch (err) {
-        if (!cancelled) setLoadError(missionConnectionMessage(err))
-      }
-    }
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  const focus = missions?.find(m => m.id === focusId) ?? null
-  const focusAction = focus ? actions?.find(a => a.mission_id === focus.id) ?? null : null
-  const walls: Wall[] = [...(focus?.blocker?.trim() ? ['blocker' as const] : []), ...(focusAction ? ['action' as const] : [])]
-  const chosenWall = walls.includes(wall as Wall) ? (wall as Wall) : walls[0]
-  // An unread action list is not an empty one: Architect Scan would report a
-  // saved commitment as unsaved, so it waits for a successful read.
-  const actionsPending = actions === null && !actionsError
-
-  const requestBody = (mode: BriefMode, q?: string) => {
-    if ((mode !== 'architect' && mode !== 'unblock') || !focus) {
-      return { mode, question: q, missions: missionsToBriefContext(missions ?? []), missionIds: (missions ?? []).slice(0, 40).map(mission => mission.id) }
-    }
-    const target: BriefTarget = {
-      kind: mode === 'architect' ? 'mission' : chosenWall,
-      evidenceRequirement: focus.evidenceRequirement,
-      action: focusAction ? actionToBriefContext(focusAction) : null,
-    }
-    return { mode, missions: [missionToBriefContext(focus)], missionIds: [focus.id], target }
-  }
-
-  // Changing the mission or wall drops the old answer and any reply still in flight.
-  const changeTarget = (update: () => void) => {
-    requestRef.current += 1
-    update()
-    setOutput('')
-    setOutputLabel('')
-    setStatus('idle')
-    setActiveMode(null)
-  }
-
-  const run = async (mode: BriefMode, q?: string) => {
-    if (!missions) return
-    const request = ++requestRef.current
-    const wallLabel = chosenWall === 'action' ? `unfinished action: ${focusAction?.action_title}` : `blocker: ${focus?.blocker}`
-    const label = mode === 'architect' ? `Architect Scan · ${focus?.title}` : mode === 'unblock' ? `Break Wall · ${focus?.title} · ${wallLabel}` : ''
-    setStatus('running')
-    setActiveMode(mode)
-    setOutput('')
-    setOutputLabel('')
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      const res = await fetch('/api/brief', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
-        body: JSON.stringify(requestBody(mode, q)),
-      })
-      if (request !== requestRef.current) return
-      if (res.status === 403) {
-        setVisitor(true)
-        setStatus('idle')
-        setActiveMode(null)
-        return
-      }
-      const data = await res.json()
-      if (request !== requestRef.current) return
-      if (!res.ok || data.error) throw new Error(data?.error ?? `HTTP ${res.status}`)
-      setOutput(data.text || 'No brief text returned.')
-      setOutputLabel(label)
-      setStatus('done')
-    } catch (err) {
-      if (request !== requestRef.current) return
-      setOutput(err instanceof Error ? err.message : String(err))
-      setOutputLabel(label)
-      setStatus('error')
-    }
-  }
+  const runRoster = (mode: 'daily_brief' | 'triage' | 'question', q?: string) =>
+    void brief.run(mode, { mode, question: q, missions: missionsToBriefContext(missions ?? []), missionIds: (missions ?? []).slice(0, 40).map(mission => mission.id) })
 
   const askQuestion = () => {
     const q = question.trim()
-    if (!q) return
-    void run('question', q)
+    if (q) runRoster('question', q)
   }
-
-  const missionCount = missions?.length ?? 0
-  const busy = status === 'running'
-  const unavailable = !configured || visitor
 
   return (
     <section>
@@ -188,56 +56,35 @@ export default function BriefTab() {
             <Badge tone="muted">
               {missionCount} mission{missionCount === 1 ? '' : 's'} in context
             </Badge>
-            {!configured && !visitor && <Badge tone="amber">ANTHROPIC_API_KEY not set on server</Badge>}
+            {!brief.configured && !brief.visitor && <Badge tone="amber">ANTHROPIC_API_KEY not set on server</Badge>}
           </div>
 
-          {visitor && <HelperLine>{BRIEF_VISITOR_COPY}</HelperLine>}
+          {brief.visitor && <HelperLine>{BRIEF_VISITOR_COPY}</HelperLine>}
 
           <div className="flex flex-wrap gap-2 mb-4">
-            <ActionBtn onClick={() => void run('daily_brief')} disabled={busy || unavailable}>
-              {busy && activeMode === 'daily_brief' ? 'Thinking…' : 'Daily Brief'}
+            <ActionBtn onClick={() => runRoster('daily_brief')} disabled={busy || unavailable}>
+              {busy && brief.activeMode === 'daily_brief' ? 'Thinking…' : 'Daily Brief'}
             </ActionBtn>
-            <ActionBtn variant="secondary" onClick={() => void run('triage')} disabled={busy || unavailable}>
-              {busy && activeMode === 'triage' ? 'Thinking…' : 'Triage stalled work'}
+            <ActionBtn variant="secondary" onClick={() => runRoster('triage')} disabled={busy || unavailable}>
+              {busy && brief.activeMode === 'triage' ? 'Thinking…' : 'Triage stalled work'}
             </ActionBtn>
           </div>
 
-          <Card className="mb-4">
-            <FieldLabel htmlFor="brief-mission">One mission</FieldLabel>
-            <Select id="brief-mission" value={focusId} onChange={id => changeTarget(() => { setFocusId(id); setWall('') })}>
-              {missions.map(m => (
-                <option key={m.id} value={m.id}>
-                  {m.title || 'Untitled mission'} · {m.state}
-                </option>
-              ))}
-            </Select>
-            <div className="flex flex-wrap gap-2 mt-3">
-              <ActionBtn variant="secondary" onClick={() => void run('architect')} disabled={busy || unavailable || !focus || actions === null}>
-                {busy && activeMode === 'architect' ? 'Thinking…' : 'Architect Scan'}
-              </ActionBtn>
-              <ActionBtn variant="secondary" onClick={() => void run('unblock')} disabled={busy || unavailable || !chosenWall || actionsPending}>
-                {busy && activeMode === 'unblock' ? 'Thinking…' : 'Break Wall'}
-              </ActionBtn>
-            </div>
-            <div className="mt-3">
-              {walls.length > 1 ? (
-                <>
-                  <FieldLabel htmlFor="brief-wall">Wall to break</FieldLabel>
-                  <Select id="brief-wall" value={chosenWall} onChange={value => changeTarget(() => setWall(value as Wall))}>
-                    <option value="blocker">Blocker: {focus?.blocker}</option>
-                    <option value="action">Unfinished action: {focusAction?.action_title}</option>
-                  </Select>
-                </>
-              ) : chosenWall ? (
-                <HelperLine>
-                  Break Wall uses the saved {chosenWall === 'blocker' ? `blocker: ${focus?.blocker}` : `unfinished action: ${focusAction?.action_title}`}
-                </HelperLine>
-              ) : (
-                <HelperLine>Break Wall needs a saved blocker{actionsError ? '' : ' or unfinished action'} on this mission. {UNKNOWN_LINE}.</HelperLine>
-              )}
-              {actionsError && <HelperLine variant="error">{ACTIONS_READ_FAILED_COPY}</HelperLine>}
-            </div>
-          </Card>
+          {focus && (
+            <Card className="mb-4">
+              <FieldLabel htmlFor="brief-mission">One mission</FieldLabel>
+              <Select id="brief-mission" value={focus.id} onChange={id => { brief.reset(); setChosenId(id) }}>
+                {missions.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.title || 'Untitled mission'} · {m.state}
+                  </option>
+                ))}
+              </Select>
+              <div className="mt-3">
+                <MissionBriefPanel key={focus.id} mission={focus} action={focusAction} actionsRead={actionsRead} brief={brief} />
+              </div>
+            </Card>
+          )}
 
           <div className="mb-4">
             <Textarea
@@ -249,19 +96,14 @@ export default function BriefTab() {
             />
             <div className="mt-2">
               <ActionBtn variant="secondary" onClick={askQuestion} disabled={busy || unavailable || !question.trim()}>
-                {busy && activeMode === 'question' ? 'Thinking…' : 'Ask'}
+                {busy && brief.activeMode === 'question' ? 'Thinking…' : 'Ask'}
               </ActionBtn>
             </div>
           </div>
         </>
       )}
 
-      {output && (
-        <Card style={{ whiteSpace: 'pre-wrap', fontSize: '0.92rem', lineHeight: 1.6 }}>
-          {outputLabel && <Badge tone="muted">{outputLabel}</Badge>}
-          {outputLabel ? `\n${output}` : output}
-        </Card>
-      )}
+      <BriefOutput brief={brief} />
     </section>
   )
 }
