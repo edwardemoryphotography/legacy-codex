@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { ATTACH_ACCEPT, MAX_ATTACH_BYTES, missionFileInstruction } from '@/lib/missionFiles'
 import type { Mission } from '@/types'
@@ -17,11 +17,15 @@ export default function MissionFiles({ mission }: { mission: Pick<Mission, 'id' 
   const [files, setFiles] = useState<File[]>([])
   const [status, setStatus] = useState<'idle' | 'running' | 'done' | 'error' | 'visitor'>('idle')
   const [output, setOutput] = useState('')
+  // Changing the files drops any read still in flight, so an answer never
+  // appears under files it was not about.
+  const requestRef = useRef(0)
   const total = files.reduce((sum, f) => sum + f.size, 0)
   const tooBig = total > MAX_ATTACH_BYTES
 
   const read = async () => {
     if (!files.length || tooBig) return
+    const request = ++requestRef.current
     setStatus('running')
     setOutput('')
     try {
@@ -31,15 +35,18 @@ export default function MissionFiles({ mission }: { mission: Pick<Mission, 'id' 
       for (const file of files) formData.append('files', file)
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch('/api/analyze', { method: 'POST', body: formData, headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} })
+      if (request !== requestRef.current) return
       if (res.status === 403) {
         setStatus('visitor')
         return
       }
       const data = await res.json()
+      if (request !== requestRef.current) return
       if (!res.ok || data.error) throw new Error(data?.error ?? `HTTP ${res.status}`)
       setOutput(data.text || 'No reading returned.')
       setStatus('done')
     } catch (err) {
+      if (request !== requestRef.current) return
       setOutput(err instanceof Error ? err.message : String(err))
       setStatus('error')
     }
@@ -56,7 +63,7 @@ export default function MissionFiles({ mission }: { mission: Pick<Mission, 'id' 
         type="file"
         multiple
         accept={ATTACH_ACCEPT}
-        onChange={e => { setFiles(Array.from(e.target.files ?? [])); setStatus('idle'); setOutput('') }}
+        onChange={e => { requestRef.current += 1; setFiles(Array.from(e.target.files ?? [])); setStatus('idle'); setOutput('') }}
         style={{ maxWidth: '100%' }}
       />
       {files.length > 0 && (

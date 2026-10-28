@@ -46,4 +46,18 @@ describe('MissionFiles', () => {
     expect((screen.getByRole('button', { name: 'Read with Claude' }) as HTMLButtonElement).disabled).toBe(true)
     expect(fetchMock).not.toHaveBeenCalled()
   })
+
+  it('drops a reply that arrives after the files were changed', async () => {
+    let finish: (v: unknown) => void = () => {}
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(resolve => { finish = resolve })))
+    render(<MissionFiles mission={mission} />)
+    attach(new File(['A'], 'a.txt', { type: 'text/plain' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Read with Claude' }))
+    await screen.findByRole('button', { name: 'Reading…' })
+    attach(new File(['B'], 'b.txt', { type: 'text/plain' }))
+    finish({ ok: true, status: 200, json: async () => ({ text: 'About file A.' }) })
+    await new Promise(r => setTimeout(r, 0))
+    expect(screen.queryByText(/About file A/)).toBeNull()
+    expect(screen.getByText(/b\.txt/)).toBeTruthy()
+  })
 })
