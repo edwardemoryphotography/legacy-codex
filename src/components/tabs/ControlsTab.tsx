@@ -6,6 +6,8 @@ import { useLocalStorage } from '@/hooks/useLocalStorage'
 import { useCapture } from '@/hooks/useCapture'
 import type { UIPrefs, CaptureItem, BiometricMode } from '@/types'
 import { supabase } from '@/lib/supabase/client'
+import { connectMissionSession, missionConnectionMessage } from '@/lib/supabase/missionSession'
+import AccountCard from '@/components/AccountCard'
 import { TREND_SAMPLE_LABEL, trendDateRange } from '@/lib/biometrics'
 import {
   ActionBtn,
@@ -57,6 +59,9 @@ export default function ControlsTab() {
   const [isSyncing, setIsSyncing] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [authStatus, setAuthStatus] = useState('')
+  const [accountLoading, setAccountLoading] = useState(true)
+  const [accountError, setAccountError] = useState('')
+  const [connectionAttempt, setConnectionAttempt] = useState(0)
 
   // Shared capture pipeline (also used by MissionTab's write-only capture)
   const {
@@ -144,54 +149,41 @@ export default function ControlsTab() {
     let cancelled = false
     async function initAuthAndLoad() {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        const currentUser = session?.user || null
-        if (currentUser) {
-          setUser(currentUser)
-          setSupabaseConnected(true)
-          setAuthStatus('Signed in')
-          await loadFromSupabase(currentUser.id)
-        } else {
-          // Check if keys look real (fix: check anon key, not url which is always the project)
-          const client = supabase as unknown as { supabaseKey?: string; supabaseUrl?: string }
-          const anonKey = client?.supabaseKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-          const url = client?.supabaseUrl || ''
-          if (anonKey && !anonKey.includes('your-anon') && url && !url.includes('your-project')) {
-            setSupabaseConnected(false) // connected means signed-in for RLS
-            setAuthStatus('Keys present — sign in to enable cloud sync (RLS requires auth)')
-          } else {
-            setSupabaseConnected(false)
-            setAuthStatus('Local only (configure real Supabase keys in .env.local)')
-          }
-        }
-      } catch {
+        const currentUser = await connectMissionSession()
+        if (cancelled) return
+        setUser(currentUser)
+        setSupabaseConnected(true)
+        setAuthStatus('Connected to your account')
+        setAccountError('')
+        await loadFromSupabase(currentUser.id)
+      } catch (failure) {
         if (!cancelled) {
           setSupabaseConnected(false)
           setAuthStatus('Auth check failed')
+          setAccountError(missionConnectionMessage(failure))
         }
+      } finally {
+        if (!cancelled) setAccountLoading(false)
       }
     }
     initAuthAndLoad()
     return () => { cancelled = true }
-  }, [loadFromSupabase])
+  }, [loadFromSupabase, connectionAttempt])
 
   async function signInForSync() {
     setAuthStatus('Signing in...')
     try {
-      const { data, error } = await supabase.auth.signInAnonymously()
-      if (error) throw error
-      const signedUser = data.user
+      const signedUser = await connectMissionSession()
       if (signedUser) {
         setUser(signedUser)
         setSupabaseConnected(true)
-        setAuthStatus('Signed in (anon)')
+        setAuthStatus('Connected to your account')
         await loadFromSupabase(signedUser.id)
         setStatus('Cloud sync enabled')
         setTimeout(() => setStatus(''), 1200)
       }
-    } catch {
-      setAuthStatus('Sign in failed — enable Anonymous provider in Supabase dashboard or use email')
-      setTimeout(() => setAuthStatus(''), 3000)
+    } catch (failure) {
+      setAccountError(missionConnectionMessage(failure))
     }
   }
 
@@ -332,6 +324,8 @@ export default function ControlsTab() {
 
   return (
     <section className="space-y-6" style={scaleStyle}>
+      <AccountCard key={user?.id ?? 'no-account'} user={user} loading={accountLoading} connectionError={accountError}
+        onRetry={() => { setAccountLoading(true); setConnectionAttempt(attempt => attempt + 1) }} onConverted={setUser} />
       <div className="space-y-2">
         <SectionTitle>Governor Controls</SectionTitle>
         <SectionSubtitle>

@@ -378,3 +378,4 @@ export interface NextMoveRecommendation {
   handoff: string
   source: 'local-rules'
 }
+export type EmailAccountFlow = 'attach' | 'signin'

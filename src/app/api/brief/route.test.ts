@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { TEST_JWKS, anonymousGuestToken, forgedToken, userToken } from '@/test/supabaseTestTokens'
 
@@ -19,7 +19,7 @@ vi.mock('@/lib/learnedContextServer', async importOriginal => ({
 }))
 
 import { loadLearnedContext } from '@/lib/learnedContextServer'
-import { POST } from './route'
+import { GET, POST } from './route'
 
 const OWNER_ID = '00000000-0000-4000-8000-000000000001'
 const GUEST_ID = '00000000-0000-4000-8000-000000000002'
@@ -42,6 +42,9 @@ describe('/api/brief owner gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubEnv('ANTHROPIC_API_KEY', 'test-key')
+    vi.stubEnv('GEMINI_API_KEY', '')
+    vi.stubEnv('OPENAI_API_KEY', '')
+    vi.stubEnv('OPENAI_MODEL', '')
     vi.stubEnv('DELTA_OPERATION_ALLOWED_USER_ID', OWNER_ID)
     vi.stubEnv('SUPABASE_URL', '')
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://example-project.supabase.co')
@@ -49,6 +52,7 @@ describe('/api/brief owner gate', () => {
     vi.stubEnv('SUPABASE_JWKS_URL', '')
     createMessage.mockResolvedValue({ content: [{ type: 'text', text: 'Brief text.' }] })
   })
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs() })
 
   it('denies the automatic anonymous guest with 403 before any model call', async () => {
     const response = await POST(request({ mode: 'daily_brief', missions: [mission] }, anonymousGuestToken(GUEST_ID)))
@@ -73,7 +77,7 @@ describe('/api/brief owner gate', () => {
   it('lets the owner through to the model', async () => {
     const response = await POST(request({ mode: 'daily_brief', missions: [mission] }, userToken(OWNER_ID)))
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ text: 'Brief text.' })
+    expect(await response.json()).toEqual({ text: 'Brief text.', provider: 'anthropic', model: 'claude-opus-5', fallbacks: [] })
     expect(createMessage).toHaveBeenCalledOnce()
   })
 
@@ -126,6 +130,65 @@ describe('/api/brief owner gate', () => {
     const response = await POST(request({ mode: 'daily_brief', missions: [mission] }, userToken(OWNER_ID)))
     expect(response.status).toBe(503)
     expect(createMessage).not.toHaveBeenCalled()
+  })
+
+  it.each(['daily_brief', 'architect', 'unblock'])('uses OpenAI after Claude fails for %s, retaining the same scope and doctrine', async mode => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-openai-key')
+    createMessage.mockRejectedValueOnce({ status: 529 })
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(Response.json({ choices: [{ finish_reason: 'stop', message: { content: 'Fallback answer.' } }] }))
+    const body = mode === 'daily_brief' ? { mode, missions: [mission] }
+      : { mode, missions: [{ ...mission, blocker: 'stuck' }], missionIds: ['00000000-0000-4000-8000-0000000000aa'], target: { kind: mode === 'architect' ? 'mission' : 'blocker' } }
+    const response = await POST(request(body, userToken(OWNER_ID)))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ provider: 'openai', model: 'gpt-4o', fallbacks: [{ provider: 'anthropic', reason: 'unavailable' }] })
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.openai.com/v1/chat/completions')
+    const options = fetchMock.mock.calls[0][1]!
+    const sent = JSON.parse(options.body as string)
+    expect(sent.messages[0].content).toBe(createMessage.mock.calls[0][0].system)
+    expect(sent.messages[1].content).toBe(directiveSent())
+    expect(options.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('allows OpenAI-only configuration and reports configured without exposing a key', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', '')
+    vi.stubEnv('OPENAI_API_KEY', 'test-openai-key')
+    expect(await (await GET()).json()).toEqual({ configured: true })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(Response.json({ choices: [{ message: { content: 'OpenAI answer.' } }] }))
+    const response = await POST(request({ mode: 'daily_brief', missions: [] }, userToken(OWNER_ID)))
+    expect(response.status).toBe(200)
+    expect((await response.json()).provider).toBe('openai')
+    expect(createMessage).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { content: [] },
+    { content: [{ type: 'text', text: 'Cut off' }], stop_reason: 'max_tokens' },
+  ])('falls back on empty or incomplete Claude output: %j', async result => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-openai-key')
+    createMessage.mockResolvedValueOnce(result)
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(Response.json({ choices: [{ message: { content: 'Complete answer.' } }] }))
+    const response = await POST(request({ mode: 'daily_brief', missions: [] }, userToken(OWNER_ID)))
+    expect(response.status).toBe(200)
+    expect((await response.json()).fallbacks).toEqual([{ provider: 'anthropic', reason: 'empty or incomplete response' }])
+  })
+
+  it('does not send account data to either provider for a visitor', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-openai-key')
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+    const response = await POST(request({ mode: 'daily_brief', missions: [mission] }, userToken(GUEST_ID)))
+    expect(response.status).toBe(403)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(createMessage).not.toHaveBeenCalled()
+  })
+
+  it('returns an explicit unavailable response when every provider fails', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-openai-key')
+    createMessage.mockRejectedValueOnce({ status: 429 })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('unavailable', { status: 503 }))
+    const response = await POST(request({ mode: 'daily_brief', missions: [] }, userToken(OWNER_ID)))
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: expect.stringContaining('unavailable') })
   })
 
 })

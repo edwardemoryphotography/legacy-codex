@@ -9,7 +9,7 @@ import { ActionBtn, Badge, Card, FieldLabel, HelperLine, SectionSubtitle, Sectio
 
 export { ACTIONS_READ_FAILED_COPY, BRIEF_VISITOR_COPY } from '@/components/MissionBriefPanel'
 
-// A read-only, display-only companion to Mission: it asks Claude about the
+// A read-only, display-only companion to Mission: it asks the model about the
 // same real mission rows Mission itself reads, and shows the answer. It
 // never writes anything — no mission_events row, no Strategic Delta
 // provenance, nothing Mission's accept/correct lifecycle has to account
@@ -38,7 +38,7 @@ export default function BriefTab() {
     <section>
       <SectionTitle>Brief</SectionTitle>
       <SectionSubtitle>
-        Ask Claude about your real missions — grounded only in what is actually in Legacy Codex right now. A
+        Ask about your real missions — grounded only in what is actually in Legacy Codex right now. A
         proposal, not a commitment: nothing here is saved, accepted, or recorded as a Strategic Delta.
       </SectionSubtitle>
 
@@ -56,7 +56,7 @@ export default function BriefTab() {
             <Badge tone="muted">
               {missionCount} mission{missionCount === 1 ? '' : 's'} in context
             </Badge>
-            {!brief.configured && !brief.visitor && <Badge tone="amber">ANTHROPIC_API_KEY not set on server</Badge>}
+            {!brief.configured && !brief.visitor && <Badge tone="amber">AI provider not configured on server</Badge>}
           </div>
 
           <div className="flex flex-wrap gap-2 mb-4">

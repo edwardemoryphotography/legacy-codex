@@ -15,6 +15,7 @@ export interface BriefRunner {
   // Names the mission (and wall) a single-mission answer is about, so it is
   // never read as being about whatever is selected now.
   outputLabel: string
+  providerLabel: string
   run: (mode: BriefMode, body: Record<string, unknown>, label?: string) => Promise<void>
   reset: () => void
 }
@@ -29,6 +30,7 @@ export function useBriefRunner(): BriefRunner {
   const [activeMode, setActiveMode] = useState<BriefMode | null>(null)
   const [output, setOutput] = useState('')
   const [outputLabel, setOutputLabel] = useState('')
+  const [providerLabel, setProviderLabel] = useState('')
   const requestRef = useRef(0)
 
   useEffect(() => {
@@ -42,6 +44,7 @@ export function useBriefRunner(): BriefRunner {
     requestRef.current += 1
     setOutput('')
     setOutputLabel('')
+    setProviderLabel('')
     setStatus('idle')
     setActiveMode(null)
   }, [])
@@ -52,6 +55,7 @@ export function useBriefRunner(): BriefRunner {
     setActiveMode(mode)
     setOutput('')
     setOutputLabel('')
+    setProviderLabel('')
     try {
       const {
         data: { session },
@@ -75,6 +79,13 @@ export function useBriefRunner(): BriefRunner {
       if (request !== requestRef.current) return
       if (!res.ok || data.error) throw new Error(data?.error ?? `HTTP ${res.status}`)
       setOutput(data.text || 'No brief text returned.')
+      const names: Record<string, string> = { anthropic: 'Claude', gemini: 'Gemini', openai: 'OpenAI' }
+      if (names[data.provider] && typeof data.model === 'string') {
+        const fallbacks = Array.isArray(data.fallbacks) ? data.fallbacks
+          .filter((entry: { provider?: string; reason?: string }) => names[entry?.provider ?? ''] && typeof entry.reason === 'string')
+          .map((entry: { provider: string; reason: string }) => `${names[entry.provider]} ${entry.reason}`) : []
+        setProviderLabel(`${names[data.provider]} · ${data.model}${fallbacks.length ? ` · Fallback: ${fallbacks.join('; ')}` : ''}`)
+      }
       setOutputLabel(label)
       setStatus('done')
     } catch (err) {
@@ -85,5 +96,5 @@ export function useBriefRunner(): BriefRunner {
     }
   }, [])
 
-  return { configured, visitor, status, activeMode, output, outputLabel, run, reset }
+  return { configured, visitor, status, activeMode, output, outputLabel, providerLabel, run, reset }
 }
