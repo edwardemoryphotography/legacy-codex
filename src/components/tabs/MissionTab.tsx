@@ -1766,7 +1766,7 @@ export default function MissionTab() {
       {lessonNotice && <p role="status" className="mission-status">{lessonNotice}</p>}
 
       {sessionReady && savedMissionId && board.missions[savedMissionId] && (
-        <MissionFiles key={savedMissionId} mission={board.missions[savedMissionId]} />
+        <MissionFiles key={`files:${savedMissionId}`} mission={board.missions[savedMissionId]} />
       )}
 
       {/* Accepting a Delta is a prediction, not a commitment — SavedActions

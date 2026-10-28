@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { missionsToBriefContext } from '@/lib/dailyBrief'
 import { useBriefRunner } from '@/hooks/useBriefRunner'
 import { useMissionTerritory } from '@/hooks/useMissionTerritory'
-import MissionBriefPanel, { BriefOutput, BRIEF_VISITOR_COPY } from '@/components/MissionBriefPanel'
+import MissionBriefPanel, { BriefOutput } from '@/components/MissionBriefPanel'
 import { ActionBtn, Badge, Card, FieldLabel, HelperLine, SectionSubtitle, SectionTitle, Select, Textarea } from '@/components/ui'
 
 export { ACTIONS_READ_FAILED_COPY, BRIEF_VISITOR_COPY } from '@/components/MissionBriefPanel'
@@ -58,8 +58,6 @@ export default function BriefTab() {
             </Badge>
             {!brief.configured && !brief.visitor && <Badge tone="amber">ANTHROPIC_API_KEY not set on server</Badge>}
           </div>
-
-          {brief.visitor && <HelperLine>{BRIEF_VISITOR_COPY}</HelperLine>}
 
           <div className="flex flex-wrap gap-2 mb-4">
             <ActionBtn onClick={() => runRoster('daily_brief')} disabled={busy || unavailable}>

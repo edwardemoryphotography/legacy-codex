@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildTerritoryGraph, PER_KIND_LIMIT, type EvidenceLite } from './territoryGraph'
+import { buildTerritoryGraph, CHILD_BOX, MISSION_BOX, PER_KIND_LIMIT, type EvidenceLite } from './territoryGraph'
 import type { MissionEventLite, OpenAction } from './territory'
 import type { Mission } from '@/types'
 
@@ -60,7 +60,7 @@ describe('buildTerritoryGraph', () => {
     const snaps = Array.from({ length: 3 }, (_, i) => ({ ...evidence, id: `s${i}` }))
     const g = buildTerritoryGraph([mission({ blocker: 'b' }), mission({ id: 'm2', title: 'Beta', blocker: 'b' })], [action, { ...action, id: 'a2', mission_id: 'm2' }], events.concat(events.map(e => ({ ...e, id: `${e.id}x`, mission_id: 'm2' }))), snaps.concat(snaps.map(s => ({ ...s, id: `${s.id}x`, mission_id: 'm2' }))))
     expect(g.nodes.filter(n => n.missionId === 'm1')).toHaveLength(12)
-    const box = (n: (typeof g.nodes)[number]) => (n.kind === 'mission' ? { w: 150, h: 44 } : { w: 112, h: 34 })
+    const box = (n: (typeof g.nodes)[number]) => (n.kind === 'mission' ? MISSION_BOX : CHILD_BOX)
     for (const a of g.nodes) for (const b of g.nodes) {
       if (a === b) continue
       const overlap = Math.abs(a.x - b.x) < (box(a).w + box(b).w) / 2 && Math.abs(a.y - b.y) < (box(a).h + box(b).h) / 2

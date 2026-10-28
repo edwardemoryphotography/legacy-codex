@@ -3,11 +3,11 @@
 import { useState, type ReactNode } from 'react'
 import { UNKNOWN_LINE } from '@/lib/dailyBrief'
 import { activeState, GROUP_LABELS, groupTerritory, type TerritoryCard } from '@/lib/territory'
-import { buildTerritoryGraph } from '@/lib/territoryGraph'
 import TerritoryGraph from '@/components/TerritoryGraph'
 import { useBriefRunner } from '@/hooks/useBriefRunner'
 import { useMissionTerritory, type ReadState } from '@/hooks/useMissionTerritory'
 import MissionBriefPanel, { BriefOutput, BRIEF_VISITOR_COPY } from '@/components/MissionBriefPanel'
+import { missionsToBriefContext } from '@/lib/dailyBrief'
 import { ActionBtn, Badge, Card, FieldLabel, HelperLine, SectionSubtitle, SectionTitle } from '@/components/ui'
 
 const when = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
@@ -23,7 +23,7 @@ export const EVENTS_READ_FAILED_COPY = 'Mission history could not be read right 
 // model call goes through /api/brief and is display-only.
 export default function TerritoryTab() {
   const { missions, loadError, actions, actionsRead, events, eventsRead, evidence, evidenceRead, links, linksRead, linksTruncated } = useMissionTerritory({ withEvents: true })
-  const [view, setView] = useState<'list' | 'graph'>('list')
+  const [view, setView] = useState<'list' | 'graph'>('graph')
   const brief = useBriefRunner()
   const [openId, setOpenId] = useState<string | null>(null)
 
@@ -55,7 +55,6 @@ export default function TerritoryTab() {
             </div>
             <Card className="mb-4">
               <MissionFacts card={open} actionsRead={actionsRead} heading />
-              {brief.visitor && <HelperLine>{BRIEF_VISITOR_COPY}</HelperLine>}
               <div className="mt-3">
                 <MissionBriefPanel key={open.mission.id} mission={open.mission} action={open.action} actionsRead={actionsRead} brief={brief} withTriageAndAsk />
               </div>
@@ -66,6 +65,20 @@ export default function TerritoryTab() {
           <>
             <ActiveStateCard actionsRead={actionsRead} eventsRead={eventsRead} state={activeState(missions, actions, events)} />
             {eventsRead === 'failed' && <HelperLine variant="error">{EVENTS_READ_FAILED_COPY}</HelperLine>}
+            <div className="flex flex-wrap gap-2 mb-2">
+              {(['daily_brief', 'triage'] as const).map(mode => (
+                <ActionBtn
+                  key={mode}
+                  variant={mode === 'daily_brief' ? 'primary' : 'secondary'}
+                  disabled={brief.status === 'running' || !brief.configured || brief.visitor}
+                  onClick={() => void brief.run(mode, { mode, missions: missionsToBriefContext(missions), missionIds: missions.slice(0, 40).map(m => m.id) }, mode === 'daily_brief' ? 'Daily Brief · all missions' : 'Triage · all missions')}
+                >
+                  {brief.status === 'running' && brief.activeMode === mode ? 'Thinking…' : mode === 'daily_brief' ? 'Daily Brief' : 'Triage'}
+                </ActionBtn>
+              ))}
+            </div>
+            {brief.visitor && <HelperLine>{BRIEF_VISITOR_COPY}</HelperLine>}
+            <div className="mb-3"><BriefOutput brief={brief} /></div>
             <div className="flex gap-2 mb-3" role="group" aria-label="Territory view">
               <ActionBtn variant={view === 'list' ? 'primary' : 'secondary'} onClick={() => setView('list')}>List</ActionBtn>
               <ActionBtn variant={view === 'graph' ? 'primary' : 'secondary'} onClick={() => setView('graph')}>Graph</ActionBtn>
@@ -74,7 +87,7 @@ export default function TerritoryTab() {
               <>
                 {[actionsRead, linksRead, evidenceRead].includes('failed') && <HelperLine variant="error">{GRAPH_PARTIAL_COPY}</HelperLine>}
                 {linksTruncated && <HelperLine>{GRAPH_TRUNCATED_COPY}</HelperLine>}
-                <TerritoryGraph {...buildTerritoryGraph(missions, actions, links, evidence)} blocked={new Set(missions.filter(m => m.state === 'blocked').map(m => m.id))} onOpen={select} />
+                <TerritoryGraph missions={missions} actions={actions} links={links} evidence={evidence} onOpen={select} />
               </>
             )}
             {view === 'list' && groups.map(({ group, cards }) => (
