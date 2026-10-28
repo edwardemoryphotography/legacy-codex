@@ -3,7 +3,7 @@
 // column it came from. No edge is inferred, and no two missions are linked:
 // there is no stored, human-confirmed mission-to-mission link yet.
 import { GROUP_OF_STATE, type MissionEventLite, type OpenAction, type TerritoryGroup } from './territory'
-import type { Mission } from '@/types'
+import type { Mission, MissionState } from '@/types'
 
 export interface EvidenceLite {
   id: string
@@ -23,6 +23,9 @@ export interface GraphNode {
   label: string
   x: number
   y: number
+  // Mission cards only: the saved state and finish line, shown on the card.
+  state?: MissionState
+  detail?: string | null
 }
 
 export interface GraphEdge {
@@ -33,11 +36,15 @@ export interface GraphEdge {
 }
 
 export const PER_KIND_LIMIT = 3
-// Children are drawn as 112×34 boxes around a 150×44 mission box. Adjacent
-// child centres at least CHILD_GAP apart cannot overlap (|dx| > 112 whenever
-// |dy| < 34), and MIN_RING keeps side children clear of the mission box.
+// Children are drawn as CHILD boxes on a flattened ring around a MISSION card.
+// Adjacent child centres at least CHILD_GAP apart cannot overlap, MIN_RING
+// keeps side children clear of the card, and RING_Y flattens the ring so a
+// stacked phone layout stays short. The overlap test checks the worst case.
+export const MISSION_BOX = { w: 200, h: 72 }
+export const CHILD_BOX = { w: 112, h: 34 }
 export const CHILD_GAP = 130
-const MIN_RING = 140
+const MIN_RING = 170
+const RING_Y = 0.7
 const ringFor = (count: number) => (count < 2 ? MIN_RING : Math.max(MIN_RING, Math.ceil(CHILD_GAP / (2 * Math.sin(Math.PI / count)))))
 const GROUP_ORDER: TerritoryGroup[] = ['active', 'paused', 'completed', 'abandoned']
 
@@ -52,10 +59,10 @@ function parse(detail: string): Record<string, unknown> | null {
 
 const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null)
 
-export function buildTerritoryGraph(missions: Mission[], actions: OpenAction[], events: (MissionEventLite & { id?: string })[], evidence: EvidenceLite[]) {
+export function buildTerritoryGraph(missions: Mission[], actions: OpenAction[], events: (MissionEventLite & { id?: string })[], evidence: EvidenceLite[], maxColumns = 3) {
   const ordered = [...missions].sort((a, b) =>
     GROUP_ORDER.indexOf(GROUP_OF_STATE[a.state]) - GROUP_ORDER.indexOf(GROUP_OF_STATE[b.state]) || a.title.localeCompare(b.title) || a.id.localeCompare(b.id))
-  const columns = Math.max(1, Math.min(3, Math.ceil(Math.sqrt(ordered.length))))
+  const columns = Math.max(1, Math.min(maxColumns, Math.ceil(Math.sqrt(ordered.length))))
   const retired = new Set(events.filter(e => e.type === 'delta_lesson_retired').map(e => text(parse(e.detail)?.lessonId)).filter(Boolean))
   const nodes: GraphNode[] = []
   const edges: GraphEdge[] = []
@@ -79,22 +86,38 @@ export function buildTerritoryGraph(missions: Mission[], actions: OpenAction[], 
     return { mission, children }
   })
 
-  // One cell size for the whole graph, from its busiest mission, so the grid
-  // stays regular and no ring reaches into a neighbouring cell.
-  const ring = ringFor(Math.max(0, ...placed.map(p => p.children.length)))
-  const cell = 2 * ring + 2 * 70
-  placed.forEach(({ mission, children }, index) => {
-    const cx = cell / 2 + (index % columns) * cell
-    const cy = cell / 2 + Math.floor(index / columns) * cell
-    nodes.push({ id: `mission:${mission.id}`, kind: 'mission', missionId: mission.id, label: mission.title || 'Untitled mission', x: cx, y: cy })
+  // Each mission's children sit on its own ring; rows and columns are sized
+  // from what is actually drawn, so a mission with nothing linked stays
+  // compact instead of reserving space for the busiest one.
+  const laid = placed.map(({ mission, children }) => {
     const r = ringFor(children.length)
-    children.forEach((child, i) => {
+    const offsets = children.map((_, i) => {
       const angle = -Math.PI / 2 + (2 * Math.PI * i) / children.length
-      nodes.push({ id: child.id, kind: child.kind, missionId: mission.id, label: child.label, x: Math.round(cx + r * Math.cos(angle)), y: Math.round(cy + r * Math.sin(angle)) })
-      edges.push({ from: `mission:${mission.id}`, to: child.id, label: child.edge, provenance: child.provenance })
+      return { x: Math.round(r * Math.cos(angle)), y: Math.round(RING_Y * r * Math.sin(angle)) }
     })
+    const halfW = Math.max(MISSION_BOX.w / 2, ...offsets.map(o => Math.abs(o.x) + CHILD_BOX.w / 2))
+    const top = Math.min(-MISSION_BOX.h / 2, ...offsets.map(o => o.y - CHILD_BOX.h / 2))
+    const bottom = Math.max(MISSION_BOX.h / 2, ...offsets.map(o => o.y + CHILD_BOX.h / 2))
+    return { mission, children, offsets, halfW, top, bottom }
   })
+  const PAD = 24
+  const colW = 2 * Math.max(...laid.map(l => l.halfW), MISSION_BOX.w / 2) + PAD
+  let rowTop = PAD
+  for (let start = 0; start < laid.length; start += columns) {
+    const row = laid.slice(start, start + columns)
+    const above = Math.max(...row.map(l => -l.top))
+    const below = Math.max(...row.map(l => l.bottom))
+    row.forEach(({ mission, children, offsets }, col) => {
+      const cx = colW / 2 + col * colW
+      const cy = rowTop + above
+      nodes.push({ id: `mission:${mission.id}`, kind: 'mission', missionId: mission.id, label: mission.title || 'Untitled mission', x: cx, y: cy, state: mission.state, detail: mission.finishLine })
+      children.forEach((child, i) => {
+        nodes.push({ id: child.id, kind: child.kind, missionId: mission.id, label: child.label, x: cx + offsets[i].x, y: cy + offsets[i].y })
+        edges.push({ from: `mission:${mission.id}`, to: child.id, label: child.edge, provenance: child.provenance })
+      })
+    })
+    rowTop += above + below + PAD
+  }
 
-  const rows = Math.max(1, Math.ceil(ordered.length / columns))
-  return { nodes, edges, width: columns * cell, height: rows * cell }
+  return { nodes, edges, width: Math.min(columns, Math.max(1, laid.length)) * colW, height: Math.max(rowTop, MISSION_BOX.h + 2 * PAD) }
 }

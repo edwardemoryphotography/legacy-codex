@@ -91,6 +91,7 @@ describe('TerritoryTab', () => {
     db.events = { data: [{ mission_id: 'm1', type: 'capacity_mismatch_reported', detail: 'reported capacity: low', created_at: '2026-01-03T00:00:00Z' }], error: null }
     render(<TerritoryTab />)
     expect(await screen.findByText(/low — mismatch reported/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'List' }))
     expect(screen.getByRole('heading', { name: /Active/ })).toBeTruthy()
     expect(screen.getByRole('heading', { name: /Paused/ })).toBeTruthy()
     expect(screen.getByText('parked')).toBeTruthy()
@@ -102,6 +103,7 @@ describe('TerritoryTab', () => {
     db.missions = [row({ blocker: 'waiting on lab' }), row({ id: 'm2', title: 'Other mission', state: 'secondary' })]
     const fetchMock = stubFetch()
     render(<TerritoryTab />)
+    fireEvent.click(await screen.findByRole('button', { name: 'List' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Open Primary mission' }))
     const breakWall = screen.getByRole('button', { name: 'Break Wall' })
     await waitFor(() => expect((breakWall as HTMLButtonElement).disabled).toBe(false))
@@ -121,6 +123,7 @@ describe('TerritoryTab', () => {
     db.events = { data: [], error: { message: 'network' } }
     render(<TerritoryTab />)
     expect(await screen.findByText(EVENTS_READ_FAILED_COPY)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'List' }))
     const card = screen.getByRole('button', { name: 'Open Primary mission' })
     expect(within(card).getByText('could not be read')).toBeTruthy()
   })

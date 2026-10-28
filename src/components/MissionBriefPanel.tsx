@@ -14,7 +14,7 @@ export const ACTIONS_READ_FAILED_COPY = 'Unfinished actions could not be read ri
 
 // /api/brief is owner-only. A visitor's 403 is an expected boundary, not a
 // failure: say so plainly, like Mission does for its owner-only review.
-export const BRIEF_VISITOR_COPY = 'Brief is only on Eddie’s account. Your missions are still saved privately.'
+export const BRIEF_VISITOR_COPY = 'Claude features only run on the owner account, and this browser’s account is not it, so nothing was sent. Your missions are still saved privately.'
 
 const MODE_LABELS: Partial<Record<BriefMode, string>> = { architect: 'Architect Scan', unblock: 'Break Wall', triage: 'Triage', question: 'Ask' }
 
@@ -58,6 +58,7 @@ export default function MissionBriefPanel({ mission, action, actionsRead, brief,
           </ActionBtn>
         )}
       </div>
+      {brief.visitor && <HelperLine>{BRIEF_VISITOR_COPY}</HelperLine>}
       <div className="mt-3">
         {walls.length > 1 ? (
           <>

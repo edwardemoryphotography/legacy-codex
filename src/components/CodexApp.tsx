@@ -43,7 +43,7 @@ const TABS: Tab[] = [
 // production. The rest are reference/occasional-use tools, one tap behind
 // "More". Adding a tab: give it an entry in TABS, then decide whether it
 // belongs in PRIMARY_TAB_IDS or is left to fall through to More.
-const PRIMARY_TAB_IDS: TabId[] = ['mission', 'codex', 'controls']
+const PRIMARY_TAB_IDS: TabId[] = ['mission', 'codex', 'territory']
 const PRIMARY_TABS = TABS.filter(tab => PRIMARY_TAB_IDS.includes(tab.id))
 const MORE_TABS = TABS.filter(tab => !PRIMARY_TAB_IDS.includes(tab.id))
 
@@ -71,6 +71,14 @@ function TabIcon({ tab }: { tab: TabId | 'more' }) {
           <path d="M4 7h3m4 0h9M4 17h9m4 0h3" />
           <circle cx="9" cy="7" r="2" />
           <circle cx="15" cy="17" r="2" />
+        </>
+      )}
+      {tab === 'territory' && (
+        <>
+          <circle cx="6" cy="7" r="2.2" />
+          <circle cx="18" cy="6" r="2.2" />
+          <circle cx="12" cy="17" r="2.6" />
+          <path d="M7.9 8.3 10.6 15M16.4 7.6l-3.1 7.4M8.2 7l7.6-.8" />
         </>
       )}
       {tab === 'more' && (
