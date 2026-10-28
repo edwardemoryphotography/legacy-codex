@@ -22,6 +22,16 @@ feature does not merge accounts. Failed reads block replacement. A changed
 session ID in another tab blocks stale account actions. Successful email sign-in
 reloads the app so account-specific in-memory state is read afresh.
 
+Quick captures are cached under `nd_inbox_v2:<userId>` and never restored from
+another account's cache, even when the destination has no captures. Before auth
+changes, the old `nd_inbox_v1` cache is copied to the original account and its
+raw record retained for recovery. With no known source session, it is quarantined
+under `nd_inbox_v2:unclaimed:legacy` instead of assigned to the destination. A
+persistent source binding also keeps late writes from older tabs on the original
+account. Failed preservation blocks account replacement. Force sync rejects
+captures absent from the current account's cache. Device sensory preferences
+remain browser-level.
+
 Only a confirmed email account gets Sign out (`scope: 'local'`, this browser
 only). Anonymous accounts have no sign-out control. Controls uses
 `connectMissionSession`; a failed session read never authorizes a replacement

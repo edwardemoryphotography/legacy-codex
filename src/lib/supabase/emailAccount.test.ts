@@ -2,6 +2,7 @@ import type { User } from '@supabase/supabase-js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AccountSwitchWarning, confirmConversion, confirmEmailSignIn, emailAccountMessage, sendConversionCode, sendSignInCode, signOutEmailAccount } from './emailAccount'
 import { connectMissionSession } from './missionSession'
+import { captureInboxKey, preserveLegacyCaptureInbox, readCaptureInbox } from '../captureCache'
 
 const mock = vi.hoisted(() => ({
   getSession: vi.fn(), updateUser: vi.fn(), verifyOtp: vi.fn(), signInWithOtp: vi.fn(), signOut: vi.fn(), signInAnonymously: vi.fn(),
@@ -14,6 +15,7 @@ const email = 'person@example.com'
 const permanent = { ...anon, is_anonymous: false, email, email_confirmed_at: '2026-10-27T00:00:00Z' } as User
 
 beforeEach(() => {
+  localStorage.clear()
   vi.resetAllMocks()
   mock.getSession.mockResolvedValue({ data: { session: { user: anon } }, error: null })
   mock.updateUser.mockResolvedValue({ data: { user: anon }, error: null })
@@ -112,6 +114,40 @@ describe('email accounts without changing ownership', () => {
     mock.getSession.mockResolvedValue({ data: { session: { user: permanent } }, error: null })
     await signOutEmailAccount(permanent.id)
     expect(mock.signOut).toHaveBeenCalledWith({ scope: 'local' })
+  })
+
+  it('preserves the legacy capture cache under the source id before signing out', async () => {
+    const capture = { id: 'old-capture', text: 'Private capture', timestamp: '2026-10-27' }
+    localStorage.setItem('nd_inbox_v1', JSON.stringify([capture]))
+    mock.getSession.mockResolvedValue({ data: { session: { user: permanent } }, error: null })
+    await signOutEmailAccount(permanent.id)
+    expect(readCaptureInbox(permanent.id)).toEqual([capture])
+    expect(localStorage.getItem('nd_inbox_v1')).toBeNull()
+    expect(localStorage.getItem(captureInboxKey(permanent.id))).toContain('Private capture')
+  })
+
+  it('quarantines unowned legacy captures before signing in without a session', async () => {
+    localStorage.setItem('nd_inbox_v1', JSON.stringify([{ id: 'unknown', text: 'Unowned capture' }]))
+    mock.getSession.mockResolvedValue({ data: { session: null }, error: null })
+    await sendSignInCode(email, null, false)
+    expect(localStorage.getItem('nd_inbox_v1')).toBeNull()
+    expect(localStorage.getItem('nd_inbox_v2:unclaimed:legacy')).toContain('Unowned capture')
+    expect(readCaptureInbox(permanent.id)).toEqual([])
+  })
+
+  it('blocks an account switch if the original capture cache cannot be preserved', async () => {
+    localStorage.setItem('nd_inbox_v1', 'malformed but preserved')
+    await expect(sendSignInCode(email, anon.id, true)).rejects.toThrow('Could not preserve')
+    expect(mock.signInWithOtp).not.toHaveBeenCalled()
+    expect(localStorage.getItem('nd_inbox_v1')).toBe('malformed but preserved')
+  })
+
+  it('keeps late writes from an older tab bound to the original source account', () => {
+    preserveLegacyCaptureInbox(anon.id)
+    localStorage.setItem('nd_inbox_v1', JSON.stringify([{ id: 'late', text: 'Older tab capture' }]))
+    preserveLegacyCaptureInbox('destination-account')
+    expect(readCaptureInbox(anon.id)[0].text).toBe('Older tab capture')
+    expect(readCaptureInbox('destination-account')).toEqual([])
   })
 
   it.each(['updateUser', 'verifyOtp', 'signInWithOtp', 'signOut'] as const)('does not swallow %s failures', async method => {

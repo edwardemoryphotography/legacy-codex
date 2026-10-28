@@ -1,5 +1,6 @@
 import type { User } from '@supabase/supabase-js'
 import { supabase } from './client'
+import { preserveLegacyCaptureInbox } from '../captureCache'
 
 let pending: Promise<User> | null = null
 
@@ -10,7 +11,11 @@ export function connectMissionSession(): Promise<User> {
   pending = (async () => {
     const { data: { session }, error } = await supabase.auth.getSession()
     if (error) throw error
-    if (session?.user) return session.user
+    if (session?.user) {
+      preserveLegacyCaptureInbox(session.user.id)
+      return session.user
+    }
+    preserveLegacyCaptureInbox(null)
     const { data, error: signInError } = await supabase.auth.signInAnonymously()
     if (signInError) throw signInError
     if (!data.user) throw new Error('No session returned')

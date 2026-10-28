@@ -1,5 +1,6 @@
 import type { User } from '@supabase/supabase-js'
 import { supabase } from './client'
+import { preserveLegacyCaptureInbox } from '../captureCache'
 
 export class AccountSwitchWarning extends Error {
   constructor() {
@@ -16,6 +17,7 @@ async function currentAccount(expectedId: string | null): Promise<User | null> {
   if ((user?.id ?? null) !== expectedId) {
     throw new Error('Your account changed in another tab. Reload this page before continuing.')
   }
+  preserveLegacyCaptureInbox(user?.id ?? null)
   return user
 }
 
@@ -90,6 +92,6 @@ export function emailAccountMessage(error: unknown): string {
   if (detail.code === 'signup_disabled') return 'No email account was found. In the browser with your missions, add and confirm this email first.'
   // Only expose our own plain-language messages, never raw provider responses.
   if (error instanceof Error && !('status' in error) && !('code' in error)
-    && /^(Your account changed|Reload this page|Could not confirm|Your email is not|Could not check|You are already|Email sign-in was not|Add and confirm)/.test(error.message)) return error.message
+    && /^(Your account changed|Reload this page|Could not confirm|Could not preserve|Your email is not|Could not check|You are already|Email sign-in was not|Add and confirm)/.test(error.message)) return error.message
   return 'Could not reach the account service. Keep this browser’s saved data and try again.'
 }
