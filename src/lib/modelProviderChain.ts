@@ -37,6 +37,8 @@ export interface TextGenerationRequest {
 export interface TextGenerationResult {
   text: string
   provider: ModelProviderId
+  model: string
+  fallbacks: Array<{ provider: ModelProviderId; reason: string }>
 }
 
 export interface ReviewStepRequest {
@@ -88,8 +90,9 @@ async function callGeminiText(req: TextGenerationRequest, timeoutMs: number): Pr
   )
   if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`)
   const data = (await res.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+    candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string }> } }>
   }
+  if (data.candidates?.[0]?.finishReason && data.candidates[0].finishReason !== 'STOP') throw new Error('Invalid model response')
   const parts = data.candidates?.[0]?.content?.parts ?? []
   return parts
     .map(p => (typeof p.text === 'string' ? p.text : ''))
@@ -119,8 +122,9 @@ async function callOpenAIText(req: TextGenerationRequest, timeoutMs: number): Pr
   })
   if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`)
   const data = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string | null } }>
+    choices?: Array<{ finish_reason?: string; message?: { content?: string | null } }>
   }
+  if (data.choices?.[0]?.finish_reason && data.choices[0].finish_reason !== 'stop') throw new Error('Invalid model response')
   return (data.choices?.[0]?.message?.content ?? '').trim()
 }
 
@@ -137,11 +141,14 @@ export async function runProviderChainText(req: TextGenerationRequest): Promise<
 
   const deadlineAt = req.deadlineAt ?? Date.now() + (req.timeoutMs ?? 45_000)
   let lastError: unknown = null
+  const fallbacks: TextGenerationResult['fallbacks'] = []
   for (let i = 0; i < providers.length; i += 1) {
     const provider = providers[i]!
     const remainingProviders = providers.length - i
     try {
       const attemptTimeoutMs = nextAttemptTimeoutMs(deadlineAt, remainingProviders, req.timeoutMs ?? 25_000)
+      let text: string
+      let model: string
       if (provider === 'anthropic') {
         const client = new Anthropic({ maxRetries: 0, timeout: attemptTimeoutMs })
         const response = await client.messages.create({
@@ -150,23 +157,31 @@ export async function runProviderChainText(req: TextGenerationRequest): Promise<
           system: req.system,
           messages: [{ role: 'user', content: req.userContent }],
         })
-        const text = response.content
+        if (response.stop_reason && response.stop_reason !== 'end_turn') throw new Error('Invalid model response')
+        text = response.content
           .filter((block): block is Anthropic.TextBlock => block.type === 'text')
           .map(block => block.text)
           .join(' ')
           .trim()
-        return { text, provider: 'anthropic' }
+        model = ANTHROPIC_MODEL
+      } else if (provider === 'gemini') {
+        text = await callGeminiText(req, attemptTimeoutMs)
+        model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL
+      } else {
+        text = await callOpenAIText(req, attemptTimeoutMs)
+        model = process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL
       }
-      if (provider === 'gemini') {
-        const text = await callGeminiText(req, attemptTimeoutMs)
-        return { text, provider: 'gemini' }
-      }
-      if (provider === 'openai') {
-        const text = await callOpenAIText(req, attemptTimeoutMs)
-        return { text, provider: 'openai' }
-      }
+      if (!text) throw new Error('Invalid model response')
+      return { text, provider, model, fallbacks }
     } catch (err) {
       lastError = err
+      const status = err && typeof err === 'object' && 'status' in err ? err.status : undefined
+      const message = err instanceof Error ? err.message : ''
+      const reason = status === 429 || /HTTP 429/.test(message) ? 'rate limited'
+        : /timeout|deadline|abort/i.test(message) ? 'timed out'
+          : message === 'Invalid model response' ? 'empty or incomplete response' : 'unavailable'
+      fallbacks.push({ provider, reason })
+      console.warn('Model provider failed', { provider, reason })
     }
   }
   throw lastError ?? new Error('All configured model providers failed')

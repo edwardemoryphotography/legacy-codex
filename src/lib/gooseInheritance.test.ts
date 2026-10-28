@@ -17,7 +17,9 @@ describe('Goose inheritance boundaries', () => {
     for (const surface of ['analyze', 'brief', 'delta-operation']) {
       const code = readFileSync(`src/app/api/${surface}/route.ts`, 'utf8')
       expect(code).toContain('loadLearnedContext')
-      expect(code.indexOf('await loadLearnedContext')).toBeLessThan(code.indexOf('client.messages.create'))
+      const providerCall = surface === 'brief' ? 'await runProviderChainText' : 'client.messages.create'
+      expect(code.indexOf(providerCall)).toBeGreaterThan(0)
+      expect(code.indexOf('await loadLearnedContext')).toBeLessThan(code.indexOf(providerCall))
     }
   })
   it('recognizes conservative lexical variants without dropping negation or object order', () => {

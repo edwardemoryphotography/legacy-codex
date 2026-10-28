@@ -1,13 +1,13 @@
 import { loadLearnedContext, MISSION_UUID } from '@/lib/learnedContextServer'
-import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { ARCHITECT_SCAN_SYSTEM_PROMPT, BREAK_WALL_SYSTEM_PROMPT, DAILY_BRIEF_SYSTEM_PROMPT } from '@/lib/cognitiveDoctrine'
 import { buildBriefDirective, MAX_FIELD_LENGTH, parseBriefTarget, presentBriefText, SINGLE_MISSION_MODES, type BriefMissionContext, type BriefMode, type BriefTarget } from '@/lib/dailyBrief'
 import { deltaOwner } from '@/lib/supabase/deltaAuth'
+import { isModelChainConfigured, runProviderChainText } from '@/lib/modelProviderChain'
 
 export const runtime = 'nodejs'
 
-const MODEL = 'claude-opus-5'
+export const maxDuration = 60
 const MAX_MISSIONS = 40
 const MODES: BriefMode[] = ['daily_brief', 'triage', 'question', 'architect', 'unblock']
 const SYSTEM_PROMPTS: Record<BriefMode, string> = {
@@ -19,7 +19,7 @@ const SYSTEM_PROMPTS: Record<BriefMode, string> = {
 }
 
 export async function GET() {
-  return NextResponse.json({ configured: Boolean(process.env.ANTHROPIC_API_KEY) })
+  return NextResponse.json({ configured: isModelChainConfigured() })
 }
 
 export async function POST(req: NextRequest) {
@@ -29,9 +29,9 @@ export async function POST(req: NextRequest) {
   // account that is not the configured owner — both before any model call.
   const owner = await deltaOwner(req)
   if ('response' in owner) return owner.response
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!isModelChainConfigured()) {
     return NextResponse.json(
-      { error: 'Set ANTHROPIC_API_KEY on the server to enable Daily Brief.' },
+      { error: 'No model provider is configured on the server for Daily Brief.' },
       { status: 503 },
     )
   }
@@ -100,21 +100,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const learnedContext = await loadLearnedContext(owner.url, req.headers.get('Authorization') ?? '', owner.userId, Array.isArray(missionIds) ? missionIds.filter((id): id is string => typeof id === 'string') : [])
-    const client = new Anthropic()
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 1024,
+    const response = await runProviderChainText({
+      maxTokens: 1024,
       system: SYSTEM_PROMPTS[mode as BriefMode],
-      messages: [{ role: 'user', content: `${directive}\n\n${learnedContext}` }],
+      userContent: `${directive}\n\n${learnedContext}`,
+      timeoutMs: 40_000,
     })
 
-    const text = response.content
-      .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-      .map(block => block.text)
-      .join('\n')
-      .trim()
-
-    return NextResponse.json({ text: presentBriefText(mode as BriefMode, text) })
+    return NextResponse.json({ text: presentBriefText(mode as BriefMode, response.text), provider: response.provider, model: response.model, fallbacks: response.fallbacks })
   } catch {
     console.error('/api/brief failed [learning-or-provider]')
     return NextResponse.json({ error: 'Daily Brief unavailable: saved learning or the model could not be read. Retry without replacing your saved work.' }, { status: 503 })

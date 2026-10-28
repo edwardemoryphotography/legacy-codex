@@ -20,6 +20,10 @@ try {
     auth: {
       getSession: async () => ({ data: { session: null }, error: null }),
       signInAnonymously: async () => ({ data: { user: null }, error: new Error('Supabase not configured') }),
+      updateUser: async () => ({ data: { user: null }, error: new Error('Supabase not configured') }),
+      signInWithOtp: async () => ({ error: new Error('Supabase not configured') }),
+      verifyOtp: async () => ({ data: { user: null, session: null }, error: new Error('Supabase not configured') }),
+      signOut: async () => ({ error: new Error('Supabase not configured') }),
     },
     from: () => ({
       select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }), order: () => ({ limit: async () => ({ data: [], error: null }) }) }) }),

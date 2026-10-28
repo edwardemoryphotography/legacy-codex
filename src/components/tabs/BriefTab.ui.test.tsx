@@ -71,6 +71,18 @@ describe('BriefTab Architect Scan and Break Wall', () => {
     db.actions = { data: [], error: null }
   })
 
+  it('shows the answering provider and fallback reason, then clears them with a new mission selection', async () => {
+    db.missions = [missionRow, { ...missionRow, id: 'mission-2', title: 'Second mission' }]
+    stubFetch(200, { text: 'A provider answer.', provider: 'openai', model: 'gpt-4o', fallbacks: [{ provider: 'anthropic', reason: 'rate limited' }] })
+    render(<BriefTab />)
+    const button = await screen.findByRole('button', { name: 'Daily Brief' })
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(button)
+    expect(await screen.findByText('OpenAI · gpt-4o · Fallback: Claude rate limited')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('One mission'), { target: { value: 'mission-2' } })
+    expect(screen.queryByText(/Fallback: Claude/)).toBeNull()
+  })
+
   it('disables Break Wall with Unknown copy when nothing is saved to break', async () => {
     stubFetch(200, { text: 'ok' })
     render(<BriefTab />)
