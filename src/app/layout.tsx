@@ -5,6 +5,7 @@ import './globals.css'
 import './atmosphere.css'
 import './control-panel.css'
 import './mission-assistance.css'
+import './aurora-presence.css'
 import { THEME_BOOT_SCRIPT } from '@/lib/themeReview'
 
 export const metadata: Metadata = {

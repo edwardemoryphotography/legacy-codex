@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import CognitionField from '@/components/CognitionField'
+import { orbPresentation } from '@/lib/orbPresentation'
 import { useMotionAllowed } from '@/hooks/useMotionAllowed'
 
 export type OrbCognition = {
@@ -186,10 +187,12 @@ export function PersistentOrb() {
 
   if (!host) return null
   const live = host.cognition ?? RESTING
+  const presentation = orbPresentation({ ...live, interaction: host.interaction })
   return (
     <div
       ref={nodeRef}
       className="sd sd-orb-host"
+      data-orb-state={presentation.state}
       data-cognition={live.cognition}
       data-provenance={live.provenance}
       data-recording={live.recording ? 'true' : undefined}
@@ -197,6 +200,7 @@ export function PersistentOrb() {
       data-interaction={host.interaction}
     >
       <CognitionField />
+      <span className="orb-status" role="status" aria-live="polite" aria-atomic="true">{presentation.label}</span>
     </div>
   )
 }
