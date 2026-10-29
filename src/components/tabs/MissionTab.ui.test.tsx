@@ -637,6 +637,18 @@ describe('MissionTab project-review access', () => {
     expect(screen.getByRole('button', { name: 'Review project' })).toBeTruthy()
   })
 
+  it('shows saved historical review for a blocked primary without turning it into an action', async () => {
+    tables.missions = [missionToRow({ ...mission, blocker: 'Waiting for access' }, 'user-1')]
+    const history = { reviewedAt: '2020-01-01T00:00:00Z', finishLine: 'Earlier goal', operation: 'Earlier proposal', sources: [] }
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => String(url).includes('capabilities=1')
+      ? respond(200, { configured: false }) : respond(200, { review: null, previousReview: history, lessons: [] })))
+    render(<MissionTab />)
+    fireEvent.click(await screen.findByText('Last saved project review'))
+    expect(screen.getByText(/Historical proposal, not a current recommendation or accepted action/)).toBeTruthy()
+    expect(screen.getByText('Proposed next move: Earlier proposal')).toBeTruthy()
+    expect(inserts.some(i => i.table === 'actions')).toBe(false)
+  })
+
   it('a failed review restore for the owner is a quiet note, not "This did not record"', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => String(url).includes('capabilities=1')
       ? respond(200, { configured: false })

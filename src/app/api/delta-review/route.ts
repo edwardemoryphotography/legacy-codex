@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { historicalReview } from '@/lib/reviewHistory'
 import { NextRequest, NextResponse } from 'next/server'
 import { PROJECT_REVIEW_OUTPUT, PROJECT_REVIEW_RULES } from '@/lib/projectReviewPrompt'
 import { deltaReviewer } from '@/lib/supabase/deltaAuth'
@@ -26,7 +27,10 @@ export async function GET(req: NextRequest) {
   try {
     const client = projectUserClient(owner.url, req.headers.get('Authorization') ?? '')
     const context = await loadProjectContext(client, owner.userId, missionId)
-    return NextResponse.json({ review: projectIsReviewable(context) ? await cachedProjectReview(client, owner.userId, context) : null, lessons: context.lessons }, { headers: { 'Cache-Control': 'no-store' } })
+    const history = await client.from('mission_events').select('detail').eq('user_id', owner.userId).eq('mission_id', missionId).eq('type', 'delta_reviewed').order('created_at', { ascending: false }).limit(1)
+    if (history.error) throw new Error('Could not read review history.')
+    const previousReview = history.data?.[0] ? historicalReview(history.data[0].detail, missionId) : null
+    return NextResponse.json({ previousReview, review: projectIsReviewable(context) ? await cachedProjectReview(client, owner.userId, context) : null, lessons: context.lessons }, { headers: { 'Cache-Control': 'no-store' } })
   } catch {
     return NextResponse.json({ error: 'Could not restore the project review. Your saved work is unchanged.' }, { status: 503 })
   }

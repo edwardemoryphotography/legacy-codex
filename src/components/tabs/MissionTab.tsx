@@ -1,5 +1,7 @@
 'use client'
 
+import { historicalReview, type HistoricalReview } from '@/lib/reviewHistory'
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
@@ -387,6 +389,7 @@ export default function MissionTab() {
   const [projectReviewNotice, setProjectReviewNotice] = useState<string | null>(null)
   const [lessonNotice, setLessonNotice] = useState('')
   const [projectReview, setProjectReview] = useState<ProjectReview | null>(null)
+  const [previousReview, setPreviousReview] = useState<HistoricalReview | null>(null)
   const [projectReviewBusy, setProjectReviewBusy] = useState(false)
   const [projectReviewError, setProjectReviewError] = useState<string | null>(null)
   const [reviewRevision, setReviewRevision] = useState(0)
@@ -921,10 +924,11 @@ export default function MissionTab() {
         body: JSON.stringify(request),
         signal: AbortSignal.timeout(110_000),
       })
-      const data = await response.json() as { review?: ProjectReview | null; lessons?: ConfirmedLesson[]; error?: string }
+      const data = await response.json() as { review?: ProjectReview | null; previousReview?: HistoricalReview | null; lessons?: ConfirmedLesson[]; error?: string }
       if (!response.ok) throw new Error(data.error || 'Project review could not complete.')
       if (generation === reviewGeneration.current) {
         setProjectReview(data.review ?? null)
+        if (data.review) setPreviousReview(historicalReview(JSON.stringify(data.review), request.missionId))
         setConfirmedLessons(data.lessons ?? [])
         return Boolean(data.review)
       }
@@ -974,11 +978,12 @@ export default function MissionTab() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setProjectReview(null)
     setConfirmedLessons([])
+    setPreviousReview(null)
     setProjectReviewError(null)
     setProjectReviewNotice(null)
     const primary = findByState(board, 'primary')
     const secondary = findByState(board, 'secondary')
-    const target = primary && !primary.blocker && !primary.capacityMismatch ? primary : secondary
+    const target = primary && !primary.blocker && !primary.capacityMismatch ? primary : secondary ?? primary
     // Cached reasoning and human-confirmed lessons need no provider key.
     // Keep reading/retirement available when generation is unavailable.
     if (!loaded || loadFailed || !user || !target) return
@@ -991,10 +996,11 @@ export default function MissionTab() {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         if (sessionError || !session) throw new Error('Session unavailable.')
         const response = await fetch(`/api/delta-review?missionId=${encodeURIComponent(target.id)}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
-        const data = await response.json() as { review?: ProjectReview | null; lessons?: ConfirmedLesson[]; error?: string }
+        const data = await response.json() as { review?: ProjectReview | null; previousReview?: HistoricalReview | null; lessons?: ConfirmedLesson[]; error?: string }
         if (!response.ok) throw new Error(data.error || 'Could not restore the project review.')
         if (!cancelled && generation === reviewGeneration.current) {
           setProjectReview(data.review ?? null)
+          setPreviousReview(data.previousReview ?? null)
           setConfirmedLessons(data.lessons ?? [])
         }
       } catch {
@@ -1762,6 +1768,14 @@ export default function MissionTab() {
           </form>
         ) : null}
       </StrategicDelta>
+      {previousReview && <details className="sd-project-review">
+        <summary>Last saved project review</summary>
+        <p>Saved {new Date(previousReview.reviewedAt).toLocaleString()} · Historical proposal, not a current recommendation or accepted action.</p>
+        <p>Finish line at the time: {previousReview.finishLine}</p>
+        <p>Proposed next move: {previousReview.operation ?? 'No move proposed'}</p>
+        {previousReview.sources.length > 0 && <p>Sources: {previousReview.sources.map(source => source.label).join(', ')}</p>}
+        <p>Review the current project before acting on this earlier proposal.</p>
+      </details>}
 
       {lessonNotice && <p role="status" className="mission-status">{lessonNotice}</p>}
 
