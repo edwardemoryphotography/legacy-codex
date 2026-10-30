@@ -5,6 +5,7 @@ import HomeTab, { promptHelpQuestion } from './HomeTab'
 
 const run = vi.fn(async () => {})
 let voiceWrite: (value: string) => void = () => {}
+let voiceActive = false
 
 vi.mock('@/lib/supabase/client', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: null } }) } } }))
 vi.mock('@/hooks/useMissionTerritory', () => ({ useMissionTerritory: () => ({ missions: [{ id: 'm1', title: 'Real mission', state: 'primary' }], loadError: null }) }))
@@ -12,7 +13,7 @@ vi.mock('@/hooks/useBriefRunner', () => ({ useBriefRunner: () => ({ configured: 
 vi.mock('@/hooks/useTaskVoice', () => ({
   useTaskVoice: (_value: string, onChange: (value: string) => void) => {
     voiceWrite = onChange
-    return { phase: 'idle', status: '', toggle: () => {}, cancel: () => {}, active: false }
+    return { phase: voiceActive ? 'listening' : 'idle', status: '', toggle: () => {}, cancel: () => {}, active: voiceActive }
   },
 }))
 vi.mock('@/components/OrbHost', () => ({
@@ -22,7 +23,7 @@ vi.mock('@/components/OrbHost', () => ({
   useOrbPresentation: () => ({ state: 'idle', label: '' }),
 }))
 
-afterEach(() => { cleanup(); run.mockClear() })
+afterEach(() => { cleanup(); run.mockClear(); voiceActive = false })
 
 describe('promptHelpQuestion', () => {
   it('stays within the 400-character question limit /api/brief enforces', () => {
@@ -56,5 +57,13 @@ describe('HomeTab never cuts a question silently', () => {
     fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'What is my next move?' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     expect(run).toHaveBeenCalledWith('question', expect.objectContaining({ question: 'What is my next move?' }), 'Ask Claude')
+  })
+
+  it('keeps Stop available while dictating, even once words arrive', () => {
+    voiceActive = true
+    render(<HomeTab onNavigate={() => {}} />)
+    act(() => voiceWrite('half a thought'))
+    expect(screen.getByRole('button', { name: 'Stop voice input' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument()
   })
 })

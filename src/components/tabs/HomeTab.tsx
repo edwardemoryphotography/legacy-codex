@@ -180,7 +180,8 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
             enterKeyHint="send"
             maxLength={QUESTION_LIMIT}
           />
-          {ready ? (
+          {/* While dictating, the mic stays a Stop control: Send waits until voice ends. */}
+          {ready && !voice.active ? (
             <button type="button" className="glass-round glass-go" data-ready="true" aria-label="Send" onClick={send}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
             </button>
