@@ -207,6 +207,14 @@ export function PersistentOrb() {
   )
 }
 
+/** What the one orb is showing right now, for a visible label beside it.
+ *  Same source as the host's live status, so the two can never disagree. */
+export function useOrbPresentation() {
+  const host = useContext(OrbHostContext)
+  const live = host?.cognition ?? RESTING
+  return orbPresentation({ ...live, interaction: host?.interaction ?? 'ambient' })
+}
+
 /** Composer presence is separate from cognition: listening is not reasoning. */
 export function useOrbInteraction(interaction: OrbHostValue['interaction']) {
   const publish = useContext(OrbHostContext)?.setInteraction

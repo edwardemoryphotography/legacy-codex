@@ -6,6 +6,9 @@ import './atmosphere.css'
 import './control-panel.css'
 import './mission-assistance.css'
 import './aurora-presence.css'
+import '@fontsource-variable/bricolage-grotesque/wght.css'
+import '@fontsource-variable/figtree/wght.css'
+import './codex-glass.css'
 import { THEME_BOOT_SCRIPT } from '@/lib/themeReview'
 
 export const metadata: Metadata = {

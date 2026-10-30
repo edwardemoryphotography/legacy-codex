@@ -84,6 +84,7 @@ export interface CodexSection {
 
 // ─── Tab IDs ──────────────────────────────────────────────────
 export type TabId =
+  | 'home'
   | 'mission'
   | 'overview'
   | 'protocols'

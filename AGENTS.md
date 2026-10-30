@@ -91,7 +91,7 @@ The root app uses Next.js 16.3.0 and `next.config.mjs`. Do not create a competin
 
 `src/app/page.tsx` is a server component that simply renders `<CodexApp />`. All real logic lives in `src/components/CodexApp.tsx`, a `'use client'` component.
 
-`CodexApp` owns a single piece of state: `activeTab: TabId`. It renders the tablist and conditionally mounts the matching tab component. Tabs are independent except for explicit shared hooks/components such as the capture pipeline and Mission's next-move panel. Adding a tab requires: (1) adding a `TabId` in `src/types/index.ts`, (2) adding an entry to the `TABS` array in `CodexApp.tsx`, and (3) creating the tab component and wiring it in the conditional render block.
+`CodexApp` owns a single piece of state: `activeTab: TabId`, defaulting to `home`, the Codex Glass screen (`src/components/tabs/HomeTab.tsx`, styles in `src/app/codex-glass.css`; Eddie's board, 2026-10-30). There is no tab bar: the top-left menu button opens one sheet listing every screen, and the shell conditionally mounts the matching tab component. Home's chips and pill call the existing owner-gated `/api/brief` modes and the existing voice input; nothing on it is timed or simulated. Tabs are independent except for explicit shared hooks/components such as the capture pipeline and Mission's next-move panel. Adding a screen requires: (1) adding a `TabId` in `src/types/index.ts`, (2) adding an entry to the `TABS` array in `CodexApp.tsx` (that is the menu), and (3) creating the component and wiring it in the conditional render block.
 
 ### State persistence via `useLocalStorage`
 
