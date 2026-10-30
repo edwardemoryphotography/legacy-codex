@@ -211,6 +211,8 @@ export class OrbRenderer {
       this.canvas.width = w
       this.canvas.height = h
       gl.viewport(0, 0, w, h)
+      // Codex patch: resizing clears the buffer, and a still orb has no loop to repaint it.
+      if (this.config.still && !this.running) this.draw(6, 6, 0, 0, 0)
     }
   }
 
