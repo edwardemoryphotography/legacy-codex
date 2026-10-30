@@ -62,7 +62,8 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
   const [tool, setTool] = useState<Tool | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const input = useRef<HTMLInputElement>(null)
-  const voice = useTaskVoice(text, setText)
+  // Voice writes programmatically, past the input's maxLength, so clamp it here too.
+  const voice = useTaskVoice(text, next => setText(next.slice(0, QUESTION_LIMIT)))
 
   const busy = brief.status === 'running'
   useOrbCognition({
@@ -81,7 +82,10 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
 
   const missionCount = missions?.length ?? 0
   const noTextNeeded = tool === 'brief' || tool === 'triage'
-  const ready = !busy && (noTextNeeded || text.trim() !== '')
+  // Prompt help spends part of the 400 characters on its instruction.
+  const limit = tool === 'prompt' ? QUESTION_LIMIT - PROMPT_HELP.length : QUESTION_LIMIT
+  const over = !noTextNeeded && text.length > limit
+  const ready = !busy && !over && (noTextNeeded || text.trim() !== '')
 
   const pick = (next: Tool) => {
     setTool(next)
@@ -96,7 +100,7 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
     if (tool === 'brief') void brief.run('daily_brief', { mode: 'daily_brief', ...roster }, 'Daily Brief')
     else if (tool === 'triage') void brief.run('triage', { mode: 'triage', ...roster }, 'Triage')
     else if (tool === 'prompt') void brief.run('question', { mode: 'question', question: promptHelpQuestion(q), ...roster }, 'Prompt help')
-    else void brief.run('question', { mode: 'question', question: q.slice(0, QUESTION_LIMIT), ...roster }, 'Ask Claude')
+    else void brief.run('question', { mode: 'question', question: q, ...roster }, 'Ask Claude')
     voice.cancel()
     setText('')
     setTool(null)
@@ -112,6 +116,8 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
     : brief.visitor ? BRIEF_VISITOR_COPY
     : !brief.configured ? 'AI is not configured on the server yet.'
     : busy ? 'Working on it'
+    : over ? `Too long to send: shorten it to ${limit} characters (now ${text.length}).`
+    : !noTextNeeded && text.length === limit ? `Character limit reached (${limit}).`
     : voice.status
 
   return (
