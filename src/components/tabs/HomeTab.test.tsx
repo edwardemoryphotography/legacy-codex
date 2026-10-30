@@ -6,9 +6,10 @@ import HomeTab, { promptHelpQuestion } from './HomeTab'
 const run = vi.fn(async () => {})
 let voiceWrite: (value: string) => void = () => {}
 let voiceActive = false
+let missions: { id: string; title: string; state: string }[] = [{ id: 'm1', title: 'Real mission', state: 'primary' }]
 
 vi.mock('@/lib/supabase/client', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: null } }) } } }))
-vi.mock('@/hooks/useMissionTerritory', () => ({ useMissionTerritory: () => ({ missions: [{ id: 'm1', title: 'Real mission', state: 'primary' }], loadError: null }) }))
+vi.mock('@/hooks/useMissionTerritory', () => ({ useMissionTerritory: () => ({ missions, loadError: null }) }))
 vi.mock('@/hooks/useBriefRunner', () => ({ useBriefRunner: () => ({ configured: true, visitor: false, status: 'idle', activeMode: null, output: '', outputLabel: '', providerLabel: '', run, reset: () => {} }) }))
 vi.mock('@/hooks/useTaskVoice', () => ({
   useTaskVoice: (_value: string, onChange: (value: string) => void) => {
@@ -23,7 +24,7 @@ vi.mock('@/components/OrbHost', () => ({
   useOrbPresentation: () => ({ state: 'idle', label: '' }),
 }))
 
-afterEach(() => { cleanup(); run.mockClear(); voiceActive = false })
+afterEach(() => { cleanup(); run.mockClear(); voiceActive = false; missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }] })
 
 describe('promptHelpQuestion', () => {
   it('stays within the 400-character question limit /api/brief enforces', () => {
@@ -76,5 +77,15 @@ describe('HomeTab never cuts a question silently', () => {
     expect(input).toHaveValue('次の一歩')
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(run).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('HomeTab send arrow', () => {
+  it('does not light up when there is no mission to send with, and says why', () => {
+    missions = []
+    render(<HomeTab onNavigate={() => {}} />)
+    fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'Hey' } })
+    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument()
+    expect(screen.getByText('Add a mission first: open the menu, then Mission.')).toBeInTheDocument()
   })
 })

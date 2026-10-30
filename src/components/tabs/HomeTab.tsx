@@ -85,7 +85,8 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
   // Prompt help spends part of the 400 characters on its instruction.
   const limit = tool === 'prompt' ? QUESTION_LIMIT - PROMPT_HELP.length : QUESTION_LIMIT
   const over = !noTextNeeded && text.length > limit
-  const ready = !busy && !over && (noTextNeeded || text.trim() !== '')
+  // The send arrow only lights when a send can actually go out; the note says why otherwise.
+  const ready = !busy && !over && missionCount > 0 && brief.configured && (noTextNeeded || text.trim() !== '')
 
   const pick = (next: Tool) => {
     setTool(next)
@@ -94,7 +95,7 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
   }
 
   const send = () => {
-    if (!ready || !missions || missionCount === 0 || !brief.configured) return
+    if (!ready || !missions) return
     const roster = { missions: missionsToBriefContext(missions), missionIds: missions.slice(0, 40).map(m => m.id) }
     const q = text.trim()
     if (tool === 'brief') void brief.run('daily_brief', { mode: 'daily_brief', ...roster }, 'Daily Brief')
