@@ -66,4 +66,15 @@ describe('HomeTab never cuts a question silently', () => {
     expect(screen.getByRole('button', { name: 'Stop voice input' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument()
   })
+
+  it('does not send when Enter only confirms an IME composition', () => {
+    render(<HomeTab onNavigate={() => {}} />)
+    const input = screen.getByLabelText('Ask Codex')
+    fireEvent.change(input, { target: { value: '次の一歩' } })
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 229 })
+    expect(run).not.toHaveBeenCalled()
+    expect(input).toHaveValue('次の一歩')
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(run).toHaveBeenCalledTimes(1)
+  })
 })

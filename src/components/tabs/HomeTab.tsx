@@ -107,6 +107,8 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    // Enter while an IME (Chinese, Japanese, Korean) is composing picks a candidate; it must not send.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return
     if (event.key === 'Enter') { event.preventDefault(); send() }
   }
 
