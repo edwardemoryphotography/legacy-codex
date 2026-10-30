@@ -701,6 +701,72 @@ describe('MissionTab evidence after finish line exists', () => {
     const event = inserts.find(i => i.table === 'mission_events' && i.row.type === 'evidence_requirement_set')
     expect(event?.row.detail).toBe('A screenshot of the posted reference')
   })
+
+  it('keeps the Primary proof draft and writes no event when the save fails', async () => {
+    persistMissionRows = () => Promise.reject(new Error('write failed'))
+    render(<MissionTab />)
+    fireEvent.click(await screen.findByText('Review your Primary mission'))
+    const proof = await screen.findByLabelText('What will prove it is done')
+    fireEvent.change(proof, { target: { value: 'A screenshot of the posted reference' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Set proof' }))
+    })
+    expect(await screen.findByText(/Write failed/)).toBeTruthy()
+    expect((screen.getByLabelText('What will prove it is done') as HTMLInputElement).value).toBe('A screenshot of the posted reference')
+    expect(inserts.some(i => i.table === 'mission_events' && i.row.type === 'evidence_requirement_set')).toBe(false)
+  })
+
+  describe('parked missions', () => {
+    const provenPrimary: Mission = { ...lined, evidenceRequirement: 'The posted reference' }
+    const parkedLined: Mission = {
+      ...lined,
+      id: 'm2',
+      title: 'Frame the gallery prints',
+      finishLine: 'Twelve prints are framed and hung',
+      state: 'parked',
+    }
+    const parkedUnlined: Mission = { ...parkedLined, id: 'm3', title: 'Plan the zine', finishLine: null }
+    const PARKED_PROOF = 'What will prove it is done (optional)'
+    const PARKED_FINISH = 'Exact finish line…'
+
+    function seed(...parked: Mission[]) {
+      tables.missions = [provenPrimary, ...parked].map(m => ({ ...missionToRow(m, 'user-1'), created_at: m.createdAt }))
+    }
+
+    it('lets a parked lined mission set proof, writing the row and clearing the input', async () => {
+      seed(parkedLined)
+      render(<MissionTab />)
+      // Located by placeholder: the shared Input does not forward aria-label,
+      // so the `Evidence requirement for <title>` name never reaches the DOM.
+      const proof = await screen.findByPlaceholderText(PARKED_PROOF)
+      fireEvent.change(proof, { target: { value: 'A photo of the hung wall' } })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Set proof' }))
+      })
+      await waitFor(() => expect(inserts.some(i => i.table === 'missions' && i.row.id === 'm2' && i.row.evidence_requirement === 'A photo of the hung wall')).toBe(true))
+      const event = inserts.find(i => i.table === 'mission_events' && i.row.type === 'evidence_requirement_set')
+      expect(event?.row).toMatchObject({ mission_id: 'm2', detail: 'A photo of the hung wall' })
+      await waitFor(() => expect(screen.queryByPlaceholderText(PARKED_PROOF)).toBeNull())
+      expect(screen.getByText('Evidence required: A photo of the hung wall')).toBeTruthy()
+    })
+
+    it('keeps both finish-line and evidence drafts when a parked unlined save fails', async () => {
+      seed(parkedUnlined)
+      persistMissionRows = async () => ({ error: { message: 'write failed' } })
+      render(<MissionTab />)
+      const finish = await screen.findByPlaceholderText(PARKED_FINISH)
+      const proof = screen.getByPlaceholderText(PARKED_PROOF)
+      fireEvent.change(finish, { target: { value: 'The zine is printed' } })
+      fireEvent.change(proof, { target: { value: 'A printed copy on the desk' } })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Set' }))
+      })
+      expect(await screen.findByText(/Write failed/)).toBeTruthy()
+      expect((screen.getByPlaceholderText(PARKED_FINISH) as HTMLInputElement).value).toBe('The zine is printed')
+      expect((screen.getByPlaceholderText(PARKED_PROOF) as HTMLInputElement).value).toBe('A printed copy on the desk')
+      expect(inserts.some(i => i.table === 'mission_events')).toBe(false)
+    })
+  })
 })
 
 describe('MissionTab Vaughn Psych research paper journey', () => {
