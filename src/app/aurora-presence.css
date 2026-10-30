@@ -1,8 +1,25 @@
 /* Refine the canonical CSS field; no additional renderer or WebGL context. */
 .orb-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.orb-trigger { display: block; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; pointer-events: auto; }
+.orb-trigger:focus-visible { outline: 2px solid var(--sd-cyan); outline-offset: 6px; }
+.orb-trigger:disabled { cursor: default; pointer-events: none; }
+.boomerang-panel { margin-block: 20px; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); overflow-wrap: anywhere; }
+.boomerang-panel:focus { outline: 2px solid var(--sd-cyan); outline-offset: 3px; }
+.boomerang-panel h3 { margin: 4px 0 12px; font-size: 1.3rem; }
+.boomerang-panel h4 { margin: 18px 0 6px; font-size: 0.9rem; }
+.boomerang-panel p { margin-block: 10px; }
+.boomerang-eyebrow { color: var(--text-dim); font-size: 0.75rem; }
+.boomerang-verdict { color: var(--text-dim); font-size: 0.85rem; }
+.boomerang-sources { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.boomerang-sources blockquote { margin: 8px 0; padding-left: 12px; border-left: 2px solid var(--sd-cyan); white-space: pre-wrap; }
+.boomerang-comparison { margin-block: 18px; }
+.boomerang-panel summary { cursor: pointer; padding-block: 12px; }
+.boomerang-close { min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: transparent; color: var(--text); cursor: pointer; }
+@media (max-width: 600px) { .boomerang-sources { grid-template-columns: 1fr; } .boomerang-panel { padding: 16px; } }
 .sd-orb-host .sd-field { background: radial-gradient(ellipse at 25% 22%, #b4fff826, transparent 48%), radial-gradient(ellipse at 68% 72%, #9067e838, transparent 60%), radial-gradient(ellipse at 40% 58%, #19ba9424, transparent 65%); box-shadow: inset 0 0 36px #6c68da30, inset 0 0 0 1px #c6fff52b, inset 0 10px 20px #e3ffff0f; }
 .sd-orb-host .sd-field-ring { border-color: color-mix(in srgb, var(--sd-cyan) 28%, transparent); }
-.sd-orb-host[data-orb-state="blocked"] .sd-field *, .sd-orb-host[data-orb-state="ready"] .sd-field * { animation-play-state: paused; }
+/* Ambient motion survives ready/blocked states. The cognition selectors keep
+   processing cues state-bound; the accessibility rules below can stop motion. */
 :root[data-theme="light"] .sd-orb-host .sd-field { background: radial-gradient(ellipse at 32% 25%, #fffef9e6, transparent 58%), radial-gradient(ellipse at 70% 60%, #a69cec60, transparent 66%), radial-gradient(ellipse at 35% 70%, #48c6b84d, #eff8f5b3 74%); box-shadow: inset 0 0 30px #ffffffa3, inset 0 0 0 1px #386f7c42; }
 @media (prefers-reduced-motion: reduce) { .sd-orb-host .sd-field * { animation: none !important; transition: none !important; } }
 :root[data-reduced-motion="true"] .sd-orb-host .sd-field * { animation: none !important; transition: none !important; }

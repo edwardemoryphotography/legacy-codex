@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DeltaCandidate, DeltaCorrection, EvidenceRecord, Mission, StrategicDelta as Delta } from '@/types'
 import { candidateTargetsClause, operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
 import { ActionBtn, ActionChip, Textarea } from '@/components/ui'
 import { OrbSlot, useOrbCognition } from '@/components/OrbHost'
 import ProjectLearning, { type ConfirmLesson, type RetireLesson } from '@/components/ProjectLearning'
+import BoomerangPanel from '@/components/BoomerangPanel'
 import MissionAssistance from '@/components/MissionAssistance'
 import ReactMarkdown from 'react-markdown'
 import type { ConfirmedLesson, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
@@ -194,6 +195,8 @@ export default function StrategicDelta({
   const [now, setNow] = useState<string | null>(null)
   const [showPhaseText, setShowPhaseText] = useState(false)
   const [open, setOpen] = useState<OpenPanel>(null)
+  const [exploring, setExploring] = useState(false)
+  const toggleExploration = useCallback(() => setExploring(value => !value), [])
   const [correctionReason, setCorrectionReason] = useState('')
   const [changedNote, setChangedNote] = useState('')
   const [correcting, setCorrecting] = useState(false)
@@ -504,6 +507,8 @@ export default function StrategicDelta({
   const reviewTarget = primaryMission && !primaryMission.blocker && !primaryMission.capacityMismatch
     ? primaryMission
     : missions.find(m => m.state === 'secondary' && !m.blocker && !m.capacityMismatch) ?? null
+  // The orb must not silently switch from the displayed mission to a secondary.
+  const canExplore = Boolean(reviewTarget?.finishLine && delta?.missionId === reviewTarget.id)
   const proofSteps = delta?.proofSteps ?? []
   const assistHandler = projectReviewAvailable && requestProjectReview ? requestProjectReview : onAssistWithContext
   const canAssist = Boolean(
@@ -539,11 +544,11 @@ export default function StrategicDelta({
       aria-label="Your next move"
     >
       <div className="sd-stage">
-      <OrbSlot />
+      <OrbSlot action={canExplore ? { onActivate: toggleExploration, label: exploring ? 'Close mission exploration' : 'Explore this mission', expanded: exploring, disabled: pendingRead || !readAvailable } : undefined} />
       <div className="sd-copy">
       <header className="sd-identity">
         <h2>Your next move</h2>
-        <p className="sd-purpose">Only from what you have told Codex</p>
+        <p className="sd-purpose">{canExplore ? 'Tap the orb to explore this mission.' : 'Only from what you have told Codex'}</p>
       </header>
       {!pendingRead && (primaryMission || readAvailable) && (
         <p className="sd-mission">
@@ -670,17 +675,27 @@ export default function StrategicDelta({
                   Something changed
                 </ActionChip>
               )}
-              {readAvailable && reviewTarget?.finishLine && requestProjectReview && (
+              {readAvailable && canExplore && (
                 <ActionChip
-                  disabled={!projectReviewAvailable || projectReviewBusy || recording}
-                  onClick={() => void requestProjectReview({ missionId: reviewTarget.id, finishLine: reviewTarget.finishLine! })}
+                  onClick={toggleExploration}
+                  aria-expanded={exploring}
+                  aria-controls="codex-exploration"
                   variant="secondary"
                 >
-                  {projectReviewBusy ? 'Reviewing project…' : 'Review project'}
+                  Explore with Codex
                 </ActionChip>
               )}
             </div>
           </div>}
+
+          {exploring && readAvailable && canExplore && reviewTarget?.finishLine && <BoomerangPanel
+            key={`${reviewTarget.id}:${reviewTarget.finishLine}`}
+            missionId={reviewTarget.id} missionTitle={reviewTarget.title} finishLine={reviewTarget.finishLine}
+            review={projectReview?.missionId === reviewTarget.id ? projectReview : null}
+            lessons={confirmedLessons} busy={projectReviewBusy} disabled={recording} available={projectReviewAvailable}
+            onReview={requestProjectReview} onConfirm={onConfirmLesson} onRetire={onRetireLesson}
+            onClose={toggleExploration}
+          />}
 
           {/* Keep the action next to the move on a phone; the rationale
               must not push it below the diagnostic/read-back sections. */}
@@ -796,7 +811,7 @@ export default function StrategicDelta({
           {projectReviewNotice && <p className="sd-hint" role="status">{projectReviewNotice}</p>}
           {projectReview && !projectReviewBusy && (
             <p className="sd-support">
-              Project review saved. Open Why this? for the proposed bigger picture, self-check and sources.
+              Project review saved. Explore with Codex for connections and lessons, or open Why this? for the complete review and sources.
               {!projectReview.operation && ' No grounded next move was returned; its missing inputs are listed there.'}
             </p>
           )}
@@ -903,7 +918,7 @@ export default function StrategicDelta({
                   {projectReview.warnings.map((warning, index) => <p className="sd-hint" key={index}>{warning}</p>)}
                 </section>
               )}
-              {(projectReview || confirmedLessons.length > 0) && <ProjectLearning review={projectReview} lessons={confirmedLessons} onConfirm={onConfirmLesson} onRetire={onRetireLesson} />}
+              {!canExplore && (projectReview || confirmedLessons.length > 0) && <ProjectLearning review={projectReview} lessons={confirmedLessons} onConfirm={onConfirmLesson} onRetire={onRetireLesson} />}
               {delta.inhibited.length > 0 && (
                 <section>
                   <h3>Alternatives inhibited</h3>

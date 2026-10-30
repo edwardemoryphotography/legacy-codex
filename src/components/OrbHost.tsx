@@ -12,6 +12,8 @@ export type OrbCognition = {
   resumable?: boolean
 }
 
+type OrbAction = { onActivate: () => void; label: string; expanded: boolean; disabled: boolean }
+
 type OrbHostValue = {
   /** True only while Mission is the screen that should hold the field.
    *  CodexApp passes this in the same render that unmounts the slot, so
@@ -23,6 +25,8 @@ type OrbHostValue = {
   setCognition: (next: OrbCognition | null) => void
   interaction: 'ambient' | 'engaged' | 'listening'
   setInteraction: (next: 'ambient' | 'engaged' | 'listening') => void
+  action: OrbAction | null
+  setAction: (next: OrbAction | null) => void
 }
 
 const OrbHostContext = createContext<OrbHostValue | null>(null)
@@ -56,6 +60,7 @@ export function OrbHostProvider({
   const [slot, setSlot] = useState<HTMLElement | null>(null)
   const [cognition, setCognition] = useState<OrbCognition | null>(null)
   const [interaction, setInteraction] = useState<OrbHostValue['interaction']>('ambient')
+  const [action, setAction] = useState<OrbAction | null>(null)
 
   useEffect(() => {
     function onFocusIn(event: FocusEvent) {
@@ -79,8 +84,8 @@ export function OrbHostProvider({
   }, [])
 
   const value = useMemo(
-    () => ({ placed, slot, setSlot, cognition, setCognition, interaction, setInteraction }),
-    [placed, slot, cognition, interaction],
+    () => ({ placed, slot, setSlot, cognition, setCognition, interaction, setInteraction, action, setAction }),
+    [placed, slot, cognition, interaction, action],
   )
   return <OrbHostContext.Provider value={value}>{children}</OrbHostContext.Provider>
 }
@@ -199,7 +204,11 @@ export function PersistentOrb() {
       data-resumable={live.resumable ? 'true' : undefined}
       data-interaction={host.interaction}
     >
-      <CognitionField />
+      <button type="button" className="orb-trigger" disabled={!host.placed || !host.action || host.action.disabled}
+        aria-label={host.action?.label ?? 'Codex presence'} aria-expanded={host.action?.expanded}
+        aria-controls={host.action ? 'codex-exploration' : undefined} onClick={host.action?.onActivate}>
+        <CognitionField />
+      </button>
       <span className="orb-status" role="status" aria-live="polite" aria-atomic="true">{presentation.label}</span>
     </div>
   )
@@ -214,9 +223,15 @@ export function useOrbInteraction(interaction: OrbHostValue['interaction']) {
 
 /** Placeholder in the Strategic Delta stage. Without a provider the field
  *  stays inline, so an isolated render still has one orb. */
-export function OrbSlot() {
+export function OrbSlot({ action }: { action?: OrbAction } = {}) {
   const host = useContext(OrbHostContext)
   const publish = host?.setSlot
+  const publishAction = host?.setAction
+  const { onActivate, label = 'Explore this mission', expanded = false, disabled = false } = action ?? {}
+  useEffect(() => {
+    publishAction?.(onActivate ? { onActivate, label, expanded, disabled } : null)
+    return () => publishAction?.(null)
+  }, [publishAction, onActivate, label, expanded, disabled])
   const ref = useCallback((node: HTMLDivElement | null) => {
     publish?.(node)
   }, [publish])

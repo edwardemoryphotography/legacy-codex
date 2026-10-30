@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { render, screen } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { OrbHostProvider, OrbSlot, PersistentOrb, useOrbCognition, type OrbCognition } from './OrbHost'
 
@@ -27,6 +28,19 @@ const settled: OrbCognition = { cognition: 'settled', provenance: 'deterministic
 const reading: OrbCognition = { cognition: 'reconstructing', provenance: 'insufficient_context', recording: false }
 
 describe('PersistentOrb', () => {
+  it.each(['settled', 'accepted', 'failed'])('preserves ambient drift after %s without pausing user feedback', cognition => {
+    const style = document.createElement('style')
+    style.textContent = readFileSync('src/app/aurora-presence.css', 'utf8')
+    document.head.append(style)
+    try {
+      render(<Harness mission cognition={{ ...settled, cognition }} />)
+      const mass = document.querySelector('.sd-blob-a')!
+      expect(window.getComputedStyle(mass).animationPlayState).not.toBe('paused')
+    } finally {
+      style.remove()
+    }
+  })
+
   it('keeps one field, over the mission slot and then in the dock', () => {
     const { rerender } = render(<Harness mission cognition={settled} />)
     const host = document.querySelector('.sd-orb-host')
