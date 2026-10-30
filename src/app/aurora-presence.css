@@ -6,3 +6,14 @@
 :root[data-theme="light"] .sd-orb-host .sd-field { background: radial-gradient(ellipse at 32% 25%, #fffef9e6, transparent 58%), radial-gradient(ellipse at 70% 60%, #a69cec60, transparent 66%), radial-gradient(ellipse at 35% 70%, #48c6b84d, #eff8f5b3 74%); box-shadow: inset 0 0 30px #ffffffa3, inset 0 0 0 1px #386f7c42; }
 @media (prefers-reduced-motion: reduce) { .sd-orb-host .sd-field * { animation: none !important; transition: none !important; } }
 :root[data-reduced-motion="true"] .sd-orb-host .sd-field * { animation: none !important; transition: none !important; }
+
+/* The Codex Glass orb (src/components/CodexOrb.tsx) is what the host draws.
+   The CSS field stays mounted for its presence/ripple wiring, but it no longer
+   paints, so only one orb is ever visible and its CSS loops stop running. */
+:root .sd.sd-orb-host[data-orb] .sd-field { background: none; box-shadow: none; border: 0; }
+:root .sd.sd-orb-host[data-orb] .sd-field::before, :root .sd.sd-orb-host[data-orb] .sd-field > * { display: none; }
+.codex-orb-stage { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.codex-orb { position: relative; height: 100%; max-width: 100%; min-width: 0; min-height: 0; aspect-ratio: 1; }
+.codex-orb > canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.codex-orb-fallback { border-radius: 50%; background: radial-gradient(circle at 40% 35%, #22D3BE, #6A5CFF 60%, #0D0F22); }
+.sd-field-slot { height: 196px; }
