@@ -1,0 +1,105 @@
+/* Codex Glass (Eddie's "Codex Glass Direction" board, 2026-10-30).
+   Loaded last. Home matches the board; every other screen keeps its own
+   styling and gains the same top bar, menu and background. */
+:root {
+  --g-ink: #0D0F22;
+  --g-violet: #6A5CFF;
+  --g-teal: #22D3BE;
+  --g-ember: #FFB05C; /* reserved for a proven boomerang; nothing uses it yet */
+  --g-mist: #E9EAF7;
+  --g-mist-dim: #A3A7C7;
+  --g-glass: rgba(255, 255, 255, .09);
+  --g-glass-edge: rgba(255, 255, 255, .22);
+  --g-display: "Bricolage Grotesque Variable", "Avenir Next", "Segoe UI", sans-serif;
+  --g-body: "Figtree Variable", "Avenir Next", "Segoe UI", sans-serif;
+  --g-speed: 18s;
+}
+
+/* The board's living gradient replaces the old room light. */
+body { background: var(--g-ink); }
+html::before, html::after, body::before, body::after { display: none; }
+.glass-aurora { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.glass-blob { position: absolute; border-radius: 50%; filter: blur(46px); opacity: .8; animation: glass-drift var(--g-speed) ease-in-out infinite alternate; }
+.glass-b1 { width: 300px; height: 300px; left: -80px; top: -60px; background: radial-gradient(circle, var(--g-violet), transparent 68%); }
+.glass-b2 { width: 280px; height: 280px; right: -90px; top: 200px; background: radial-gradient(circle, var(--g-teal), transparent 68%); animation-delay: -6s; opacity: .55; }
+.glass-b3 { width: 320px; height: 260px; left: 10px; bottom: -120px; background: radial-gradient(circle, var(--g-violet), transparent 70%); animation-delay: -11s; opacity: .6; }
+/* Faster drift only while a real request is in flight. */
+.codex-shell:has(.glass-home[data-state="thinking"]) { --g-speed: 5s; }
+@keyframes glass-drift { from { transform: translate(0, 0) scale(1); } to { transform: translate(40px, 50px) scale(1.18); } }
+
+.glass { background: var(--g-glass); border: 1px solid var(--g-glass-edge); backdrop-filter: blur(22px) saturate(1.5); -webkit-backdrop-filter: blur(22px) saturate(1.5); }
+
+/* Shell: one centred column, no tab bar. */
+.codex-shell { display: block; position: relative; z-index: 1; width: min(1080px, 100%); padding: 0 20px calc(24px + var(--safe-bottom, 0px)); }
+@media (min-width: 1024px) { .codex-shell { display: block; padding: 0 36px 32px; } }
+.codex-shell[data-screen="home"] { width: min(520px, 100%); padding-bottom: 0; }
+
+.glass-top { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; padding: max(12px, env(safe-area-inset-top)) 0 16px; font-family: var(--g-body); color: var(--g-mist); }
+.glass-wordmark { margin: 0; text-align: center; font-family: var(--g-display); font-weight: 700; font-size: 18px; letter-spacing: .01em; }
+.glass-round { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--g-mist); cursor: pointer; padding: 0; font: inherit; border: 0; }
+.glass-round.glass { border: 1px solid var(--g-glass-edge); }
+.glass-round svg { width: 20px; height: 20px; }
+.glass-round:disabled { opacity: .5; cursor: default; }
+
+/* The one orb docks in the top bar's right slot on every other screen. */
+.sd-orb-host[data-orb="dock"] { top: max(12px, env(safe-area-inset-top)); right: max(20px, calc((100vw - 1080px) / 2 + 20px)); width: 44px; height: 44px; }
+
+/* Menu: everything that is not Home. */
+.glass-menu-overlay { position: fixed; inset: 0; z-index: 60; background: rgba(5, 6, 15, .45); }
+.glass-menu { position: absolute; top: calc(max(12px, env(safe-area-inset-top)) + 52px); left: max(12px, calc((100vw - 1080px) / 2 + 12px)); width: min(300px, calc(100vw - 24px)); max-height: calc(100dvh - 96px); overflow: auto; border-radius: 28px; padding: 8px; font-family: var(--g-body); }
+.glass-menu nav { display: grid; gap: 2px; }
+.glass-menu-item { display: flex; align-items: center; background: none; border: 0; color: var(--g-mist); font: 500 16px var(--g-body); padding: 12px 16px; border-radius: 20px; cursor: pointer; text-align: left; }
+.glass-menu-item:hover { background: rgba(255, 255, 255, .1); }
+.glass-menu-item[aria-current="page"] { background: rgba(255, 255, 255, .14); color: #fff; }
+.glass-menu .theme-review, .glass-menu > :not(nav) { margin: 8px 8px 4px; }
+
+/* Home */
+.glass-home { min-height: calc(100dvh - 72px - max(12px, env(safe-area-inset-top))); display: flex; flex-direction: column; font-family: var(--g-body); color: var(--g-mist); }
+.glass-hero { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 22px; padding: 0 4px calc(120px + var(--safe-bottom, 0px)); }
+.glass-orb-wrap { display: flex; align-items: center; gap: 10px; }
+.glass-orb-wrap .sd-field-slot { width: 150px; height: 150px; margin: 0; flex: none; justify-self: auto; border-radius: 50%; }
+.glass-orb-state { font: 600 14px var(--g-body); color: var(--g-teal); }
+.glass-greeting { margin: 0; font-family: var(--g-display); font-weight: 700; font-size: 44px; line-height: 1.02; letter-spacing: -.02em; text-wrap: balance; color: var(--g-mist); }
+.glass-greeting span { display: block; font-weight: 500; font-size: 26px; color: var(--g-mist-dim); letter-spacing: -.01em; margin-top: 8px; }
+.glass-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.glass-home[data-state="thinking"] .glass-chips { visibility: hidden; }
+.glass-chip { border-radius: 999px; padding: 9px 15px; font: 500 14px var(--g-body); color: var(--g-mist); cursor: pointer; }
+.glass-chip:hover { border-color: rgba(255, 255, 255, .4); }
+.glass-note { margin: 0; font-size: 12px; color: var(--g-mist-dim); min-height: 18px; }
+.glass-note:empty { display: none; }
+.glass-output { border-radius: 24px; padding: 16px 18px; }
+.glass-output[data-error] { border-color: rgba(255, 140, 140, .45); }
+.glass-output-label { margin: 0 0 6px; font: 600 13px var(--g-body); color: var(--g-teal); }
+.glass-output-text { margin: 0; white-space: pre-wrap; font-size: 15px; line-height: 1.55; }
+.glass-output-meta { margin: 10px 0 0; font-size: 12px; color: var(--g-mist-dim); }
+
+.glass-dock { position: fixed; z-index: 45; left: 50%; bottom: 0; width: min(520px, 100%); transform: translateX(-50%); padding: 0 14px calc(26px + var(--safe-bottom, 0px)); }
+.glass-pill { display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px; min-height: 58px; }
+.glass-pill input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--g-mist); font: 500 16px var(--g-body); padding: 0 6px; }
+.glass-pill input::placeholder { color: var(--g-mist-dim); }
+.glass-pill:focus-within { border-color: rgba(255, 255, 255, .45); }
+.glass-plus { background: rgba(255, 255, 255, .1); transition: transform .25s ease; flex: none; }
+.glass-plus[aria-expanded="true"] { transform: rotate(45deg); }
+.glass-tool-tag { display: inline-flex; align-items: center; gap: 6px; flex: none; border-radius: 999px; background: rgba(34, 211, 190, .18); color: var(--g-teal); padding: 7px 8px 7px 12px; font: 600 13px var(--g-body); border: 0; cursor: pointer; }
+.glass-go { flex: none; background: rgba(255, 255, 255, .1); transition: background .25s ease; }
+.glass-go[data-ready] { background: var(--g-mist); color: var(--g-ink); }
+
+.glass-sheet { position: absolute; left: 14px; right: 14px; bottom: calc(96px + var(--safe-bottom, 0px)); border-radius: 28px; padding: 8px; display: grid; gap: 2px; }
+.glass-sheet[hidden] { display: none; }
+.glass-sheet button { display: flex; align-items: center; gap: 14px; background: none; border: 0; color: var(--g-mist); font: 500 16px var(--g-body); padding: 12px 14px; border-radius: 20px; cursor: pointer; text-align: left; }
+.glass-sheet button:hover { background: rgba(255, 255, 255, .1); }
+.glass-sheet svg { width: 22px; height: 22px; flex: none; color: var(--g-teal); }
+
+.glass-top :focus-visible, .glass-home :focus-visible, .glass-menu :focus-visible { outline: 2px solid var(--g-teal); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-blob { animation: none; }
+  .glass-plus { transition: none; }
+}
+[data-reduced-motion="true"] .glass-blob { animation: none; }
+
+/* The board's orb sits straight on the gradient: no halo panel behind it. */
+.sd.sd-orb-host::before { display: none; }
+/* Menus float over content, so their glass is denser than the board's
+   (whose sheet only ever sat over empty space): text behind must not show. */
+.glass-sheet.glass, .glass-menu.glass { background: rgba(20, 22, 48, .95); }
