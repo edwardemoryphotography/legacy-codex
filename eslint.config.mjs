@@ -14,8 +14,6 @@ const eslintConfig = [
       'foundry-console/**',
       'pocketforge/**',
       'next-env.d.ts',
-      // Third-party code kept as published; see src/vendor/*/README.md.
-      'src/vendor/**',
     ],
   },
   {

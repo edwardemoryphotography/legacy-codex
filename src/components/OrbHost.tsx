@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import CognitionField from '@/components/CognitionField'
-import AuroraOrb from '@/components/AuroraOrb'
+import CodexOrb from '@/components/CodexOrb'
 import { orbPresentation } from '@/lib/orbPresentation'
 import { useMotionAllowed } from '@/hooks/useMotionAllowed'
 
@@ -201,7 +201,7 @@ export function PersistentOrb() {
       data-interaction={host.interaction}
     >
       <CognitionField />
-      <AuroraOrb state={presentation.state} />
+      <CodexOrb state={presentation.state} />
       <span className="orb-status" role="status" aria-live="polite" aria-atomic="true">{presentation.label}</span>
     </div>
   )
