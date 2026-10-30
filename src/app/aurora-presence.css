@@ -6,3 +6,12 @@
 :root[data-theme="light"] .sd-orb-host .sd-field { background: radial-gradient(ellipse at 32% 25%, #fffef9e6, transparent 58%), radial-gradient(ellipse at 70% 60%, #a69cec60, transparent 66%), radial-gradient(ellipse at 35% 70%, #48c6b84d, #eff8f5b3 74%); box-shadow: inset 0 0 30px #ffffffa3, inset 0 0 0 1px #386f7c42; }
 @media (prefers-reduced-motion: reduce) { .sd-orb-host .sd-field * { animation: none !important; transition: none !important; } }
 :root[data-reduced-motion="true"] .sd-orb-host .sd-field * { animation: none !important; transition: none !important; }
+
+/* AI-Orb Aurora renderer (src/vendor/ai-orb). It is now what the host draws.
+   The CSS field stays mounted for its presence/ripple wiring, but it no longer
+   paints, so only one orb is ever visible and its CSS loops stop running. */
+.sd-orb-host .sd-field { background: none; box-shadow: none; }
+.sd-orb-host .sd-field::before, .sd-orb-host .sd-field > * { display: none; }
+.ai-orb-stage { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.ai-orb { height: 100%; max-width: 100%; aspect-ratio: 1; }
+.sd-field-slot { height: 196px; }
