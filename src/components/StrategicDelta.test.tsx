@@ -10,6 +10,7 @@ import type { DeltaCandidate, Mission, MissionState } from '@/types'
 import { operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
 import type { ProjectReview } from '@/lib/projectReview'
 import StrategicDelta from './StrategicDelta'
+import { OrbHostProvider, PersistentOrb } from './OrbHost'
 
 function mission(over: Partial<Mission> & { id: string; state: MissionState }): Mission {
   return {
@@ -57,6 +58,43 @@ describe('StrategicDelta — reviewed choice presentation', () => {
     sources: [{ id: 'mission:m1', kind: 'mission', label: target.title, status: 'human-defined', text: target.finishLine! }],
     sourceIds: ['mission:m1'], contextKey: 'contract-only', reviewedAt: '2026-10-04T00:00:00.000Z', cached: false, warnings: [], lesson: null,
   }
+
+  it('opens exploration from the persistent orb without running a review or accepting a move', async () => {
+    const requestProjectReview = vi.fn().mockResolvedValue(true)
+    const onAccept = vi.fn()
+    render(<OrbHostProvider placed><PersistentOrb /><StrategicDelta missions={[target]} evidence={[]} corrections={[]}
+      phase="resolved" readAvailable onAccept={onAccept} onCorrect={vi.fn()} onSupplyStep={vi.fn()}
+      onContextAdded={vi.fn()} onRecheck={vi.fn()} requestProjectReview={requestProjectReview} /></OrbHostProvider>)
+    const orb = await screen.findByRole('button', { name: 'Explore this mission' })
+    orb.focus()
+    fireEvent.click(orb)
+    expect(screen.getByRole('region', { name: 'Explore this mission' })).toBeTruthy()
+    expect(requestProjectReview).not.toHaveBeenCalled()
+    expect(onAccept).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Review project' }))
+    expect(requestProjectReview).toHaveBeenCalledExactlyOnceWith({ missionId: target.id, finishLine: target.finishLine })
+    fireEvent.click(screen.getByRole('button', { name: 'Close exploration' }))
+    expect(screen.queryByRole('region', { name: 'Explore this mission' })).toBeNull()
+    expect(document.activeElement).toBe(orb)
+  })
+
+  it('shows an honest empty transfer result and lesson controls in the exploration', async () => {
+    renderDelta([target], { projectReview: review, onConfirmLesson: vi.fn() })
+    fireEvent.click(await screen.findByRole('button', { name: 'Explore with Codex' }))
+    expect(screen.getByRole('region', { name: 'Explore this mission' })).toBeTruthy()
+    expect(screen.getByText('No verified transfer')).toBeTruthy()
+    expect(screen.getByText('Teach the system a lesson from this review')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Accept this move' })).toBeTruthy()
+  })
+
+  it('keeps exploration available when model access is restricted without offering a model call', async () => {
+    const requestProjectReview = vi.fn()
+    renderDelta([target], { projectReviewAvailable: false, requestProjectReview })
+    fireEvent.click(await screen.findByRole('button', { name: 'Explore with Codex' }))
+    expect(screen.getByText('Project review is unavailable in this account. Your saved work remains available.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Review project' })).toBeNull()
+    expect(requestProjectReview).not.toHaveBeenCalled()
+  })
 
   it('shows why now and the move finish condition, with alternatives behind Why this', async () => {
     renderDelta([target], { projectReview: review })

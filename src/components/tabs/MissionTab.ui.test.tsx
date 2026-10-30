@@ -618,7 +618,8 @@ describe('MissionTab project-review access', () => {
     expect(await screen.findByText(/Smart suggestions are unavailable until this session reconnects/)).toBeTruthy()
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => String(url).includes('missionId=m1'))).toBe(true))
     expect(await screen.findByText('A saved project review could not be loaded. Your saved work is unchanged.')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Review project' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Explore with Codex' }))
+    expect(screen.queryByRole('button', { name: 'Review project' })).toBeNull()
     expect(screen.queryByText('This did not record')).toBeNull()
     expect(document.querySelector('section.sd')!.getAttribute('data-cognition')).not.toBe('failed')
   })
@@ -632,9 +633,9 @@ describe('MissionTab project-review access', () => {
 
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => String(url).includes('missionId=m1'))).toBe(true))
     expect(screen.queryByText(VISITOR_ACCESS_COPY)).toBeNull()
-    fireEvent.click(await screen.findByRole('button', { name: 'Why this?' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Explore with Codex' }))
     expect(await screen.findByText(lesson.rule)).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Review project' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Review project' })).toBeNull()
   })
 
   it('shows saved historical review for a blocked primary without turning it into an action', async () => {
@@ -647,6 +648,16 @@ describe('MissionTab project-review access', () => {
     expect(screen.getByText(/Historical proposal, not a current recommendation or accepted action/)).toBeTruthy()
     expect(screen.getByText('Proposed next move: Earlier proposal')).toBeTruthy()
     expect(inserts.some(i => i.table === 'actions')).toBe(false)
+  })
+
+  it('keeps confirmed lessons readable when a blocker prevents orb exploration', async () => {
+    tables.missions = [missionToRow({ ...mission, blocker: 'Waiting for access' }, 'user-1')]
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => String(url).includes('capabilities=1')
+      ? respond(200, { configured: false }) : respond(200, { review: null, lessons: [lesson] })))
+    render(<MissionTab />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Why this?' }))
+    expect(await screen.findByText(lesson.rule)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Explore with Codex' })).toBeNull()
   })
 
   it('a failed review restore for the owner is a quiet note, not "This did not record"', async () => {
