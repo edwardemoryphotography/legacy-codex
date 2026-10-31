@@ -15,7 +15,9 @@ The owner gate, model permissions, providers, secrets, Supabase settings, depend
 
 Before implementation, the focused suite failed on the actual regressions: empty-account Enter, discarded question, hidden voice feedback, disappearing mic/Send, failed-draft loss and an unbounded listening engine. The amended tests cover these boundaries plus denied/failed/empty server answers, repeated sends and concurrent typing. Browser/audio callbacks and HTTP failures in unit tests are mocked contracts, never real speech or model-output proof.
 
-Local verification: 54 test files / 534 tests passed; lint had zero errors and nine existing warnings; TypeScript, the Next.js 16.3.0 production build, builder regression check and `git diff --check` passed. No dependency versions changed. These checks establish the named code contracts, not successful live AI or dictation.
+Local verification: 54 test files / 535 tests passed; lint had zero errors and nine existing warnings; TypeScript, the Next.js 16.3.0 production build, builder regression check and `git diff --check` passed. No dependency versions changed. These checks establish the named code contracts, not successful live AI or dictation.
+
+Automated review found one timer race: a final result arriving after Stop could replace its five-second deadline with the listening watchdog. The added regression failed before correction. A synchronous stopping guard now prevents that restart and clears the old listening timer before stopping; the full suite and build passed again after the fix.
 
 Local production-build checks used only existing public Supabase client settings, without copying provider secrets. Enter on an unconfigured local server produced the explicit configuration error and retained the text. A microphone start attempt timed out with a visible failure message instead of remaining invisible. At 390×664, Send and microphone measured 44×44, both inside the viewport, with no horizontal overflow.
 

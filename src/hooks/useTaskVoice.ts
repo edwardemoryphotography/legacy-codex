@@ -27,12 +27,14 @@ export function useTaskVoice(value: string, onChange: (value: string) => void, m
   const [status, setStatus] = useState('')
   const live = useRef<Recognition | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const stopping = useRef(false)
   const latest = useRef({ value, onChange })
   useLayoutEffect(() => { latest.current = { value, onChange } }, [value, onChange])
 
   const release = useCallback(() => {
     if (timer.current) clearTimeout(timer.current)
     timer.current = null
+    stopping.current = false
     const recognition = live.current
     live.current = null
     if (recognition) {
@@ -63,6 +65,9 @@ export function useTaskVoice(value: string, onChange: (value: string) => void, m
     const current = live.current
     if (current) {
       if (phase === 'requesting') { cancel(); return }
+      stopping.current = true
+      if (timer.current) clearTimeout(timer.current)
+      timer.current = null
       setPhase('stopping')
       setStatus('Finishing voice input…')
       try { current.stop() } catch { cancel() }
@@ -90,6 +95,7 @@ export function useTaskVoice(value: string, onChange: (value: string) => void, m
       // Permission/listening alone does not mean a speech service is returning
       // words. Release a silent or stalled engine even if it never sends end.
       const watchForWords = () => {
+        if (stopping.current) return
         if (timer.current) clearTimeout(timer.current)
         timer.current = setTimeout(() => {
           if (live.current !== recognition) return
@@ -102,7 +108,7 @@ export function useTaskVoice(value: string, onChange: (value: string) => void, m
       recognition.interimResults = true
       recognition.continuous = false
       recognition.onstart = () => {
-        if (live.current !== recognition) return
+        if (live.current !== recognition || stopping.current) return
         watchForWords()
         setPhase('listening')
         setStatus('Listening… speak your task. Tap Stop when finished.')
