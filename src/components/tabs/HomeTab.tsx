@@ -115,7 +115,7 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
 
   const note = loadError ? loadError
     : missions === null ? 'Loading your missions…'
-    : missionCount === 0 ? 'Add a mission first: open the menu, then Mission.'
+    : missionCount === 0 ? 'Start with a mission to save what matters and return to it.'
     : brief.visitor ? BRIEF_VISITOR_COPY
     : !brief.configured ? 'AI is not configured on the server yet.'
     : busy ? 'Working on it'
@@ -137,6 +137,13 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
           ))}
         </div>
         <p className="glass-note" aria-live="polite">{note}</p>
+        {missions !== null && !loadError && (
+          <div>
+            <button type="button" className="glass-chip glass" onClick={() => onNavigate('mission')}>
+              {missionCount === 0 ? 'Start a mission' : 'Open your missions'}
+            </button>
+          </div>
+        )}
         {brief.output && (
           <div className="glass-output glass" data-error={brief.status === 'error' ? 'true' : undefined}>
             {brief.outputLabel && <p className="glass-output-label">{brief.outputLabel}</p>}

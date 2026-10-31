@@ -6,10 +6,11 @@ import HomeTab, { promptHelpQuestion } from './HomeTab'
 const run = vi.fn(async () => {})
 let voiceWrite: (value: string) => void = () => {}
 let voiceActive = false
-let missions: { id: string; title: string; state: string }[] = [{ id: 'm1', title: 'Real mission', state: 'primary' }]
+let missions: { id: string; title: string; state: string }[] | null = [{ id: 'm1', title: 'Real mission', state: 'primary' }]
+let loadError: string | null = null
 
 vi.mock('@/lib/supabase/client', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: null } }) } } }))
-vi.mock('@/hooks/useMissionTerritory', () => ({ useMissionTerritory: () => ({ missions, loadError: null }) }))
+vi.mock('@/hooks/useMissionTerritory', () => ({ useMissionTerritory: () => ({ missions, loadError }) }))
 vi.mock('@/hooks/useBriefRunner', () => ({ useBriefRunner: () => ({ configured: true, visitor: false, status: 'idle', activeMode: null, output: '', outputLabel: '', providerLabel: '', run, reset: () => {} }) }))
 vi.mock('@/hooks/useTaskVoice', () => ({
   useTaskVoice: (_value: string, onChange: (value: string) => void) => {
@@ -24,7 +25,7 @@ vi.mock('@/components/OrbHost', () => ({
   useOrbPresentation: () => ({ state: 'idle', label: '' }),
 }))
 
-afterEach(() => { cleanup(); run.mockClear(); voiceActive = false; missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }] })
+afterEach(() => { cleanup(); run.mockClear(); voiceActive = false; loadError = null; missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }] })
 
 describe('promptHelpQuestion', () => {
   it('stays within the 400-character question limit /api/brief enforces', () => {
@@ -86,6 +87,33 @@ describe('HomeTab send arrow', () => {
     render(<HomeTab onNavigate={() => {}} />)
     fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'Hey' } })
     expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument()
-    expect(screen.getByText('Add a mission first: open the menu, then Mission.')).toBeInTheDocument()
+    expect(screen.getByText('Start with a mission to save what matters and return to it.')).toBeInTheDocument()
+  })
+})
+
+describe('Home mission entry', () => {
+  it('takes a confirmed empty account straight to the existing Mission screen without an AI call', () => {
+    missions = []
+    const navigate = vi.fn()
+    render(<HomeTab onNavigate={navigate} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Start a mission' }))
+    expect(navigate).toHaveBeenCalledWith('mission')
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it('offers the same route back to saved missions', () => {
+    const navigate = vi.fn()
+    render(<HomeTab onNavigate={navigate} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open your missions' }))
+    expect(navigate).toHaveBeenCalledWith('mission')
+  })
+
+  it.each(['loading', 'failed'])('does not turn a %s read into a first-run invitation', state => {
+    missions = state === 'loading' ? null : []
+    loadError = state === 'failed' ? 'Missions could not be read.' : null
+    render(<HomeTab onNavigate={() => {}} />)
+    expect(screen.queryByRole('button', { name: 'Start a mission' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open your missions' })).not.toBeInTheDocument()
+    expect(screen.getByText(loadError ?? 'Loading your missions…')).toBeInTheDocument()
   })
 })

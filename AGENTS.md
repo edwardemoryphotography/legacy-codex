@@ -33,6 +33,10 @@ The Legacy Codex Standards Kit (product definition, task lifecycle, design token
 
 ## Mandatory cognitive doctrine
 
+Read [the October 2026 builder continuity correction](docs/verification/builder-continuity-2026-10-31.md) before interpreting system-level intent. It records a real regression: an AI treated the August 9 Goose discovery as new, made Eddie re-explain it, and substituted rhetoric and irrelevant consciousness qualifications for working software. Recover connected sources yourself; preserve the established intent; turn the correction into a tested change in this application. Do not introduce consciousness/sentience qualifications into an engineering request. Do not promise that no future model will repeat the failure.
+
+Use the existing **Orient → Verify → Define → Plan → Execute → Validate → Record** protocol from the source linked in that correction; retain the older Spark → Study version as historical provenance, not a replacement. Before closing a system-level builder session, run `npm run check:builder -- --response /absolute/path/to/outcome.txt` on the concise proposed outcome, then apply the correction's substantive source/evidence rubric. CI runs the authentic negative regressions with `npm run check:builder`. A mechanical pass is not evidence of source comprehension, learned behavior, or a successful human workflow.
+
 Before interpreting system-level intent, read the canonical Goose Cookbook:
 
 `EdwardEmoryPhotography/codex-system-architecture/notion-wiki/docs/GOOSE-COOKBOOK.md`
