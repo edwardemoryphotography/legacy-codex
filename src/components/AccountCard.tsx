@@ -62,12 +62,12 @@ export default function AccountCard({ user, loading, connectionError, onRetry, o
     }
     setSentEmail(address)
     setCode('')
-    setNotice('Code requested. Check your email and enter the 6-digit code here, in this browser.')
+    setNotice('Code requested. Check your email and enter the code here, in this browser.')
   }
 
   async function confirm() {
-    if (!/^\d{6}$/.test(code)) {
-      setError('Enter the 6-digit code from your email.')
+    if (!/^\d{6,10}$/.test(code)) {
+      setError('Enter the number code from your email.')
       return
     }
     if (flow === 'attach' && user) {
@@ -114,9 +114,9 @@ export default function AccountCard({ user, loading, connectionError, onRetry, o
                   onChange={setEmail} />
               </label>
               {sentEmail && <label className="block space-y-2" htmlFor="account-code">
-                <span>6-digit code</span>
-                <input id="account-code" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required
-                  value={code} onChange={event => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} disabled={busy}
+                <span>Code from your email</span>
+                <input id="account-code" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6,10}" maxLength={10} required
+                  value={code} onChange={event => setCode(event.target.value.replace(/\D/g, '').slice(0, 10))} disabled={busy}
                   style={{ width: '100%', minWidth: 0, minHeight: 44, font: 'inherit', padding: '11px 12px', borderRadius: 12, border: '1px solid var(--line-strong)', color: 'var(--text)', background: 'var(--field-bg)' }} />
               </label>}
               {warning && <div role="alert" className="space-y-3" style={{ color: 'var(--amber)' }}>

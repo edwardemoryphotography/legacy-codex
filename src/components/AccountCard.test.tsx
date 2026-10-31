@@ -32,7 +32,7 @@ beforeEach(() => {
 async function sendCode() {
   fireEvent.change(screen.getByLabelText('Email'), { target: { value: email } })
   fireEvent.click(screen.getByRole('button', { name: 'Send code' }))
-  await screen.findByLabelText('6-digit code')
+  await screen.findByLabelText('Code from your email')
 }
 
 describe('Account card with a mocked Supabase client', () => {
@@ -42,10 +42,10 @@ describe('Account card with a mocked Supabase client', () => {
     await sendCode()
     expect(mock.updateUser).toHaveBeenCalledWith({ email })
     expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull()
-    fireEvent.change(screen.getByLabelText('6-digit code'), { target: { value: '123456' } })
+    fireEvent.change(screen.getByLabelText('Code from your email'), { target: { value: '12740390' } })
     fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
     expect(await screen.findByText(`Signed in as ${email} — works in any browser`)).toBeTruthy()
-    expect(mock.verifyOtp).toHaveBeenCalledWith({ email, token: '123456', type: 'email_change' })
+    expect(mock.verifyOtp).toHaveBeenCalledWith({ email, token: '12740390', type: 'email_change' })
     expect(converted).toHaveBeenCalledWith(expect.objectContaining({ id: anon.id, is_anonymous: false }))
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy()
   })
@@ -61,7 +61,7 @@ describe('Account card with a mocked Supabase client', () => {
     expect(screen.getByRole('button', { name: 'Send code' })).toBeDisabled()
     fireEvent.click(screen.getByRole('checkbox', { name: /I understand/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Send code' }))
-    await screen.findByLabelText('6-digit code')
+    await screen.findByLabelText('Code from your email')
     expect(mock.signInWithOtp).toHaveBeenCalledWith({ email, options: { shouldCreateUser: false } })
   })
 
@@ -69,10 +69,10 @@ describe('Account card with a mocked Supabase client', () => {
     mock.verifyOtp.mockResolvedValue({ data: { user: null }, error: { code: 'otp_expired' } })
     render(<Account />)
     await sendCode()
-    fireEvent.change(screen.getByLabelText('6-digit code'), { target: { value: '111111' } })
+    fireEvent.change(screen.getByLabelText('Code from your email'), { target: { value: '111111' } })
     fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('wrong or has expired')
-    expect(screen.getByLabelText('6-digit code')).toBeTruthy()
+    expect(screen.getByLabelText('Code from your email')).toBeTruthy()
     expect(converted).not.toHaveBeenCalled()
   })
 
@@ -85,7 +85,7 @@ describe('Account card with a mocked Supabase client', () => {
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: email } })
     fireEvent.click(screen.getByRole('button', { name: 'Send code' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(expected)
-    expect(screen.queryByLabelText('6-digit code')).toBeNull()
+    expect(screen.queryByLabelText('Code from your email')).toBeNull()
   })
 
   it('displays a retryable connection failure without offering anonymous sign-out', () => {
@@ -103,7 +103,7 @@ describe('Account card with a mocked Supabase client', () => {
     await waitFor(() => expect(mock.updateUser).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Change email' })).not.toBeDisabled())
     fireEvent.click(screen.getByRole('button', { name: 'Change email' }))
-    expect(screen.queryByLabelText('6-digit code')).toBeNull()
+    expect(screen.queryByLabelText('Code from your email')).toBeNull()
     expect(screen.getByLabelText('Email')).not.toBeDisabled()
   })
 
