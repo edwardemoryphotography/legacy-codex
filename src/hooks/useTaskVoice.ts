@@ -22,17 +22,19 @@ type SpeechWindow = Window & {
 type VoicePhase = 'idle' | 'requesting' | 'listening' | 'stopping'
 
 /** Starts only on a human click. A browser event, never a timer, proves listening. */
-export function useTaskVoice(value: string, onChange: (value: string) => void) {
+export function useTaskVoice(value: string, onChange: (value: string) => void, maxLength = TASK_INPUT_LIMIT) {
   const [phase, setPhase] = useState<VoicePhase>('idle')
   const [status, setStatus] = useState('')
   const live = useRef<Recognition | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const stopping = useRef(false)
   const latest = useRef({ value, onChange })
   useLayoutEffect(() => { latest.current = { value, onChange } }, [value, onChange])
 
   const release = useCallback(() => {
     if (timer.current) clearTimeout(timer.current)
     timer.current = null
+    stopping.current = false
     const recognition = live.current
     live.current = null
     if (recognition) {
@@ -63,6 +65,9 @@ export function useTaskVoice(value: string, onChange: (value: string) => void) {
     const current = live.current
     if (current) {
       if (phase === 'requesting') { cancel(); return }
+      stopping.current = true
+      if (timer.current) clearTimeout(timer.current)
+      timer.current = null
       setPhase('stopping')
       setStatus('Finishing voice input…')
       try { current.stop() } catch { cancel() }
@@ -76,8 +81,8 @@ export function useTaskVoice(value: string, onChange: (value: string) => void) {
       setStatus('Voice input is not available in this browser. Use your keyboard’s microphone or type your task.')
       return
     }
-    if (latest.current.value.length >= TASK_INPUT_LIMIT) {
-      setStatus('Your task is at the 2,000-character limit. Shorten it before adding voice input.')
+    if (latest.current.value.length >= maxLength) {
+      setStatus(`Your text is at the ${maxLength.toLocaleString('en-US')}-character limit. Shorten it before adding voice input.`)
       return
     }
     try {
@@ -86,24 +91,37 @@ export function useTaskVoice(value: string, onChange: (value: string) => void) {
       let captured = false
       let limited = false
       live.current = recognition
+      const finishedMessage = () => limited ? `Text reached the ${maxLength.toLocaleString('en-US')}-character limit. Review it before continuing.` : captured ? 'Voice added. Review the text before continuing.' : 'Voice input stopped. No words were added.'
+      // Permission/listening alone does not mean a speech service is returning
+      // words. Release a silent or stalled engine even if it never sends end.
+      const watchForWords = () => {
+        if (stopping.current) return
+        if (timer.current) clearTimeout(timer.current)
+        timer.current = setTimeout(() => {
+          if (live.current !== recognition) return
+          release()
+          setPhase('idle')
+          setStatus(captured ? finishedMessage() : 'No words were received. The microphone has stopped. Try again or use keyboard dictation.')
+        }, 15000)
+      }
       recognition.lang = navigator.language || document.documentElement.lang || 'en-US'
       recognition.interimResults = true
       recognition.continuous = false
       recognition.onstart = () => {
-        if (live.current !== recognition) return
-        if (timer.current) clearTimeout(timer.current)
-        timer.current = null
+        if (live.current !== recognition || stopping.current) return
+        watchForWords()
         setPhase('listening')
-        setStatus('Listening… speak your task.')
+        setStatus('Listening… speak your task. Tap Stop when finished.')
       }
       recognition.onresult = event => {
         if (live.current !== recognition) return
         const transcript = Array.from(event.results).map(result => result[0]?.transcript ?? '').join(' ').trim()
         if (!transcript) return
         captured = true
-        const next = appendVoiceTranscript(base, transcript)
-        limited = next.length === TASK_INPUT_LIMIT
+        const next = appendVoiceTranscript(base, transcript, maxLength)
+        limited = next.length === maxLength
         latest.current.onChange(next)
+        watchForWords()
       }
       recognition.onerror = event => {
         if (live.current !== recognition) return
@@ -115,7 +133,7 @@ export function useTaskVoice(value: string, onChange: (value: string) => void) {
         if (live.current !== recognition) return
         release()
         setPhase('idle')
-        setStatus(limited ? 'Task reached the 2,000-character limit. Review it before routing.' : captured ? 'Voice added. Review your task, then route when ready.' : 'Voice input stopped. No words were added.')
+        setStatus(finishedMessage())
       }
       setPhase('requesting')
       setStatus('Waiting for microphone and speech access…')

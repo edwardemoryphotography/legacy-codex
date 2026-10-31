@@ -1,10 +1,10 @@
 /** Browser-owned transcripts only. Never add inferred or generated words. */
 export const TASK_INPUT_LIMIT = 2000
 
-export function appendVoiceTranscript(base: string, transcript: string): string {
+export function appendVoiceTranscript(base: string, transcript: string, maxLength = TASK_INPUT_LIMIT): string {
   const spoken = transcript.trim()
   if (!spoken) return base
-  return `${base}${base && !/\s$/.test(base) ? ' ' : ''}${spoken}`.slice(0, TASK_INPUT_LIMIT)
+  return `${base}${base && !/\s$/.test(base) ? ' ' : ''}${spoken}`.slice(0, maxLength)
 }
 
 export function voiceErrorMessage(error: string): string {

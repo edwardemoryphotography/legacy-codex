@@ -115,6 +115,14 @@ describe('buildBriefDirective', () => {
     expect(buildBriefDirective('question', ctx, 'What should I do today?')).toContain('What should I do today?')
     expect(buildBriefDirective('question', ctx, '   ')).toMatch(/what matters most right now/i)
   })
+
+  it('keeps the actual question when no missions exist instead of asking for an empty brief', () => {
+    const question = 'this text box doesnt even let me send it anywhere'
+    const directive = buildBriefDirective('question', [], question)
+    expect(directive).toContain(question)
+    expect(directive).not.toMatch(/nothing to brief/)
+    expect(directive).toMatch(/no saved missions/i)
+  })
 })
 
 describe('Architect Scan and Break Wall directives', () => {
