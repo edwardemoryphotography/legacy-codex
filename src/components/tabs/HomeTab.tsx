@@ -139,7 +139,7 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
         <p className="glass-note" aria-live="polite">{note}</p>
         {missions !== null && !loadError && (
           <div>
-            <button type="button" className="glass-chip glass" onClick={() => onNavigate('mission')}>
+            <button type="button" className="glass-chip glass" style={{ minHeight: 44 }} onClick={() => onNavigate('mission')}>
               {missionCount === 0 ? 'Start a mission' : 'Open your missions'}
             </button>
           </div>
