@@ -16,7 +16,7 @@ export interface BriefRunner {
   // never read as being about whatever is selected now.
   outputLabel: string
   providerLabel: string
-  run: (mode: BriefMode, body: Record<string, unknown>, label?: string) => Promise<void>
+  run: (mode: BriefMode, body: Record<string, unknown>, label?: string) => Promise<boolean>
   reset: () => void
 }
 
@@ -68,17 +68,18 @@ export function useBriefRunner(): BriefRunner {
         },
         body: JSON.stringify(body),
       })
-      if (request !== requestRef.current) return
+      if (request !== requestRef.current) return false
       if (res.status === 403) {
         setVisitor(true)
         setStatus('idle')
         setActiveMode(null)
-        return
+        return false
       }
       const data = await res.json()
-      if (request !== requestRef.current) return
+      if (request !== requestRef.current) return false
       if (!res.ok || data.error) throw new Error(data?.error ?? `HTTP ${res.status}`)
-      setOutput(data.text || 'No brief text returned.')
+      if (typeof data.text !== 'string' || !data.text.trim()) throw new Error('No answer was returned. Try again.')
+      setOutput(data.text)
       const names: Record<string, string> = { anthropic: 'Claude', gemini: 'Gemini', openai: 'OpenAI' }
       if (names[data.provider] && typeof data.model === 'string') {
         const fallbacks = Array.isArray(data.fallbacks) ? data.fallbacks
@@ -88,11 +89,13 @@ export function useBriefRunner(): BriefRunner {
       }
       setOutputLabel(label)
       setStatus('done')
+      return true
     } catch (err) {
-      if (request !== requestRef.current) return
+      if (request !== requestRef.current) return false
       setOutput(err instanceof Error ? err.message : String(err))
       setOutputLabel(label)
       setStatus('error')
+      return false
     }
   }, [])
 

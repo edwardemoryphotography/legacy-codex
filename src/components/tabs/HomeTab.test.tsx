@@ -3,19 +3,21 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import HomeTab, { promptHelpQuestion } from './HomeTab'
 
-const run = vi.fn(async () => {})
+const run = vi.fn(async () => true)
 let voiceWrite: (value: string) => void = () => {}
 let voiceActive = false
 let missions: { id: string; title: string; state: string }[] | null = [{ id: 'm1', title: 'Real mission', state: 'primary' }]
 let loadError: string | null = null
+let voiceStatus = ''
+let visitor = false
 
 vi.mock('@/lib/supabase/client', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: null } }) } } }))
 vi.mock('@/hooks/useMissionTerritory', () => ({ useMissionTerritory: () => ({ missions, loadError }) }))
-vi.mock('@/hooks/useBriefRunner', () => ({ useBriefRunner: () => ({ configured: true, visitor: false, status: 'idle', activeMode: null, output: '', outputLabel: '', providerLabel: '', run, reset: () => {} }) }))
+vi.mock('@/hooks/useBriefRunner', () => ({ useBriefRunner: () => ({ configured: true, visitor, status: 'idle', activeMode: null, output: '', outputLabel: '', providerLabel: '', run, reset: () => {} }) }))
 vi.mock('@/hooks/useTaskVoice', () => ({
   useTaskVoice: (_value: string, onChange: (value: string) => void) => {
     voiceWrite = onChange
-    return { phase: voiceActive ? 'listening' : 'idle', status: '', toggle: () => {}, cancel: () => {}, active: voiceActive }
+    return { phase: voiceActive ? 'listening' : 'idle', status: voiceStatus, toggle: () => {}, cancel: () => {}, active: voiceActive }
   },
 }))
 vi.mock('@/components/OrbHost', () => ({
@@ -25,7 +27,7 @@ vi.mock('@/components/OrbHost', () => ({
   useOrbPresentation: () => ({ state: 'idle', label: '' }),
 }))
 
-afterEach(() => { cleanup(); run.mockClear(); voiceActive = false; loadError = null; missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }] })
+afterEach(() => { cleanup(); run.mockReset(); run.mockResolvedValue(true); voiceActive = false; voiceStatus = ''; visitor = false; loadError = null; missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }] })
 
 describe('promptHelpQuestion', () => {
   it('stays within the 400-character question limit /api/brief enforces', () => {
@@ -49,7 +51,7 @@ describe('HomeTab never cuts a question silently', () => {
     render(<HomeTab onNavigate={() => {}} />)
     act(() => voiceWrite('z'.repeat(400)))
     fireEvent.click(screen.getByRole('button', { name: 'Help me write a prompt' }))
-    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
     expect(screen.getByText(/Too long to send: shorten it to \d+ characters \(now 400\)\./)).toBeInTheDocument()
     expect(run).not.toHaveBeenCalled()
   })
@@ -66,7 +68,7 @@ describe('HomeTab never cuts a question silently', () => {
     render(<HomeTab onNavigate={() => {}} />)
     act(() => voiceWrite('half a thought'))
     expect(screen.getByRole('button', { name: 'Stop voice input' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
   })
 
   it('does not send when Enter only confirms an IME composition', () => {
@@ -82,12 +84,64 @@ describe('HomeTab never cuts a question silently', () => {
 })
 
 describe('HomeTab send arrow', () => {
-  it('does not light up when there is no mission to send with, and says why', () => {
+  it('sends a question with Enter even when there are no saved missions', () => {
     missions = []
     render(<HomeTab onNavigate={() => {}} />)
     fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'Hey' } })
-    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument()
-    expect(screen.getByText('Start with a mission to save what matters and return to it.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
+    fireEvent.keyDown(screen.getByLabelText('Ask Codex'), { key: 'Enter' })
+    expect(run).toHaveBeenCalledWith('question', { mode: 'question', missions: [], missionIds: [], question: 'Hey' }, 'Ask Claude')
+  })
+
+  it('keeps failed text and the chosen tool instead of erasing them on submission', async () => {
+    run.mockResolvedValue(false)
+    render(<HomeTab onNavigate={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Help me write a prompt' }))
+    fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'this text box doesnt even let me send it anywhere' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send' })))
+    expect(screen.getByLabelText('Ask Codex')).toHaveValue('this text box doesnt even let me send it anywhere')
+    expect(screen.getByRole('button', { name: 'Remove Prompt help' })).toBeInTheDocument()
+  })
+
+  it('does not issue duplicate sends or erase words typed while a request is pending', async () => {
+    let finish: (value: boolean) => void = () => {}
+    run.mockImplementationOnce(() => new Promise<boolean>(resolve => { finish = resolve }))
+    render(<HomeTab onNavigate={() => {}} />)
+    const input = screen.getByLabelText('Ask Codex')
+    fireEvent.change(input, { target: { value: 'this text box doesnt even let me send it anywhere' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(run).toHaveBeenCalledTimes(1)
+    fireEvent.change(input, { target: { value: 'also the microphone logo is there' } })
+    await act(async () => finish(true))
+    expect(input).toHaveValue('also the microphone logo is there')
+  })
+
+  it('keeps the microphone available beside Send after text is entered', () => {
+    render(<HomeTab onNavigate={() => {}} />)
+    fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'this text box doesnt even let me send it anywhere' } })
+    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
+  })
+
+  it('shows voice failures even when the account has no missions', () => {
+    missions = []
+    voiceStatus = 'Voice input stopped. No words were added.'
+    render(<HomeTab onNavigate={() => {}} />)
+    expect(screen.getByText(voiceStatus)).toBeInTheDocument()
+  })
+
+  it('explains denied AI access at the composer and retains the question', () => {
+    missions = []
+    visitor = true
+    const navigate = vi.fn()
+    render(<HomeTab onNavigate={navigate} />)
+    fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'this text box doesnt even let me send it anywhere' } })
+    fireEvent.keyDown(screen.getByLabelText('Ask Codex'), { key: 'Enter' })
+    expect(run).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Ask Codex')).toHaveValue('this text box doesnt even let me send it anywhere')
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to your existing account' }))
+    expect(navigate).toHaveBeenCalledWith('controls')
   })
 })
 

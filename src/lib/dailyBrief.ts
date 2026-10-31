@@ -124,6 +124,10 @@ function describeMission(m: BriefMissionContext): string {
 // always produces the same directive text.
 export function buildBriefDirective(mode: BriefMode, missions: BriefMissionContext[], question?: string, target?: BriefTarget): string {
   if (missions.length === 0) {
+    if (mode === 'question') {
+      const q = (question ?? '').trim() || 'What matters most right now?'
+      return `There are no saved missions for this account. Answer the question using only the person's supplied text; do not invent project context or claim anything was saved. Ask one concrete clarification if needed.\n\nQuestion: ${q}`
+    }
     return 'No missions exist yet for this account. Say plainly that there is nothing to brief until a mission is added — do not invent one.'
   }
 
