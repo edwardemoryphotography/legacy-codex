@@ -3,9 +3,27 @@ import type { Tool } from '@anthropic-ai/sdk/resources/messages'
 
 export type ModelProviderId = 'anthropic' | 'gemini' | 'openai'
 
-const ANTHROPIC_MODEL = 'claude-opus-5'
-const DEFAULT_GEMINI_MODEL = 'gemini-2.5-pro'
-const DEFAULT_OPENAI_MODEL = 'gpt-4o'
+export type ModelTier = 'efficient' | 'deep'
+const ANTHROPIC_MODEL = 'claude-opus-5-5'
+const ANTHROPIC_EFFICIENT_MODEL = 'claude-sonnet-5-5'
+const DEFAULT_GEMINI_MODEL = 'gemini-4-argon'
+const EFFICIENT_GEMINI_MODEL = 'gemini-3.8-flash'
+const DEFAULT_OPENAI_MODEL = 'gpt-6.1-sol'
+const EFFICIENT_OPENAI_MODEL = 'gpt-6.1-terra'
+
+function selectModel(provider: ModelProviderId, tier: ModelTier): string {
+  if (provider === 'anthropic') return tier === 'deep' ? ANTHROPIC_MODEL : ANTHROPIC_EFFICIENT_MODEL
+  if (provider === 'gemini') return process.env.GEMINI_MODEL?.trim() || (tier === 'deep' ? DEFAULT_GEMINI_MODEL : EFFICIENT_GEMINI_MODEL)
+  return process.env.OPENAI_MODEL?.trim() || (tier === 'deep' ? DEFAULT_OPENAI_MODEL : EFFICIENT_OPENAI_MODEL)
+}
+
+function geminiConfig(model: string, tier: ModelTier, maxTokens: number) {
+  const argon = model.startsWith('gemini-4-')
+  return {
+    maxOutputTokens: Math.max(maxTokens, argon ? 32768 : 8192),
+    ...(argon || model.startsWith('gemini-3-') ? { thinkingConfig: { thinkingLevel: tier === 'deep' ? 'medium' : 'low' } } : {}),
+  }
+}
 
 /**
  * Returns configured server-side model providers in priority order:
@@ -32,6 +50,7 @@ export interface TextGenerationRequest {
   timeoutMs?: number
   deadlineAt?: number
   skipAnthropic?: boolean
+  tier?: ModelTier
 }
 
 export interface TextGenerationResult {
@@ -74,7 +93,7 @@ function nextAttemptTimeoutMs(
 async function callGeminiText(req: TextGenerationRequest, timeoutMs: number): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
-  const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL
+  const model = selectModel('gemini', req.tier ?? 'deep')
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
     {
@@ -84,7 +103,7 @@ async function callGeminiText(req: TextGenerationRequest, timeoutMs: number): Pr
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: req.system }] },
         contents: [{ role: 'user', parts: [{ text: req.userContent }] }],
-        generationConfig: { maxOutputTokens: req.maxTokens },
+        generationConfig: geminiConfig(model, req.tier ?? 'deep', req.maxTokens),
       }),
     },
   )
@@ -152,7 +171,7 @@ export async function runProviderChainText(req: TextGenerationRequest): Promise<
       if (provider === 'anthropic') {
         const client = new Anthropic({ maxRetries: 0, timeout: attemptTimeoutMs })
         const response = await client.messages.create({
-          model: ANTHROPIC_MODEL,
+          model: selectModel('anthropic', req.tier ?? 'deep'),
           max_tokens: req.maxTokens,
           system: req.system,
           messages: [{ role: 'user', content: req.userContent }],
@@ -163,13 +182,13 @@ export async function runProviderChainText(req: TextGenerationRequest): Promise<
           .map(block => block.text)
           .join(' ')
           .trim()
-        model = ANTHROPIC_MODEL
+        model = selectModel('anthropic', req.tier ?? 'deep')
       } else if (provider === 'gemini') {
         text = await callGeminiText(req, attemptTimeoutMs)
-        model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL
+        model = selectModel('gemini', req.tier ?? 'deep')
       } else {
         text = await callOpenAIText(req, attemptTimeoutMs)
-        model = process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL
+        model = selectModel('openai', req.tier ?? 'deep')
       }
       if (!text) throw new Error('Invalid model response')
       return { text, provider, model, fallbacks }
@@ -190,17 +209,17 @@ export async function runProviderChainText(req: TextGenerationRequest): Promise<
 async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): Promise<ReviewStepResult> {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
-  const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL
+  const model = selectModel('gemini', 'deep')
 
   const body: Record<string, unknown> = {
     systemInstruction: { parts: [{ text: req.system }] },
     contents: [{ role: 'user', parts: [{ text: req.userContent }] }],
     generationConfig: req.requireToolOutput
       ? {
-          maxOutputTokens: req.maxTokens,
+          ...geminiConfig(model, 'deep', req.maxTokens),
           responseMimeType: 'application/json',
         }
-      : { maxOutputTokens: req.maxTokens },
+      : geminiConfig(model, 'deep', req.maxTokens),
   }
 
   if (req.requireToolOutput) {
