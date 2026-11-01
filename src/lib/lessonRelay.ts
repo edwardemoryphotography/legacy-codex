@@ -30,7 +30,16 @@ export function encodeLessonRelay(input: Pick<LessonRelay, 'rule' | 'whenToApply
 
 export function decodeLessonRelay(value: string): LessonRelay | null {
   if (typeof value !== 'string' || value.length > 4_096) return null
-  const code = value.trim()
+  let code = value.trim()
+  // Accept a code pasted directly or the first-party share link containing it.
+  if (code.startsWith('https://')) {
+    try {
+      const url = new URL(code)
+      if (!['legacy-codex.vercel.app', 'localhost'].includes(url.hostname) &&
+          !url.hostname.endsWith('.vercel.app')) return null
+      code = url.searchParams.get('relay') ?? ''
+    } catch { return null }
+  }
   if (!code.startsWith(LESSON_RELAY_PREFIX)) return null
   const encoded = code.slice(LESSON_RELAY_PREFIX.length)
   if (!encoded || !/^[A-Za-z0-9_-]+$/.test(encoded)) return null
