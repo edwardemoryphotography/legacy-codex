@@ -54,7 +54,7 @@ function useOwnerName() {
 }
 
 export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => void }) {
-  const { missions, loadError } = useMissionTerritory()
+  const { missions, loadError, actions, actionsRead } = useMissionTerritory()
   const brief = useBriefRunner()
   const name = useOwnerName()
   const presentation = useOrbPresentation()
@@ -87,6 +87,12 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
   }, [sheetOpen])
 
   const missionCount = missions?.length ?? 0
+  // Continuity is read from actual persisted rows. A failed/pending action read
+  // must never be presented as proof that there is no unfinished work.
+  const primaryMission = missions?.find(mission => mission.state === 'primary') ?? null
+  const savedAction = actionsRead === 'ok' && primaryMission
+    ? actions.find(action => action.mission_id === primaryMission.id && (action.status === 'TODO' || action.status === 'IN_PROGRESS')) ?? null
+    : null
   const noTextNeeded = tool === 'brief' || tool === 'triage'
   // Prompt help spends part of the 400 characters on its instruction.
   const limit = tool === 'prompt' ? QUESTION_LIMIT - PROMPT_HELP.length : QUESTION_LIMIT
@@ -159,11 +165,31 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
         </div>
         <p className="glass-note" aria-live="polite">{note}</p>
         {missions !== null && !loadError && (
-          <div>
-            <button type="button" className="glass-chip glass" style={{ minHeight: 44 }} onClick={() => onNavigate('mission')}>
-              {missionCount === 0 ? 'Start a mission' : 'Open your missions'}
-            </button>
-          </div>
+          primaryMission ? (
+            <section className="glass-continuity glass" aria-label="Your saved focus">
+              <p className="glass-continuity-kicker">YOUR SAVED FOCUS</p>
+              <h3>{primaryMission.title}</h3>
+              {actionsRead === 'pending' && <p className="glass-continuity-detail" role="status">Checking your saved actions…</p>}
+              {actionsRead === 'failed' && <p className="glass-continuity-detail" role="status">Saved actions could not be checked. Your work has not been changed.</p>}
+              {actionsRead === 'ok' && savedAction && (
+                <div className="glass-continuity-action">
+                  <p className="glass-continuity-kicker">{savedAction.status === 'IN_PROGRESS' ? 'IN PROGRESS' : 'SAVED NEXT ACTION'}</p>
+                  <p className="glass-continuity-title">{savedAction.action_title}</p>
+                  {savedAction.resume_note && <p className="glass-continuity-detail">Return note: {savedAction.resume_note}</p>}
+                </div>
+              )}
+              {actionsRead === 'ok' && !savedAction && <p className="glass-continuity-detail">No unfinished action is currently linked to this Primary mission.</p>}
+              <button type="button" className="glass-continuity-button" onClick={() => onNavigate('mission')}>
+                {savedAction ? 'Continue in Mission' : 'Open this mission'}
+              </button>
+            </section>
+          ) : (
+            <div>
+              <button type="button" className="glass-chip glass" style={{ minHeight: 44 }} onClick={() => onNavigate('mission')}>
+                {missionCount === 0 ? 'Start a mission' : 'Open your missions'}
+              </button>
+            </div>
+          )
         )}
         {brief.output && brief.status !== 'error' && (
           <div ref={output} className="glass-output glass" style={{ scrollMarginBottom: 'calc(260px + var(--safe-bottom, 0px))' }}>

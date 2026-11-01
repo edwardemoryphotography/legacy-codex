@@ -103,3 +103,66 @@ html::before, html::after, body::before, body::after { display: none; }
 /* Menus float over content, so their glass is denser than the board's
    (whose sheet only ever sat over empty space): text behind must not show. */
 .glass-sheet.glass, .glass-menu.glass { background: rgba(20, 22, 48, .95); }
+
+/* Continuity belongs on the home, ahead of an open-ended chat.
+   The title and action are real RLS-scoped rows, never sample content. */
+.glass-continuity {
+  padding: 18px 20px;
+  border-radius: 24px;
+  display: grid;
+  gap: 9px;
+  background: rgba(22, 26, 58, .77);
+  color: var(--g-mist);
+  min-width: 0;
+}
+.glass-continuity-kicker {
+  margin: 0;
+  font: 700 11px var(--g-body);
+  letter-spacing: .1em;
+  color: var(--g-teal);
+}
+.glass-continuity h3 {
+  margin: 0;
+  color: var(--g-mist);
+  font: 700 clamp(18px, 4.8vw, 22px)/1.2 var(--g-display);
+  overflow-wrap: anywhere;
+}
+.glass-continuity-action { border-top: 1px solid rgba(255,255,255,.14); padding-top: 11px; display: grid; gap: 6px; }
+.glass-continuity-title { margin: 0; font: 600 15px/1.4 var(--g-body); overflow-wrap: anywhere; }
+.glass-continuity-detail { margin: 0; color: var(--g-mist-dim); font: 400 13px/1.5 var(--g-body); overflow-wrap: anywhere; }
+.glass-continuity-button {
+  justify-self: start;
+  margin-top: 4px;
+  border: 1px solid rgba(34,211,190,.50);
+  border-radius: 999px;
+  min-height: 44px;
+  padding: 10px 17px;
+  color: var(--g-mist);
+  background: rgba(34,211,190,.14);
+  font: 600 14px var(--g-body);
+  cursor: pointer;
+}
+.glass-continuity-button:hover { background: rgba(34,211,190,.25); }
+
+/* A possible cross-project bridge is inspectable, not a reward animation.
+   Ember stays unused until actual behavioral inheritance is verified. */
+.glass-bridge {
+  border: 1px solid rgba(34,211,190,.36);
+  background: rgba(34,211,190,.06);
+  border-radius: 22px;
+  padding: 18px;
+  margin: 14px 0 22px;
+  overflow-wrap: anywhere;
+}
+.glass-bridge-kicker { margin: 0 0 8px; color: var(--g-teal); font: 700 11px var(--g-body); letter-spacing: .09em; }
+.glass-bridge h3 { margin: 0 0 14px; color: var(--g-mist); font-family: var(--g-display); }
+.glass-bridge-steps { display: grid; gap: 12px; margin: 0; }
+.glass-bridge-steps div { display: grid; gap: 3px; }
+.glass-bridge-steps dt { font: 600 12px var(--g-body); color: var(--g-teal); }
+.glass-bridge-steps dd { margin: 0; font: 400 14px/1.55 var(--g-body); color: var(--g-mist); }
+.glass-bridge-caveat { margin: 14px 0 0; color: var(--g-mist-dim); font: 400 12px/1.5 var(--g-body); }
+@media (max-width: 440px) {
+  .glass-continuity { padding: 15px 16px; }
+  .glass-hero { gap: 17px; }
+  .glass-bridge { padding: 15px; }
+}

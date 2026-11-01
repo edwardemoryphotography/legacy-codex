@@ -158,7 +158,7 @@ describe('Home mission entry', () => {
   it('offers the same route back to saved missions', () => {
     const navigate = vi.fn()
     render(<HomeTab onNavigate={navigate} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Open your missions' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open this mission' }))
     expect(navigate).toHaveBeenCalledWith('mission')
   })
 
