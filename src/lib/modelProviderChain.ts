@@ -394,14 +394,17 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
           ...(req.requireToolOutput
             ? {
                 tools: [req.tool],
+                // Opus 5.5 rejects forced named tool calls. Prompt for the
+                // specific tool, validate the result, then fall back if absent.
                 tool_choice: {
-                  type: 'tool' as const,
-                  name: req.tool.name,
+                  type: 'auto' as const,
                   disable_parallel_tool_use: true,
                 },
               }
             : {}),
-          messages: [{ role: 'user', content: req.userContent }],
+          messages: [{ role: 'user', content: req.requireToolOutput
+            ? req.userContent + '\n\nUse the ' + req.tool.name + ' tool exactly once to return the required structured result. Do not answer only in prose.'
+            : req.userContent }],
         })
         if (req.requireToolOutput) {
           const outputs = response.content.filter(
@@ -409,10 +412,11 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
               block.type === 'tool_use' && block.name === req.tool.name,
           )
           const validToolUse = response.stop_reason === 'tool_use' && outputs.length === 1
+          if (!validToolUse) throw new Error('Invalid model response')
           return {
-            stopReason: validToolUse ? 'tool_use' : 'other',
+            stopReason: 'tool_use',
             text: '',
-            toolInput: validToolUse ? outputs[0].input : null,
+            toolInput: outputs[0].input,
             provider: 'anthropic',
           }
         }
@@ -420,18 +424,23 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
           .filter((b): b is Anthropic.TextBlock => b.type === 'text')
           .map(b => b.text)
           .join('\n')
+        if (response.stop_reason !== 'end_turn' || !text.trim()) throw new Error('Invalid model response')
         return {
-          stopReason: response.stop_reason === 'end_turn' ? 'end_turn' : 'other',
+          stopReason: 'end_turn',
           text,
           toolInput: null,
           provider: 'anthropic',
         }
       }
-      if (provider === 'gemini') {
-        return await callGeminiReviewStep(req, attemptTimeoutMs)
-      }
-      if (provider === 'openai') {
-        return await callOpenAIReviewStep(req, attemptTimeoutMs)
+      if (provider === 'gemini' || provider === 'openai') {
+        const result = provider === 'gemini'
+          ? await callGeminiReviewStep(req, attemptTimeoutMs)
+          : await callOpenAIReviewStep(req, attemptTimeoutMs)
+        const expected = req.requireToolOutput ? 'tool_use' : 'end_turn'
+        if (result.stopReason !== expected || (req.requireToolOutput && (!result.toolInput || typeof result.toolInput !== 'object'))) {
+          throw new Error('Invalid model response')
+        }
+        return result
       }
     } catch (err) {
       lastError = err
