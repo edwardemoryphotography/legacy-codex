@@ -12,7 +12,35 @@ export default function ProjectLearning({ review, lessons, onConfirm, onRetire }
   onConfirm?: ConfirmLesson
   onRetire?: RetireLesson
 }) {
+  const bridge = review?.structuralBridge
+  const comparison = review?.transferObservation
+  const sourceName = (id: string) => review?.sources.find(source => source.id === id)?.label ?? id
   return <section className="sd-project-review" aria-label="Lessons carried forward">
+    {(bridge || comparison) && (
+      <section className="glass-bridge" aria-label="Cross-project connection evidence">
+        <p className="glass-bridge-kicker">BOOMERANG CHECK · NOT VERIFIED</p>
+        <h3>Does a lesson carry between projects?</h3>
+        {bridge && (
+          <dl className="glass-bridge-steps">
+            <div><dt>Earlier project · {sourceName(bridge.priorSourceId)}</dt><dd>“{bridge.priorQuote}”</dd></div>
+            <div><dt>Current project · {sourceName(bridge.currentSourceId)}</dt><dd>“{bridge.currentQuote}”</dd></div>
+            <div><dt>Shared structure · proposed</dt><dd>{bridge.sharedStructure}</dd></div>
+            <div><dt>Reasoning bridge · proposed</dt><dd>{bridge.reasoningBridge}</dd></div>
+            <div><dt>Practical consequence · proposed</dt><dd>{bridge.application}</dd></div>
+            <div><dt>Evidence still required</dt><dd>{bridge.proofRequired}</dd></div>
+          </dl>
+        )}
+        {comparison && (
+          <p className="glass-bridge-caveat">
+            {comparison.outcome === 'changed_candidate'
+              ? 'A different candidate decision was observed in a sequential comparison; that does not prove the confirmed lesson caused it.'
+              : 'The comparison has not demonstrated an autonomous change inherited from a confirmed lesson.'}
+            {' '}Inheritance remains {comparison.inheritance.toLowerCase()}. No verified transfer signal is emitted.
+          </p>
+        )}
+        {!comparison && <p className="glass-bridge-caveat">This is a proposed connection. No independent transfer comparison is attached.</p>}
+      </section>
+    )}
     {review && onConfirm && <LessonForm key={review.contextKey} review={review} onConfirm={onConfirm} />}
     {lessons.length > 0 && <>
       <h3>Lessons carried forward — confirmed by you</h3>
