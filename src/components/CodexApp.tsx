@@ -49,6 +49,12 @@ export default function CodexApp() {
   const menuSheetRef = useRef<HTMLDivElement>(null)
   const activeTabMeta = TABS.find(tab => tab.id === activeTab)
 
+  // A shared lesson opens the existing Mission workflow, never a new app or
+  // an automatic save. The recipient must inspect and accept it explicitly.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has('relay')) setActiveTab('mission')
+  }, [])
+
   const closeMenu = useCallback(() => {
     setMenuOpen(false)
     menuTriggerRef.current?.focus()
