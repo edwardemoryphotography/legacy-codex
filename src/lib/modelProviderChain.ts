@@ -119,32 +119,52 @@ async function callGeminiText(req: TextGenerationRequest, timeoutMs: number): Pr
     .trim()
 }
 
+type OpenAIResponse = {
+  status?: string
+  output_text?: string
+  output?: Array<{
+    type?: string
+    name?: string
+    arguments?: string
+    content?: Array<{ type?: string; text?: string }>
+  }>
+}
+
+function openAIText(data: OpenAIResponse): string {
+  if (data.status && data.status !== 'completed') throw new Error('Invalid model response')
+  const fromItems = (data.output ?? [])
+    .filter(item => item.type === 'message')
+    .flatMap(item => (item.content ?? []).filter(part => part.type === 'output_text').map(part => part.text ?? ''))
+    .join('\n')
+    .trim()
+  return fromItems || data.output_text?.trim() || ''
+}
+
 async function callOpenAIText(req: TextGenerationRequest, timeoutMs: number): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY?.trim()
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
-  const model = process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    signal: AbortSignal.timeout(timeoutMs),
-    body: JSON.stringify({
-      model,
-      max_tokens: req.maxTokens,
-      messages: [
-        { role: 'system', content: req.system },
-        { role: 'user', content: req.userContent },
-      ],
-    }),
-  })
-  if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`)
-  const data = (await res.json()) as {
-    choices?: Array<{ finish_reason?: string; message?: { content?: string | null } }>
+  const tier = req.tier ?? 'deep'
+  const model = selectModel('openai', tier)
+  const payload: Record<string, unknown> = {
+    model,
+    instructions: req.system,
+    input: req.userContent,
+    // Reasoning output includes invisible thinking tokens, so a 1K ceiling
+    // can exhaust before a visible answer appears.
+    max_output_tokens: Math.max(req.maxTokens, tier === 'deep' ? 8192 : 4096),
+    store: false,
   }
-  if (data.choices?.[0]?.finish_reason && data.choices[0].finish_reason !== 'stop') throw new Error('Invalid model response')
-  return (data.choices?.[0]?.message?.content ?? '').trim()
+  if (model.startsWith('gpt-6') || model.startsWith('gpt-5')) {
+    payload.reasoning = { effort: tier === 'deep' ? 'medium' : 'low' }
+  }
+  const res = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
+    signal: AbortSignal.timeout(timeoutMs),
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error('OpenAI HTTP ' + res.status)
+  return openAIText(await res.json())
 }
 
 /**
@@ -306,82 +326,46 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): 
 async function callOpenAIReviewStep(req: ReviewStepRequest, timeoutMs: number): Promise<ReviewStepResult> {
   const apiKey = process.env.OPENAI_API_KEY?.trim()
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
-  const model = process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL
-
+  const model = selectModel('openai', 'deep')
   const payload: Record<string, unknown> = {
     model,
-    max_tokens: req.maxTokens,
-    messages: [
-      { role: 'system', content: req.system },
-      { role: 'user', content: req.userContent },
-    ],
+    instructions: req.system,
+    input: req.userContent,
+    max_output_tokens: Math.max(req.maxTokens, 8192),
+    store: false,
   }
-
+  if (model.startsWith('gpt-6') || model.startsWith('gpt-5')) payload.reasoning = { effort: 'medium' }
   if (req.requireToolOutput) {
-    payload.tools = [
-      {
-        type: 'function',
-        function: {
-          name: req.tool.name,
-          description: req.tool.description ?? '',
-          parameters: req.tool.input_schema,
-        },
-      },
-    ]
-    payload.tool_choice = {
+    payload.tools = [{
       type: 'function',
-      function: { name: req.tool.name },
-    }
+      name: req.tool.name,
+      description: req.tool.description ?? '',
+      parameters: req.tool.input_schema,
+      strict: false,
+    }]
+    payload.tool_choice = { type: 'function', name: req.tool.name }
+    payload.parallel_tool_calls = false
   }
-
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  const res = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
     signal: AbortSignal.timeout(timeoutMs),
     body: JSON.stringify(payload),
   })
-  if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`)
-  const data = (await res.json()) as {
-    choices?: Array<{
-      finish_reason?: string
-      message?: {
-        content?: string | null
-        tool_calls?: Array<{
-          function?: { name?: string; arguments?: string }
-        }>
-      }
-    }>
-  }
-
-  const choice = data.choices?.[0]
+  if (!res.ok) throw new Error('OpenAI HTTP ' + res.status)
+  const data = (await res.json()) as OpenAIResponse
+  if (data.status && data.status !== 'completed') return { stopReason: 'other', text: '', toolInput: null, provider: 'openai' }
   if (req.requireToolOutput) {
-    const call = choice?.message?.tool_calls?.find(tc => tc.function?.name === req.tool.name)
-    if (call?.function?.arguments) {
+    const matching = (data.output ?? []).filter(item => item.type === 'function_call' && item.name === req.tool.name)
+    if (matching.length === 1 && typeof matching[0].arguments === 'string') {
       try {
-        return {
-          stopReason: 'tool_use',
-          text: '',
-          toolInput: JSON.parse(call.function.arguments),
-          provider: 'openai',
-        }
-      } catch {
-        return { stopReason: 'other', text: '', toolInput: null, provider: 'openai' }
-      }
+        return { stopReason: 'tool_use', text: '', toolInput: JSON.parse(matching[0].arguments), provider: 'openai' }
+      } catch { /* Invalid structured output must never become accepted evidence. */ }
     }
     return { stopReason: 'other', text: '', toolInput: null, provider: 'openai' }
   }
-
-  const text = (choice?.message?.content ?? '').trim()
-  const finishedCleanly = !choice?.finish_reason || choice.finish_reason === 'stop'
-  return {
-    stopReason: finishedCleanly && text ? 'end_turn' : 'other',
-    text,
-    toolInput: null,
-    provider: 'openai',
-  }
+  const text = openAIText(data)
+  return { stopReason: text ? 'end_turn' : 'other', text, toolInput: null, provider: 'openai' }
 }
 
 /**
