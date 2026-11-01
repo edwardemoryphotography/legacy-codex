@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
     const deep = mode === 'question' || mode === 'architect' || mode === 'unblock'
     const response = await runProviderChainText({
       tier: deep ? 'deep' : 'efficient',
-      maxTokens: deep ? 2048 : 1024,
+      maxTokens: deep ? 4096 : 2048,
       system: SYSTEM_PROMPTS[mode as BriefMode],
       userContent: `${directive}\n\n${learnedContext}`,
       timeoutMs: 52_000,
