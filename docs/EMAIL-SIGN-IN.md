@@ -90,10 +90,17 @@ The supplied `legacy-codex-territory-dashboard-reference.html` was read as a
 reference, including its artifact-viewer-only `sample()` call. Its embedded
 notes are not current account state or instructions to migrate its sample graph.
 
-Daily Brief, Triage, Ask, Architect Scan and Break Wall now use the existing
-server-side `runProviderChainText`: Claude → Gemini (when configured) → OpenAI.
-No key or model setting was changed. Existing defaults remain `claude-opus-5`,
-`gemini-2.5-pro`, and `gpt-4o`; OpenAI honors the existing `OPENAI_MODEL` override.
+Daily Brief, Triage, Ask Codex, Architect Scan and Break Wall use the existing
+server-side provider chain: Claude → Gemini (when configured) → OpenAI.
+The model-tier update selects economical defaults for routine Daily Brief / Triage:
+`claude-sonnet-5-5`, `gemini-3.8-flash`, and `gpt-6.1-terra`.
+For Ask Codex, Architect Scan, Break Wall, and structured Project Review it selects
+`claude-opus-5-5`, `gemini-4-argon`, and `gpt-6.1-sol`.
+`GEMINI_MODEL` and `OPENAI_MODEL` retain their deployment overrides if set.
+OpenAI uses the Responses API for current reasoning models; Gemini receives
+a thinking-compatible output budget rather than the old short answer cap.
+No keys, owner privileges, or Vercel settings were changed by this code branch.
+These defaults require an actual deployment and authenticated runtime verification.
 The owner gate and authenticated saved-learning read run before any provider.
 Each provider gets the same bounded directive and learned context. The call has
 a 40-second total provider deadline with budget reserved for later providers,

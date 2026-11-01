@@ -177,13 +177,11 @@ describe('/api/delta-operation', () => {
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            choices: [
-              {
-                message: {
-                  content: 'Record a correction on the Strategic Delta and verify the rejected move stays inhibited.',
-                },
-              },
-            ],
+            status: 'completed',
+            output: [{
+              type: 'message',
+              content: [{ type: 'output_text', text: 'Record a correction on the Strategic Delta and verify the rejected move stays inhibited.' }],
+            }],
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         ),

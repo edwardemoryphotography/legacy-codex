@@ -60,7 +60,7 @@ describe('HomeTab never cuts a question silently', () => {
     render(<HomeTab onNavigate={() => {}} />)
     fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'What is my next move?' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
-    expect(run).toHaveBeenCalledWith('question', expect.objectContaining({ question: 'What is my next move?' }), 'Ask Claude')
+    expect(run).toHaveBeenCalledWith('question', expect.objectContaining({ question: 'What is my next move?' }), 'Ask Codex')
   })
 
   it('keeps Stop available while dictating, even once words arrive', () => {
@@ -90,7 +90,7 @@ describe('HomeTab send arrow', () => {
     fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'Hey' } })
     expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
     fireEvent.keyDown(screen.getByLabelText('Ask Codex'), { key: 'Enter' })
-    expect(run).toHaveBeenCalledWith('question', { mode: 'question', missions: [], missionIds: [], question: 'Hey' }, 'Ask Claude')
+    expect(run).toHaveBeenCalledWith('question', { mode: 'question', missions: [], missionIds: [], question: 'Hey' }, 'Ask Codex')
   })
 
   it('keeps failed text and the chosen tool instead of erasing them on submission', async () => {

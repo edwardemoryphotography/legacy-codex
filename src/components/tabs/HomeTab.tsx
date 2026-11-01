@@ -16,11 +16,11 @@ import type { TabId } from '@/types'
  *  is the existing speech-recognition input. Nothing here is timed or faked. */
 
 type Tool = 'brief' | 'triage' | 'ask' | 'prompt'
-const TOOL_LABEL: Record<Tool, string> = { brief: 'Daily Brief', triage: 'Triage', ask: 'Ask Claude', prompt: 'Prompt help' }
+const TOOL_LABEL: Record<Tool, string> = { brief: 'Daily Brief', triage: 'Triage', ask: 'Ask Codex', prompt: 'Prompt help' }
 const CHIPS: { tool: Tool; label: string }[] = [
   { tool: 'brief', label: 'Daily Brief' },
   { tool: 'triage', label: 'Triage' },
-  { tool: 'ask', label: 'Ask Claude' },
+  { tool: 'ask', label: 'Ask Codex' },
   { tool: 'prompt', label: 'Help me write a prompt' },
 ]
 const STATE_WORD: Record<string, string> = { idle: 'Idle', listening: 'Listening', thinking: 'Thinking', ready: 'Ready', blocked: 'Blocked', completed: 'Done' }
@@ -125,7 +125,7 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
       const succeeded = tool === 'brief' ? await brief.run('daily_brief', { mode: 'daily_brief', ...roster }, 'Daily Brief')
         : tool === 'triage' ? await brief.run('triage', { mode: 'triage', ...roster }, 'Triage')
         : tool === 'prompt' ? await brief.run('question', { mode: 'question', question: promptHelpQuestion(q), ...roster }, 'Prompt help')
-        : await brief.run('question', { mode: 'question', question: q, ...roster }, 'Ask Claude')
+        : await brief.run('question', { mode: 'question', question: q, ...roster }, 'Ask Codex')
       if (succeeded) {
         setText(current => current === submitted ? '' : current)
         setTool(current => current === tool ? null : current)

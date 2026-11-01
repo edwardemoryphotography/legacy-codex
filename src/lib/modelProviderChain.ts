@@ -3,9 +3,27 @@ import type { Tool } from '@anthropic-ai/sdk/resources/messages'
 
 export type ModelProviderId = 'anthropic' | 'gemini' | 'openai'
 
-const ANTHROPIC_MODEL = 'claude-opus-5'
-const DEFAULT_GEMINI_MODEL = 'gemini-2.5-pro'
-const DEFAULT_OPENAI_MODEL = 'gpt-4o'
+export type ModelTier = 'efficient' | 'deep'
+const ANTHROPIC_MODEL = 'claude-opus-5-5'
+const ANTHROPIC_EFFICIENT_MODEL = 'claude-sonnet-5-5'
+const DEFAULT_GEMINI_MODEL = 'gemini-4-argon'
+const EFFICIENT_GEMINI_MODEL = 'gemini-3.8-flash'
+const DEFAULT_OPENAI_MODEL = 'gpt-6.1-sol'
+const EFFICIENT_OPENAI_MODEL = 'gpt-6.1-terra'
+
+function selectModel(provider: ModelProviderId, tier: ModelTier): string {
+  if (provider === 'anthropic') return tier === 'deep' ? ANTHROPIC_MODEL : ANTHROPIC_EFFICIENT_MODEL
+  if (provider === 'gemini') return process.env.GEMINI_MODEL?.trim() || (tier === 'deep' ? DEFAULT_GEMINI_MODEL : EFFICIENT_GEMINI_MODEL)
+  return process.env.OPENAI_MODEL?.trim() || (tier === 'deep' ? DEFAULT_OPENAI_MODEL : EFFICIENT_OPENAI_MODEL)
+}
+
+function geminiConfig(model: string, tier: ModelTier, maxTokens: number) {
+  const argon = model.startsWith('gemini-4-')
+  return {
+    maxOutputTokens: Math.max(maxTokens, argon ? 32768 : 8192),
+    ...(argon || model.startsWith('gemini-3-') ? { thinkingConfig: { thinkingLevel: tier === 'deep' ? 'medium' : 'low' } } : {}),
+  }
+}
 
 /**
  * Returns configured server-side model providers in priority order:
@@ -32,6 +50,7 @@ export interface TextGenerationRequest {
   timeoutMs?: number
   deadlineAt?: number
   skipAnthropic?: boolean
+  tier?: ModelTier
 }
 
 export interface TextGenerationResult {
@@ -74,7 +93,7 @@ function nextAttemptTimeoutMs(
 async function callGeminiText(req: TextGenerationRequest, timeoutMs: number): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
-  const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL
+  const model = selectModel('gemini', req.tier ?? 'deep')
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
     {
@@ -84,7 +103,7 @@ async function callGeminiText(req: TextGenerationRequest, timeoutMs: number): Pr
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: req.system }] },
         contents: [{ role: 'user', parts: [{ text: req.userContent }] }],
-        generationConfig: { maxOutputTokens: req.maxTokens },
+        generationConfig: geminiConfig(model, req.tier ?? 'deep', req.maxTokens),
       }),
     },
   )
@@ -100,32 +119,52 @@ async function callGeminiText(req: TextGenerationRequest, timeoutMs: number): Pr
     .trim()
 }
 
+type OpenAIResponse = {
+  status?: string
+  output_text?: string
+  output?: Array<{
+    type?: string
+    name?: string
+    arguments?: string
+    content?: Array<{ type?: string; text?: string }>
+  }>
+}
+
+function openAIText(data: OpenAIResponse): string {
+  if (data.status && data.status !== 'completed') throw new Error('Invalid model response')
+  const fromItems = (data.output ?? [])
+    .filter(item => item.type === 'message')
+    .flatMap(item => (item.content ?? []).filter(part => part.type === 'output_text').map(part => part.text ?? ''))
+    .join('\n')
+    .trim()
+  return fromItems || data.output_text?.trim() || ''
+}
+
 async function callOpenAIText(req: TextGenerationRequest, timeoutMs: number): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY?.trim()
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
-  const model = process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    signal: AbortSignal.timeout(timeoutMs),
-    body: JSON.stringify({
-      model,
-      max_tokens: req.maxTokens,
-      messages: [
-        { role: 'system', content: req.system },
-        { role: 'user', content: req.userContent },
-      ],
-    }),
-  })
-  if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`)
-  const data = (await res.json()) as {
-    choices?: Array<{ finish_reason?: string; message?: { content?: string | null } }>
+  const tier = req.tier ?? 'deep'
+  const model = selectModel('openai', tier)
+  const payload: Record<string, unknown> = {
+    model,
+    instructions: req.system,
+    input: req.userContent,
+    // Reasoning output includes invisible thinking tokens, so a 1K ceiling
+    // can exhaust before a visible answer appears.
+    max_output_tokens: Math.max(req.maxTokens, tier === 'deep' ? 8192 : 4096),
+    store: false,
   }
-  if (data.choices?.[0]?.finish_reason && data.choices[0].finish_reason !== 'stop') throw new Error('Invalid model response')
-  return (data.choices?.[0]?.message?.content ?? '').trim()
+  if (model.startsWith('gpt-6') || model.startsWith('gpt-5')) {
+    payload.reasoning = { effort: tier === 'deep' ? 'medium' : 'low' }
+  }
+  const res = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
+    signal: AbortSignal.timeout(timeoutMs),
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error('OpenAI HTTP ' + res.status)
+  return openAIText(await res.json())
 }
 
 /**
@@ -152,7 +191,7 @@ export async function runProviderChainText(req: TextGenerationRequest): Promise<
       if (provider === 'anthropic') {
         const client = new Anthropic({ maxRetries: 0, timeout: attemptTimeoutMs })
         const response = await client.messages.create({
-          model: ANTHROPIC_MODEL,
+          model: selectModel('anthropic', req.tier ?? 'deep'),
           max_tokens: req.maxTokens,
           system: req.system,
           messages: [{ role: 'user', content: req.userContent }],
@@ -163,13 +202,13 @@ export async function runProviderChainText(req: TextGenerationRequest): Promise<
           .map(block => block.text)
           .join(' ')
           .trim()
-        model = ANTHROPIC_MODEL
+        model = selectModel('anthropic', req.tier ?? 'deep')
       } else if (provider === 'gemini') {
         text = await callGeminiText(req, attemptTimeoutMs)
-        model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL
+        model = selectModel('gemini', req.tier ?? 'deep')
       } else {
         text = await callOpenAIText(req, attemptTimeoutMs)
-        model = process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL
+        model = selectModel('openai', req.tier ?? 'deep')
       }
       if (!text) throw new Error('Invalid model response')
       return { text, provider, model, fallbacks }
@@ -190,17 +229,17 @@ export async function runProviderChainText(req: TextGenerationRequest): Promise<
 async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): Promise<ReviewStepResult> {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
-  const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL
+  const model = selectModel('gemini', 'deep')
 
   const body: Record<string, unknown> = {
     systemInstruction: { parts: [{ text: req.system }] },
     contents: [{ role: 'user', parts: [{ text: req.userContent }] }],
     generationConfig: req.requireToolOutput
       ? {
-          maxOutputTokens: req.maxTokens,
+          ...geminiConfig(model, 'deep', req.maxTokens),
           responseMimeType: 'application/json',
         }
-      : { maxOutputTokens: req.maxTokens },
+      : geminiConfig(model, 'deep', req.maxTokens),
   }
 
   if (req.requireToolOutput) {
@@ -287,82 +326,46 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): 
 async function callOpenAIReviewStep(req: ReviewStepRequest, timeoutMs: number): Promise<ReviewStepResult> {
   const apiKey = process.env.OPENAI_API_KEY?.trim()
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
-  const model = process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL
-
+  const model = selectModel('openai', 'deep')
   const payload: Record<string, unknown> = {
     model,
-    max_tokens: req.maxTokens,
-    messages: [
-      { role: 'system', content: req.system },
-      { role: 'user', content: req.userContent },
-    ],
+    instructions: req.system,
+    input: req.userContent,
+    max_output_tokens: Math.max(req.maxTokens, 8192),
+    store: false,
   }
-
+  if (model.startsWith('gpt-6') || model.startsWith('gpt-5')) payload.reasoning = { effort: 'medium' }
   if (req.requireToolOutput) {
-    payload.tools = [
-      {
-        type: 'function',
-        function: {
-          name: req.tool.name,
-          description: req.tool.description ?? '',
-          parameters: req.tool.input_schema,
-        },
-      },
-    ]
-    payload.tool_choice = {
+    payload.tools = [{
       type: 'function',
-      function: { name: req.tool.name },
-    }
+      name: req.tool.name,
+      description: req.tool.description ?? '',
+      parameters: req.tool.input_schema,
+      strict: false,
+    }]
+    payload.tool_choice = { type: 'function', name: req.tool.name }
+    payload.parallel_tool_calls = false
   }
-
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  const res = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
     signal: AbortSignal.timeout(timeoutMs),
     body: JSON.stringify(payload),
   })
-  if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`)
-  const data = (await res.json()) as {
-    choices?: Array<{
-      finish_reason?: string
-      message?: {
-        content?: string | null
-        tool_calls?: Array<{
-          function?: { name?: string; arguments?: string }
-        }>
-      }
-    }>
-  }
-
-  const choice = data.choices?.[0]
+  if (!res.ok) throw new Error('OpenAI HTTP ' + res.status)
+  const data = (await res.json()) as OpenAIResponse
+  if (data.status && data.status !== 'completed') return { stopReason: 'other', text: '', toolInput: null, provider: 'openai' }
   if (req.requireToolOutput) {
-    const call = choice?.message?.tool_calls?.find(tc => tc.function?.name === req.tool.name)
-    if (call?.function?.arguments) {
+    const matching = (data.output ?? []).filter(item => item.type === 'function_call' && item.name === req.tool.name)
+    if (matching.length === 1 && typeof matching[0].arguments === 'string') {
       try {
-        return {
-          stopReason: 'tool_use',
-          text: '',
-          toolInput: JSON.parse(call.function.arguments),
-          provider: 'openai',
-        }
-      } catch {
-        return { stopReason: 'other', text: '', toolInput: null, provider: 'openai' }
-      }
+        return { stopReason: 'tool_use', text: '', toolInput: JSON.parse(matching[0].arguments), provider: 'openai' }
+      } catch { /* Invalid structured output must never become accepted evidence. */ }
     }
     return { stopReason: 'other', text: '', toolInput: null, provider: 'openai' }
   }
-
-  const text = (choice?.message?.content ?? '').trim()
-  const finishedCleanly = !choice?.finish_reason || choice.finish_reason === 'stop'
-  return {
-    stopReason: finishedCleanly && text ? 'end_turn' : 'other',
-    text,
-    toolInput: null,
-    provider: 'openai',
-  }
+  const text = openAIText(data)
+  return { stopReason: text ? 'end_turn' : 'other', text, toolInput: null, provider: 'openai' }
 }
 
 /**
@@ -391,14 +394,17 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
           ...(req.requireToolOutput
             ? {
                 tools: [req.tool],
+                // Opus 5.5 rejects forced named tool calls. Prompt for the
+                // specific tool, validate the result, then fall back if absent.
                 tool_choice: {
-                  type: 'tool' as const,
-                  name: req.tool.name,
+                  type: 'auto' as const,
                   disable_parallel_tool_use: true,
                 },
               }
             : {}),
-          messages: [{ role: 'user', content: req.userContent }],
+          messages: [{ role: 'user', content: req.requireToolOutput
+            ? req.userContent + '\n\nUse the ' + req.tool.name + ' tool exactly once to return the required structured result. Do not answer only in prose.'
+            : req.userContent }],
         })
         if (req.requireToolOutput) {
           const outputs = response.content.filter(
@@ -406,10 +412,11 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
               block.type === 'tool_use' && block.name === req.tool.name,
           )
           const validToolUse = response.stop_reason === 'tool_use' && outputs.length === 1
+          if (!validToolUse) throw new Error('Invalid model response')
           return {
-            stopReason: validToolUse ? 'tool_use' : 'other',
+            stopReason: 'tool_use',
             text: '',
-            toolInput: validToolUse ? outputs[0].input : null,
+            toolInput: outputs[0].input,
             provider: 'anthropic',
           }
         }
@@ -417,18 +424,23 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
           .filter((b): b is Anthropic.TextBlock => b.type === 'text')
           .map(b => b.text)
           .join('\n')
+        if (response.stop_reason !== 'end_turn' || !text.trim()) throw new Error('Invalid model response')
         return {
-          stopReason: response.stop_reason === 'end_turn' ? 'end_turn' : 'other',
+          stopReason: 'end_turn',
           text,
           toolInput: null,
           provider: 'anthropic',
         }
       }
-      if (provider === 'gemini') {
-        return await callGeminiReviewStep(req, attemptTimeoutMs)
-      }
-      if (provider === 'openai') {
-        return await callOpenAIReviewStep(req, attemptTimeoutMs)
+      if (provider === 'gemini' || provider === 'openai') {
+        const result = provider === 'gemini'
+          ? await callGeminiReviewStep(req, attemptTimeoutMs)
+          : await callOpenAIReviewStep(req, attemptTimeoutMs)
+        const expected = req.requireToolOutput ? 'tool_use' : 'end_turn'
+        if (result.stopReason !== expected || (req.requireToolOutput && (!result.toolInput || typeof result.toolInput !== 'object'))) {
+          throw new Error('Invalid model response')
+        }
+        return result
       }
     } catch (err) {
       lastError = err

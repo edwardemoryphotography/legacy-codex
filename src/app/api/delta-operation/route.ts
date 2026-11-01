@@ -30,7 +30,7 @@ import { isModelChainConfigured, runProviderChainText } from '@/lib/modelProvide
 
 export const runtime = 'nodejs'
 
-const MODEL = 'claude-opus-5'
+const MODEL = 'claude-opus-5-5'
 const MAX_OPERATION_CHARS = 160
 const MAX_REQUEST_BYTES = 12 * 1024
 const MAX_MISSION_TITLE_CHARS = 500
