@@ -45,7 +45,9 @@ export function decodeLessonRelay(value: string): LessonRelay | null {
   if (!encoded || !/^[A-Za-z0-9_-]+$/.test(encoded)) return null
   try {
     const normalized = encoded.replace(/-/g, '+').replace(/_/g, '/')
-    const bytes = Uint8Array.from(atob(normalized), char => char.charCodeAt(0))
+    const binary = atob(normalized)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
     const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
     return validateLessonRelay(parsed)
   } catch { return null }
