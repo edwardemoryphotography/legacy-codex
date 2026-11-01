@@ -6,7 +6,7 @@ import { deltaOwner } from '@/lib/supabase/deltaAuth'
 
 export const runtime = 'nodejs'
 
-const MODEL = 'claude-opus-5'
+const MODEL = 'claude-opus-5-5'
 // Vercel Serverless Functions reject request bodies over 4.5 MB with an opaque
 // 413 before this handler runs, so the ceiling is a platform limit, not a
 // preference. Budget under it to leave room for multipart framing and the
