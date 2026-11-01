@@ -77,7 +77,7 @@ describe('/api/brief owner gate', () => {
   it('lets the owner through to the model', async () => {
     const response = await POST(request({ mode: 'daily_brief', missions: [mission] }, userToken(OWNER_ID)))
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ text: 'Brief text.', provider: 'anthropic', model: 'claude-opus-5', fallbacks: [] })
+    expect(await response.json()).toEqual({ text: 'Brief text.', provider: 'anthropic', model: 'claude-sonnet-5-5', fallbacks: [] })
     expect(createMessage).toHaveBeenCalledOnce()
   })
 
@@ -135,18 +135,18 @@ describe('/api/brief owner gate', () => {
   it.each(['daily_brief', 'architect', 'unblock'])('uses OpenAI after Claude fails for %s, retaining the same scope and doctrine', async mode => {
     vi.stubEnv('OPENAI_API_KEY', 'test-openai-key')
     createMessage.mockRejectedValueOnce({ status: 529 })
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(Response.json({ choices: [{ finish_reason: 'stop', message: { content: 'Fallback answer.' } }] }))
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: 'Fallback answer.' }] }] }))
     const body = mode === 'daily_brief' ? { mode, missions: [mission] }
       : { mode, missions: [{ ...mission, blocker: 'stuck' }], missionIds: ['00000000-0000-4000-8000-0000000000aa'], target: { kind: mode === 'architect' ? 'mission' : 'blocker' } }
     const response = await POST(request(body, userToken(OWNER_ID)))
     expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ provider: 'openai', model: 'gpt-4o', fallbacks: [{ provider: 'anthropic', reason: 'unavailable' }] })
+    expect(await response.json()).toMatchObject({ provider: 'openai', model: mode === 'daily_brief' ? 'gpt-6.1-terra' : 'gpt-6.1-sol', fallbacks: [{ provider: 'anthropic', reason: 'unavailable' }] })
     expect(fetchMock).toHaveBeenCalledOnce()
-    expect(fetchMock.mock.calls[0][0]).toBe('https://api.openai.com/v1/chat/completions')
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.openai.com/v1/responses')
     const options = fetchMock.mock.calls[0][1]!
     const sent = JSON.parse(options.body as string)
-    expect(sent.messages[0].content).toBe(createMessage.mock.calls[0][0].system)
-    expect(sent.messages[1].content).toBe(directiveSent())
+    expect(sent.instructions).toBe(createMessage.mock.calls[0][0].system)
+    expect(sent.input).toBe(directiveSent())
     expect(options.signal).toBeInstanceOf(AbortSignal)
   })
 
@@ -154,7 +154,7 @@ describe('/api/brief owner gate', () => {
     vi.stubEnv('ANTHROPIC_API_KEY', '')
     vi.stubEnv('OPENAI_API_KEY', 'test-openai-key')
     expect(await (await GET()).json()).toEqual({ configured: true })
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(Response.json({ choices: [{ message: { content: 'OpenAI answer.' } }] }))
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: 'OpenAI answer.' }] }] }))
     const response = await POST(request({ mode: 'daily_brief', missions: [] }, userToken(OWNER_ID)))
     expect(response.status).toBe(200)
     expect((await response.json()).provider).toBe('openai')
@@ -167,7 +167,7 @@ describe('/api/brief owner gate', () => {
   ])('falls back on empty or incomplete Claude output: %j', async result => {
     vi.stubEnv('OPENAI_API_KEY', 'test-openai-key')
     createMessage.mockResolvedValueOnce(result)
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(Response.json({ choices: [{ message: { content: 'Complete answer.' } }] }))
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: 'Complete answer.' }] }] }))
     const response = await POST(request({ mode: 'daily_brief', missions: [] }, userToken(OWNER_ID)))
     expect(response.status).toBe(200)
     expect((await response.json()).fallbacks).toEqual([{ provider: 'anthropic', reason: 'empty or incomplete response' }])
