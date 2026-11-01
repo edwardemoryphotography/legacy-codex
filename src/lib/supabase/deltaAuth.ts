@@ -4,7 +4,7 @@ import { resolveUserAuthEnv } from './userAuthEnv'
 import { projectUserClient } from '@/lib/projectReviewServer'
 
 // Same owner boundary for generation and project reconstruction. No admin key.
-async function deltaUser(req: NextRequest): Promise<{ response: NextResponse } | { userId: string; url: string }> {
+export async function deltaUser(req: NextRequest): Promise<{ response: NextResponse } | { userId: string; url: string }> {
   const resolved = resolveUserAuthEnv()
   if (!resolved.env) return { response: NextResponse.json({ error: 'Server authentication is misconfigured.' }, { status: 500 }) }
   const { data, error } = await verifyAuth(req, { auth: 'user', env: resolved.env })

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { encodeLessonRelay } from '@/lib/lessonRelay'
 import type { ConfirmedLesson, LessonConfirmation, ProjectReview } from '@/lib/projectReview'
 
 export type ConfirmLesson = (lesson: LessonConfirmation) => Promise<boolean>
@@ -43,6 +44,12 @@ export default function ProjectLearning({ review, lessons, onConfirm, onRetire }
     )}
     {review && onConfirm && <LessonForm key={review.contextKey} review={review} onConfirm={onConfirm} />}
     {lessons.length > 0 && <>
+      <div className="legacy-relay-origin">
+        <span className="legacy-relay-eyebrow">THE LEGACY PRINCIPLE</span>
+        <h3>My ceiling becomes someone else’s floor.</h3>
+        <p>Experience takes time to earn. Understanding can be passed forward. Share a lesson deliberately so another person can start further ahead, then discover what you couldn’t.</p>
+        <div className="legacy-relay-steps" aria-hidden="true"><span /><span /><span /><span /></div>
+      </div>
       <h3>Lessons carried forward — confirmed by you</h3>
       <p>These are operating rules under their stated conditions, not verified facts or proof of completion.</p>
       {lessons.map(lesson => <LessonRecord key={lesson.id} lesson={lesson} onRetire={onRetire} />)}
@@ -85,6 +92,26 @@ function LessonForm({ review, onConfirm }: { review: ProjectReview; onConfirm: C
 function LessonRecord({ lesson, onRetire }: { lesson: ConfirmedLesson; onRetire?: RetireLesson }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [shareLink, setShareLink] = useState('')
+  const [shareMessage, setShareMessage] = useState('')
+  async function share() {
+    setShareMessage('')
+    const relay = encodeLessonRelay({ rule: lesson.rule, whenToApply: lesson.whenToApply })
+    const link = new URL('/', window.location.origin)
+    link.searchParams.set('relay', relay)
+    setShareLink(link.toString())
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'A lesson to carry forward', url: link.toString() })
+        setShareMessage('Shared. Only the lesson and its conditions were included.')
+      } else {
+        await navigator.clipboard.writeText(link.toString())
+        setShareMessage('Share link copied. Only the lesson and its conditions were included.')
+      }
+    } catch {
+      setShareMessage('Select and copy the link below if you still want to share it.')
+    }
+  }
   async function retire() {
     if (!onRetire || busy) return
     setBusy(true)
@@ -98,6 +125,12 @@ function LessonRecord({ lesson, onRetire }: { lesson: ConfirmedLesson; onRetire?
     <p>Applies: {lesson.whenToApply}</p>
     <p>Scope: {lesson.scope === 'account' ? 'Across your projects' : 'Its original project only'} · Confirmed {new Date(lesson.confirmedAt).toLocaleDateString()}</p>
     <ul>{lesson.sourceRefs.map(source => <li key={source.id}>{source.label} — {source.status}</li>)}</ul>
+    <p>Pass on this rule and when it applies. Private sources, mission IDs, and account details stay here. Check the rule for anything personal before sharing.</p>
+    <button type="button" onClick={() => void share()}>Pass this lesson forward</button>
+    {shareLink && <label className="legacy-relay-share-link">Shareable link
+      <textarea readOnly rows={3} value={shareLink} onFocus={event => event.currentTarget.select()} />
+    </label>}
+    {shareMessage && <p role="status">{shareMessage}</p>}
     {onRetire && <button type="button" disabled={busy} onClick={() => void retire()}>{busy ? 'Retiring…' : 'Stop using this lesson'}</button>}
     <p>Retiring keeps its history and excludes it from later reviews.</p>
     {error && <p role="alert">{error}</p>}

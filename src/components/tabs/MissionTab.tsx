@@ -51,6 +51,7 @@ import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase } from '@/c
 import type { ConfirmedLesson, LessonConfirmation, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
 import { buildDeterministicAssistance, draftStartingPoint, extractDeadline } from '@/lib/missionAssistance'
 import MissionFiles from '@/components/MissionFiles'
+import LessonRelayReceive from '@/components/LessonRelayReceive'
 
 // ─── Supabase row <-> domain mapping ────────────────────────────────────
 // missionLoop.ts operates on the camelCase Mission/MissionEvent domain
@@ -1768,6 +1769,7 @@ export default function MissionTab() {
           </form>
         ) : null}
       </StrategicDelta>
+      {sessionReady && <LessonRelayReceive missions={missionList} ready={sessionReady} />}
       {previousReview && <details className="sd-project-review">
         <summary>Last saved project review</summary>
         <p>Saved {new Date(previousReview.reviewedAt).toLocaleString()} · Historical proposal, not a current recommendation or accepted action.</p>
