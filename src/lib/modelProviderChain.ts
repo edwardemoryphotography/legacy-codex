@@ -3,9 +3,17 @@ import type { Tool } from '@anthropic-ai/sdk/resources/messages'
 
 export type ModelProviderId = 'anthropic' | 'gemini' | 'openai'
 
-const ANTHROPIC_MODEL = 'claude-opus-5'
-const DEFAULT_GEMINI_MODEL = 'gemini-2.5-pro'
-const DEFAULT_OPENAI_MODEL = 'gpt-4o'
+export type ModelTier = 'routine' | 'deep'
+// Model IDs verified against official provider catalogs (October 2026).
+// Scoped overrides intentionally replace legacy OPENAI_MODEL and GEMINI_MODEL,
+// which can silently pin a previous-generation model.
+const MODELS: Record<ModelTier, Record<ModelProviderId, string>> = {
+  routine: { anthropic: 'claude-sonnet-5-5', gemini: 'gemini-3.8-flash', openai: 'gpt-6.1-terra' },
+  deep: { anthropic: 'claude-opus-5-5', gemini: 'gemini-4-argon', openai: 'gpt-6.1-sol' },
+}
+export function modelFor(provider: ModelProviderId, tier: ModelTier): string {
+  return process.env[`CODEX_${tier.toUpperCase()}_${provider.toUpperCase()}_MODEL`]?.trim() || MODELS[tier][provider]
+}
 
 /**
  * Returns configured server-side model providers in priority order:
@@ -32,6 +40,7 @@ export interface TextGenerationRequest {
   timeoutMs?: number
   deadlineAt?: number
   skipAnthropic?: boolean
+  tier?: ModelTier
 }
 
 export interface TextGenerationResult {
@@ -71,61 +80,59 @@ function nextAttemptTimeoutMs(
   return Math.max(1, Math.min(maxAttemptMs, fairShare, remainingMs))
 }
 
-async function callGeminiText(req: TextGenerationRequest, timeoutMs: number): Promise<string> {
+async function callGeminiText(req: TextGenerationRequest, timeoutMs: number, model: string, tier: ModelTier): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
-  const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL
+  // Gemini 4 Argon spends output tokens on internal thinking. Use Google's
+  // recommended minimum cap; lower thinking effort for economical requests.
+  const maxOutputTokens = model === 'gemini-4-argon' ? Math.max(req.maxTokens, 32_768) : req.maxTokens
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       signal: AbortSignal.timeout(timeoutMs),
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: req.system }] },
         contents: [{ role: 'user', parts: [{ text: req.userContent }] }],
-        generationConfig: { maxOutputTokens: req.maxTokens },
+        generationConfig: { maxOutputTokens, thinkingConfig: { thinkingLevel: tier === 'deep' ? 'medium' : 'low' } },
       }),
     },
   )
   if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`)
   const data = (await res.json()) as {
-    candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string }> } }>
+    candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>
   }
-  if (data.candidates?.[0]?.finishReason && data.candidates[0].finishReason !== 'STOP') throw new Error('Invalid model response')
-  const parts = data.candidates?.[0]?.content?.parts ?? []
-  return parts
-    .map(p => (typeof p.text === 'string' ? p.text : ''))
-    .join(' ')
-    .trim()
+  const candidate = data.candidates?.[0]
+  if (candidate?.finishReason && candidate.finishReason !== 'STOP') throw new Error('Invalid model response')
+  const text = (candidate?.content?.parts ?? []).filter(part => !part.thought).map(part => part.text ?? '').join(' ').trim()
+  if (!text) throw new Error('Invalid model response')
+  return text
 }
 
-async function callOpenAIText(req: TextGenerationRequest, timeoutMs: number): Promise<string> {
+async function callOpenAIText(req: TextGenerationRequest, timeoutMs: number, model: string, tier: ModelTier): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY?.trim()
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
-  const model = process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  const res = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     signal: AbortSignal.timeout(timeoutMs),
     body: JSON.stringify({
-      model,
-      max_tokens: req.maxTokens,
-      messages: [
-        { role: 'system', content: req.system },
-        { role: 'user', content: req.userContent },
-      ],
+      model, instructions: req.system, input: req.userContent,
+      max_output_tokens: req.maxTokens, reasoning: { effort: tier === 'deep' ? 'medium' : 'low' }, store: false,
     }),
   })
   if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`)
   const data = (await res.json()) as {
-    choices?: Array<{ finish_reason?: string; message?: { content?: string | null } }>
+    status?: string
+    output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }>
   }
-  if (data.choices?.[0]?.finish_reason && data.choices[0].finish_reason !== 'stop') throw new Error('Invalid model response')
-  return (data.choices?.[0]?.message?.content ?? '').trim()
+  if (data.status && data.status !== 'completed') throw new Error('Invalid model response')
+  const text = (data.output ?? []).filter(item => item.type === 'message')
+    .flatMap(item => item.content ?? []).filter(item => item.type === 'output_text')
+    .map(item => item.text ?? '').join('\n').trim()
+  if (!text) throw new Error('Invalid model response')
+  return text
 }
 
 /**
@@ -140,6 +147,7 @@ export async function runProviderChainText(req: TextGenerationRequest): Promise<
   }
 
   const deadlineAt = req.deadlineAt ?? Date.now() + (req.timeoutMs ?? 45_000)
+  const tier = req.tier ?? 'deep'
   let lastError: unknown = null
   const fallbacks: TextGenerationResult['fallbacks'] = []
   for (let i = 0; i < providers.length; i += 1) {
@@ -148,28 +156,20 @@ export async function runProviderChainText(req: TextGenerationRequest): Promise<
     try {
       const attemptTimeoutMs = nextAttemptTimeoutMs(deadlineAt, remainingProviders, req.timeoutMs ?? 25_000)
       let text: string
-      let model: string
+      const model = modelFor(provider, tier)
       if (provider === 'anthropic') {
         const client = new Anthropic({ maxRetries: 0, timeout: attemptTimeoutMs })
         const response = await client.messages.create({
-          model: ANTHROPIC_MODEL,
-          max_tokens: req.maxTokens,
-          system: req.system,
+          model, max_tokens: req.maxTokens, system: req.system,
           messages: [{ role: 'user', content: req.userContent }],
         })
         if (response.stop_reason && response.stop_reason !== 'end_turn') throw new Error('Invalid model response')
-        text = response.content
-          .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-          .map(block => block.text)
-          .join(' ')
-          .trim()
-        model = ANTHROPIC_MODEL
+        text = response.content.filter((block): block is Anthropic.TextBlock => block.type === 'text')
+          .map(block => block.text).join(' ').trim()
       } else if (provider === 'gemini') {
-        text = await callGeminiText(req, attemptTimeoutMs)
-        model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL
+        text = await callGeminiText(req, attemptTimeoutMs, model, tier)
       } else {
-        text = await callOpenAIText(req, attemptTimeoutMs)
-        model = process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL
+        text = await callOpenAIText(req, attemptTimeoutMs, model, tier)
       }
       if (!text) throw new Error('Invalid model response')
       return { text, provider, model, fallbacks }
@@ -179,7 +179,10 @@ export async function runProviderChainText(req: TextGenerationRequest): Promise<
       const message = err instanceof Error ? err.message : ''
       const reason = status === 429 || /HTTP 429/.test(message) ? 'rate limited'
         : /timeout|deadline|abort/i.test(message) ? 'timed out'
-          : message === 'Invalid model response' ? 'empty or incomplete response' : 'unavailable'
+          : message === 'Invalid model response' ? 'empty or incomplete response'
+            : status === 401 || status === 403 || /HTTP 401|HTTP 403/.test(message) ? 'provider authorization failed'
+              : status === 400 || status === 404 || /HTTP 400|HTTP 404/.test(message) ? 'model or request rejected'
+                : 'unavailable'
       fallbacks.push({ provider, reason })
       console.warn('Model provider failed', { provider, reason })
     }
@@ -190,7 +193,7 @@ export async function runProviderChainText(req: TextGenerationRequest): Promise<
 async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): Promise<ReviewStepResult> {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
-  const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL
+  const model = modelFor('gemini', 'deep')
 
   const body: Record<string, unknown> = {
     systemInstruction: { parts: [{ text: req.system }] },
@@ -287,7 +290,7 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): 
 async function callOpenAIReviewStep(req: ReviewStepRequest, timeoutMs: number): Promise<ReviewStepResult> {
   const apiKey = process.env.OPENAI_API_KEY?.trim()
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
-  const model = process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL
+  const model = modelFor('openai', 'deep')
 
   const payload: Record<string, unknown> = {
     model,
@@ -385,17 +388,13 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
       if (provider === 'anthropic') {
         const model = new Anthropic({ maxRetries: 0, timeout: attemptTimeoutMs })
         const response = await model.messages.create({
-          model: ANTHROPIC_MODEL,
+          model: modelFor('anthropic', 'deep'),
           max_tokens: req.maxTokens,
           system: req.system,
           ...(req.requireToolOutput
             ? {
                 tools: [req.tool],
-                tool_choice: {
-                  type: 'tool' as const,
-                  name: req.tool.name,
-                  disable_parallel_tool_use: true,
-                },
+                tool_choice: { type: 'auto' as const, disable_parallel_tool_use: true },
               }
             : {}),
           messages: [{ role: 'user', content: req.userContent }],
