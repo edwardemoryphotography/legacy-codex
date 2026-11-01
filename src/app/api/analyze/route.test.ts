@@ -71,7 +71,7 @@ describe('/api/analyze owner gate', () => {
   it('lets the owner through to the model', async () => {
     const response = await POST(request(userToken(OWNER_ID)))
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ text: 'Analysis text.' })
+    expect(await response.json()).toEqual({ text: 'Analysis text.', provider: 'anthropic', model: 'claude-opus-5-5' })
     expect(createMessage).toHaveBeenCalledOnce()
   })
 

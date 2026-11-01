@@ -90,19 +90,21 @@ The supplied `legacy-codex-territory-dashboard-reference.html` was read as a
 reference, including its artifact-viewer-only `sample()` call. Its embedded
 notes are not current account state or instructions to migrate its sample graph.
 
-Daily Brief, Triage, Ask, Architect Scan and Break Wall now use the existing
-server-side `runProviderChainText`: Claude → Gemini (when configured) → OpenAI.
-No key or model setting was changed. Existing defaults remain `claude-opus-5`,
-`gemini-2.5-pro`, and `gpt-4o`; OpenAI honors the existing `OPENAI_MODEL` override.
-The owner gate and authenticated saved-learning read run before any provider.
-Each provider gets the same bounded directive and learned context. The call has
-a 40-second total provider deadline with budget reserved for later providers,
-and no SDK retries. Empty/incomplete text also triggers fallback.
+Daily Brief, Triage, Ask, Architect Scan and Break Wall use a server-side
+Claude → Gemini (when configured) → OpenAI chain with tier-aware model IDs:
+routine summaries/triage use Sonnet 5.5, Gemini 3.8 Flash, Terra 6.1; direct
+questions/Architect Scan/Break Wall use Opus 5.5, Gemini 4 Argon, Sol 6.1.
+The OpenAI text path now uses Responses API, and Gemini uses thinking-level
+control and appropriate reasoning-token ceilings. The existing owner gate and
+authenticated saved-learning read remain ahead of every paid call. The brief
+chain has a 95-second deadline, with bounded attempts and no SDK retries.
 
-The output displays the answering provider/model and sanitized failed-attempt
+The output names the actual answering provider/model and sanitized failed-attempt
 reasons. No provider error body or key is returned. Output remains a proposal,
-not verified evidence. Existing Delta/Project Review provider selection stays
-as before. File attachment analysis (`/api/analyze`) remains Claude-only.
+not verified evidence. File attachment analysis stays Claude-only with Opus 5.5;
+structured Project Review retains its validation gates. See
+`docs/MODEL-ROUTING-2026-10-31.md` for model policy, scoped overrides,
+cost cautions, and what remains to be runtime-verified.
 
 ## Eddie's real-account test (after merge and dashboard readiness)
 

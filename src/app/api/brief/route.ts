@@ -7,7 +7,7 @@ import { isModelChainConfigured, runProviderChainText } from '@/lib/modelProvide
 
 export const runtime = 'nodejs'
 
-export const maxDuration = 60
+export const maxDuration = 120
 const MAX_MISSIONS = 40
 const MODES: BriefMode[] = ['daily_brief', 'triage', 'question', 'architect', 'unblock']
 const SYSTEM_PROMPTS: Record<BriefMode, string> = {
@@ -100,11 +100,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const learnedContext = await loadLearnedContext(owner.url, req.headers.get('Authorization') ?? '', owner.userId, Array.isArray(missionIds) ? missionIds.filter((id): id is string => typeof id === 'string') : [])
+    // Triage and daily summaries stay economical; direct questions and single-
+    // mission reconstruction retain frontier reasoning even after a fallback.
+    const tier = mode === 'triage' || mode === 'daily_brief' ? 'routine' : 'deep'
     const response = await runProviderChainText({
-      maxTokens: 1024,
+      tier,
+      maxTokens: tier === 'deep' ? 12_288 : 4_096,
       system: SYSTEM_PROMPTS[mode as BriefMode],
       userContent: `${directive}\n\n${learnedContext}`,
-      timeoutMs: 40_000,
+      timeoutMs: 95_000,
     })
 
     return NextResponse.json({ text: presentBriefText(mode as BriefMode, response.text), provider: response.provider, model: response.model, fallbacks: response.fallbacks })

@@ -6,7 +6,7 @@ import { deltaOwner } from '@/lib/supabase/deltaAuth'
 
 export const runtime = 'nodejs'
 
-const MODEL = 'claude-opus-5'
+const MODEL = 'claude-opus-5-5'
 // Vercel Serverless Functions reject request bodies over 4.5 MB with an opaque
 // 413 before this handler runs, so the ceiling is a platform limit, not a
 // preference. Budget under it to leave room for multipart framing and the
@@ -81,18 +81,20 @@ export async function POST(req: NextRequest) {
     const client = new Anthropic()
     const response = await client.messages.create({
       model: MODEL,
-      max_tokens: 4096,
+      max_tokens: 8192,
       system: ARTIFACT_ANALYSIS_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: [...content, { type: 'text', text: learnedContext }] }],
     })
 
+    if (response.stop_reason && response.stop_reason !== 'end_turn') throw new Error('Invalid model response')
     const text = response.content
       .filter((block): block is Anthropic.TextBlock => block.type === 'text')
       .map(block => block.text)
       .join('\n')
       .trim()
 
-    return NextResponse.json({ text: text || 'No analysis text returned.' })
+    if (!text) throw new Error('Invalid model response')
+    return NextResponse.json({ text, provider: 'anthropic', model: MODEL })
   } catch {
     console.error('/api/analyze failed [learning-or-provider]')
     return NextResponse.json({ error: 'Analysis unavailable: saved learning or the model could not be read. Retry without replacing your saved work.' }, { status: 503 })

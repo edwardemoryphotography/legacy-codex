@@ -30,7 +30,7 @@ import { isModelChainConfigured, runProviderChainText } from '@/lib/modelProvide
 
 export const runtime = 'nodejs'
 
-const MODEL = 'claude-opus-5'
+const MODEL = 'claude-sonnet-5-5'
 const MAX_OPERATION_CHARS = 160
 const MAX_REQUEST_BYTES = 12 * 1024
 const MAX_MISSION_TITLE_CHARS = 500
@@ -136,15 +136,17 @@ export async function POST(req: NextRequest) {
         const client = new Anthropic()
         const response = await client.messages.create({
           model: MODEL,
-          max_tokens: 200,
+          max_tokens: 4_096,
           system: DELTA_OPERATION_SYSTEM_PROMPT,
           messages: [{ role: 'user', content: `${userText}\n\n${learnedContext}` }],
         })
+        if (response.stop_reason && response.stop_reason !== 'end_turn') throw new Error('Invalid model response')
         raw = response.content
           .filter((block): block is Anthropic.TextBlock => block.type === 'text')
           .map(block => block.text)
           .join(' ')
           .trim()
+        if (!raw) throw new Error('Invalid model response')
       } catch (anthropicErr) {
         if (!process.env.GEMINI_API_KEY?.trim() && !process.env.OPENAI_API_KEY?.trim()) {
           throw anthropicErr
@@ -152,7 +154,8 @@ export async function POST(req: NextRequest) {
         const fallback = await runProviderChainText({
           system: DELTA_OPERATION_SYSTEM_PROMPT,
           userContent: `${userText}\n\n${learnedContext}`,
-          maxTokens: 200,
+          maxTokens: 4_096,
+          tier: 'routine',
           skipAnthropic: true,
         })
         raw = fallback.text
@@ -161,7 +164,8 @@ export async function POST(req: NextRequest) {
       const fallback = await runProviderChainText({
         system: DELTA_OPERATION_SYSTEM_PROMPT,
         userContent: `${userText}\n\n${learnedContext}`,
-        maxTokens: 200,
+        maxTokens: 4_096,
+        tier: 'routine',
         skipAnthropic: true,
       })
       raw = fallback.text
