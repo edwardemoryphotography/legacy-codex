@@ -364,6 +364,7 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
               block.type === 'tool_use' && block.name === req.tool.name,
           )
           const validToolUse = response.stop_reason === 'tool_use' && outputs.length === 1
+          if (!validToolUse) throw new Error('Invalid model response')
           return {
             stopReason: validToolUse ? 'tool_use' : 'other',
             text: '',
@@ -375,21 +376,29 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
           .filter((b): b is Anthropic.TextBlock => b.type === 'text')
           .map(b => b.text)
           .join('\n')
+        if (response.stop_reason !== 'end_turn' || !text.trim()) throw new Error('Invalid model response')
         return {
-          stopReason: response.stop_reason === 'end_turn' ? 'end_turn' : 'other',
+          stopReason: 'end_turn',
           text,
           toolInput: null,
           provider: 'anthropic',
         }
       }
-      if (provider === 'gemini') {
-        return await callGeminiReviewStep(req, attemptTimeoutMs)
-      }
-      if (provider === 'openai') {
-        return await callOpenAIReviewStep(req, attemptTimeoutMs)
+      if (provider === 'gemini' || provider === 'openai') {
+        const result = provider === 'gemini'
+          ? await callGeminiReviewStep(req, attemptTimeoutMs)
+          : await callOpenAIReviewStep(req, attemptTimeoutMs)
+        if (result.stopReason !== (req.requireToolOutput ? 'tool_use' : 'end_turn')) throw new Error('Invalid model response')
+        return result
       }
     } catch (err) {
       lastError = err
+      const status = err && typeof err === 'object' && 'status' in err ? err.status : undefined
+      console.warn('Model review provider failed', {
+        provider, reason: status === 429 ? 'rate limited'
+          : err instanceof Error && /timeout|deadline|abort/i.test(err.message) ? 'timed out'
+            : 'unavailable or incomplete',
+      })
     }
   }
   throw lastError ?? new Error('All configured model providers failed')
