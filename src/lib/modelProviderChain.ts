@@ -198,12 +198,10 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): 
   const body: Record<string, unknown> = {
     systemInstruction: { parts: [{ text: req.system }] },
     contents: [{ role: 'user', parts: [{ text: req.userContent }] }],
-    generationConfig: req.requireToolOutput
-      ? {
-          maxOutputTokens: req.maxTokens,
-          responseMimeType: 'application/json',
-        }
-      : { maxOutputTokens: req.maxTokens },
+    generationConfig: {
+      maxOutputTokens: model === 'gemini-4-argon' ? Math.max(req.maxTokens, 32_768) : req.maxTokens,
+      thinkingConfig: { thinkingLevel: 'medium' },
+    },
   }
 
   if (req.requireToolOutput) {
@@ -224,7 +222,6 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): 
         allowedFunctionNames: [req.tool.name],
       },
     }
-    delete (body.generationConfig as Record<string, unknown>).responseMimeType
   }
 
   const res = await fetch(
@@ -291,81 +288,43 @@ async function callOpenAIReviewStep(req: ReviewStepRequest, timeoutMs: number): 
   const apiKey = process.env.OPENAI_API_KEY?.trim()
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
   const model = modelFor('openai', 'deep')
-
   const payload: Record<string, unknown> = {
-    model,
-    max_tokens: req.maxTokens,
-    messages: [
-      { role: 'system', content: req.system },
-      { role: 'user', content: req.userContent },
-    ],
+    model, instructions: req.system, input: req.userContent,
+    max_output_tokens: Math.max(req.maxTokens, 12_288),
+    reasoning: { effort: 'medium' }, store: false,
   }
-
   if (req.requireToolOutput) {
-    payload.tools = [
-      {
-        type: 'function',
-        function: {
-          name: req.tool.name,
-          description: req.tool.description ?? '',
-          parameters: req.tool.input_schema,
-        },
-      },
-    ]
-    payload.tool_choice = {
-      type: 'function',
-      function: { name: req.tool.name },
-    }
+    payload.tools = [{
+      type: 'function', name: req.tool.name,
+      description: req.tool.description ?? '',
+      parameters: req.tool.input_schema, strict: false,
+    }]
+    payload.tool_choice = { type: 'function', name: req.tool.name }
   }
-
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  const res = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     signal: AbortSignal.timeout(timeoutMs),
     body: JSON.stringify(payload),
   })
   if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`)
   const data = (await res.json()) as {
-    choices?: Array<{
-      finish_reason?: string
-      message?: {
-        content?: string | null
-        tool_calls?: Array<{
-          function?: { name?: string; arguments?: string }
-        }>
-      }
-    }>
+    status?: string
+    output?: Array<{ type?: string; name?: string; arguments?: string; content?: Array<{ type?: string; text?: string }> }>
   }
-
-  const choice = data.choices?.[0]
+  if (data.status && data.status !== 'completed') return { stopReason: 'other', text: '', toolInput: null, provider: 'openai' }
   if (req.requireToolOutput) {
-    const call = choice?.message?.tool_calls?.find(tc => tc.function?.name === req.tool.name)
-    if (call?.function?.arguments) {
-      try {
-        return {
-          stopReason: 'tool_use',
-          text: '',
-          toolInput: JSON.parse(call.function.arguments),
-          provider: 'openai',
-        }
-      } catch {
-        return { stopReason: 'other', text: '', toolInput: null, provider: 'openai' }
-      }
+    const call = data.output?.find(item => item.type === 'function_call' && item.name === req.tool.name)
+    if (!call?.arguments) return { stopReason: 'other', text: '', toolInput: null, provider: 'openai' }
+    try {
+      return { stopReason: 'tool_use', text: '', toolInput: JSON.parse(call.arguments), provider: 'openai' }
+    } catch {
+      return { stopReason: 'other', text: '', toolInput: null, provider: 'openai' }
     }
-    return { stopReason: 'other', text: '', toolInput: null, provider: 'openai' }
   }
-
-  const text = (choice?.message?.content ?? '').trim()
-  const finishedCleanly = !choice?.finish_reason || choice.finish_reason === 'stop'
-  return {
-    stopReason: finishedCleanly && text ? 'end_turn' : 'other',
-    text,
-    toolInput: null,
-    provider: 'openai',
-  }
+  const text = (data.output ?? []).flatMap(item => item.type === 'message' ? item.content ?? [] : [])
+    .filter(item => item.type === 'output_text').map(item => item.text ?? '').join('\n').trim()
+  return { stopReason: text ? 'end_turn' : 'other', text, toolInput: null, provider: 'openai' }
 }
 
 /**
