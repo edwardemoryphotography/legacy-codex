@@ -23,6 +23,7 @@ describe('CodexOrb', () => {
 
   it('falls back to a static sphere when WebGL is unavailable', () => {
     const { container } = render(<CodexOrb state="thinking" />)
-    expect(container.querySelector('.codex-orb-fallback')).not.toBeNull()
+    // JSDOM has no WebGL; the real renderer supplies an explicit CSS fallback.
+    expect(container.querySelector('.codex-orb')?.getAttribute('style')).toContain('radial-gradient')
   })
 })
