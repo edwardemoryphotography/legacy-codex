@@ -1,0 +1,125 @@
+/* Legacy Relay: earned understanding becomes another person's starting floor.
+   Uses existing theme tokens and real saved lessons; the ascending forms are
+   a conceptual diagram, never fake progress or transfer evidence. */
+.legacy-relay,
+.legacy-relay-origin {
+  position: relative;
+  overflow: hidden;
+  margin: 24px 0;
+  padding: clamp(18px, 4vw, 26px);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xl);
+  background:
+    radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--teal) 13%, transparent), transparent 50%),
+    linear-gradient(140deg, var(--surface), var(--surface-soft));
+  color: var(--text);
+}
+
+.legacy-relay-origin { margin: 16px 0; }
+.legacy-relay-eyebrow {
+  margin: 0 0 6px;
+  color: var(--teal);
+  letter-spacing: .17em;
+  font-size: .7rem;
+  font-weight: 750;
+}
+
+.legacy-relay h2,
+.legacy-relay-origin h3 {
+  margin: 4px 0 10px;
+  max-width: 22ch;
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-size: clamp(1.8rem, 6vw, 2.65rem);
+  line-height: 1.1;
+  font-weight: 400;
+  letter-spacing: -.025em;
+}
+
+.legacy-relay-heading p:last-child,
+.legacy-relay-origin > p { max-width: 58ch; color: var(--text-soft); line-height: 1.55; }
+
+.legacy-relay-steps {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 90px;
+  max-width: 390px;
+  padding: 0 6px;
+  margin: 12px 0 22px;
+  border-bottom: 1px dashed var(--line-strong);
+}
+
+.legacy-relay-steps span {
+  flex: 1;
+  height: 24%;
+  border: 1px solid color-mix(in srgb, var(--teal) 50%, var(--line));
+  border-bottom: 0;
+  border-radius: 7px 7px 0 0;
+  background: linear-gradient(170deg, color-mix(in srgb, var(--teal) 35%, transparent), color-mix(in srgb, var(--teal) 7%, transparent));
+}
+.legacy-relay-steps span:nth-child(2) { height: 46%; }
+.legacy-relay-steps span:nth-child(3) { height: 70%; }
+.legacy-relay-steps span:nth-child(4) { height: 94%; }
+
+.legacy-relay details { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.legacy-relay summary { cursor: pointer; font-weight: 650; padding: 7px 0; }
+.legacy-relay details > p { color: var(--text-soft); }
+.legacy-relay label,
+.legacy-relay-share-link { display: block; margin: 14px 0 5px; font-size: .9rem; font-weight: 600; }
+.legacy-relay textarea,
+.legacy-relay select,
+.legacy-relay-share-link textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 12px;
+  margin: 5px 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--field-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+}
+.legacy-relay textarea:focus-visible,
+.legacy-relay select:focus-visible,
+.legacy-relay button:focus-visible,
+.legacy-relay-share-link textarea:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+
+.legacy-relay button,
+.sd-project-review button:not([disabled]) {
+  min-height: 44px;
+}
+
+.legacy-relay button {
+  padding: 10px 16px;
+  margin: 8px 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--control-bg);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.legacy-relay button:disabled { opacity: .5; cursor: not-allowed; }
+.legacy-relay-preview,
+.legacy-relay-record {
+  margin: 13px 0;
+  padding: 14px;
+  border-left: 2px solid var(--teal);
+  border-radius: 6px;
+  background: var(--surface-soft);
+  overflow-wrap: anywhere;
+}
+.legacy-relay-preview strong,
+.legacy-relay-record strong { display: block; line-height: 1.45; }
+.legacy-relay-preview p,
+.legacy-relay-record p { color: var(--text-soft); margin: 9px 0; }
+.legacy-relay-record small { display: block; color: var(--text-dim); }
+.legacy-relay-notice { color: var(--teal); }
+.legacy-relay-error { color: var(--error); }
+.legacy-relay-share-link textarea { overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) {
+  .legacy-relay *, .legacy-relay-origin * { animation: none !important; transition: none !important; }
+}
