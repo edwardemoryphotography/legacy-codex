@@ -9,6 +9,7 @@ import './aurora-presence.css'
 import '@fontsource-variable/bricolage-grotesque/wght.css'
 import '@fontsource-variable/figtree/wght.css'
 import './codex-glass.css'
+import './lesson-relay.css'
 import { THEME_BOOT_SCRIPT } from '@/lib/themeReview'
 
 export const metadata: Metadata = {
