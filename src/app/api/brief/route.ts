@@ -100,11 +100,13 @@ export async function POST(req: NextRequest) {
 
   try {
     const learnedContext = await loadLearnedContext(owner.url, req.headers.get('Authorization') ?? '', owner.userId, Array.isArray(missionIds) ? missionIds.filter((id): id is string => typeof id === 'string') : [])
+    const deep = mode === 'question' || mode === 'architect' || mode === 'unblock'
     const response = await runProviderChainText({
-      maxTokens: 1024,
+      tier: deep ? 'deep' : 'efficient',
+      maxTokens: deep ? 2048 : 1024,
       system: SYSTEM_PROMPTS[mode as BriefMode],
       userContent: `${directive}\n\n${learnedContext}`,
-      timeoutMs: 40_000,
+      timeoutMs: 52_000,
     })
 
     return NextResponse.json({ text: presentBriefText(mode as BriefMode, response.text), provider: response.provider, model: response.model, fallbacks: response.fallbacks })
