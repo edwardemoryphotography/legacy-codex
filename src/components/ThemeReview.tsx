@@ -1,63 +1,37 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { PRODUCTION_HOST, THEME_COLOR, THEME_KEY, type ReviewTheme } from '@/lib/themeReview'
+import { useState } from 'react'
+import { APPEARANCE_KEY, PALETTES, normalizeAppearance, applyAppearance, type Appearance } from '@/lib/appearance'
 
-function applyTheme(theme: ReviewTheme) {
-  if (theme === 'light' || theme === 'sunset') document.documentElement.dataset.theme = theme
-  else delete document.documentElement.dataset.theme
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLOR[theme])
-}
-
-/**
- * Review-only theme switch (dark, light, sunset). Dark is the shipped theme; this exists so
- * Eddie can compare the presentations against his real content on a
- * preview before choosing. It renders only when layout.tsx marked the page
- * as a preview/development build (`data-theme-review="on"`), and never on
- * the production host.
- *
- * `?theme=light|dark|sunset` in the URL also selects and remembers a theme, so a
- * preview link can open straight into one of them.
- */
+/** Production controls reuse the existing menu; only preferences are persisted. */
 export default function ThemeReview() {
-  const [theme, setTheme] = useState<ReviewTheme | null>(null)
-
-  useEffect(() => {
-    // Enabled by the server layout only on preview/development builds; the
-    // production hostname check is a second guard.
-    if (document.documentElement.dataset.themeReview !== 'on') return
-    if (window.location.hostname === PRODUCTION_HOST) return
-    const attr = document.documentElement.dataset.theme
-    const current: ReviewTheme = attr === 'light' || attr === 'sunset' ? attr : 'dark'
-    applyTheme(current)
-    // Reading the theme the boot script already applied; nothing to derive
-    // during render because the server cannot know it.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTheme(current)
-  }, [])
-
-  if (!theme) return null
-
-  function choose(next: ReviewTheme) {
-    applyTheme(next)
-    try { localStorage.setItem(THEME_KEY, next) } catch { /* private mode */ }
-    setTheme(next)
+  const [prefs, setPrefs] = useState(() => {
+    if (typeof window === 'undefined') return normalizeAppearance(null)
+    try { return normalizeAppearance(JSON.parse(localStorage.getItem(APPEARANCE_KEY) || 'null')) } catch { return normalizeAppearance(null) }
+  })
+  const [notice, setNotice] = useState('')
+  function choose(patch: Partial<Appearance>) {
+    const next = normalizeAppearance({ ...prefs, ...patch })
+    applyAppearance(next)
+    setPrefs(next)
+    try { localStorage.setItem(APPEARANCE_KEY, JSON.stringify(next)); setNotice('') }
+    catch { setNotice('Changed for this visit. This browser could not save the preference.') }
   }
-
-  return (
-    <div className="theme-review" role="group" aria-label="Review theme (preview only)">
-      <span>Preview</span>
-      {(['dark', 'light', 'sunset'] as const).map(option => (
-        <button
-          key={option}
-          type="button"
-          className="interactive-control"
-          aria-pressed={theme === option}
-          onClick={() => choose(option)}
-        >
-          {option === 'dark' ? 'Dark' : option === 'light' ? 'Light' : 'Sunset'}
-        </button>
-      ))}
-    </div>
-  )
+  return <details className="appearance">
+    <summary>Appearance</summary>
+    <fieldset><legend>Palette</legend><div className="appearance-palettes">
+      {Object.entries(PALETTES).map(([id, palette]) => <button key={id} type="button" aria-pressed={prefs.palette === id} onClick={() => choose({ palette: id as Appearance['palette'] })}>
+        <span className="appearance-swatch" aria-hidden="true" style={{ background: `linear-gradient(135deg, ${palette.primary}, ${palette.secondary})` }} />{palette.label}
+      </button>)}
+    </div></fieldset>
+    <fieldset><legend>Appearance</legend>
+      {(['dark', 'light'] as const).map(mode => <button key={mode} type="button" aria-pressed={prefs.mode === mode} onClick={() => choose({ mode })}>{mode === 'dark' ? 'Dark' : 'Light'}</button>)}
+    </fieldset>
+    <label className="appearance-range">Ambient glow<input aria-label="Ambient glow" type="range" min="0" max="1" step="0.05" value={prefs.glow} onChange={e => choose({ glow: Number(e.target.value) })} /></label>
+    <label className="appearance-range">Motion<select aria-label="Motion" value={prefs.motion} onChange={e => choose({ motion: e.target.value as Appearance['motion'] })}>
+      <option value="full">Full</option><option value="soft">Gentle</option><option value="reduced">Reduced</option>
+    </select></label>
+    <p className="glass-note">Your system’s reduced-motion setting always takes priority.</p>
+    {notice && <p role="status" className="glass-note">{notice}</p>}
+  </details>
 }

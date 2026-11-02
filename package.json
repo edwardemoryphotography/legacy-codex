@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest",
+    "check:immersive": "node --experimental-strip-types --test scripts/check-immersive.mjs",
     "check:builder": "node scripts/check-builder-continuity.mjs"
   },
   "dependencies": {

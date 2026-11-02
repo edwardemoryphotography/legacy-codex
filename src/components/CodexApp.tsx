@@ -17,6 +17,8 @@ import TerritoryTab from './tabs/TerritoryTab'
 import HomeTab from './tabs/HomeTab'
 import { OrbHostProvider, PersistentOrb } from './OrbHost'
 import ThemeReview from './ThemeReview'
+import { supabase } from '@/lib/supabase/client'
+import { emptyHomeSession } from '@/lib/homeSession'
 
 interface Tab {
   id: TabId
@@ -45,6 +47,14 @@ const TABS: Tab[] = [
 export default function CodexApp() {
   const [activeTab, setActiveTab] = useState<TabId>('home')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [homeSession, setHomeSession] = useState(emptyHomeSession)
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const id = session?.user.id ?? null
+      setHomeSession(current => current.accountId === id ? current : emptyHomeSession(id))
+    })
+    return () => subscription.unsubscribe()
+  }, [])
   const menuTriggerRef = useRef<HTMLButtonElement>(null)
   const menuSheetRef = useRef<HTMLDivElement>(null)
   const activeTabMeta = TABS.find(tab => tab.id === activeTab)
@@ -148,7 +158,7 @@ export default function CodexApp() {
           aria-label={activeTabMeta?.label}
           tabIndex={-1}
         >
-          {activeTab === 'home'                  && <HomeTab onNavigate={selectTab} />}
+          {activeTab === 'home'                  && <HomeTab key={homeSession.accountId} onNavigate={selectTab} session={homeSession} onSessionChange={setHomeSession} />}
           {activeTab === 'mission'               && <MissionTab />}
           {activeTab === 'overview'             && <OverviewTab />}
           {activeTab === 'protocols'            && <ProtocolsTab />}

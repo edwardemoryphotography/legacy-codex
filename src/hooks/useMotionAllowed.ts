@@ -10,11 +10,11 @@ export function useMotionAllowed() {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
     const update = () => setAllowed(
       !media.matches &&
-      document.documentElement.dataset.reducedMotion !== 'true' &&
+      document.documentElement.dataset.reducedMotion !== 'true' && document.documentElement.dataset.motion !== 'reduced' &&
       document.visibilityState === 'visible',
     )
     const observer = new MutationObserver(update)
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-reduced-motion'] })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-reduced-motion', 'data-motion'] })
     media.addEventListener('change', update)
     document.addEventListener('visibilitychange', update)
     update()

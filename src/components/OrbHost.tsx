@@ -11,6 +11,7 @@ export type OrbCognition = {
   provenance: string
   recording: boolean
   resumable?: boolean
+  operation?: string | null
 }
 
 type OrbHostValue = {
@@ -176,6 +177,12 @@ export function PersistentOrb() {
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(place)
     observer?.observe(slot)
     observer?.observe(document.body)
+    // A response/keyboard can move the slot without resizing the slot itself.
+    let ancestor = slot.parentElement
+    while (ancestor && ancestor !== node.offsetParent) {
+      observer?.observe(ancestor)
+      ancestor = ancestor.parentElement
+    }
     window.addEventListener('resize', place)
     let live = true
     void document.fonts?.ready.then(() => { if (live) place() })
@@ -238,21 +245,21 @@ export function OrbSlot() {
  *  Leaving mid-read settles the companion instead of freezing it on work
  *  that is no longer on screen. */
 export function useOrbCognition(next: OrbCognition) {
-  const { cognition, provenance, recording, resumable } = next
+  const { cognition, provenance, recording, resumable, operation } = next
   const setCognition = useContext(OrbHostContext)?.setCognition
   const latest = useRef(next)
 
   useEffect(() => {
-    const snapshot = { cognition, provenance, recording, resumable }
+    const snapshot = { cognition, provenance, recording, resumable, operation }
     latest.current = snapshot
     setCognition?.(snapshot)
-  }, [setCognition, cognition, provenance, recording, resumable])
+  }, [setCognition, cognition, provenance, recording, resumable, operation])
 
   useEffect(() => {
     const publish = setCognition
     return () => {
       const current = latest.current
-      const pending = current.recording
+      const pending = Boolean(current.operation) || current.recording
         || current.cognition === 'reconstructing'
         || current.cognition === 'deriving'
         || current.cognition === 'correcting'
@@ -261,6 +268,7 @@ export function useOrbCognition(next: OrbCognition) {
             cognition: current.provenance === 'insufficient_context' ? 'insufficient' : 'settled',
             provenance: current.provenance,
             recording: false,
+            operation: null,
             resumable: current.resumable,
           }
         : current)
