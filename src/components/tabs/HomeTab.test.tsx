@@ -246,3 +246,21 @@ it('retains the draft and actual displayed response across Home navigation withi
   expect(screen.getByLabelText('Ask Codex')).toHaveValue('What the fuck is this thing actually doing?')
   expect(screen.getByText(observedReply)).toBeInTheDocument()
 })
+
+it('allows a new submission after cancelling a still-pending client run', async () => {
+  missions = []
+  let finish: (value: boolean) => void = () => {}
+  run.mockImplementationOnce(() => new Promise<boolean>(resolve => { finish = resolve }))
+  const { rerender } = render(<HomeTab onNavigate={() => {}} />)
+  fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'What the fuck is this thing actually doing?' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+  expect(run).toHaveBeenCalledTimes(1)
+  briefStatus = 'running'; orbState = 'thinking'
+  rerender(<HomeTab onNavigate={() => {}} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel request' }))
+  briefStatus = 'idle'; orbState = 'idle'
+  rerender(<HomeTab onNavigate={() => {}} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+  expect(run).toHaveBeenCalledTimes(2)
+  await act(async () => finish(false))
+})

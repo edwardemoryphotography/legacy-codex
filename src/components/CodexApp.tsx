@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import type { TabId } from '@/types'
 import MissionTab from './tabs/MissionTab'
 import OverviewTab from './tabs/OverviewTab'
@@ -49,7 +50,8 @@ export default function CodexApp() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [homeSession, setHomeSession] = useState(emptyHomeSession)
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    if (typeof supabase.auth.onAuthStateChange !== 'function') return
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       const id = session?.user.id ?? null
       setHomeSession(current => current.accountId === id ? current : emptyHomeSession(id))
     })
