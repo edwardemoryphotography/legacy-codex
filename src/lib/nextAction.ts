@@ -1,6 +1,28 @@
 import type { DeltaProvenance, Mission, StrategicDelta } from '@/types'
 
 /**
+ * Fixed-size, deterministic digest for bounded idempotency keys.
+ * Not cryptographic; it only needs to make a long context safe for a B-tree
+ * index while keeping the same identity stable across retries and reloads.
+ */
+export function stableHash(value: string): string {
+  let h1 = 0x811c9dc5
+  let h2 = 0x9e3779b9
+  let h3 = 0xc2b2ae35
+  let h4 = 0x27d4eb2f
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i)
+    h1 = Math.imul(h1 ^ code, 0x01000193)
+    h2 = Math.imul(h2 ^ (code + i), 0x85ebca6b)
+    h3 = Math.imul(h3 ^ (code << 3), 0x165667b1)
+    h4 = Math.imul(h4 ^ (code << 5), 0x9e3779b1)
+  }
+  return [h1, h2, h3, h4]
+    .map(value => (value >>> 0).toString(16).padStart(8, '0'))
+    .join('')
+}
+
+/**
  * The one current next action for a mission.
  *
  * This is a projection over existing records, not a new source of truth:

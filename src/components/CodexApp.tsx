@@ -187,7 +187,7 @@ export default function CodexApp() {
           aria-label={activeTabMeta?.label}
           tabIndex={-1}
         >
-          {activeTab === 'mission' && <MissionTab onMissionChange={refreshConversationProject} />}
+          {activeTab === 'mission' && <MissionTab onMissionChange={refreshConversationProject} externalRevision={missionRevision} />}
           {activeTab === 'overview'             && <OverviewTab />}
           {activeTab === 'protocols'            && <ProtocolsTab />}
           {activeTab === 'sprint-linker'        && <SprintLinkerTab />}

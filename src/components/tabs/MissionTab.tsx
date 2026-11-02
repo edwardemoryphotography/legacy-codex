@@ -48,7 +48,7 @@ import TaskRouter, { type RoutedActionDraft, type RouteSeed } from '@/components
 import { nextMoveContextKey } from '@/lib/nextMove'
 import type { TaskRouteContext } from '@/lib/taskRouting'
 import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase, type SaveNextActionOptions, type SaveNextActionResult } from '@/components/StrategicDelta'
-import type { AcceptanceSnapshot } from '@/lib/nextAction'
+import { stableHash, type AcceptanceSnapshot } from '@/lib/nextAction'
 import type { ConfirmedLesson, LessonConfirmation, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
 import { buildDeterministicAssistance, deriveObservableAcceptanceChecks, draftStartingPoint, extractDeadline } from '@/lib/missionAssistance'
 import MissionFiles from '@/components/MissionFiles'
@@ -364,7 +364,7 @@ function readMissionSetup(userId: string): string | null {
 export const VISITOR_ACCESS_COPY = 'AI assistance is not enabled for this account. Everything you write here is saved privately.'
 const RECONNECT_ACCESS_COPY = 'Smart suggestions are unavailable until this session reconnects. Everything you write here is still saved privately.'
 
-export default function MissionTab({ onMissionChange }: { onMissionChange?: () => void } = {}) {
+export default function MissionTab({ onMissionChange, externalRevision = 0 }: { onMissionChange?: () => void; externalRevision?: number } = {}) {
   const [user, setUser] = useState<User | null>(null)
   const [authStatus, setAuthStatus] = useState('Checking session…')
   const [board, setBoard] = useState<MissionBoard>(EMPTY_BOARD)
@@ -822,7 +822,13 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
       if (acceptingRef.current.has(key)) return false
       acceptingRef.current.add(key)
       try {
-        const idempotencyKey = `${missionId}:delta_accepted:${delta.candidateId ?? delta.move}:${finishLine ?? ''}:${contextKey ?? ''}`
+        const idempotencyKey = `delta_accepted:${stableHash(JSON.stringify({
+          missionId,
+          candidateId: delta.candidateId ?? null,
+          move: delta.move,
+          finishLine,
+          contextKey,
+        }))}`
         const ok = await recordDeltaEvent(
           'delta_accepted',
           missionId,
@@ -1103,11 +1109,14 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
             })
             if (updateQuery) {
               const eqBuilder = updateQuery.eq('id', existingOpen.id)
-              if (typeof eqBuilder.select === 'function') {
-                const { error: writeError } = await eqBuilder.select('id,status').single()
+              const versioned = existingOpen.updatedAt
+                ? (eqBuilder as unknown as { eq: (col: string, val: string) => typeof eqBuilder }).eq('updated_at', existingOpen.updatedAt)
+                : eqBuilder
+              if (typeof versioned.select === 'function') {
+                const { error: writeError } = await versioned.select('id,status').single()
                 if (writeError) throw writeError
               } else {
-                const { error: writeError } = await (eqBuilder as unknown as Promise<{ error: unknown }>)
+                const { error: writeError } = await (versioned as unknown as Promise<{ error: unknown }>)
                 if (writeError) throw writeError
               }
             }
@@ -1148,7 +1157,11 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
             'action_replaced',
             missionId,
             auditDetail,
-            `${missionId}:action_replaced:${existingOpen.id}:${delta.candidateId ?? delta.move}`,
+            `action_replaced:${stableHash(JSON.stringify({
+              missionId,
+              actionId: existingOpen.id,
+              next: delta.candidateId ?? delta.move,
+            }))}`,
           )
           if (!auditOk) {
             return {
@@ -1178,14 +1191,17 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
             })
             if (updateQuery) {
               const eqBuilder = updateQuery.eq('id', existingOpen.id)
-              if (typeof eqBuilder.select === 'function') {
-                const { data, error: writeError } = await eqBuilder.select('id,status').single()
+              const versioned = existingOpen.updatedAt
+                ? (eqBuilder as unknown as { eq: (col: string, val: string) => typeof eqBuilder }).eq('updated_at', existingOpen.updatedAt)
+                : eqBuilder
+              if (typeof versioned.select === 'function') {
+                const { data, error: writeError } = await versioned.select('id,status').single()
                 if (writeError) throw writeError
                 const row = data as { id?: string; status?: 'TODO' | 'IN_PROGRESS' } | null
                 if (row?.id) savedActionId = row.id
                 if (row?.status) savedStatus = row.status
               } else {
-                const { error: writeError } = await (eqBuilder as unknown as Promise<{ error: unknown }>)
+                const { error: writeError } = await (versioned as unknown as Promise<{ error: unknown }>)
                 if (writeError) throw writeError
               }
             }
@@ -2153,7 +2169,7 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
         <SavedActions
           key={savedMissionId}
           missionId={savedMissionId}
-          revision={savedActionsRevision}
+          revision={savedActionsRevision + externalRevision}
           suggestedTitle={shownAcceptance && !shownAcceptance.resumeActionId && shownAcceptance.missionId === savedMissionId ? shownAcceptance.move : null}
           routedDraft={currentDraft}
           resumeDraft={shownAcceptance?.resumeActionId && projectReview?.missionId === savedMissionId && projectReview.resumeActionId === shownAcceptance.resumeActionId && projectReview.workDraft ? { actionId: shownAcceptance.resumeActionId, note: draftStartingPoint(projectReview)! } : null}

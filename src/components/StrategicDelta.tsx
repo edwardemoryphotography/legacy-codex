@@ -477,6 +477,23 @@ export default function StrategicDelta({
   const [savingNextAction, setSavingNextAction] = useState(false)
   const savingNextActionRef = useRef(false)
   const [saveActionResult, setSaveActionResult] = useState<{ actionId?: string; title: string; replaced?: boolean } | null>(null)
+  const hadSavedActionRef = useRef(false)
+  useEffect(() => {
+    if (savedOpenAction) {
+      // A different action or its completion invalidates the optimistic result.
+      if (saveActionResult?.actionId && savedOpenAction.id !== saveActionResult.actionId) {
+        setSaveActionResult(null)
+      }
+      hadSavedActionRef.current = true
+      return
+    }
+    // Only clear after a real snapshot existed; an initial null is "not read
+    // yet", not "completed".
+    if (hadSavedActionRef.current) {
+      hadSavedActionRef.current = false
+      setSaveActionResult(null)
+    }
+  }, [savedOpenAction, saveActionResult])
   const [saveActionError, setSaveActionError] = useState<string | null>(null)
   const [confirmingReplace, setConfirmingReplace] = useState(false)
   const [startingAction, setStartingAction] = useState(false)

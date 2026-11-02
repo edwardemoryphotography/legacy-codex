@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Mission, StrategicDelta } from '@/types'
 import {
   deriveNextAction,
+  stableHash,
   type AcceptanceSnapshot,
   type SavedActionSnapshot,
 } from './nextAction'
@@ -65,6 +66,19 @@ function accepted(overrides: Partial<AcceptanceSnapshot> = {}): AcceptanceSnapsh
     ...overrides,
   }
 }
+
+describe('stableHash', () => {
+  it('is deterministic, bounded, and changes with the input', () => {
+    const a = stableHash('a long acceptance identity '.repeat(500))
+    const b = stableHash('a long acceptance identity '.repeat(500))
+    const c = stableHash('a different acceptance identity')
+
+    expect(a).toBe(b)
+    expect(a).toHaveLength(32)
+    expect(a).not.toBe(c)
+    expect(a).toMatch(/^[0-9a-f]{32}$/)
+  })
+})
 
 describe('deriveNextAction', () => {
   it('returns an error projection before any other state', () => {
