@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { OrbPresentationState } from '@/lib/orbPresentation'
+import { PALETTES } from '@/lib/appearance'
 
 /** The orb from Eddie's "Codex Glass Direction" board (2026-10-30): a violet/
  *  teal fbm sphere with a rim, an orbiting teal sweep while thinking, and an
@@ -11,13 +12,13 @@ import type { OrbPresentationState } from '@/lib/orbPresentation'
  *  carried into a different mission. No such event exists yet, so the orb never
  *  shows ember. Do not use it for an ordinary finished reply (Eddie, 2026-10-30). */
 
-export type CodexOrbState = 'idle' | 'listening' | 'thinking'
+export type CodexOrbState = 'idle' | 'listening' | 'thinking' | 'acting'
 
 /** Codex states → orb modes. The board's `speaking` mode is never used:
  *  Codex has no real spoken reply. Ready/blocked/completed rest in idle;
  *  their meaning is carried by the host's live status text. */
 export function codexOrbState(state: OrbPresentationState): CodexOrbState {
-  if (state === 'listening' || state === 'thinking') return state
+  if (state === 'listening' || state === 'thinking' || state === 'acting') return state
   return 'idle'
 }
 
@@ -26,16 +27,17 @@ const TARGETS: Record<CodexOrbState, Uniforms> = {
   idle: { flow: 0.35, rim: 0.35, sweep: 0, bright: 0.85, ring: 0 },
   listening: { flow: 0.6, rim: 1.0, sweep: 0, bright: 0.95, ring: 1 },
   thinking: { flow: 1.1, rim: 0.6, sweep: 1, bright: 1.0, ring: 0 },
+  acting: { flow: 0.75, rim: 1.0, sweep: 0.35, bright: 1.05, ring: 0.65 },
 }
 
 const FRAG = `precision mediump float;
-uniform vec2 uRes;uniform float uPhase,uTime,uRim,uSweep,uBright,uRing;
+uniform vec2 uRes;uniform vec3 uPrimary,uSecondary;uniform float uPhase,uTime,uRim,uSweep,uBright,uRing;
 float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
 float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*n(p);p=p*2.03+vec2(1.7,9.2);a*=.5;}return v;}
-void main(){vec2 p=(gl_FragCoord.xy*2.-uRes)/uRes.y;vec2 q=p/.72;float rr=length(q);float disc=smoothstep(1.,.985,rr);
+void main(){vec2 p=(gl_FragCoord.xy*2.-uRes)/uRes.y;vec2 q=p/.82;float rr=length(q);float disc=1.-smoothstep(.985,1.,rr);
 vec2 w=vec2(fbm(q*1.4+uPhase*.25),fbm(q*1.4+vec2(5.2,1.3)-uPhase*.2));float f=fbm(q*1.6+w*1.8+vec2(uPhase*.15,-uPhase*.1));
-vec3 violet=vec3(.416,.361,1.),teal=vec3(.133,.827,.745),ink=vec3(.05,.06,.14);
+vec3 violet=uPrimary,teal=uSecondary,ink=vec3(.05,.06,.14);
 vec3 col=mix(ink,violet,smoothstep(.25,.7,f));col=mix(col,teal,smoothstep(.5,.95,fbm(q*2.+w*2.-uPhase*.2))*.9);
 float wave=sin(q.y*3.+f*6.+uPhase*.8)*.5+.5;col+=teal*wave*.16*uBright;
 float rim=smoothstep(.55,1.,rr)*disc;col+=mix(violet,teal,.5+.5*sin(uPhase))*rim*(.35+.9*uRim);
@@ -44,7 +46,7 @@ col*=uBright*(.85+.3*f);float ringR=1.12+.05*sin(uTime*2.);float ring=exp(-pow((
 float alpha=max(disc,ring*.7);vec3 o=col*disc+teal*ring*.7+(h(gl_FragCoord.xy+uTime)-.5)*.04*disc;
 gl_FragColor=vec4(min(max(o,0.),vec3(alpha)),alpha);}`
 const VERT = 'attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}'
-const UNIFORMS = ['uRes', 'uPhase', 'uTime', 'uRim', 'uSweep', 'uBright', 'uRing'] as const
+const UNIFORMS = ['uRes', 'uPrimary', 'uSecondary', 'uPhase', 'uTime', 'uRim', 'uSweep', 'uBright', 'uRing'] as const
 
 /** Codex's calm control (`data-reduced-motion`) or the OS setting. */
 function useStill() {
@@ -52,10 +54,10 @@ function useStill() {
   useEffect(() => {
     const root = document.documentElement
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const read = () => setStill(media.matches || root.dataset.reducedMotion === 'true')
+    const read = () => setStill(media.matches || (root.dataset.reducedMotion === 'true' || root.dataset.motion === 'reduced'))
     read()
     const observer = new MutationObserver(read)
-    observer.observe(root, { attributes: true, attributeFilter: ['data-reduced-motion'] })
+    observer.observe(root, { attributes: true, attributeFilter: ['data-reduced-motion', 'data-motion'] })
     media.addEventListener('change', read)
     return () => { observer.disconnect(); media.removeEventListener('change', read) }
   }, [])
@@ -88,12 +90,15 @@ export default function CodexOrb({ state }: { state: OrbPresentationState }) {
       return s
     }
     const program = gl.createProgram()!
-    gl.attachShader(program, shader(gl.VERTEX_SHADER, VERT))
-    gl.attachShader(program, shader(gl.FRAGMENT_SHADER, FRAG))
+    const vertexShader = shader(gl.VERTEX_SHADER, VERT)
+    const fragmentShader = shader(gl.FRAGMENT_SHADER, FRAG)
+    gl.attachShader(program, vertexShader)
+    gl.attachShader(program, fragmentShader)
     gl.linkProgram(program)
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) { setFallback(true); return }
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) { gl.deleteShader(vertexShader); gl.deleteShader(fragmentShader); gl.deleteProgram(program); setFallback(true); return }
     gl.useProgram(program)
-    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer())
+    const buffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW)
     const loc = gl.getAttribLocation(program, 'a')
     gl.enableVertexAttribArray(loc)
@@ -106,12 +111,28 @@ export default function CodexOrb({ state }: { state: OrbPresentationState }) {
     let raf = 0
     let visible = true
     let lost = false
+    let primary: readonly number[] = [0.416, 0.361, 1]
+    let secondary: readonly number[] = [0.133, 0.827, 0.745]
+    let motion = 1
+    const paletteObserver = new MutationObserver(() => { readPalette(); kick() })
+    const readPalette = () => {
+      const id = document.documentElement.dataset.palette as keyof typeof PALETTES
+      const palette = PALETTES[id] ?? PALETTES.aurora
+      const rgb = (hex: string) => [1, 3, 5].map(at => parseInt(hex.slice(at, at + 2), 16) / 255)
+      primary = rgb(palette.primary)
+      secondary = rgb(palette.secondary)
+      motion = document.documentElement.dataset.motion === 'soft' ? 0.35 : 1
+    }
+    readPalette()
+    paletteObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-palette', 'data-motion'] })
 
     const draw = (t: number) => {
       if (lost) return
       gl.clearColor(0, 0, 0, 0)
       gl.clear(gl.COLOR_BUFFER_BIT)
       gl.uniform2f(U.uRes, canvas.width, canvas.height)
+      gl.uniform3f(U.uPrimary, primary[0], primary[1], primary[2])
+      gl.uniform3f(U.uSecondary, secondary[0], secondary[1], secondary[2])
       gl.uniform1f(U.uPhase, phase)
       gl.uniform1f(U.uTime, t)
       gl.uniform1f(U.uRim, cur.rim)
@@ -126,8 +147,8 @@ export default function CodexOrb({ state }: { state: OrbPresentationState }) {
       const k = Math.min(1, dt * 5)
       const tgt = targetRef.current
       for (const key of Object.keys(cur) as (keyof Uniforms)[]) cur[key] += (tgt[key] - cur[key]) * k
-      phase += dt * cur.flow
-      draw(ts / 1000)
+      phase += dt * cur.flow * motion
+      draw(phase)
       raf = 0
       kick()
     }
@@ -176,9 +197,14 @@ export default function CodexOrb({ state }: { state: OrbPresentationState }) {
       cancelAnimationFrame(raf)
       ro?.disconnect()
       io?.disconnect()
+      paletteObserver.disconnect()
       canvas.removeEventListener('webglcontextlost', onLost)
       canvas.removeEventListener('webglcontextrestored', onRestored)
       document.removeEventListener('visibilitychange', kick)
+      gl.deleteBuffer(buffer)
+      gl.deleteShader(vertexShader)
+      gl.deleteShader(fragmentShader)
+      gl.deleteProgram(program)
       kickRef.current = () => {}
     }
   }, [still])

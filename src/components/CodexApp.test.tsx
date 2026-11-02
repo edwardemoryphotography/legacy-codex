@@ -3,6 +3,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import CodexApp from './CodexApp'
 
+vi.mock('@/lib/supabase/client', () => ({ supabase: { auth: { onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }) } } }))
+
 vi.mock('./tabs/MissionTab', () => ({ default: () => null }))
 vi.mock('./tabs/HomeTab', () => ({ default: () => <p>Glass home</p> }))
 vi.mock('./ThemeReview', () => ({ default: () => null }))

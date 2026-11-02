@@ -1,4 +1,7 @@
 import '@testing-library/jest-dom/vitest'
+import { useState } from 'react'
+import { getAllEntries } from '@/data/codex'
+import { emptyHomeSession } from '@/lib/homeSession'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import HomeTab, { promptHelpQuestion } from './HomeTab'
@@ -10,10 +13,14 @@ let missions: { id: string; title: string; state: string }[] | null = [{ id: 'm1
 let loadError: string | null = null
 let voiceStatus = ''
 let visitor = false
+let briefStatus = 'idle'
+let briefOutput = ''
+let orbState = 'idle'
+const reset = vi.fn()
 
 vi.mock('@/lib/supabase/client', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: null } }) } } }))
 vi.mock('@/hooks/useMissionTerritory', () => ({ useMissionTerritory: () => ({ missions, loadError }) }))
-vi.mock('@/hooks/useBriefRunner', () => ({ useBriefRunner: () => ({ configured: true, visitor, status: 'idle', activeMode: null, output: '', outputLabel: '', providerLabel: '', run, reset: () => {} }) }))
+vi.mock('@/hooks/useBriefRunner', () => ({ useBriefRunner: () => ({ configured: true, visitor, status: briefStatus, activeMode: null, output: briefOutput, outputLabel: '', providerLabel: '', run, reset }) }))
 vi.mock('@/hooks/useTaskVoice', () => ({
   useTaskVoice: (_value: string, onChange: (value: string) => void) => {
     voiceWrite = onChange
@@ -24,10 +31,10 @@ vi.mock('@/components/OrbHost', () => ({
   OrbSlot: () => null,
   useOrbCognition: () => {},
   useOrbInteraction: () => {},
-  useOrbPresentation: () => ({ state: 'idle', label: '' }),
+  useOrbPresentation: () => ({ state: orbState, label: orbState === 'thinking' ? 'Thinking' : '' }),
 }))
 
-afterEach(() => { cleanup(); run.mockReset(); run.mockResolvedValue(true); voiceActive = false; voiceStatus = ''; visitor = false; loadError = null; missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }] })
+afterEach(() => { cleanup(); briefStatus = 'idle'; briefOutput = ''; orbState = 'idle'; reset.mockClear(); run.mockReset(); run.mockResolvedValue(true); voiceActive = false; voiceStatus = ''; visitor = false; loadError = null; missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }] })
 
 describe('promptHelpQuestion', () => {
   it('stays within the 400-character question limit /api/brief enforces', () => {
@@ -50,7 +57,8 @@ describe('HomeTab never cuts a question silently', () => {
   it('blocks Prompt help when the text no longer fits, and says why', () => {
     render(<HomeTab onNavigate={() => {}} />)
     act(() => voiceWrite('z'.repeat(400)))
-    fireEvent.click(screen.getByRole('button', { name: 'Help me write a prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open tools' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Help me write a prompt' }))
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
     expect(screen.getByText(/Too long to send: shorten it to \d+ characters \(now 400\)\./)).toBeInTheDocument()
     expect(run).not.toHaveBeenCalled()
@@ -96,7 +104,8 @@ describe('HomeTab send arrow', () => {
   it('keeps failed text and the chosen tool instead of erasing them on submission', async () => {
     run.mockResolvedValue(false)
     render(<HomeTab onNavigate={() => {}} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Help me write a prompt' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open tools' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Help me write a prompt' }))
     fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'this text box doesnt even let me send it anywhere' } })
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send' })))
     expect(screen.getByLabelText('Ask Codex')).toHaveValue('this text box doesnt even let me send it anywhere')
@@ -150,6 +159,7 @@ describe('Home mission entry', () => {
     missions = []
     const navigate = vi.fn()
     render(<HomeTab onNavigate={navigate} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Missions' }))
     fireEvent.click(screen.getByRole('button', { name: 'Start a mission' }))
     expect(navigate).toHaveBeenCalledWith('mission')
     expect(run).not.toHaveBeenCalled()
@@ -158,6 +168,7 @@ describe('Home mission entry', () => {
   it('offers the same route back to saved missions', () => {
     const navigate = vi.fn()
     render(<HomeTab onNavigate={navigate} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Missions' }))
     fireEvent.click(screen.getByRole('button', { name: 'Open this mission' }))
     expect(navigate).toHaveBeenCalledWith('mission')
   })
@@ -170,4 +181,118 @@ describe('Home mission entry', () => {
     expect(screen.queryByRole('button', { name: 'Open your missions' })).not.toBeInTheDocument()
     expect(screen.getByText(loadError ?? 'Loading your missions…')).toBeInTheDocument()
   })
+})
+
+// Deterministic UI contracts over existing infrastructure. This authentic answer
+// was supplied by Eddie in the Oct 31 fallback report; it is not provider proof.
+const observedReply = 'There are no blocked missions to triage at this time. If you have a specific issue or topic you’d like to address, feel free to reach out with more details.'
+
+describe('immersive Home contracts', () => {
+  it.each(['Daily Brief', 'Triage'])('preserves typed intent when %s is selected', label => {
+    missions = []
+    render(<HomeTab onNavigate={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open tools' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: label }))
+    fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'What the fuck is this thing actually doing?' } })
+    expect(screen.getByText('Your typed text will be sent to Ask Codex instead.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(run).toHaveBeenCalledWith('question', { mode: 'question', question: 'What the fuck is this thing actually doing?', missions: [], missionIds: [] }, 'Ask Codex')
+  })
+  it('names the text-free operation and allows reversing selection', () => {
+    render(<HomeTab onNavigate={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open tools' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Daily Brief' }))
+    expect(screen.getByText('Daily Brief uses saved missions. No question is needed.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(run).toHaveBeenCalledWith('daily_brief', expect.objectContaining({ mode: 'daily_brief' }), 'Daily Brief')
+  })
+  it('keeps the orb stage outside the independently scrolling response', () => {
+    briefStatus = 'done'; briefOutput = observedReply; orbState = 'ready'
+    const { container } = render(<HomeTab onNavigate={() => {}} />)
+    expect(screen.getByText(observedReply)).toBeInTheDocument()
+    expect(container.querySelector('.glass-orb-wrap')?.closest('.glass-results')).toBeNull()
+    expect(screen.getByRole('region', { name: 'Codex response' })).toContainElement(screen.getByText(observedReply))
+  })
+  it('conceals responses during processing and offers cancellation without erasing input', () => {
+    briefStatus = 'running'; orbState = 'thinking'
+    const { container } = render(<HomeTab onNavigate={() => {}} />)
+    fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'What the fuck is this thing actually doing?' } })
+    expect(container.querySelector('.glass-home')).toHaveAttribute('data-immersive', 'true')
+    expect(container.querySelector('.glass-results')).toHaveAttribute('hidden')
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel request' }))
+    expect(reset).toHaveBeenCalledOnce()
+    expect(screen.getByLabelText('Ask Codex')).toHaveValue('What the fuck is this thing actually doing?')
+  })
+  it('shows a genuine failure with a retry and retained draft', () => {
+    briefStatus = 'error'; briefOutput = 'Daily Brief unavailable'; orbState = 'blocked'
+    render(<HomeTab onNavigate={() => {}} />)
+    expect(screen.getByText('Daily Brief unavailable')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+  })
+})
+
+it('retains the draft and actual displayed response across Home navigation within one account session', () => {
+  missions = []
+  briefStatus = 'done'; briefOutput = observedReply
+  function SessionHarness() {
+    const [home, setHome] = useState(emptyHomeSession)
+    const [visible, setVisible] = useState(true)
+    return <><button onClick={() => setVisible(value => !value)}>Toggle Home</button>{visible && <HomeTab onNavigate={() => {}} session={home} onSessionChange={setHome} />}</>
+  }
+  render(<SessionHarness />)
+  fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'What the fuck is this thing actually doing?' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Toggle Home' }))
+  briefStatus = 'idle'; briefOutput = ''
+  fireEvent.click(screen.getByRole('button', { name: 'Toggle Home' }))
+  expect(screen.getByLabelText('Ask Codex')).toHaveValue('What the fuck is this thing actually doing?')
+  expect(screen.getByText(observedReply)).toBeInTheDocument()
+})
+
+it('allows a new submission after cancelling a still-pending client run', async () => {
+  missions = []
+  let finish: (value: boolean) => void = () => {}
+  run.mockImplementationOnce(() => new Promise<boolean>(resolve => { finish = resolve }))
+  const { rerender } = render(<HomeTab onNavigate={() => {}} />)
+  fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'What the fuck is this thing actually doing?' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+  expect(run).toHaveBeenCalledTimes(1)
+  briefStatus = 'running'; orbState = 'thinking'
+  rerender(<HomeTab onNavigate={() => {}} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel request' }))
+  briefStatus = 'idle'; orbState = 'idle'
+  rerender(<HomeTab onNavigate={() => {}} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+  expect(run).toHaveBeenCalledTimes(2)
+  await act(async () => finish(false))
+})
+
+it('keeps complete long source text in the response region without truncation', () => {
+  // Existing canonical reference text is a layout input, not an invented AI answer.
+  const source = getAllEntries().reduce((longest, entry) => entry.content.length > longest.content.length ? entry : longest)
+  expect(source.content.length).toBeGreaterThan(1000)
+  const home = { ...emptyHomeSession(), reply: { question: '', text: source.content, label: source.title, provider: '' } }
+  render(<HomeTab onNavigate={() => {}} session={home} />)
+  const region = screen.getByRole('region', { name: 'Codex response' })
+  expect(region.querySelector('.glass-output-text')?.textContent).toBe(source.content)
+  expect(screen.getByRole('textbox', { name: 'Ask Codex' })).toBeInTheDocument()
+})
+
+it('tracks a small iPhone visual viewport and keyboard resizing without moving the composer into the response scroller', () => {
+  const previous = Object.getOwnPropertyDescriptor(window, 'visualViewport')
+  const viewport = Object.assign(new EventTarget(), { height: 664, offsetTop: 0 })
+  Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport })
+  const { unmount, container } = render(<HomeTab onNavigate={() => {}} />)
+  try {
+    expect(document.documentElement.style.getPropertyValue('--codex-viewport-height')).toBe('664px')
+    viewport.height = 340; viewport.offsetTop = 18
+    act(() => viewport.dispatchEvent(new Event('resize')))
+    expect(document.documentElement.style.getPropertyValue('--codex-viewport-height')).toBe('340px')
+    expect(document.documentElement.style.getPropertyValue('--codex-viewport-top')).toBe('18px')
+    expect(container.querySelector('.glass-dock')?.closest('.glass-results')).toBeNull()
+    unmount()
+    expect(document.documentElement.style.getPropertyValue('--codex-viewport-height')).toBe('')
+  } finally {
+    if (previous) Object.defineProperty(window, 'visualViewport', previous)
+    else Reflect.deleteProperty(window, 'visualViewport')
+  }
 })

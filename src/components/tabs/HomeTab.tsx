@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type Dispatch, type SetStateAction } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { missionsToBriefContext } from '@/lib/dailyBrief'
 import { useBriefRunner } from '@/hooks/useBriefRunner'
@@ -8,29 +8,18 @@ import { useMissionTerritory } from '@/hooks/useMissionTerritory'
 import { useTaskVoice } from '@/hooks/useTaskVoice'
 import { OrbSlot, useOrbCognition, useOrbInteraction, useOrbPresentation } from '@/components/OrbHost'
 import { BRIEF_VISITOR_COPY } from '@/components/MissionBriefPanel'
+import { homeRequest, QUESTION_LIMIT, PROMPT_LIMIT, promptHelpQuestion, type HomeTool } from '@/lib/homeRequest'
 import type { TabId } from '@/types'
+import { emptyHomeSession, type HomeSession } from '@/lib/homeSession'
 
 /** The Codex Glass home (Eddie's "Codex Glass Direction" board, 2026-10-30).
- *  Every control calls something real: the chips and pill run the existing
+ *  Every control calls something real: the tools and composer run the existing
  *  owner-gated /api/brief modes over the person's saved missions, and the mic
  *  is the existing speech-recognition input. Nothing here is timed or faked. */
 
-type Tool = 'brief' | 'triage' | 'ask' | 'prompt'
+type Tool = HomeTool
 const TOOL_LABEL: Record<Tool, string> = { brief: 'Daily Brief', triage: 'Triage', ask: 'Ask Codex', prompt: 'Prompt help' }
-const CHIPS: { tool: Tool; label: string }[] = [
-  { tool: 'brief', label: 'Daily Brief' },
-  { tool: 'triage', label: 'Triage' },
-  { tool: 'ask', label: 'Ask Codex' },
-  { tool: 'prompt', label: 'Help me write a prompt' },
-]
-const STATE_WORD: Record<string, string> = { idle: 'Idle', listening: 'Listening', thinking: 'Thinking', ready: 'Ready', blocked: 'Blocked', completed: 'Done' }
-/** /api/brief clamps a question to 400 characters. */
-const QUESTION_LIMIT = 400
-const PROMPT_HELP = 'Help me write a clear, specific prompt an AI can act on, for this: '
-
-export function promptHelpQuestion(text: string) {
-  return PROMPT_HELP + text.slice(0, QUESTION_LIMIT - PROMPT_HELP.length)
-}
+export { promptHelpQuestion }
 
 /** "Eddie" only for the owner account; everyone else is greeted plainly. */
 function useOwnerName() {
@@ -53,27 +42,61 @@ function useOwnerName() {
   return name
 }
 
-export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => void }) {
+export default function HomeTab({ onNavigate, session, onSessionChange }: { onNavigate: (id: TabId) => void; session?: HomeSession; onSessionChange?: Dispatch<SetStateAction<HomeSession>> }) {
   const { missions, loadError, actions, actionsRead } = useMissionTerritory()
   const brief = useBriefRunner()
   const name = useOwnerName()
   const presentation = useOrbPresentation()
-  const [text, setText] = useState('')
-  const [tool, setTool] = useState<Tool | null>(null)
+  const [local, setLocal] = useState(emptyHomeSession)
+  const current = session ?? local
+  const update = onSessionChange ?? setLocal
+  const { text, tool, history } = current
+  const setText = (next: SetStateAction<string>) => update(prev => ({ ...prev, text: typeof next === 'function' ? next(prev.text) : next }))
+  const setTool = (next: SetStateAction<Tool | null>) => update(prev => ({ ...prev, tool: typeof next === 'function' ? next(prev.tool) : next }))
   const [sheetOpen, setSheetOpen] = useState(false)
   const [submitNotice, setSubmitNotice] = useState('')
-  const sending = useRef(false)
+  const sending = useRef<symbol | null>(null)
+  const question = useRef('')
   const input = useRef<HTMLInputElement>(null)
-  const output = useRef<HTMLDivElement>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [focusOpen, setFocusOpen] = useState(false)
   const voice = useTaskVoice(text, next => setText(next.slice(0, QUESTION_LIMIT)), QUESTION_LIMIT)
 
   useEffect(() => {
-    if (brief.output && brief.status === 'done') output.current?.scrollIntoView?.({ block: 'nearest' })
-  }, [brief.output, brief.status])
+    if (brief.status === 'done' && brief.output) {
+      update(prev => ({ ...prev, reply: { question: question.current, text: brief.output, label: brief.outputLabel, provider: brief.providerLabel } }))
+    }
+  }, [brief.status, brief.output, brief.outputLabel, brief.providerLabel, update])
+
+  // Follow the visual viewport when Safari's keyboard or browser chrome moves.
+  // The composer participates in layout rather than covering a scrolling page.
+  useEffect(() => {
+    const viewport = window.visualViewport
+    const root = document.documentElement
+    const resize = () => {
+      root.style.setProperty('--codex-viewport-height', `${viewport?.height ?? window.innerHeight}px`)
+      root.style.setProperty('--codex-viewport-top', `${viewport?.offsetTop ?? 0}px`)
+      if (viewport && viewport.height + 80 < window.innerHeight) root.dataset.homeKeyboard = 'true'
+      else delete root.dataset.homeKeyboard
+    }
+    resize()
+    viewport?.addEventListener('resize', resize)
+    viewport?.addEventListener('scroll', resize)
+    window.addEventListener('resize', resize)
+    return () => {
+      viewport?.removeEventListener('resize', resize)
+      viewport?.removeEventListener('scroll', resize)
+      window.removeEventListener('resize', resize)
+      root.style.removeProperty('--codex-viewport-height')
+      root.style.removeProperty('--codex-viewport-top')
+      delete root.dataset.homeKeyboard
+    }
+  }, [])
 
   const busy = brief.status === 'running'
   useOrbCognition({
-    cognition: busy ? 'deriving' : brief.status === 'error' ? 'failed' : 'insufficient',
+    cognition: brief.status === 'error' || loadError ? 'failed' : busy ? 'deriving' : brief.status === 'done' || current.reply ? 'settled' : 'insufficient',
+    operation: !loadError && !busy && !voice.active ? missions === null ? 'Reading saved missions' : actionsRead === 'pending' ? 'Reading saved actions' : null : null,
     provenance: busy ? 'model' : 'insufficient_context',
     recording: false,
   })
@@ -93,9 +116,9 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
   const savedAction = actionsRead === 'ok' && primaryMission
     ? actions.find(action => action.mission_id === primaryMission.id && (action.status === 'TODO' || action.status === 'IN_PROGRESS')) ?? null
     : null
-  const noTextNeeded = tool === 'brief' || tool === 'triage'
+  const noTextNeeded = (tool === 'brief' || tool === 'triage') && !text.trim()
   // Prompt help spends part of the 400 characters on its instruction.
-  const limit = tool === 'prompt' ? QUESTION_LIMIT - PROMPT_HELP.length : QUESTION_LIMIT
+  const limit = tool === 'prompt' ? PROMPT_LIMIT : QUESTION_LIMIT
   const over = !noTextNeeded && text.length > limit
   // Send and microphone remain separate controls. An unavailable submission
   // explains its reason beside the input instead of silently consuming Enter.
@@ -117,20 +140,23 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
     if (!brief.configured) { setSubmitNotice('AI is not configured on the server yet. Your text is still here.'); return }
     if (noTextNeeded && missionCount === 0) { setSubmitNotice('Add a mission before requesting a Daily Brief or Triage. You can ask a question here without one.'); return }
     const roster = { missions: missionsToBriefContext(missions), missionIds: missions.slice(0, 40).map(m => m.id) }
-    const q = text.trim()
+    const request = homeRequest(tool, text)
+    const { label, ...payload } = request
     const submitted = text
-    sending.current = true
+    const token = Symbol('home-request')
+    sending.current = token
+    question.current = text.trim()
     setSubmitNotice('')
     try {
-      const succeeded = tool === 'brief' ? await brief.run('daily_brief', { mode: 'daily_brief', ...roster }, 'Daily Brief')
-        : tool === 'triage' ? await brief.run('triage', { mode: 'triage', ...roster }, 'Triage')
-        : tool === 'prompt' ? await brief.run('question', { mode: 'question', question: promptHelpQuestion(q), ...roster }, 'Prompt help')
-        : await brief.run('question', { mode: 'question', question: q, ...roster }, 'Ask Codex')
+      update(prev => ({ ...prev, history: prev.reply ? [...prev.history, prev.reply] : prev.history, reply: null }))
+      setHistoryOpen(false)
+      setFocusOpen(false)
+      const succeeded = await brief.run(request.mode, { ...payload, ...roster }, label)
       if (succeeded) {
         setText(current => current === submitted ? '' : current)
         setTool(current => current === tool ? null : current)
       }
-    } finally { sending.current = false }
+    } finally { if (sending.current === token) sending.current = null }
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -139,6 +165,9 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
     if (event.key === 'Enter') { event.preventDefault(); void send() }
   }
 
+  const immersive = ['listening', 'thinking', 'acting'].includes(presentation.state)
+  const reply = current.reply
+  const hasReply = Boolean(reply)
   const note = !loadError && missions !== null && missionCount === 0 ? 'Ask a question, or start a mission to save ongoing work.' : ''
   const sendStatus = submitNotice || (busy ? 'Sending…'
     : brief.visitor ? BRIEF_VISITOR_COPY
@@ -151,19 +180,32 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
     : '')
 
   return (
-    <section className="glass-home" data-state={presentation.state} aria-label="Home">
-      <div className="glass-hero" style={sendStatus || voice.status ? { paddingBottom: 'calc(260px + var(--safe-bottom, 0px))' } : undefined}>
+    <section className="glass-home" data-state={presentation.state} data-immersive={immersive ? 'true' : undefined} data-reply={hasReply || historyOpen || focusOpen ? 'true' : undefined} aria-label="Home">
+      <div className="glass-hero">
         <div className="glass-orb-wrap">
           <OrbSlot />
-          <span className="glass-orb-state" aria-hidden="true">{STATE_WORD[presentation.state] ?? 'Idle'}</span>
+          <span className="glass-orb-state" aria-hidden="true">{presentation.state === 'idle' ? 'Ready when you are' : presentation.state === 'ready' ? 'Response ready' : presentation.label}</span>
         </div>
         <h2 className="glass-greeting">{name ? `Hi ${name}` : 'Hi'}<span>What&apos;s the smallest next move?</span></h2>
-        <div className="glass-chips">
-          {CHIPS.map(chip => (
-            <button key={chip.tool} type="button" className="glass-chip glass" onClick={() => pick(chip.tool)}>{chip.label}</button>
-          ))}
+        <p className="glass-note glass-home-note">{note}</p>
+        <div className="glass-home-links" hidden={immersive}>
+          <button type="button" className="glass-chip glass" aria-expanded={focusOpen} onClick={() => { setFocusOpen(open => !open); setHistoryOpen(false) }}>Missions</button>
+          <button type="button" className="glass-chip glass" aria-expanded={historyOpen} onClick={() => { setHistoryOpen(open => !open); setFocusOpen(false) }}>History{history.length ? ` · ${history.length}` : ''}</button>
         </div>
-        <p className="glass-note" aria-live="polite">{note}</p>
+      </div>
+      <div className="glass-results" hidden={immersive} role="region" aria-label={historyOpen ? 'Session history' : 'Codex response'} tabIndex={0}>
+        {historyOpen && <section className="glass-history">
+          <h3>This session</h3>
+          <p className="glass-note">Earlier responses from this Home session. Saved work stays in Mission and Resumption Log.</p>
+          {history.length === 0 && <p>No earlier responses in this session.</p>}
+          {history.map((reply, index) => <article className="glass-output glass" key={index}>
+            {reply.question && <p className="glass-output-question">{reply.question}</p>}
+            <p className="glass-output-label">{reply.label}</p><p className="glass-output-text">{reply.text}</p>
+            <p className="glass-output-meta">{reply.provider} · Generated response, nothing was saved.</p>
+          </article>)}
+          <button type="button" className="glass-chip glass" onClick={() => onNavigate('resumption-log')}>Open Resumption Log</button>
+        </section>}
+        {focusOpen && <div className="glass-focus">
         {missions !== null && !loadError && (
           primaryMission ? (
             <section className="glass-continuity glass" aria-label="Your saved focus">
@@ -191,16 +233,20 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
             </div>
           )
         )}
-        {brief.output && brief.status !== 'error' && (
-          <div ref={output} className="glass-output glass" style={{ scrollMarginBottom: 'calc(260px + var(--safe-bottom, 0px))' }}>
-            {brief.outputLabel && <p className="glass-output-label">{brief.outputLabel}</p>}
-            <p className="glass-output-text">{brief.output}</p>
-            {brief.providerLabel && <p className="glass-output-meta">{brief.providerLabel} · Unverified, nothing was saved.</p>}
-          </div>
+        </div>}
+        {reply && !historyOpen && !focusOpen && (
+          <article className="glass-output glass">
+            {reply.question && <p className="glass-output-question">{reply.question}</p>}
+            {reply.label && <p className="glass-output-label">{reply.label}</p>}
+            <p className="glass-output-text">{reply.text}</p>
+            <p className="glass-output-meta">{reply.provider ? `${reply.provider} · ` : ''}Generated response, nothing was saved.</p>
+          </article>
         )}
       </div>
 
       <div className="glass-dock">
+        {busy && <button type="button" className="glass-chip glass" onClick={() => { sending.current = null; brief.reset(); setSubmitNotice('Request cancelled. Your text is still here. The server may finish processing it.'); }}>Cancel request</button>}
+        {brief.status === 'error' && <button type="button" className="glass-chip glass" onClick={() => void send()}>Try again</button>}
         {(sendStatus || voice.status) && (
           <div className="glass glass-output" style={{ marginBottom: 8, padding: '10px 12px', borderRadius: 16 }}>
             <p id="home-submit-status" className="glass-note" role="status">{sendStatus}</p>
@@ -209,6 +255,7 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
           </div>
         )}
         <div className="glass-sheet glass" style={{ bottom: 'calc(100% + 8px)' }} id="glass-tools" role="menu" aria-label="Tools" data-open={sheetOpen ? 'true' : undefined} hidden={!sheetOpen}>
+          <button type="button" role="menuitem" onClick={() => pick('ask')}>Ask Codex</button>
           <button type="button" role="menuitem" onClick={() => pick('brief')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4" /></svg>Daily Brief
           </button>
@@ -222,6 +269,7 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16l-1 4zM14 6l3 3" /></svg>Help me write a prompt
           </button>
         </div>
+        {tool && <p className="glass-note">{noTextNeeded ? `${TOOL_LABEL[tool]} uses saved missions. No question is needed.` : tool === 'brief' || tool === 'triage' ? 'Your typed text will be sent to Ask Codex instead.' : tool === 'prompt' ? 'Your text will be included in Prompt help.' : 'Your text will be sent to Ask Codex.'}</p>}
         {tool && (
           <button type="button" className="glass-tool-tag" style={{ marginBottom: 8 }} aria-label={`Remove ${TOOL_LABEL[tool]}`} onClick={() => { setTool(null); setSubmitNotice(''); input.current?.focus() }}>
             <span>{TOOL_LABEL[tool]}</span>
@@ -229,7 +277,7 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
           </button>
         )}
         <form className="glass-pill glass" onSubmit={event => { event.preventDefault(); void send() }}>
-          <button type="button" className="glass-round glass-plus" aria-label="Open tools" aria-expanded={sheetOpen} aria-controls="glass-tools" onClick={() => setSheetOpen(open => !open)}>
+          <button type="button" className="glass-round glass-plus" aria-label="Open tools" aria-expanded={sheetOpen} aria-controls="glass-tools" disabled={busy || voice.active} onClick={() => setSheetOpen(open => !open)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
           </button>
           <input
@@ -238,7 +286,7 @@ export default function HomeTab({ onNavigate }: { onNavigate: (id: TabId) => voi
             value={text}
             onChange={event => { setText(event.target.value); setSubmitNotice('') }}
             onKeyDown={onKeyDown}
-            placeholder="Ask Codex"
+            placeholder={noTextNeeded ? `${TOOL_LABEL[tool!]} · or type a question` : "Ask Codex"}
             aria-label="Ask Codex"
             aria-describedby={sendStatus || voice.status ? 'home-submit-status home-voice-status' : undefined}
             autoComplete="off"

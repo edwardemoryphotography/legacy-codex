@@ -32,6 +32,7 @@ export function useBriefRunner(): BriefRunner {
   const [outputLabel, setOutputLabel] = useState('')
   const [providerLabel, setProviderLabel] = useState('')
   const requestRef = useRef(0)
+  const controllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     fetch('/api/brief')
@@ -42,6 +43,7 @@ export function useBriefRunner(): BriefRunner {
 
   const reset = useCallback(() => {
     requestRef.current += 1
+    controllerRef.current?.abort()
     setOutput('')
     setOutputLabel('')
     setProviderLabel('')
@@ -49,8 +51,13 @@ export function useBriefRunner(): BriefRunner {
     setActiveMode(null)
   }, [])
 
+  useEffect(() => () => { requestRef.current += 1; controllerRef.current?.abort() }, [])
+
   const run = useCallback(async (mode: BriefMode, body: Record<string, unknown>, label = '') => {
     const request = ++requestRef.current
+    controllerRef.current?.abort()
+    const controller = new AbortController()
+    controllerRef.current = controller
     setStatus('running')
     setActiveMode(mode)
     setOutput('')
@@ -60,7 +67,9 @@ export function useBriefRunner(): BriefRunner {
       const {
         data: { session },
       } = await supabase.auth.getSession()
+      if (request !== requestRef.current) return false
       const res = await fetch('/api/brief', {
+        signal: controller.signal,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
