@@ -372,20 +372,20 @@ describe('explicit conversation intelligence choice', () => {
   it('defaults to Economy and sends the selected tier without changing the question', () => {
     missions = []
     render(<HomeTab onNavigate={() => {}} />)
-    expect(screen.getByRole('button', { name: 'Economy', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Economy' })).toHaveAttribute('aria-pressed', 'true')
     fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'What the fuck is this thing actually doing?' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Deep', exact: true }))
-    expect(screen.getByRole('button', { name: 'Deep', exact: true })).toHaveAttribute('aria-pressed', 'true')
-    fireEvent.click(screen.getByRole('button', { name: 'Send', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Deep' }))
+    expect(screen.getByRole('button', { name: 'Deep' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     expect(run).toHaveBeenCalledWith('question', expect.objectContaining({ tier: 'deep', question: 'What the fuck is this thing actually doing?' }), 'Ask Codex')
   })
   it('can return to Economy before sending', () => {
     missions = []
     render(<HomeTab onNavigate={() => {}} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Deep', exact: true }))
-    fireEvent.click(screen.getByRole('button', { name: 'Economy', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Deep' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Economy' }))
     fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'How do I talk to you best?' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     expect(run).toHaveBeenCalledWith('question', expect.objectContaining({ tier: 'routine' }), 'Ask Codex')
   })
 })
