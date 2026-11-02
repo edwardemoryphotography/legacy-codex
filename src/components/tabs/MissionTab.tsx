@@ -1019,6 +1019,13 @@ export default function MissionTab() {
     return () => clearTimeout(timer)
   }, [projectReview])
 
+  const invalidateLessonReview = useCallback(() => {
+    reviewGeneration.current += 1
+    setProjectReview(null)
+    setConfirmedLessons([])
+    setReviewRevision(value => value + 1)
+  }, [])
+
   const handleLessonWrite = useCallback(async (body: object): Promise<boolean> => {
     beginFieldWork()
     setLessonNotice('')
@@ -1031,16 +1038,14 @@ export default function MissionTab() {
       })
       const data = await response.json() as { error?: string; confirmed?: boolean; retired?: boolean }
       if (!response.ok || (!data.confirmed && !data.retired)) throw new Error(data.error || 'The lesson was not recorded.')
-      reviewGeneration.current += 1
-      setProjectReview(null)
-      setReviewRevision(value => value + 1)
+      invalidateLessonReview()
       setLessonNotice(data.confirmed ? 'Lesson preserved. The next project review will read it under its stated conditions.' : 'Lesson retired. Its history remains; the next review will exclude it.')
       return true
     } catch (failure) {
       setLessonNotice(failure instanceof Error ? failure.message : 'The lesson could not be recorded.')
       return false
     } finally { endFieldWork() }
-  }, [])
+  }, [invalidateLessonReview])
   const handleConfirmLesson = useCallback((lesson: LessonConfirmation) => handleLessonWrite({ action: 'confirm', ...lesson }), [handleLessonWrite])
   const handleRetireLesson = useCallback((lessonId: string) => handleLessonWrite({ action: 'retire', lessonId }), [handleLessonWrite])
 
@@ -1769,7 +1774,7 @@ export default function MissionTab() {
           </form>
         ) : null}
       </StrategicDelta>
-      {sessionReady && <LessonRelayReceive missions={missionList} ready={sessionReady} />}
+      {sessionReady && <LessonRelayReceive missions={missionList} ready={sessionReady} onLessonWrite={invalidateLessonReview} />}
       {previousReview && <details className="sd-project-review">
         <summary>Last saved project review</summary>
         <p>Saved {new Date(previousReview.reviewedAt).toLocaleString()} · Historical proposal, not a current recommendation or accepted action.</p>

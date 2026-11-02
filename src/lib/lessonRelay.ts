@@ -10,6 +10,9 @@ export interface LessonRelay {
 }
 
 export const LESSON_RELAY_PREFIX = 'LC-RELAY-1.'
+// JSON can expand 1,500 UTF-16 code units to six bytes each before base64.
+// Leave space for the first-party link around the resulting code.
+export const MAX_RELAY_INPUT_LENGTH = 16_384
 
 export function validateLessonRelay(value: unknown): LessonRelay | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
@@ -29,7 +32,7 @@ export function encodeLessonRelay(input: Pick<LessonRelay, 'rule' | 'whenToApply
 }
 
 export function decodeLessonRelay(value: string): LessonRelay | null {
-  if (typeof value !== 'string' || value.length > 4_096) return null
+  if (typeof value !== 'string' || value.length > MAX_RELAY_INPUT_LENGTH) return null
   let code = value.trim()
   // Accept a code pasted directly or the first-party share link containing it.
   if (code.startsWith('https://')) {

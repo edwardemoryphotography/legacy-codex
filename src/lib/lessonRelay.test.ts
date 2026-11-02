@@ -18,6 +18,16 @@ describe('explicit lesson relay boundary', () => {
     expect(code).not.toContain('sourceRefs')
   })
 
+  it('round-trips maximum-length multibyte and JSON-escaped lessons as codes and links', () => {
+    for (const value of ['界', '\u0001']) {
+      const lesson = { rule: value.repeat(1_000), whenToApply: value.repeat(500) }
+      const code = encodeLessonRelay(lesson)
+      expect(decodeLessonRelay(code)).toEqual({ v: 1, ...lesson })
+      expect(decodeLessonRelay(`https://legacy-codex.vercel.app/?relay=${code}`)).toEqual({ v: 1, ...lesson })
+      expect(JSON.stringify({ action: 'receive', code: `https://legacy-codex.vercel.app/?relay=${code}`, missionId: '00000000-0000-4000-8000-000000000000', scope: 'mission' }).length).toBeLessThan(17_408)
+    }
+  })
+
   it('rejects claims and fields outside the shared two-part lesson', () => {
     expect(validateLessonRelay({ v: 1, ...note, userId: 'private' })).toBeNull()
     expect(validateLessonRelay({ v: 1, ...note, sourceRefs: [] })).toBeNull()

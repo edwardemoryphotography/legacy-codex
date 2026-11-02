@@ -1,8 +1,9 @@
 /** @vitest-environment jsdom */
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MissionTab, { VISITOR_ACCESS_COPY, missionToRow } from './MissionTab'
 import { predictStrategicDelta } from '@/lib/strategicDelta'
+import { encodeLessonRelay } from '@/lib/lessonRelay'
 import type { Mission } from '@/types'
 
 vi.mock('@/components/ActivityOrb', () => ({
@@ -635,6 +636,40 @@ describe('MissionTab project-review access', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Why this?' }))
     expect(await screen.findByText(lesson.rule)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Review project' })).toBeTruthy()
+  })
+
+  it.each(['receive', 'retire'] as const)('invalidates and reloads confirmed lessons after a successful relay %s', async action => {
+    let reads = 0
+    let written = false
+    const fetchMock = vi.fn(async (url: string, options?: RequestInit) => {
+      if (String(url).includes('capabilities=1')) return respond(200, { configured: false })
+      if (String(url).startsWith('/api/lesson-relay')) {
+        if (options?.method === 'POST') {
+          written = true
+          return respond(200, action === 'receive' ? { received: true } : { retired: true })
+        }
+        return respond(200, { received: [{ id: 'received-1', rule: 'A received lesson', whenToApply: 'When relevant', confirmedAt: '2026-09-21T00:00:00Z' }] })
+      }
+      if (String(url).startsWith('/api/delta-review?missionId=')) {
+        reads += 1
+        return respond(200, { review: null, lessons: written ? [] : [lesson] })
+      }
+      return respond(200, {})
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<MissionTab />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Why this?' }))
+    expect(await screen.findByText(lesson.rule)).toBeTruthy()
+    if (action === 'receive') {
+      fireEvent.click(screen.getByText('Receive a shared lesson'))
+      fireEvent.change(screen.getByLabelText('Shared lesson link or code'), { target: { value: encodeLessonRelay({ rule: 'A shared rule', whenToApply: 'When useful' }) } })
+      fireEvent.click(screen.getByRole('button', { name: 'Inherit this lesson' }))
+    } else {
+      fireEvent.click(await screen.findByText(/Lessons you’ve received for this mission/))
+      fireEvent.click(await within(screen.getByRole('region', { name: 'Receive lessons from others' })).findByRole('button', { name: 'Stop using this lesson' }))
+    }
+    await waitFor(() => expect(reads).toBeGreaterThanOrEqual(2))
+    await waitFor(() => expect(screen.queryByText(lesson.rule)).toBeNull())
   })
 
   it('shows saved historical review for a blocked primary without turning it into an action', async () => {
