@@ -37,6 +37,11 @@ worktree was removed. Hosted clean-install CI remains the release gate.
 
 ## Remaining evidence boundary
 
+Production follow-up: a failed or pending mission read must also remain explicit
+inside the Missions sheet, where the composer status is behind the modal. The
+sheet repeats that actual read status and offers Open Mission without claiming
+the account is empty or creating any records. Two regression checks cover it.
+
 Deployment readiness and production UI must be checked against this release's
 commit. A working layout, local error state or passing tests does not prove a new
 owner model response, physical iPhone speech input, or on-device keyboard behavior.

@@ -188,6 +188,19 @@ describe('Home mission entry', () => {
     expect(screen.queryByRole('button', { name: 'Open your missions' })).not.toBeInTheDocument()
     expect(screen.getByText(loadError ?? 'Loading your missions…')).toBeInTheDocument()
   })
+
+  it.each(['loading', 'failed'])('explains a %s read inside the Missions sheet and keeps navigation available', state => {
+    missions = state === 'loading' ? null : []
+    loadError = state === 'failed' ? 'Missions could not be read.' : null
+    const navigate = vi.fn()
+    render(<HomeTab onNavigate={navigate} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Missions' }))
+    const sheet = screen.getByRole('dialog', { name: 'Your missions' })
+    expect(within(sheet).getByText(loadError ?? 'Loading your missions…')).toBeInTheDocument()
+    expect(within(sheet).queryByText('Start a mission')).not.toBeInTheDocument()
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Open Mission' }))
+    expect(navigate).toHaveBeenCalledWith('mission')
+  })
 })
 
 // Deterministic UI contracts over existing infrastructure. This authentic answer

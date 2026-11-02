@@ -233,6 +233,10 @@ export default function HomeTab({ onNavigate, session, onSessionChange }: { onNa
           <button type="button" className="glass-chip glass" onClick={() => onNavigate('resumption-log')}>Open Resumption Log</button>
         </section>}
         {focusOpen && <div className="glass-focus">
+        {(loadError || missions === null) && <>
+          <p className="glass-note" role="status">{loadError || 'Loading your missions…'}</p>
+          <button type="button" className="glass-chip glass" onClick={() => onNavigate('mission')}>Open Mission</button>
+        </>}
         {missions !== null && !loadError && (
           primaryMission ? (
             <section className="glass-continuity glass" aria-label="Your saved focus">
