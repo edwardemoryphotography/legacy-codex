@@ -13,6 +13,8 @@ import type { TabId } from '@/types'
 import { emptyHomeSession, type HomeSession } from '@/lib/homeSession'
 import { homeTakeaway } from '@/lib/homeTakeaway'
 import styles from './HomeTab.module.css'
+import ReactMarkdown from 'react-markdown'
+import { recentConversation } from '@/lib/homeSession'
 
 /** The Codex Glass home (Eddie's "Codex Glass Direction" board, 2026-10-30).
  *  Every control calls something real: the tools and composer run the existing
@@ -44,7 +46,15 @@ function useOwnerName() {
   return name
 }
 
-export default function HomeTab({ onNavigate, session, onSessionChange }: { onNavigate: (id: TabId) => void; session?: HomeSession; onSessionChange?: Dispatch<SetStateAction<HomeSession>> }) {
+
+function ConversationPresence({ status, busy, loadError, pending, voice, reply }: { status: string; busy: boolean; loadError: string; pending: string | null; voice: { active: boolean; phase: string }; reply: boolean }) {
+  useOrbCognition({ cognition: status === 'error' || loadError ? 'failed' : busy ? 'deriving' : status === 'done' || reply ? 'settled' : 'insufficient', operation: pending, provenance: busy ? 'model' : 'insufficient_context', recording: false })
+  useOrbInteraction(voice.phase === 'listening' ? 'listening' : voice.active ? 'engaged' : 'ambient')
+  return null
+}
+
+export default function HomeTab({ onNavigate, session, onSessionChange, variant = 'home' }: { variant?: 'home' | 'mission'; onNavigate: (id: TabId) => void; session?: HomeSession; onSessionChange?: Dispatch<SetStateAction<HomeSession>> }) {
+  const missionView = variant === 'mission'
   const { missions, loadError, actions, actionsRead } = useMissionTerritory()
   const brief = useBriefRunner()
   const name = useOwnerName()
@@ -98,13 +108,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange }: { onNa
   }, [])
 
   const busy = brief.status === 'running'
-  useOrbCognition({
-    cognition: brief.status === 'error' || loadError ? 'failed' : busy ? 'deriving' : brief.status === 'done' || current.reply ? 'settled' : 'insufficient',
-    operation: !loadError && !busy && !voice.active ? missions === null ? 'Reading saved missions' : actionsRead === 'pending' ? 'Reading saved actions' : null : null,
-    provenance: busy ? 'model' : 'insufficient_context',
-    recording: false,
-  })
-  useOrbInteraction(voice.phase === 'listening' ? 'listening' : voice.active ? 'engaged' : 'ambient')
+
 
   useEffect(() => {
     if (!sheetOpen) return
@@ -152,11 +156,11 @@ export default function HomeTab({ onNavigate, session, onSessionChange }: { onNa
     question.current = text.trim()
     setSubmitNotice('')
     try {
-      update(prev => ({ ...prev, history: prev.reply ? [...prev.history, prev.reply] : prev.history, reply: null }))
+      update(prev => ({ ...prev, history: prev.reply ? [...prev.history, prev.reply].slice(-6) : prev.history, reply: null }))
       setHistoryOpen(false)
       setFocusOpen(false)
       setResponseOpen(false)
-      const succeeded = await brief.run(request.mode, { ...payload, ...roster }, label)
+      const succeeded = await brief.run(request.mode, { ...payload, ...roster, ...(request.mode === 'question' ? { conversation: recentConversation(current), ...(primaryMission ? { conversationMissionId: primaryMission.id } : {}) } : {}) }, label)
       if (succeeded) {
         setText(current => current === submitted ? '' : current)
         setTool(current => current === tool ? null : current)
@@ -194,19 +198,24 @@ export default function HomeTab({ onNavigate, session, onSessionChange }: { onNa
     : '')
 
   return (
-    <section className={`glass-home ${styles.home}`} data-state={presentation.state} data-immersive={immersive ? 'true' : undefined} data-reply={hasReply ? 'true' : undefined} aria-label="Home">
+    <section className={`glass-home ${styles.home} ${missionView ? styles.mission : ''}`} data-state={presentation.state} data-immersive={immersive ? 'true' : undefined} data-reply={hasReply ? 'true' : undefined} aria-label={missionView ? 'Project conversation' : 'Home'}>
+      {(!missionView || busy || voice.active) && <ConversationPresence status={brief.status} busy={busy} loadError={loadError} pending={!loadError && !busy && !voice.active ? missions === null ? 'Reading saved missions' : actionsRead === 'pending' ? 'Reading saved actions' : null : null} voice={voice} reply={Boolean(current.reply)} />}
+      <div className={styles.context}>
+        <span>{primaryMission ? `Working on: ${primaryMission.title}` : 'Your conversation with Codex'}</span>
+        <button type="button" className="glass-chip glass" onClick={() => onNavigate(missionView ? 'home' : 'mission')}>{missionView ? 'Back to the orb' : 'Open project workspace'}</button>
+      </div>
       <div className="glass-hero">
-        <div className="glass-orb-wrap">
+        {!missionView && <div className="glass-orb-wrap">
           <OrbSlot />
           <span className="glass-orb-state" aria-hidden="true">{presentation.state === 'idle' ? 'Ready when you are' : presentation.state === 'ready' ? 'Response ready' : presentation.label}</span>
-        </div>
+        </div>}
         <div className={styles.takeaway} hidden={immersive}>
           {reply ? <>
             <p className={styles.eyebrow}>{reply.label || 'Codex response'} · Excerpt</p>
             <h2 className={styles.answer}>{homeTakeaway(reply.text)}</h2>
             <button type="button" className={`glass-chip glass ${styles.readMore}`} aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setResponseOpen(true); setHistoryOpen(false); setFocusOpen(false) }}>Read full answer <span aria-hidden="true">↗</span></button>
           </> : <>
-            <h2 className="glass-greeting">{name ? `Hi ${name}` : 'Hi'}<span>What&apos;s the smallest next move?</span></h2>
+            <h2 className="glass-greeting">{missionView ? 'Continue our conversation' : name ? `Hi ${name}` : 'Hi'}<span>What would you like to work through?</span></h2>
             {note && <p className="glass-note glass-home-note">{note}</p>}
           </>}
         </div>
@@ -223,12 +232,12 @@ export default function HomeTab({ onNavigate, session, onSessionChange }: { onNa
       <div className={`glass-results ${styles.panelBody}`} hidden={immersive} role="region" aria-label={historyOpen ? 'Session history' : focusOpen ? 'Saved missions' : 'Codex response'} tabIndex={0}>
         {historyOpen && <section className="glass-history">
           <h3>This session</h3>
-          <p className="glass-note">Earlier responses from this Home session. Saved work stays in Mission and Resumption Log.</p>
-          {history.length === 0 && <p>No earlier responses in this session.</p>}
-          {history.map((reply, index) => <article className="glass-output glass" key={index}>
+          <p className="glass-note">Recent exchanges continue between Home and Mission and survive reloads in this browser tab. Project changes still use the save controls in Mission.</p>
+          {history.length === 0 && !reply && <p>No earlier responses in this session.</p>}
+          {[...history, ...(reply ? [reply] : [])].map((reply, index) => <article className="glass-output glass" key={index}>
             {reply.question && <p className="glass-output-question">{reply.question}</p>}
-            <p className="glass-output-label">{reply.label}</p><p className="glass-output-text">{reply.text}</p>
-            <p className="glass-output-meta">{reply.provider} · Generated response, nothing was saved.</p>
+            <p className="glass-output-label">{reply.label}</p><div className="glass-output-text"><ReactMarkdown>{reply.text}</ReactMarkdown></div>
+            <p className="glass-output-meta">{reply.provider} · Conversation context · no project changes made.</p>
           </article>)}
           <button type="button" className="glass-chip glass" onClick={() => onNavigate('resumption-log')}>Open Resumption Log</button>
         </section>}
@@ -269,14 +278,16 @@ export default function HomeTab({ onNavigate, session, onSessionChange }: { onNa
           <article className="glass-output glass">
             {reply.question && <p className="glass-output-question">{reply.question}</p>}
             {reply.label && <p className="glass-output-label">{reply.label}</p>}
-            <p className="glass-output-text">{reply.text}</p>
-            <p className="glass-output-meta">{reply.provider ? `${reply.provider} · ` : ''}Generated response, nothing was saved.</p>
+            <div className="glass-output-text"><ReactMarkdown>{reply.text}</ReactMarkdown></div>
+            <p className="glass-output-meta">{reply.provider ? `${reply.provider} · ` : ''}Conversation context · no project changes made.</p>
           </article>
         )}
       </div>
+      <button type="button" className="glass-chip glass" onClick={() => { closePanel(); input.current?.focus() }}>Continue conversation</button>
       </dialog>
 
       <div className="glass-dock">
+        <p className="glass-note">Continue here or in Mission. Recent conversation stays in this browser tab.</p>
         {busy && <button type="button" className="glass-chip glass" onClick={() => { sending.current = null; brief.reset(); setSubmitNotice('Request cancelled. Your text is still here. The server may finish processing it.'); }}>Cancel request</button>}
         {brief.status === 'error' && <button type="button" className="glass-chip glass" onClick={() => void send()}>Try again</button>}
         {(sendStatus || voice.status) && (

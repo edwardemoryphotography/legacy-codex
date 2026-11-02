@@ -19,7 +19,7 @@ import HomeTab from './tabs/HomeTab'
 import { OrbHostProvider, PersistentOrb } from './OrbHost'
 import ThemeReview from './ThemeReview'
 import { supabase } from '@/lib/supabase/client'
-import { emptyHomeSession } from '@/lib/homeSession'
+import { emptyHomeSession, restoreHomeSession, preserveHomeSession } from '@/lib/homeSession'
 
 interface Tab {
   id: TabId
@@ -47,16 +47,19 @@ const TABS: Tab[] = [
 // fixed chrome, so the home stays as simple as the board.
 export default function CodexApp() {
   const [activeTab, setActiveTab] = useState<TabId>('home')
+  const [missionRevision, setMissionRevision] = useState(0)
+  const refreshConversationProject = useCallback(() => setMissionRevision(value => value + 1), [])
   const [menuOpen, setMenuOpen] = useState(false)
   const [homeSession, setHomeSession] = useState(emptyHomeSession)
   useEffect(() => {
     if (typeof supabase.auth.onAuthStateChange !== 'function') return
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       const id = session?.user.id ?? null
-      setHomeSession(current => current.accountId === id ? current : emptyHomeSession(id))
+      setHomeSession(current => current.accountId === id ? current : id ? restoreHomeSession(id) : emptyHomeSession())
     })
     return () => subscription.unsubscribe()
   }, [])
+  useEffect(() => { preserveHomeSession(homeSession) }, [homeSession])
   const menuTriggerRef = useRef<HTMLButtonElement>(null)
   const menuSheetRef = useRef<HTMLDivElement>(null)
   const activeTabMeta = TABS.find(tab => tab.id === activeTab)
@@ -161,7 +164,7 @@ export default function CodexApp() {
           tabIndex={-1}
         >
           {activeTab === 'home'                  && <HomeTab key={homeSession.accountId} onNavigate={selectTab} session={homeSession} onSessionChange={setHomeSession} />}
-          {activeTab === 'mission'               && <MissionTab />}
+          {activeTab === 'mission' && <><HomeTab key={`${homeSession.accountId}:${missionRevision}`} variant="mission" onNavigate={selectTab} session={homeSession} onSessionChange={setHomeSession} /><MissionTab onMissionChange={refreshConversationProject} /></>}
           {activeTab === 'overview'             && <OverviewTab />}
           {activeTab === 'protocols'            && <ProtocolsTab />}
           {activeTab === 'sprint-linker'        && <SprintLinkerTab />}

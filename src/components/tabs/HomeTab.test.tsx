@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { useState } from 'react'
 import { getAllEntries } from '@/data/codex'
-import { emptyHomeSession } from '@/lib/homeSession'
+import { emptyHomeSession, type HomeSession } from '@/lib/homeSession'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import HomeTab, { promptHelpQuestion } from './HomeTab'
@@ -105,7 +105,7 @@ describe('HomeTab send arrow', () => {
     fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'Hey' } })
     expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
     fireEvent.keyDown(screen.getByLabelText('Ask Codex'), { key: 'Enter' })
-    expect(run).toHaveBeenCalledWith('question', { mode: 'question', missions: [], missionIds: [], question: 'Hey' }, 'Ask Codex')
+    expect(run).toHaveBeenCalledWith('question', { mode: 'question', missions: [], missionIds: [], conversation: [], question: 'Hey' }, 'Ask Codex')
   })
 
   it('keeps failed text and the chosen tool instead of erasing them on submission', async () => {
@@ -216,7 +216,7 @@ describe('immersive Home contracts', () => {
     fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'What the fuck is this thing actually doing?' } })
     expect(screen.getByText('Your typed text will be sent to Ask Codex instead.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
-    expect(run).toHaveBeenCalledWith('question', { mode: 'question', question: 'What the fuck is this thing actually doing?', missions: [], missionIds: [] }, 'Ask Codex')
+    expect(run).toHaveBeenCalledWith('question', { mode: 'question', question: 'What the fuck is this thing actually doing?', missions: [], missionIds: [], conversation: [] }, 'Ask Codex')
   })
   it('names the text-free operation and allows reversing selection', () => {
     render(<HomeTab onNavigate={() => {}} />)
@@ -299,7 +299,8 @@ it('keeps complete long source text in the response region without truncation', 
   expect(screen.queryByRole('region', { name: 'Codex response' })).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Read full answer' }))
   const region = screen.getByRole('region', { name: 'Codex response' })
-  expect(region.querySelector('.glass-output-text')?.textContent).toBe(source.content)
+  expect(region.querySelector('.glass-output-text')?.textContent).toContain('The Cookbook remains the doctrine owner.')
+  expect(region.querySelector('.glass-output-text a')).toBeTruthy()
   expect(screen.getByRole('textbox', { name: 'Ask Codex' })).toBeInTheDocument()
 })
 
@@ -321,4 +322,22 @@ it('tracks a small iPhone visual viewport and keyboard resizing without moving t
     if (previous) Object.defineProperty(window, 'visualViewport', previous)
     else Reflect.deleteProperty(window, 'visualViewport')
   }
+})
+
+it('continues the same draft and exchange from Home into Mission', async () => {
+  function SharedConversation() {
+    const [session, setSession] = useState<HomeSession>({ ...emptyHomeSession(), reply: { question: 'How do I talk to you best?', text: '**Tell me what you want to accomplish.**', label: 'Ask Codex', provider: 'test' } })
+    const [view, setView] = useState<'home' | 'mission'>('home')
+    return <HomeTab key={view} variant={view} session={session} onSessionChange={setSession} onNavigate={id => setView(id === 'mission' ? 'mission' : 'home')} />
+  }
+  render(<SharedConversation />)
+  fireEvent.change(screen.getByRole('textbox', { name: 'Ask Codex' }), { target: { value: 'Can we continue here?' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Open project workspace' }))
+  expect(screen.getByRole('region', { name: 'Project conversation' })).toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: 'Ask Codex' })).toHaveValue('Can we continue here?')
+  fireEvent.click(screen.getByRole('button', { name: /^History/ }))
+  expect(within(screen.getByRole('region', { name: 'Session history' })).getByText('Tell me what you want to accomplish.').tagName).toBe('STRONG')
+  fireEvent.click(screen.getByRole('button', { name: 'Continue conversation' }))
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send' })))
+  expect(run).toHaveBeenCalledWith('question', expect.objectContaining({ question: 'Can we continue here?', conversationMissionId: 'm1', conversation: [{ role: 'user', text: 'How do I talk to you best?' }, { role: 'assistant', text: '**Tell me what you want to accomplish.**' }] }), 'Ask Codex')
 })

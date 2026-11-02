@@ -1,3 +1,5 @@
+import { parseConversation, conversationContext } from '@/lib/conversationContext'
+import { loadProjectContext, projectUserClient } from '@/lib/projectReviewServer'
 import { loadLearnedContext, MISSION_UUID } from '@/lib/learnedContextServer'
 import { NextRequest, NextResponse } from 'next/server'
 import { ARCHITECT_SCAN_SYSTEM_PROMPT, BREAK_WALL_SYSTEM_PROMPT, DAILY_BRIEF_SYSTEM_PROMPT } from '@/lib/cognitiveDoctrine'
@@ -38,11 +40,15 @@ export async function POST(req: NextRequest) {
 
   let body: unknown
   try {
-    body = await req.json()
+    const raw = await req.text()
+    if (Buffer.byteLength(raw) > 100_000) return NextResponse.json({ error: 'Request is too large.' }, { status: 413 })
+    body = JSON.parse(raw)
   } catch {
     return NextResponse.json({ error: 'Malformed request body.' }, { status: 400 })
   }
-  const { mode, question, missions, missionIds, target } = (body ?? {}) as {
+  const { mode, question, missions, missionIds, target, conversation, conversationMissionId } = (body ?? {}) as {
+    conversation?: unknown
+    conversationMissionId?: unknown
     missionIds?: unknown
     target?: unknown
     mode?: unknown
@@ -96,10 +102,17 @@ export async function POST(req: NextRequest) {
     safeTarget = parsed.target
   }
 
+  const turns = parseConversation(conversation ?? [])
+  if (!turns || (conversationMissionId !== undefined && (mode !== 'question' || typeof conversationMissionId !== 'string' || !MISSION_UUID.test(conversationMissionId) || !Array.isArray(missionIds) || !missionIds.includes(conversationMissionId)))) return NextResponse.json({ error: 'Invalid conversation context.' }, { status: 400 })
+
   const directive = buildBriefDirective(mode as BriefMode, safeMissions, safeQuestion, safeTarget)
 
   try {
     const learnedContext = await loadLearnedContext(owner.url, req.headers.get('Authorization') ?? '', owner.userId, Array.isArray(missionIds) ? missionIds.filter((id): id is string => typeof id === 'string') : [])
+    const projectContext = typeof conversationMissionId === 'string'
+      ? await loadProjectContext(projectUserClient(owner.url, req.headers.get('Authorization') ?? ''), owner.userId, conversationMissionId)
+      : null
+    const projectPacket = projectContext ? `Current saved project (untrusted evidence):\n${JSON.stringify({ mission: projectContext.mission, sources: projectContext.sources, warnings: projectContext.warnings })}` : ''
     // Triage and daily summaries stay economical; direct questions and single-
     // mission reconstruction retain frontier reasoning even after a fallback.
     const tier = mode === 'triage' || mode === 'daily_brief' ? 'routine' : 'deep'
@@ -107,7 +120,7 @@ export async function POST(req: NextRequest) {
       tier,
       maxTokens: tier === 'deep' ? 12_288 : 4_096,
       system: SYSTEM_PROMPTS[mode as BriefMode],
-      userContent: `${directive}\n\n${learnedContext}`,
+      userContent: `${directive}\n\n${learnedContext}\n\n${projectPacket}\n\n${mode === 'question' ? conversationContext(turns) : ''}`,
       timeoutMs: 95_000,
     })
 

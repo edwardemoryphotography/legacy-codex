@@ -73,3 +73,14 @@
   .home .takeaway,
   .home:global(.glass-home[data-reply="true"]) :global(.glass-home-links) { display: none; }
 }
+
+.context { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; font-size: 13px; color: var(--g-mist-dim); overflow-wrap: anywhere; }
+.context button { min-height: 44px; }
+.mission:global(.glass-home) { height: auto; min-height: 0; padding: 20px; margin-bottom: 20px; border: 1px solid var(--g-glass-edge); border-radius: 24px; }
+.mission:global(.glass-home) :global(.glass-hero) { flex: none; }
+.mission .takeaway { max-width: 640px; }
+.panelBody :global(.glass-output-text) { white-space: normal; overflow-wrap: anywhere; }
+.panelBody :global(.glass-output-text pre) { white-space: pre-wrap; }
+
+.mission .takeaway { display: none; }
+.mission:global(.glass-home) { gap: 8px; padding: 16px; }

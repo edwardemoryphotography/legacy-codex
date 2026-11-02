@@ -7,7 +7,13 @@ describe('Home answer excerpt', () => {
     for (const { content } of getAllEntries()) {
       const excerpt = homeTakeaway(content)
       expect(excerpt.length).toBeLessThanOrEqual(220)
-      expect(content.replace(/\s+/g, ' ')).toContain(excerpt.replace(/…$/, ''))
+      const words: string[] = content.match(/[\p{L}\p{N}]+/gu) ?? []
+      let cursor = 0
+      for (const word of excerpt.match(/[\p{L}\p{N}]+/gu) ?? []) {
+        const index = words.indexOf(word, cursor)
+        expect(index).toBeGreaterThanOrEqual(cursor)
+        cursor = index + 1
+      }
     }
   })
   it('preserves the authentic observed triage response', () => {
@@ -17,4 +23,8 @@ describe('Home answer excerpt', () => {
   it('has no content to invent for an empty answer', () => {
     expect(homeTakeaway('  ')).toBe('')
   })
+})
+
+it('shows readable words instead of Markdown delimiters from the recorded flow', () => {
+  expect(homeTakeaway('**Yes, we can continue.** Read [your project](https://example.test).')).toBe('Yes, we can continue. Read your project.')
 })
