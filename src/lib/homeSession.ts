@@ -1,7 +1,8 @@
 import type { HomeTool } from './homeRequest'
+import type { ConversationTier } from './modelPreference'
 export type HomeReply = { question: string; text: string; label: string; provider: string }
 /** Account-scoped dialogue for this browser tab; never a saved action or lesson. */
-export type HomeSession = { accountId: string | null; text: string; tool: HomeTool | null; history: HomeReply[]; reply: HomeReply | null }
+export type HomeSession = { accountId: string | null; text: string; tool: HomeTool | null; history: HomeReply[]; reply: HomeReply | null; tier?: ConversationTier }
 export function emptyHomeSession(accountId: string | null = null): HomeSession {
   return { accountId, text: '', tool: null, history: [], reply: null }
 }

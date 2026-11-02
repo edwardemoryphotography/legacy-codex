@@ -94,7 +94,8 @@ export function useBriefRunner(): BriefRunner {
         const fallbacks = Array.isArray(data.fallbacks) ? data.fallbacks
           .filter((entry: { provider?: string; reason?: string }) => names[entry?.provider ?? ''] && typeof entry.reason === 'string')
           .map((entry: { provider: string; reason: string }) => `${names[entry.provider]} ${entry.reason}`) : []
-        setProviderLabel(`${names[data.provider]} · ${data.model}${fallbacks.length ? ` · Fallback: ${fallbacks.join('; ')}` : ''}`)
+        const tierLabel = data.tier === 'routine' ? 'Economy · ' : data.tier === 'deep' ? 'Deep · ' : ''
+        setProviderLabel(`${tierLabel}${names[data.provider]} · ${data.model}${fallbacks.length ? ` · Fallback: ${fallbacks.join('; ')}` : ''}`)
       }
       setOutputLabel(label)
       setStatus('done')

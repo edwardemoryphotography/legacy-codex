@@ -86,3 +86,10 @@
 .mission .takeaway { gap: 8px; }
 .mission .answer { font-size: 16px; -webkit-line-clamp: 2; }
 .mission:global(.glass-home) { gap: 8px; padding: 16px; }
+
+.modelChoice { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; border: 0; margin: 0 0 6px; padding: 0; color: var(--g-mist-dim); font: 400 12px var(--g-body); }
+.modelChoice legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.modelChoice button { min-height: 44px; padding: 8px 13px; border: 1px solid var(--g-glass-edge); border-radius: 999px; background: transparent; color: var(--g-mist); font: 600 13px var(--g-body); cursor: pointer; }
+.modelChoice button[aria-pressed="true"] { border-color: var(--g-teal); background: color-mix(in srgb, var(--g-teal) 12%, transparent); }
+.modelChoice:disabled { opacity: .65; }
+.modelChoice button:focus-visible { outline: 2px solid var(--g-teal); outline-offset: 2px; }
