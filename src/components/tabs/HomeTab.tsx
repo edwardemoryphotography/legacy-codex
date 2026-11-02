@@ -174,7 +174,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     if (event.key === 'Enter') { event.preventDefault(); void send() }
   }
 
-  const immersive = ['listening', 'thinking', 'acting'].includes(presentation.state)
+  const immersive = !missionView && ['listening', 'thinking', 'acting'].includes(presentation.state)
   const reply = current.reply
   const hasReply = Boolean(reply)
   const panelOpen = responseOpen || historyOpen || focusOpen
@@ -202,7 +202,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       {(!missionView || busy || voice.active) && <ConversationPresence status={brief.status} busy={busy} loadError={loadError} pending={!loadError && !busy && !voice.active ? missions === null ? 'Reading saved missions' : actionsRead === 'pending' ? 'Reading saved actions' : null : null} voice={voice} reply={Boolean(current.reply)} />}
       <div className={styles.context}>
         <span>{primaryMission ? `Working on: ${primaryMission.title}` : 'Your conversation with Codex'}</span>
-        <button type="button" className="glass-chip glass" onClick={() => onNavigate(missionView ? 'home' : 'mission')}>{missionView ? 'Back to the orb' : 'Open project workspace'}</button>
+        <button type="button" className="glass-chip glass" onClick={() => onNavigate(missionView ? 'home' : 'mission')}>{missionView ? 'Back to Home' : 'Open project workspace'}</button>
       </div>
       <div className="glass-hero">
         {!missionView && <div className="glass-orb-wrap">
