@@ -21,6 +21,9 @@ import { recentConversation } from '@/lib/homeSession'
  *  owner-gated /api/brief modes over the person's saved missions, and the mic
  *  is the existing speech-recognition input. Nothing here is timed or faked. */
 
+// Model-authored image URLs must not initiate background requests with project data.
+const answerComponents = { img: ({ alt }: { alt?: string }) => <span>{alt}</span> }
+
 type Tool = HomeTool
 const TOOL_LABEL: Record<Tool, string> = { brief: 'Daily Brief', triage: 'Triage', ask: 'Ask Codex', prompt: 'Prompt help' }
 export { promptHelpQuestion }
@@ -237,7 +240,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
           {history.length === 0 && !reply && <p>No earlier responses in this session.</p>}
           {[...history, ...(reply ? [reply] : [])].map((reply, index) => <article className="glass-output glass" key={index}>
             {reply.question && <p className="glass-output-question">{reply.question}</p>}
-            <p className="glass-output-label">{reply.label}</p><div className="glass-output-text"><ReactMarkdown>{reply.text}</ReactMarkdown></div>
+            <p className="glass-output-label">{reply.label}</p><div className="glass-output-text"><ReactMarkdown components={answerComponents}>{reply.text}</ReactMarkdown></div>
             <p className="glass-output-meta">{reply.provider} · Conversation context · no project changes made.</p>
           </article>)}
           <button type="button" className="glass-chip glass" onClick={() => onNavigate('resumption-log')}>Open Resumption Log</button>
@@ -279,7 +282,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
           <article className="glass-output glass">
             {reply.question && <p className="glass-output-question">{reply.question}</p>}
             {reply.label && <p className="glass-output-label">{reply.label}</p>}
-            <div className="glass-output-text"><ReactMarkdown>{reply.text}</ReactMarkdown></div>
+            <div className="glass-output-text"><ReactMarkdown components={answerComponents}>{reply.text}</ReactMarkdown></div>
             <p className="glass-output-meta">{reply.provider ? `${reply.provider} · ` : ''}Conversation context · no project changes made.</p>
           </article>
         )}

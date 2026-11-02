@@ -353,3 +353,11 @@ it('keeps a Primary beyond the first forty projects aligned with its request con
   expect(payload.missionIds[0]).toBe('m44')
   expect(payload.missions[0].title).toBe('Project 44')
 })
+
+it('renders model image markup as text without requesting an external image', () => {
+  render(<HomeTab onNavigate={() => {}} session={{ ...emptyHomeSession(), reply: { question: '', text: '![Project illustration](https://example.test/image)', label: 'Answer', provider: '' } }} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Read full answer' }))
+  const region = screen.getByRole('region', { name: 'Codex response' })
+  expect(within(region).getByText('Project illustration')).toBeInTheDocument()
+  expect(region.querySelector('img')).toBeNull()
+})
