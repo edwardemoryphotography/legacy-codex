@@ -83,6 +83,13 @@ describe('/api/brief owner gate', () => {
     expect(createMessage).toHaveBeenCalledOnce()
   })
 
+  it('accepts a full multilingual roster and twelve bounded conversation turns', async () => {
+    const text = '界'.repeat(400)
+    const response = await POST(request({ mode: 'question', question: 'Continue', missions: Array.from({ length: 40 }, () => ({ ...mission, title: text, why: text, finishLine: text, blocker: text })), conversation: Array.from({ length: 12 }, (_, index) => ({ role: index % 2 ? 'assistant' : 'user', text: '界'.repeat(4000) })) }, userToken(OWNER_ID)))
+    expect(response.status).toBe(200)
+    expect(createMessage).toHaveBeenCalledOnce()
+  })
+
   it('rejects oversized requests before reading account context or calling a model', async () => {
     const response = await POST(request({ mode: 'question', question: 'x'.repeat(512_001), missions: [] }, userToken(OWNER_ID)))
     expect(response.status).toBe(413)

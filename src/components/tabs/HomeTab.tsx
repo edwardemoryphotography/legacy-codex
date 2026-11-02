@@ -8,7 +8,7 @@ import { useMissionTerritory } from '@/hooks/useMissionTerritory'
 import { useTaskVoice } from '@/hooks/useTaskVoice'
 import { OrbSlot, useOrbCognition, useOrbInteraction, useOrbPresentation } from '@/components/OrbHost'
 import { BRIEF_VISITOR_COPY } from '@/components/MissionBriefPanel'
-import { homeRequest, QUESTION_LIMIT, PROMPT_LIMIT, promptHelpQuestion, type HomeTool } from '@/lib/homeRequest'
+import { homeMissionRoster, homeRequest, QUESTION_LIMIT, PROMPT_LIMIT, promptHelpQuestion, type HomeTool } from '@/lib/homeRequest'
 import type { TabId } from '@/types'
 import { emptyHomeSession, type HomeSession } from '@/lib/homeSession'
 import { homeTakeaway } from '@/lib/homeTakeaway'
@@ -147,7 +147,8 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     if (brief.visitor) { setSubmitNotice(BRIEF_VISITOR_COPY); return }
     if (!brief.configured) { setSubmitNotice('AI is not configured on the server yet. Your text is still here.'); return }
     if (noTextNeeded && missionCount === 0) { setSubmitNotice('Add a mission before requesting a Daily Brief or Triage. You can ask a question here without one.'); return }
-    const roster = { missions: missionsToBriefContext(missions), missionIds: missions.slice(0, 40).map(m => m.id) }
+    const scopedMissions = homeMissionRoster(missions)
+    const roster = { missions: missionsToBriefContext(scopedMissions), missionIds: scopedMissions.map(m => m.id) }
     const request = homeRequest(tool, text)
     const { label, ...payload } = request
     const submitted = text

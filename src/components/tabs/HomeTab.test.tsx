@@ -341,3 +341,15 @@ it('continues the same draft and exchange from Home into Mission', async () => {
   await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send' })))
   expect(run).toHaveBeenCalledWith('question', expect.objectContaining({ question: 'Can we continue here?', conversationMissionId: 'm1', conversation: [{ role: 'user', text: 'How do I talk to you best?' }, { role: 'assistant', text: '**Tell me what you want to accomplish.**' }] }), 'Ask Codex')
 })
+
+it('keeps a Primary beyond the first forty projects aligned with its request context', async () => {
+  missions = Array.from({ length: 45 }, (_, index) => ({ id: `m${index}`, title: `Project ${index}`, state: index === 44 ? 'primary' : 'parked' }))
+  render(<HomeTab onNavigate={() => {}} />)
+  fireEvent.change(screen.getByRole('textbox', { name: 'Ask Codex' }), { target: { value: 'What next?' } })
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send' })))
+  const payload = (run.mock.calls as unknown as unknown[][])[0][1] as { missionIds: string[]; missions: { title: string }[]; conversationMissionId: string }
+  expect(payload.missionIds).toHaveLength(40)
+  expect(payload.conversationMissionId).toBe('m44')
+  expect(payload.missionIds[0]).toBe('m44')
+  expect(payload.missions[0].title).toBe('Project 44')
+})
