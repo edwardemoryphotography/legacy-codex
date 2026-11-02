@@ -156,7 +156,7 @@ export default function CodexApp() {
 
       <main className="codex-main">
         {(activeTab === 'home' || activeTab === 'mission') && <HomeTab key={homeSession.accountId} variant={activeTab === 'mission' ? 'mission' : 'home'} projectRevision={missionRevision} onNavigate={selectTab} session={homeSession} onSessionChange={setHomeSession} />}
-        <div
+        {activeTab !== 'home' && <div
           className="panel-enter"
           key={activeTab}
           id={`panel-${activeTab}`}
@@ -176,7 +176,7 @@ export default function CodexApp() {
           {activeTab === 'brief'                 && <BriefTab />}
           {activeTab === 'territory'             && <TerritoryTab />}
           {activeTab === 'origin'                && <OriginTab />}
-        </div>
+        </div>}
       </main>
     </div>
     </OrbHostProvider>
