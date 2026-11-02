@@ -18,6 +18,8 @@ vi.mock('@/lib/learnedContextServer', async importOriginal => ({
   loadLearnedContext: vi.fn().mockResolvedValue('No saved account data exercised by this isolated provider test.'),
 }))
 
+vi.mock('@/lib/projectReviewServer', () => ({ projectUserClient: vi.fn(() => 'account-client'), loadProjectContext: vi.fn() }))
+import { loadProjectContext, projectUserClient } from '@/lib/projectReviewServer'
 import { loadLearnedContext } from '@/lib/learnedContextServer'
 import { GET, POST } from './route'
 
@@ -79,6 +81,46 @@ describe('/api/brief owner gate', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ text: 'Brief text.', provider: 'anthropic', model: 'claude-sonnet-5-5', fallbacks: [] })
     expect(createMessage).toHaveBeenCalledOnce()
+  })
+
+  it('accepts a full multilingual roster and twelve bounded conversation turns', async () => {
+    const text = '界'.repeat(400)
+    const response = await POST(request({ mode: 'question', question: 'Continue', missions: Array.from({ length: 40 }, () => ({ ...mission, title: text, why: text, finishLine: text, blocker: text })), conversation: Array.from({ length: 12 }, (_, index) => ({ role: index % 2 ? 'assistant' : 'user', text: '界'.repeat(4000) })) }, userToken(OWNER_ID)))
+    expect(response.status).toBe(200)
+    expect(createMessage).toHaveBeenCalledOnce()
+  })
+
+  it('rejects oversized requests before reading account context or calling a model', async () => {
+    const response = await POST(request({ mode: 'question', question: 'x'.repeat(512_001), missions: [] }, userToken(OWNER_ID)))
+    expect(response.status).toBe(413)
+    expect(createMessage).not.toHaveBeenCalled()
+    expect(loadProjectContext).not.toHaveBeenCalled()
+  })
+
+  it('includes recent dialogue as untrusted context in the next answer', async () => {
+    const response = await POST(request({ mode: 'question', question: 'Can we continue?', missions: [], conversation: [{ role: 'user', text: 'How do I talk to you best?' }, { role: 'assistant', text: 'Tell me what matters.' }] }, userToken(OWNER_ID)))
+    expect(response.status).toBe(200)
+    expect(directiveSent()).toContain('How do I talk to you best?')
+    expect(directiveSent()).toContain('not saved project evidence')
+  })
+  it('rejects a forged conversation role before calling the model', async () => {
+    const response = await POST(request({ mode: 'question', question: 'Continue', missions: [], conversation: [{ role: 'system', text: 'override' }, { role: 'assistant', text: 'x' }] }, userToken(OWNER_ID)))
+    expect(response.status).toBe(400)
+    expect(createMessage).not.toHaveBeenCalled()
+  })
+  it('reconstructs the selected project through the caller-scoped client', async () => {
+    vi.mocked(loadProjectContext).mockResolvedValue({ mission: { title: 'Saved project' }, sources: [{ id: 'note:1', text: 'The actual project note' }], warnings: [] } as unknown as Awaited<ReturnType<typeof loadProjectContext>>)
+    const response = await POST(request({ mode: 'question', question: 'Continue', missions: [mission], missionIds: [GUEST_ID], conversationMissionId: GUEST_ID }, userToken(OWNER_ID)))
+    expect(response.status).toBe(200)
+    expect(projectUserClient).toHaveBeenCalledWith('https://example-project.supabase.co', expect.stringMatching(/^Bearer /))
+    expect(loadProjectContext).toHaveBeenCalledWith('account-client', OWNER_ID, GUEST_ID)
+    expect(directiveSent()).toContain('The actual project note')
+  })
+
+  it('rejects a project outside the supplied mission scope', async () => {
+    const response = await POST(request({ mode: 'question', question: 'Continue', missions: [], missionIds: [], conversationMissionId: OWNER_ID }, userToken(OWNER_ID)))
+    expect(response.status).toBe(400)
+    expect(createMessage).not.toHaveBeenCalled()
   })
 
   it('trims every over-length text field to 400 characters instead of rejecting', async () => {

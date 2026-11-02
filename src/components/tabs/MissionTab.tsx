@@ -339,7 +339,7 @@ function readMissionSetup(userId: string): string | null {
 export const VISITOR_ACCESS_COPY = 'AI assistance is not enabled for this account. Everything you write here is saved privately.'
 const RECONNECT_ACCESS_COPY = 'Smart suggestions are unavailable until this session reconnects. Everything you write here is still saved privately.'
 
-export default function MissionTab() {
+export default function MissionTab({ onMissionChange }: { onMissionChange?: () => void } = {}) {
   const [user, setUser] = useState<User | null>(null)
   const [authStatus, setAuthStatus] = useState('Checking session…')
   const [board, setBoard] = useState<MissionBoard>(EMPTY_BOARD)
@@ -1049,6 +1049,10 @@ export default function MissionTab() {
   const handleConfirmLesson = useCallback((lesson: LessonConfirmation) => handleLessonWrite({ action: 'confirm', ...lesson }), [handleLessonWrite])
   const handleRetireLesson = useCallback((lessonId: string) => handleLessonWrite({ action: 'retire', lessonId }), [handleLessonWrite])
 
+  useEffect(() => {
+    if (loaded && !loadFailed && !recoveryBusy && !missionWriteInFlight.current) onMissionChange?.()
+  }, [board, loaded, loadFailed, recoveryBusy, onMissionChange])
+
   // The narrowly bounded model-assist stage: one clause in, one operation
   // (or null) out. Owns auth and the network call so StrategicDelta.tsx
   // stays Supabase-agnostic, same as every other onXxx prop it takes. Never
@@ -1550,7 +1554,7 @@ export default function MissionTab() {
               Start a new project without losing your saved work.
             </p>
           </div>
-          <ActionBtn onClick={() => {
+          <ActionChip variant="secondary" onClick={() => {
             rememberMissionSetup(user.id, null)
             setFreshMissionId(null)
             setFreshChallenge(null)
@@ -1561,8 +1565,8 @@ export default function MissionTab() {
             setNameFinish('')
             setEntryMode('capture')
           }}>
-            Start from Step 1
-          </ActionBtn>
+            Start a new project
+          </ActionChip>
           {resumableProjects.length > 0 && (
             <div className="mission-resume-group" aria-label="Continue a saved project">
               <div>

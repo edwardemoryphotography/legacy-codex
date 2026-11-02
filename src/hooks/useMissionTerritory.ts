@@ -36,7 +36,7 @@ const LINK_PAGES = 5
 // Reads the signed-in person's own missions, their unfinished actions, and
 // (optionally) recent mission events — all under RLS, all read-only. A failed
 // secondary read is reported as failed, never as an empty list.
-export function useMissionTerritory({ withEvents = false }: { withEvents?: boolean } = {}): MissionTerritory {
+export function useMissionTerritory({ withEvents = false, refreshKey = 0 }: { withEvents?: boolean; refreshKey?: number } = {}): MissionTerritory {
   const [state, setState] = useState<MissionTerritory>({
     missions: null, loadError: '', actions: [], actionsRead: 'pending', events: [], eventsRead: withEvents ? 'pending' : 'ok', evidence: [], evidenceRead: withEvents ? 'pending' : 'ok', links: [], linksRead: withEvents ? 'pending' : 'ok', linksTruncated: false,
   })
@@ -45,6 +45,7 @@ export function useMissionTerritory({ withEvents = false }: { withEvents?: boole
     let cancelled = false
     const patch = (next: Partial<MissionTerritory>) => { if (!cancelled) setState(prev => ({ ...prev, ...next })) }
     async function load() {
+      patch({ missions: null, loadError: '', actionsRead: 'pending' })
       try {
         const user = await connectMissionSession()
         if (cancelled) return
@@ -78,7 +79,7 @@ export function useMissionTerritory({ withEvents = false }: { withEvents?: boole
     return () => {
       cancelled = true
     }
-  }, [withEvents])
+  }, [withEvents, refreshKey])
 
   return state
 }

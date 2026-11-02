@@ -15,3 +15,9 @@ export function homeRequest(tool: HomeTool | null, text: string): { mode: 'quest
   if (tool === 'triage') return { mode: 'triage', label: 'Triage' }
   return { mode: 'question', question: '', label: 'Ask Codex' }
 }
+
+/** Keep the selected Primary inside the same bounded, aligned context roster. */
+export function homeMissionRoster<T extends { id: string; state: string }>(missions: T[]): T[] {
+  const primary = missions.find(mission => mission.state === 'primary')
+  return (primary ? [primary, ...missions.filter(mission => mission.id !== primary.id)] : missions).slice(0, 40)
+}
