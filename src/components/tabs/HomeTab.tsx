@@ -13,6 +13,7 @@ import { homeMissionRoster, homeRequest, QUESTION_LIMIT, PROMPT_LIMIT, promptHel
 import type { TabId } from '@/types'
 import { emptyHomeSession, type HomeSession } from '@/lib/homeSession'
 import { homeTakeaway } from '@/lib/homeTakeaway'
+import { deriveNextAction, type NextActionReadState } from '@/lib/nextAction'
 import styles from './HomeTab.module.css'
 import ReactMarkdown from 'react-markdown'
 import { recentConversation } from '@/lib/homeSession'
@@ -129,9 +130,32 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   // Continuity is read from actual persisted rows. A failed/pending action read
   // must never be presented as proof that there is no unfinished work.
   const primaryMission = missions?.find(mission => mission.state === 'primary') ?? null
-  const savedAction = actionsRead === 'ok' && primaryMission
+  const savedAction = actionsRead === 'ok' && primaryMission && actions
     ? actions.find(action => action.mission_id === primaryMission.id && (action.status === 'TODO' || action.status === 'IN_PROGRESS')) ?? null
     : null
+  const homeReadState: NextActionReadState =
+    loadError || actionsRead === 'failed'
+      ? 'error'
+      : missions === null || actionsRead === 'pending'
+        ? 'loading'
+        : !primaryMission
+          ? 'empty'
+          : 'loaded'
+  const homeNextAction = deriveNextAction({
+    readState: homeReadState,
+    mission: primaryMission,
+    delta: null,
+    savedAction: savedAction
+      ? {
+          id: savedAction.id,
+          missionId: savedAction.mission_id,
+          title: savedAction.action_title,
+          status: savedAction.status === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'TODO',
+          resumeNote: savedAction.resume_note,
+          updatedAt: savedAction.updated_at,
+        }
+      : null,
+  })
   const noTextNeeded = (tool === 'brief' || tool === 'triage') && !text.trim()
   // Prompt help spends part of the 400 characters on its instruction.
   const limit = tool === 'prompt' ? PROMPT_LIMIT : QUESTION_LIMIT
@@ -195,6 +219,22 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
 
   async function saveReplyAsNextAction() {
     if (!reply || !primaryMission || savingReplyAction || savingReplyActionRef.current) return
+    if (actionsRead !== 'ok') {
+      setSaveReplyError('Wait for your saved actions to finish loading before saving a new one.')
+      return
+    }
+    if (savedAction && savedAction.action_title === takeawayTitle) {
+      // Idempotent duplicate save: never overwrite status or resume_note.
+      setSavedReplyText(reply.text)
+      return
+    }
+    if (savedAction && savedAction.action_title !== takeawayTitle) {
+      // Never silently overwrite an existing TODO or IN_PROGRESS saved action from conversation.
+      setSaveReplyError(
+        `“${savedAction.action_title}” is already saved for ${primaryMission.title}. Open Mission to resume, complete, or explicitly replace that saved action.`,
+      )
+      return
+    }
     savingReplyActionRef.current = true
     setSavingReplyAction(true)
     setSaveReplyError(null)
@@ -206,45 +246,23 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
           insert?: (row: Record<string, unknown>) => {
             select?: (cols: string) => { single: () => Promise<{ data: unknown; error: unknown }> }
           }
-          update?: (row: Record<string, unknown>) => {
-            eq: (col: string, val: string) => {
-              select?: (cols: string) => { single: () => Promise<{ data: unknown; error: unknown }> }
-            }
-          }
         }
       }).from?.('actions')
-      if (!fromActions) throw new Error('Actions storage unavailable.')
+      if (!fromActions || typeof fromActions.insert !== 'function') throw new Error('Actions storage unavailable.')
 
-      if (savedAction && typeof fromActions.update === 'function') {
-        const eqBuilder = fromActions.update({
-          action_title: takeawayTitle,
-          resume_note: note,
-          is_next_action: true,
-        }).eq('id', savedAction.id)
-        if (typeof eqBuilder.select === 'function') {
-          const { error: writeError } = await eqBuilder.select('id').single()
-          if (writeError) throw writeError
-        } else {
-          const { error: writeError } = await (eqBuilder as unknown as Promise<{ error: unknown }>)
-          if (writeError) throw writeError
-        }
-      } else if (typeof fromActions.insert === 'function') {
-        const insertBuilder = fromActions.insert({
-          mission_id: primaryMission.id,
-          action_title: takeawayTitle,
-          status: 'TODO',
-          is_next_action: true,
-          resume_note: note,
-        })
-        if (typeof insertBuilder.select === 'function') {
-          const { error: writeError } = await insertBuilder.select('id').single()
-          if (writeError) throw writeError
-        } else {
-          const { error: writeError } = await (insertBuilder as unknown as Promise<{ error: unknown }>)
-          if (writeError) throw writeError
-        }
+      const insertBuilder = fromActions.insert({
+        mission_id: primaryMission.id,
+        action_title: takeawayTitle,
+        status: 'TODO',
+        is_next_action: true,
+        resume_note: note,
+      })
+      if (typeof insertBuilder.select === 'function') {
+        const { error: writeError } = await insertBuilder.select('id').single()
+        if (writeError) throw writeError
       } else {
-        throw new Error('Actions storage unavailable.')
+        const { error: writeError } = await (insertBuilder as unknown as Promise<{ error: unknown }>)
+        if (writeError) throw writeError
       }
 
       setSavedReplyText(reply.text)
@@ -278,7 +296,15 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     : '')
 
   return (
-    <section className={`glass-home ${styles.home} ${missionView ? styles.mission : ''}`} data-state={presentation.state} data-immersive={immersive ? 'true' : undefined} data-reply={hasReply ? 'true' : undefined} aria-label={missionView ? 'Project conversation' : 'Home'}>
+    <section
+      className={`glass-home ${styles.home} ${missionView ? styles.mission : ''}`}
+      data-state={presentation.state}
+      data-immersive={immersive ? 'true' : undefined}
+      data-reply={hasReply ? 'true' : undefined}
+      data-next-action-state={homeNextAction.state}
+      data-next-action-read={homeNextAction.readState}
+      aria-label={missionView ? 'Project conversation' : 'Home'}
+    >
       {(!missionView || busy || voice.active) && <ConversationPresence status={brief.status} busy={busy} loadError={loadError} pending={!loadError && !busy && !voice.active ? missions === null ? 'Reading saved missions' : actionsRead === 'pending' ? 'Reading saved actions' : null : null} voice={voice} reply={Boolean(current.reply)} />}
       <div className={styles.context}>
         <span>{primaryMission ? `Working on: ${primaryMission.title}` : 'Your conversation with Codex'}</span>
@@ -295,7 +321,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
             <h2 className={styles.answer}>{homeTakeaway(reply.text)}</h2>
             <div className="flex flex-wrap justify-center gap-2">
               <button type="button" className={`glass-chip glass ${styles.readMore}`} aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setResponseOpen(true); setHistoryOpen(false); setFocusOpen(false) }}>Read full answer <span aria-hidden="true">↗</span></button>
-              {primaryMission && !isReplySavedAsAction && (
+              {primaryMission && actionsRead === 'ok' && !isReplySavedAsAction && !savedAction && (
                 <button
                   type="button"
                   className={`glass-chip glass ${styles.readMore}`}
@@ -306,6 +332,16 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
                 </button>
               )}
             </div>
+            {primaryMission && savedAction && !isReplySavedAsAction && (
+              <p className="glass-note" role="status" data-next-action-precedence="saved-first">
+                Current saved action ({savedAction.status === 'IN_PROGRESS' ? 'In progress' : 'Saved'}): <strong>{savedAction.action_title}</strong>.{' '}
+                {!missionView && (
+                  <button type="button" className="underline" onClick={() => onNavigate('mission')}>
+                    Continue in Mission
+                  </button>
+                )}
+              </p>
+            )}
             {primaryMission && isReplySavedAsAction && (
               <p className="glass-note" role="status">
                 Saved as your next action for <strong>{primaryMission.title}</strong>.{' '}

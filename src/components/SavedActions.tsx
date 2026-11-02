@@ -12,6 +12,7 @@ export interface SavedOpenActionSnapshot {
   title: string
   status: 'TODO' | 'IN_PROGRESS'
   resumeNote: string | null
+  updatedAt?: string | null
 }
 
 type SavedAction = {
@@ -96,6 +97,7 @@ export default function SavedActions({
               title: open.action_title,
               status: open.status === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'TODO',
               resumeNote: open.resume_note,
+              updatedAt: open.updated_at,
             }
           : null,
       )

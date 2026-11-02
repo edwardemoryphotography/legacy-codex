@@ -9,6 +9,7 @@ import ProjectLearning, { type ConfirmLesson, type RetireLesson } from '@/compon
 import MissionAssistance from '@/components/MissionAssistance'
 import type { SavedOpenActionSnapshot } from '@/components/SavedActions'
 import { deriveObservableAcceptanceChecks } from '@/lib/missionAssistance'
+import { deriveNextAction, type AcceptanceSnapshot } from '@/lib/nextAction'
 import ReactMarkdown from 'react-markdown'
 import type { ConfirmedLesson, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
 
@@ -22,14 +23,23 @@ export type DeltaCorrect = (delta: Delta, reason: string) => void | boolean | Pr
 export type DeltaContextWrite = (delta: Delta, note: string) => void | boolean | Promise<void | boolean>
 export type DeltaSupplyStep = (delta: Delta, step: string) => void | boolean | Promise<void | boolean>
 
+export interface SaveNextActionOptions {
+  confirmReplace?: boolean
+}
+
 export interface SaveNextActionResult {
   ok: boolean
   actionId?: string
   title?: string
   replaced?: boolean
+  requiresConfirmation?: boolean
   error?: string
 }
-export type DeltaSaveNextAction = (delta: Delta, note?: string | null) => Promise<SaveNextActionResult>
+export type DeltaSaveNextAction = (
+  delta: Delta,
+  note?: string | null,
+  options?: SaveNextActionOptions,
+) => Promise<SaveNextActionResult>
 
 // The narrowly bounded model-assist request: one clause in, one operation
 // (or nothing) out. The caller (MissionTab) owns auth and the actual fetch
@@ -169,6 +179,12 @@ interface Props {
   onClearBlocker?: (missionId: string) => Promise<boolean>
   /** Promote a saved mission to Primary directly when recommended. */
   onPromoteMission?: (missionId: string) => Promise<boolean>
+  /** Structured acceptance snapshots by mission ID for canonical NextAction derivation. */
+  acceptanceSnapshots?: Readonly<Record<string, AcceptanceSnapshot>>
+  /** Canonical context key for the current mission state. */
+  contextKey?: string | null
+  /** Per-mission context keys, so the projection compares the right mission. */
+  contextKeys?: Readonly<Record<string, string>>
   /** Missing-input controls for insufficient context. Rendered inside the
    *  hero, not below it — and never inside the live region. */
   children?: ReactNode
@@ -209,6 +225,9 @@ export default function StrategicDelta({
   onSetEvidenceRequirement,
   onClearBlocker,
   onPromoteMission,
+  acceptanceSnapshots,
+  contextKey = null,
+  contextKeys,
   children,
 }: Props) {
   // A restored review cannot follow a mission into a revised goal or an
@@ -459,6 +478,7 @@ export default function StrategicDelta({
   const savingNextActionRef = useRef(false)
   const [saveActionResult, setSaveActionResult] = useState<{ actionId?: string; title: string; replaced?: boolean } | null>(null)
   const [saveActionError, setSaveActionError] = useState<string | null>(null)
+  const [confirmingReplace, setConfirmingReplace] = useState(false)
   const [startingAction, setStartingAction] = useState(false)
   const startingActionRef = useRef(false)
   const [startActionError, setStartActionError] = useState<string | null>(null)
@@ -581,24 +601,55 @@ export default function StrategicDelta({
   const provenance = delta?.provenance ?? 'deterministic'
   useOrbCognition({ cognition, provenance, recording, resumable })
 
+  const currentSavedAction =
+    committableMission && savedOpenAction?.missionId === committableMission.id ? savedOpenAction : null
   const matchingSavedAction =
-    committableMission && delta && savedOpenAction?.missionId === committableMission.id && savedOpenAction.title === delta.move
-      ? savedOpenAction
+    currentSavedAction && delta && currentSavedAction.title === delta.move
+      ? currentSavedAction
       : committableMission && delta && saveActionResult?.title === delta.move
         ? {
             id: saveActionResult.actionId ?? 'latest',
             missionId: committableMission.id,
             title: saveActionResult.title,
-            status: 'TODO' as const,
+            status: currentSavedAction?.status ?? ('TODO' as const),
             resumeNote: activeWorkDraft,
           }
         : null
   const hasDifferentSavedAction = Boolean(
-    committableMission &&
+    currentSavedAction &&
     delta &&
-    savedOpenAction?.missionId === committableMission.id &&
-    savedOpenAction.title !== delta.move,
+    currentSavedAction.title !== delta.move &&
+    saveActionResult?.title !== delta.move,
   )
+  const isSavedActionInProgress = Boolean(currentSavedAction?.status === 'IN_PROGRESS')
+  const activeMissionForNextAction = committableMission ?? aimedMission ?? primaryMission
+  const activeContextKey = activeMissionForNextAction
+    ? contextKeys?.[activeMissionForNextAction.id] ?? contextKey
+    : contextKey
+  const activeAcceptanceSnapshot: AcceptanceSnapshot | null = activeMissionForNextAction
+    ? acceptanceSnapshots?.[activeMissionForNextAction.id] ??
+      (acceptedMoves[activeMissionForNextAction.id]
+        ? {
+            eventId: `${activeMissionForNextAction.id}:accepted`,
+            missionId: activeMissionForNextAction.id,
+            move: acceptedMoves[activeMissionForNextAction.id],
+          }
+        : null)
+    : null
+  const canonicalNextAction = deriveNextAction({
+    mission: activeMissionForNextAction,
+    delta,
+    acceptance: activeAcceptanceSnapshot,
+    savedAction: currentSavedAction ?? matchingSavedAction,
+    readState: pendingRead
+      ? 'loading'
+      : !readAvailable
+        ? 'error'
+        : !activeMissionForNextAction
+          ? 'empty'
+          : 'loaded',
+    contextKey: activeContextKey,
+  })
   const isNameEvidenceMove = Boolean(
     aimedMission &&
     aimedMission.finishLine &&
@@ -610,8 +661,21 @@ export default function StrategicDelta({
   const isUnblockMove = Boolean(delta?.candidateId?.startsWith('unblock:') && aimedMission?.blocker && onClearBlocker)
   const isPromoteMove = Boolean(delta?.candidateId?.startsWith('promote:') && aimedMission && onPromoteMission)
 
-  async function saveAsNextAction() {
+  async function saveAsNextAction(options?: SaveNextActionOptions) {
     if (!delta || !committableMission || !onSaveNextAction || savingNextAction || savingNextActionRef.current) return
+    if (hasDifferentSavedAction && currentSavedAction) {
+      if (isSavedActionInProgress) {
+        setSaveActionError(
+          `“${currentSavedAction.title}” is currently in progress. Pause or mark it done in Your saved actions before saving a different commitment, so your starting-point note is not lost.`,
+        )
+        return
+      }
+      if (!options?.confirmReplace) {
+        setConfirmingReplace(true)
+        setSaveActionError(null)
+        return
+      }
+    }
     savingNextActionRef.current = true
     setSavingNextAction(true)
     setSaveActionError(null)
@@ -619,11 +683,15 @@ export default function StrategicDelta({
       const note = activeWorkDraft
         ? `${activeWorkDraftIsModel ? 'Model-generated draft — check before using.' : 'Structured from your project notes — check before using.'}\n\n${activeWorkDraft}`
         : null
-      const result = await onSaveNextAction(delta, note)
+      const result = await onSaveNextAction(delta, note, options)
       if (!result.ok) {
+        if (result.requiresConfirmation) {
+          setConfirmingReplace(true)
+        }
         setSaveActionError(result.error ?? 'Could not save this move as your next action. Your project context and draft are still here — retry when ready.')
         return
       }
+      setConfirmingReplace(false)
       setSaveActionResult({
         actionId: result.actionId,
         title: result.title ?? delta.move,
@@ -736,6 +804,8 @@ export default function StrategicDelta({
       data-state={reconstructing ? 'reasoning' : 'resolved'}
       data-cognition={cognition}
       data-provenance={provenance}
+      data-next-action-state={canonicalNextAction.state}
+      data-next-action-read={canonicalNextAction.readState}
       data-recording={recording || savingNextAction || startingAction || savingEvidenceReq || clearingBlocker || promotingMission ? 'true' : undefined}
       data-resumable={resumable ? 'true' : undefined}
       data-first-run={isFirstRun ? 'true' : undefined}
@@ -766,6 +836,40 @@ export default function StrategicDelta({
         </p>
       ) : delta && title ? (
         <>
+          {hasDifferentSavedAction && currentSavedAction && committableMission && (
+            <div className="sd-followthrough-result" role="status" data-next-action-precedence="saved-first">
+              <p>
+                <strong>
+                  {currentSavedAction.status === 'IN_PROGRESS'
+                    ? 'Current move (in progress)'
+                    : 'Current saved action'}
+                </strong>
+                {': '}“{currentSavedAction.title}”
+                {currentSavedAction.status === 'IN_PROGRESS'
+                  ? ' — in progress now. A new prediction will not overwrite or reset it.'
+                  : ' — saved for this mission. The prediction below is an optional alternative.'}
+              </p>
+              {currentSavedAction.resumeNote && (
+                <p className="sd-hint">Where you left off: {currentSavedAction.resumeNote}</p>
+              )}
+              <div className="sd-followthrough-row">
+                {currentSavedAction.status !== 'IN_PROGRESS' && onStartSavedAction && (
+                  <ActionBtn disabled={startingAction} onClick={() => void startSavedAction(currentSavedAction.id)}>
+                    {startingAction ? 'Starting action…' : 'Start this action now'}
+                  </ActionBtn>
+                )}
+                <a className="sd-next" href={`#saved-action-${currentSavedAction.id}`}>
+                  Return to this saved action
+                </a>
+              </div>
+              {startActionError && <p className="sd-fail" role="alert">{startActionError}</p>}
+            </div>
+          )}
+          {hasDifferentSavedAction && (
+            <p className="sd-hint" data-also-consider="true">
+              Also consider — does not replace your saved action:
+            </p>
+          )}
           {!evidenceLoop && <p className="sd-move" key={hasRecommendation ? delta.move : title} aria-label={selectedReview ? resumeActionId ? 'Continue your saved action' : 'Do this' : undefined} aria-live={hasRecommendation ? 'polite' : undefined}>{title}</p>}
           {evidenceLoop && <p className="sd-move" aria-live="polite">Let’s get something useful started.</p>}
           {activeWorkDraft && <section className="mission-work-draft" aria-label="Working draft">
@@ -777,9 +881,13 @@ export default function StrategicDelta({
             </p>
             <ReactMarkdown>{activeWorkDraft}</ReactMarkdown>
             <div className="mission-work-draft-actions">
-              {onSaveNextAction && committableMission && !resumeActionId && !matchingSavedAction && (
+              {onSaveNextAction && committableMission && !resumeActionId && !matchingSavedAction && !isSavedActionInProgress && (
                 <ActionBtn disabled={savingNextAction || recording} onClick={() => void saveAsNextAction()}>
-                  {savingNextAction ? 'Saving next action…' : 'Save move & draft as my next action'}
+                  {savingNextAction
+                    ? 'Saving next action…'
+                    : hasDifferentSavedAction
+                      ? 'Replace saved next action with move & draft'
+                      : 'Save move & draft as my next action'}
                 </ActionBtn>
               )}
               <ActionChip variant="secondary" onClick={() => void copyWorkDraft()}>
@@ -907,7 +1015,7 @@ export default function StrategicDelta({
 
             {hasRecommendation && accepted ? (
               <div className="sd-act-primary">
-                {committableMission && !resumeActionId && onSaveNextAction && !matchingSavedAction && (
+                {committableMission && !resumeActionId && onSaveNextAction && !matchingSavedAction && !isSavedActionInProgress && (
                   <div className="sd-followthrough-row">
                     <ActionBtn disabled={savingNextAction || recording} onClick={() => void saveAsNextAction()}>
                       {savingNextAction
@@ -921,6 +1029,32 @@ export default function StrategicDelta({
                         Saving commitment to {committableMission.title}…
                       </span>
                     )}
+                  </div>
+                )}
+                {hasDifferentSavedAction && isSavedActionInProgress && currentSavedAction && (
+                  <p className="sd-hint" role="status">
+                    Your action “{currentSavedAction.title}” is in progress. Pause or mark it done below before saving a different commitment.
+                  </p>
+                )}
+                {confirmingReplace && currentSavedAction && delta && (
+                  <div className="sd-followthrough-box" role="region" aria-label="Confirm replacing saved action">
+                    <p className="sd-followthrough-label">
+                      Replace your unstarted saved action <strong>“{currentSavedAction.title}”</strong> with <strong>“{delta.move}”</strong>?
+                    </p>
+                    <p className="sd-hint">
+                      Your previous commitment{currentSavedAction.resumeNote ? ' and its starting-point note' : ''} will be recorded in your mission history and kept in the starting-point note so nothing is lost.
+                    </p>
+                    <div className="sd-followthrough-row">
+                      <ActionBtn
+                        disabled={savingNextAction || recording}
+                        onClick={() => void saveAsNextAction({ confirmReplace: true })}
+                      >
+                        {savingNextAction ? 'Replacing saved action…' : 'Confirm replace saved action'}
+                      </ActionBtn>
+                      <ActionChip variant="secondary" onClick={() => setConfirmingReplace(false)}>
+                        Keep current saved action
+                      </ActionChip>
+                    </div>
                   </div>
                 )}
                 {committableMission && matchingSavedAction ? (
@@ -947,9 +1081,11 @@ export default function StrategicDelta({
                 {saveActionError && (
                   <div className="sd-followthrough-error" role="alert">
                     <p>{saveActionError}</p>
-                    <ActionBtn disabled={savingNextAction} onClick={() => void saveAsNextAction()}>
-                      Retry saving next action
-                    </ActionBtn>
+                    {!isSavedActionInProgress && (
+                      <ActionBtn disabled={savingNextAction} onClick={() => void saveAsNextAction({ confirmReplace: confirmingReplace })}>
+                        Retry saving next action
+                      </ActionBtn>
+                    )}
                   </div>
                 )}
                 <p className="sd-accepted">
@@ -959,7 +1095,7 @@ export default function StrategicDelta({
             ) : hasRecommendation && !accepted ? (
               <div className="sd-act-primary">
                 <div className="sd-followthrough-row">
-                  {committableMission && !resumeActionId && onSaveNextAction && !matchingSavedAction && (
+                  {committableMission && !resumeActionId && onSaveNextAction && !matchingSavedAction && !isSavedActionInProgress && (
                     <ActionBtn disabled={savingNextAction || recording} onClick={() => void saveAsNextAction()}>
                       {savingNextAction
                         ? 'Saving next action…'
@@ -975,6 +1111,32 @@ export default function StrategicDelta({
                     </span>
                   )}
                 </div>
+                {hasDifferentSavedAction && isSavedActionInProgress && currentSavedAction && (
+                  <p className="sd-hint" role="status">
+                    Your action “{currentSavedAction.title}” is in progress. Pause or mark it done below before saving a different commitment.
+                  </p>
+                )}
+                {confirmingReplace && currentSavedAction && delta && (
+                  <div className="sd-followthrough-box" role="region" aria-label="Confirm replacing saved action">
+                    <p className="sd-followthrough-label">
+                      Replace your unstarted saved action <strong>“{currentSavedAction.title}”</strong> with <strong>“{delta.move}”</strong>?
+                    </p>
+                    <p className="sd-hint">
+                      Your previous commitment{currentSavedAction.resumeNote ? ' and its starting-point note' : ''} will be recorded in your mission history and kept in the starting-point note so nothing is lost.
+                    </p>
+                    <div className="sd-followthrough-row">
+                      <ActionBtn
+                        disabled={savingNextAction || recording}
+                        onClick={() => void saveAsNextAction({ confirmReplace: true })}
+                      >
+                        {savingNextAction ? 'Replacing saved action…' : 'Confirm replace saved action'}
+                      </ActionBtn>
+                      <ActionChip variant="secondary" onClick={() => setConfirmingReplace(false)}>
+                        Keep current saved action
+                      </ActionChip>
+                    </div>
+                  </div>
+                )}
                 {committableMission && matchingSavedAction && (
                   <div className="sd-followthrough-result" role="status">
                     <p>
@@ -997,13 +1159,20 @@ export default function StrategicDelta({
                 {saveActionError && (
                   <div className="sd-followthrough-error" role="alert">
                     <p>{saveActionError}</p>
-                    <ActionBtn disabled={savingNextAction} onClick={() => void saveAsNextAction()}>
-                      Retry saving next action
-                    </ActionBtn>
+                    {!isSavedActionInProgress && (
+                      <ActionBtn disabled={savingNextAction} onClick={() => void saveAsNextAction({ confirmReplace: confirmingReplace })}>
+                        Retry saving next action
+                      </ActionBtn>
+                    )}
                   </div>
                 )}
+                {canonicalNextAction.state === 'accepted' && canonicalNextAction.stale && canonicalNextAction.staleReason && (
+                  <p className="sd-hint" role="status">
+                    Previously accepted move: “{canonicalNextAction.title}” ({canonicalNextAction.staleReason} Your earlier acceptance stays in history.)
+                  </p>
+                )}
                 <p className="sd-boundary">
-                  {onSaveNextAction && committableMission && !resumeActionId
+                  {onSaveNextAction && committableMission && !resumeActionId && !isSavedActionInProgress
                     ? '“Save as my next action” records this commitment (and any starting draft) so you can start or resume it below. Accepting only records the recommendation. External tools do not run automatically — use “Route this move” to prepare a handoff.'
                     : 'Accepting records the recommendation. It does not save an action, and it does not prove the work is done.'}
                 </p>

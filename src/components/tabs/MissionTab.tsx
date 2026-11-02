@@ -47,7 +47,8 @@ import SavedActions, { type SavedOpenActionSnapshot } from '@/components/SavedAc
 import TaskRouter, { type RoutedActionDraft, type RouteSeed } from '@/components/TaskRouter'
 import { nextMoveContextKey } from '@/lib/nextMove'
 import type { TaskRouteContext } from '@/lib/taskRouting'
-import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase, type SaveNextActionResult } from '@/components/StrategicDelta'
+import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase, type SaveNextActionOptions, type SaveNextActionResult } from '@/components/StrategicDelta'
+import type { AcceptanceSnapshot } from '@/lib/nextAction'
 import type { ConfirmedLesson, LessonConfirmation, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
 import { buildDeterministicAssistance, deriveObservableAcceptanceChecks, draftStartingPoint, extractDeadline } from '@/lib/missionAssistance'
 import MissionFiles from '@/components/MissionFiles'
@@ -215,11 +216,13 @@ export function acceptanceDetail(
   move: string,
   candidateId: string | null | undefined,
   finishLine?: string | null,
+  contextKey?: string | null,
 ): string {
   return JSON.stringify({
     move,
     ...(candidateId ? { candidateId } : {}),
     ...(finishLine ? { finishLine } : {}),
+    ...(contextKey ? { contextKey } : {}),
   })
 }
 
@@ -227,20 +230,42 @@ export interface LedgerAcceptance {
   move: string
   /** The finish line in force when it was accepted; absent on older rows. */
   finishLine?: string
+  candidateId?: string
+  contextKey?: string
+  eventId?: string
+  createdAt?: string
 }
 
-function acceptanceFromDetail(detail: string): LedgerAcceptance | null {
+function acceptanceFromDetail(detail: string, row?: Pick<MissionEventRow, 'id' | 'created_at'>): LedgerAcceptance | null {
   try {
     const parsed: unknown = JSON.parse(detail)
     if (parsed && typeof parsed === 'object' && typeof (parsed as { move?: unknown }).move === 'string') {
-      const { move, finishLine } = parsed as { move: string; finishLine?: unknown }
+      const { move, finishLine, candidateId, contextKey } = parsed as {
+        move: string
+        finishLine?: unknown
+        candidateId?: unknown
+        contextKey?: unknown
+      }
       if (!move.trim()) return null
-      return typeof finishLine === 'string' ? { move, finishLine } : { move }
+      return {
+        move,
+        ...(typeof finishLine === 'string' ? { finishLine } : {}),
+        ...(typeof candidateId === 'string' ? { candidateId } : {}),
+        ...(typeof contextKey === 'string' ? { contextKey } : {}),
+        ...(row?.id ? { eventId: row.id } : {}),
+        ...(row?.created_at ? { createdAt: row.created_at } : {}),
+      }
     }
   } catch {
     // Plain prose — the older format.
   }
-  return detail.trim() ? { move: detail } : null
+  return detail.trim()
+    ? {
+        move: detail,
+        ...(row?.id ? { eventId: row.id } : {}),
+        ...(row?.created_at ? { createdAt: row.created_at } : {}),
+      }
+    : null
 }
 
 // Events that change what the Delta is predicting for a mission. A later one
@@ -263,7 +288,7 @@ export function acceptanceLedger(rows: MissionEventRow[]): Record<string, Ledger
   const ordered = [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at))
   for (const row of ordered) {
     if (row.type === 'delta_accepted') {
-      const acceptance = acceptanceFromDetail(row.detail)
+      const acceptance = acceptanceFromDetail(row.detail, row)
       if (acceptance) live[row.mission_id] = acceptance
     } else if (row.type && INVALIDATES_ACCEPTANCE.has(row.type)) {
       delete live[row.mission_id]
@@ -351,6 +376,23 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
   // Re-derived whenever the board changes, so an acceptance recorded under a
   // finish line the mission no longer has is dropped in-session too.
   const acceptedMoves = useMemo(() => currentAcceptances(acceptances, board.missions), [acceptances, board.missions])
+  const acceptanceSnapshots = useMemo(() => {
+    const out: Record<string, AcceptanceSnapshot> = {}
+    for (const [missionId, entry] of Object.entries(acceptances)) {
+      const mission = board.missions[missionId]
+      if (entry.finishLine !== undefined && mission?.finishLine !== entry.finishLine) continue
+      out[missionId] = {
+        eventId: entry.eventId ?? `${missionId}:accepted`,
+        missionId,
+        move: entry.move,
+        candidateId: entry.candidateId ?? null,
+        finishLine: entry.finishLine ?? null,
+        contextKey: entry.contextKey ?? null,
+        createdAt: entry.createdAt ?? null,
+      }
+    }
+    return out
+  }, [acceptances, board.missions])
   // Accepts in flight, keyed mission+move, so a double tap cannot insert twice
   // before the first write returns.
   const acceptingRef = useRef<Set<string>>(new Set())
@@ -703,7 +745,12 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
   // AI recommendation is not human commitment, and neither is evidence of
   // completion (spec §14).
   const recordDeltaEvent = useCallback(
-    async (type: MissionEventType, missionId: string, detail: string): Promise<boolean> => {
+    async (
+      type: MissionEventType,
+      missionId: string,
+      detail: string,
+      idempotencyKeyOverride?: string,
+    ): Promise<boolean> => {
       if (!user) {
         setDeltaError('Could not record that against your history — it was not saved.')
         return false
@@ -716,10 +763,18 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
           mission_id: missionId,
           type,
           detail,
-          idempotency_key: newId(),
+          idempotency_key: idempotencyKeyOverride ?? newId(),
           created_at: new Date().toISOString(),
         })
-        if (writeError) throw writeError
+        if (writeError) {
+          // A deterministic idempotency key means a duplicate is the same event,
+          // already recorded by this or another tab. Treat it as success.
+          if ((writeError as { code?: string }).code === '23505') {
+            setDeltaError('')
+            return true
+          }
+          throw writeError
+        }
         setDeltaError('')
         return true
       } catch {
@@ -732,6 +787,27 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
     [user],
   )
 
+  // The same context key the Delta was resolved under. Acceptance stores it so
+  // a cold return can tell "still the same move" from "the project changed."
+  const contextKeyForMission = useCallback((missionId: string): string | null => {
+    const mission = board.missions[missionId]
+    if (!mission) return null
+    const context: TaskRouteContext = {
+      mission,
+      missionStatus: !loaded ? 'loading' : loadFailed || !user ? 'unavailable' : 'ready',
+      evidence,
+      evidenceStatus,
+      learningRevision: reviewRevision,
+      corrections: corrections
+        .filter(item => item.missionId === missionId)
+        .map(item => ({ correctedMove: item.correctedMove, reason: item.reason })),
+      contextNotes: routeNotes
+        .filter(item => item.missionId === missionId)
+        .map(item => item.note),
+    }
+    return nextMoveContextKey(context, new Date().toISOString())
+  }, [board.missions, loaded, loadFailed, user, evidence, evidenceStatus, reviewRevision, corrections, routeNotes])
+
   // Idempotent per (mission, move): accepting what is already the live
   // acceptance — e.g. after reload, or a second tap — records nothing new.
   // mission_events has no unique constraint to lean on, so this guard is the
@@ -742,19 +818,35 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
       if (!missionId) return false
       if (acceptedMoves[missionId] === delta.move) return true
       const finishLine = board.missions[missionId]?.finishLine ?? null
+      const contextKey = contextKeyForMission(missionId)
       const key = `${missionId}\u0000${delta.move}`
       if (acceptingRef.current.has(key)) return false
       acceptingRef.current.add(key)
       try {
-        const ok = await recordDeltaEvent('delta_accepted', missionId, acceptanceDetail(delta.move, delta.candidateId, finishLine))
+        const idempotencyKey = `${missionId}:delta_accepted:${delta.candidateId ?? delta.move}:${finishLine ?? ''}:${contextKey ?? ''}`
+        const ok = await recordDeltaEvent(
+          'delta_accepted',
+          missionId,
+          acceptanceDetail(delta.move, delta.candidateId, finishLine, contextKey),
+          idempotencyKey,
+        )
         if (!ok) return false
-        setAcceptances(prev => ({ ...prev, [missionId]: finishLine ? { move: delta.move, finishLine } : { move: delta.move } }))
+        setAcceptances(prev => ({
+          ...prev,
+          [missionId]: {
+            move: delta.move,
+            ...(delta.candidateId ? { candidateId: delta.candidateId } : {}),
+            ...(finishLine ? { finishLine } : {}),
+            ...(contextKey ? { contextKey } : {}),
+            createdAt: new Date().toISOString(),
+          },
+        }))
         return true
       } finally {
         acceptingRef.current.delete(key)
       }
     },
-    [acceptedMoves, board, recordDeltaEvent],
+    [acceptedMoves, board, contextKeyForMission, recordDeltaEvent],
   )
 
   // The corrected prediction is kept, never erased: it stays in
@@ -920,7 +1012,8 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
         previous.missionId === openAction.missionId &&
         previous.title === openAction.title &&
         previous.status === openAction.status &&
-        previous.resumeNote === openAction.resumeNote
+        previous.resumeNote === openAction.resumeNote &&
+        previous.updatedAt === openAction.updatedAt
       ) {
         return previous
       }
@@ -929,7 +1022,7 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
   }, [])
 
   const handleSaveRecommendedAction = useCallback(
-    async (delta: Delta, note?: string | null): Promise<SaveNextActionResult> => {
+    async (delta: Delta, note?: string | null, options?: SaveNextActionOptions): Promise<SaveNextActionResult> => {
       const missionId = delta.missionId
       if (!user || !loaded || loadFailed || !missionId) {
         return { ok: false, error: 'Your session is not ready yet. Reconnect and try again.' }
@@ -941,6 +1034,26 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
       if (!mission || (mission.state !== 'primary' && mission.state !== 'secondary')) {
         return { ok: false, error: 'Only an active Primary or Secondary mission can save a next action.' }
       }
+
+      const existingOpen = openMissionAction?.missionId === missionId ? openMissionAction : null
+
+      // Check 1: In-progress commitment immutability & explicit human replacement decision.
+      if (existingOpen && existingOpen.title !== delta.move) {
+        if (existingOpen.status === 'IN_PROGRESS') {
+          return {
+            ok: false,
+            error: `“${existingOpen.title}” is currently in progress. Pause or mark it done in Your saved actions before saving a different commitment, so your starting-point note is not lost.`,
+          }
+        }
+        if (!options?.confirmReplace) {
+          return {
+            ok: false,
+            requiresConfirmation: true,
+            error: `“${existingOpen.title}” is already saved. Confirm replacement explicitly to replace that unstarted action and preserve its history.`,
+          }
+        }
+      }
+
       savingActionInFlight.current = true
       beginFieldWork()
       try {
@@ -971,35 +1084,111 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
                     : null
                 })()
 
-        const existingOpen = openMissionAction?.missionId === missionId ? openMissionAction : null
-        let savedActionId = existingOpen?.id ?? `saved-${Date.now()}`
-        let savedStatus: 'TODO' | 'IN_PROGRESS' = existingOpen?.status ?? 'TODO'
-
-        if (existingOpen && !existingOpen.id.startsWith('saved-')) {
-          const updateQuery = (
-            supabase.from('actions') as unknown as {
-              update?: (values: Record<string, unknown>) => {
-                eq: (col: string, val: string) => {
-                  select?: (cols: string) => { single: () => Promise<{ data: unknown; error: unknown }> }
+        // Idempotent duplicate save: same open action title already saved on this mission.
+        // Never reset IN_PROGRESS to TODO or wipe an existing resumeNote on a duplicate save.
+        if (existingOpen && existingOpen.title === delta.move) {
+          const preservedStatus = existingOpen.status
+          const preservedNote = existingOpen.resumeNote ?? effectiveNote ?? null
+          if (!existingOpen.resumeNote && effectiveNote && !existingOpen.id.startsWith('saved-')) {
+            const updateQuery = (
+              supabase.from('actions') as unknown as {
+                update?: (values: Record<string, unknown>) => {
+                  eq: (col: string, val: string) => {
+                    select?: (cols: string) => { single: () => Promise<{ data: unknown; error: unknown }> }
+                  }
                 }
               }
+            ).update?.({
+              resume_note: effectiveNote,
+              is_next_action: true,
+            })
+            if (updateQuery) {
+              const eqBuilder = updateQuery.eq('id', existingOpen.id)
+              if (typeof eqBuilder.select === 'function') {
+                const { error: writeError } = await eqBuilder.select('id,status').single()
+                if (writeError) throw writeError
+              } else {
+                const { error: writeError } = await (eqBuilder as unknown as Promise<{ error: unknown }>)
+                if (writeError) throw writeError
+              }
             }
-          ).update?.({
-            action_title: delta.move,
-            resume_note: effectiveNote,
-            is_next_action: true,
+          }
+          setOpenMissionAction({
+            id: existingOpen.id,
+            missionId,
+            title: existingOpen.title,
+            status: preservedStatus,
+            resumeNote: preservedNote,
+            updatedAt: existingOpen.updatedAt ?? null,
           })
-          if (updateQuery) {
-            const eqBuilder = updateQuery.eq('id', existingOpen.id)
-            if (typeof eqBuilder.select === 'function') {
-              const { data, error: writeError } = await eqBuilder.select('id,status').single()
-              if (writeError) throw writeError
-              const row = data as { id?: string; status?: 'TODO' | 'IN_PROGRESS' } | null
-              if (row?.id) savedActionId = row.id
-              if (row?.status) savedStatus = row.status
-            } else {
-              const { error: writeError } = await (eqBuilder as unknown as Promise<{ error: unknown }>)
-              if (writeError) throw writeError
+          setResumableMissionId(missionId)
+          return {
+            ok: true,
+            actionId: existingOpen.id,
+            title: existingOpen.title,
+            replaced: false,
+          }
+        }
+
+        let savedActionId = existingOpen?.id ?? `saved-${Date.now()}`
+        let savedStatus: 'TODO' | 'IN_PROGRESS' = existingOpen?.status ?? 'TODO'
+        let finalResumeNote: string | null = effectiveNote
+
+        if (existingOpen && existingOpen.title !== delta.move) {
+          // Confirmed replacement of an unstarted (TODO) saved action:
+          // 1. Record audit event in mission_events BEFORE mutating the action row.
+          const auditDetail = JSON.stringify({
+            actionId: existingOpen.id,
+            previousTitle: existingOpen.title,
+            previousStatus: existingOpen.status,
+            previousResumeNote: existingOpen.resumeNote,
+            nextTitle: delta.move,
+            candidateId: delta.candidateId,
+          })
+          const auditOk = await recordDeltaEvent(
+            'action_replaced',
+            missionId,
+            auditDetail,
+            `${missionId}:action_replaced:${existingOpen.id}:${delta.candidateId ?? delta.move}`,
+          )
+          if (!auditOk) {
+            return {
+              ok: false,
+              error: 'Could not record the replacement in your mission history, so your existing saved action was kept unchanged.',
+            }
+          }
+          // 2. Preserve any prior resume_note so context is never silently lost.
+          finalResumeNote =
+            existingOpen.resumeNote && effectiveNote && !effectiveNote.includes(existingOpen.resumeNote)
+              ? `${effectiveNote}\n\n---\nPrevious starting point (${existingOpen.title}):\n${existingOpen.resumeNote}`
+              : effectiveNote ?? existingOpen.resumeNote ?? null
+
+          if (!existingOpen.id.startsWith('saved-')) {
+            const updateQuery = (
+              supabase.from('actions') as unknown as {
+                update?: (values: Record<string, unknown>) => {
+                  eq: (col: string, val: string) => {
+                    select?: (cols: string) => { single: () => Promise<{ data: unknown; error: unknown }> }
+                  }
+                }
+              }
+            ).update?.({
+              action_title: delta.move,
+              resume_note: finalResumeNote,
+              is_next_action: true,
+            })
+            if (updateQuery) {
+              const eqBuilder = updateQuery.eq('id', existingOpen.id)
+              if (typeof eqBuilder.select === 'function') {
+                const { data, error: writeError } = await eqBuilder.select('id,status').single()
+                if (writeError) throw writeError
+                const row = data as { id?: string; status?: 'TODO' | 'IN_PROGRESS' } | null
+                if (row?.id) savedActionId = row.id
+                if (row?.status) savedStatus = row.status
+              } else {
+                const { error: writeError } = await (eqBuilder as unknown as Promise<{ error: unknown }>)
+                if (writeError) throw writeError
+              }
             }
           }
         } else {
@@ -1008,7 +1197,7 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
             action_title: delta.move,
             status: 'TODO',
             is_next_action: true,
-            resume_note: effectiveNote,
+            resume_note: finalResumeNote,
           }) as unknown as {
             select?: (cols: string) => { single: () => Promise<{ data: unknown; error: unknown }> }
           }
@@ -1029,7 +1218,8 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
           missionId,
           title: delta.move,
           status: savedStatus,
-          resumeNote: effectiveNote,
+          resumeNote: finalResumeNote,
+          updatedAt: new Date().toISOString(),
         })
         setResumableMissionId(missionId)
         setSavedActionsRevision(value => value + 1)
@@ -1050,7 +1240,7 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
         endFieldWork()
       }
     },
-    [acceptedMoves, board.missions, handleAcceptDelta, loadFailed, loaded, onMissionChange, openMissionAction, projectReview, suppliedSteps, user],
+    [acceptedMoves, board.missions, handleAcceptDelta, loadFailed, loaded, onMissionChange, openMissionAction, projectReview, recordDeltaEvent, suppliedSteps, user],
   )
 
   const handleStartSavedAction = useCallback(
@@ -1592,6 +1782,14 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
         ? 'recommendation'
         : 'idea'
   const now = new Date().toISOString()
+  const nextActionContextKeys = useMemo(() => {
+    const keys: Record<string, string> = {}
+    for (const mission of Object.values(board.missions)) {
+      const key = contextKeyForMission(mission.id)
+      if (key) keys[mission.id] = key
+    }
+    return keys
+  }, [board.missions, contextKeyForMission])
 
 
   const freshMission = freshMissionId ? board.missions[freshMissionId] ?? null : null
@@ -1806,6 +2004,8 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
         corrections={corrections}
         phase={deltaPhase}
         acceptedMoves={acceptedMoves}
+        acceptanceSnapshots={acceptanceSnapshots}
+        contextKeys={nextActionContextKeys}
         onShownAcceptance={setShownAcceptance}
         onRoute={delta => {
           if (delta.missionId) setRouteSeed(previous => ({ task: delta.move, missionId: delta.missionId!, sequence: (previous?.sequence ?? 0) + 1 }))
@@ -2001,7 +2201,7 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
             seed={routeSeed}
             canSave={sessionReady && (routeMission?.state === 'primary' || routeMission?.state === 'secondary')}
             onPrepare={setRoutedDraft}
-            onSavePreparedAction={handleSavePreparedRouteAction}
+            onSavePreparedAction={!openMissionAction ? handleSavePreparedRouteAction : undefined}
           />
         </details>
       )}

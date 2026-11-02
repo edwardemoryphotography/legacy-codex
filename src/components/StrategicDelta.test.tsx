@@ -787,6 +787,47 @@ describe('StrategicDelta — action follow-through and Mission clarity', () => {
     await waitFor(() => expect(onStartSavedAction).toHaveBeenCalledWith('act-99'))
   })
 
+  it('shows an in-progress saved action as current and does not save a new prediction over it', async () => {
+    const onSaveNextAction = vi.fn()
+    renderDelta([BLOCKED], {
+      savedOpenAction: {
+        id: 'act-old',
+        missionId: 'm1',
+        title: 'The action already in progress',
+        status: 'IN_PROGRESS',
+        resumeNote: 'I stopped at the export.',
+      },
+      onSaveNextAction,
+    })
+
+    expect(await screen.findByText(BLOCKED_MOVE)).toBeTruthy()
+    expect(screen.getByText(/Current move \(in progress\)/)).toBeTruthy()
+    expect(screen.getByText(/A new prediction will not overwrite or reset it/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Save as my next action|Replace saved next action/ })).toBeNull()
+    expect(onSaveNextAction).not.toHaveBeenCalled()
+  })
+
+  it('requires explicit confirmation before replacing an unstarted saved action', async () => {
+    const onSaveNextAction = vi.fn(async () => ({ ok: true, actionId: 'act-new', title: BLOCKED_MOVE }))
+    renderDelta([BLOCKED], {
+      savedOpenAction: {
+        id: 'act-old',
+        missionId: 'm1',
+        title: 'The unstarted action',
+        status: 'TODO',
+        resumeNote: 'Old starting point',
+      },
+      onSaveNextAction,
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Replace saved next action' }))
+    expect(onSaveNextAction).not.toHaveBeenCalled()
+    expect(screen.getByText(/Replace your unstarted saved action/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm replace saved action' }))
+    await waitFor(() => expect(onSaveNextAction).toHaveBeenCalledWith(expect.anything(), null, { confirmReplace: true }))
+  })
+
   it('preserves draft and context on failed save and allows a safe retry', async () => {
     let attempt = 0
     const onSaveNextAction = vi.fn(async () => {

@@ -94,6 +94,7 @@ function NextMoveChoice({ context, intent, contextKey }: { context: NextMoveCont
           <div className="flex flex-wrap gap-2 items-center">
             <Badge tone="teal">{recommendation.label}</Badge>
             <Badge tone="muted">{recommendation.kind === 'question' ? 'Needs clarification · not started' : 'Suggested · not started'}</Badge>
+            <Badge tone="muted">Manual suggestion — not the current move</Badge>
           </div>
           <div>
             <div style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>{recommendation.kind === 'question' ? 'ONE QUESTION' : 'NEXT MOVE'}</div>
