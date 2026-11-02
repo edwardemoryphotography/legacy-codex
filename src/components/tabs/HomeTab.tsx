@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent, type Dispatch, type SetStateAction } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { connectMissionSession } from '@/lib/supabase/missionSession'
 import { missionsToBriefContext } from '@/lib/dailyBrief'
 import { useBriefRunner } from '@/hooks/useBriefRunner'
 import { useMissionTerritory } from '@/hooks/useMissionTerritory'
@@ -56,7 +57,7 @@ function ConversationPresence({ status, busy, loadError, pending, voice, reply }
   return null
 }
 
-export default function HomeTab({ onNavigate, session, onSessionChange, variant = 'home', projectRevision = 0 }: { projectRevision?: number; variant?: 'home' | 'mission'; onNavigate: (id: TabId) => void; session?: HomeSession; onSessionChange?: Dispatch<SetStateAction<HomeSession>> }) {
+export default function HomeTab({ onNavigate, session, onSessionChange, variant = 'home', projectRevision = 0, onProjectChange }: { projectRevision?: number; onProjectChange?: () => void; variant?: 'home' | 'mission'; onNavigate: (id: TabId) => void; session?: HomeSession; onSessionChange?: Dispatch<SetStateAction<HomeSession>> }) {
   const missionView = variant === 'mission'
   const { missions, loadError, actions, actionsRead } = useMissionTerritory({ refreshKey: projectRevision })
   const brief = useBriefRunner()
@@ -76,6 +77,10 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const [historyOpen, setHistoryOpen] = useState(false)
   const [focusOpen, setFocusOpen] = useState(false)
   const [responseOpen, setResponseOpen] = useState(false)
+  const [savingReplyAction, setSavingReplyAction] = useState(false)
+  const savingReplyActionRef = useRef(false)
+  const [savedReplyText, setSavedReplyText] = useState<string | null>(null)
+  const [saveReplyError, setSaveReplyError] = useState<string | null>(null)
   const panel = useRef<HTMLDialogElement>(null)
   const voice = useTaskVoice(text, next => setText(next.slice(0, QUESTION_LIMIT)), QUESTION_LIMIT)
 
@@ -181,6 +186,77 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const immersive = !missionView && ['listening', 'thinking', 'acting'].includes(presentation.state)
   const reply = current.reply
   const hasReply = Boolean(reply)
+  const takeawayTitle = reply ? homeTakeaway(reply.text).slice(0, 240) : ''
+  const isReplySavedAsAction = Boolean(
+    reply &&
+    primaryMission &&
+    ((savedAction && savedAction.action_title === takeawayTitle) || savedReplyText === reply.text),
+  )
+
+  async function saveReplyAsNextAction() {
+    if (!reply || !primaryMission || savingReplyAction || savingReplyActionRef.current) return
+    savingReplyActionRef.current = true
+    setSavingReplyAction(true)
+    setSaveReplyError(null)
+    try {
+      await connectMissionSession()
+      const note = `From ${reply.label || 'Codex conversation'}${reply.question ? ` (“${reply.question}”)` : ''}:\n\n${reply.text}`
+      const fromActions = (supabase as unknown as {
+        from?: (table: string) => {
+          insert?: (row: Record<string, unknown>) => {
+            select?: (cols: string) => { single: () => Promise<{ data: unknown; error: unknown }> }
+          }
+          update?: (row: Record<string, unknown>) => {
+            eq: (col: string, val: string) => {
+              select?: (cols: string) => { single: () => Promise<{ data: unknown; error: unknown }> }
+            }
+          }
+        }
+      }).from?.('actions')
+      if (!fromActions) throw new Error('Actions storage unavailable.')
+
+      if (savedAction && typeof fromActions.update === 'function') {
+        const eqBuilder = fromActions.update({
+          action_title: takeawayTitle,
+          resume_note: note,
+          is_next_action: true,
+        }).eq('id', savedAction.id)
+        if (typeof eqBuilder.select === 'function') {
+          const { error: writeError } = await eqBuilder.select('id').single()
+          if (writeError) throw writeError
+        } else {
+          const { error: writeError } = await (eqBuilder as unknown as Promise<{ error: unknown }>)
+          if (writeError) throw writeError
+        }
+      } else if (typeof fromActions.insert === 'function') {
+        const insertBuilder = fromActions.insert({
+          mission_id: primaryMission.id,
+          action_title: takeawayTitle,
+          status: 'TODO',
+          is_next_action: true,
+          resume_note: note,
+        })
+        if (typeof insertBuilder.select === 'function') {
+          const { error: writeError } = await insertBuilder.select('id').single()
+          if (writeError) throw writeError
+        } else {
+          const { error: writeError } = await (insertBuilder as unknown as Promise<{ error: unknown }>)
+          if (writeError) throw writeError
+        }
+      } else {
+        throw new Error('Actions storage unavailable.')
+      }
+
+      setSavedReplyText(reply.text)
+      onProjectChange?.()
+    } catch {
+      setSaveReplyError('Could not save this response as your next action. Your conversation is still here — retry when ready.')
+    } finally {
+      savingReplyActionRef.current = false
+      setSavingReplyAction(false)
+    }
+  }
+
   const panelOpen = responseOpen || historyOpen || focusOpen
   const closePanel = () => { setResponseOpen(false); setHistoryOpen(false); setFocusOpen(false) }
   useEffect(() => {
@@ -217,7 +293,37 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
           {reply ? <>
             <p className={styles.eyebrow}>{reply.label || 'Codex response'} · Excerpt</p>
             <h2 className={styles.answer}>{homeTakeaway(reply.text)}</h2>
-            <button type="button" className={`glass-chip glass ${styles.readMore}`} aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setResponseOpen(true); setHistoryOpen(false); setFocusOpen(false) }}>Read full answer <span aria-hidden="true">↗</span></button>
+            <div className="flex flex-wrap justify-center gap-2">
+              <button type="button" className={`glass-chip glass ${styles.readMore}`} aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setResponseOpen(true); setHistoryOpen(false); setFocusOpen(false) }}>Read full answer <span aria-hidden="true">↗</span></button>
+              {primaryMission && !isReplySavedAsAction && (
+                <button
+                  type="button"
+                  className={`glass-chip glass ${styles.readMore}`}
+                  disabled={savingReplyAction}
+                  onClick={() => void saveReplyAsNextAction()}
+                >
+                  {savingReplyAction ? 'Saving next action…' : missionView ? 'Save response as my next action' : 'Save as my next action'}
+                </button>
+              )}
+            </div>
+            {primaryMission && isReplySavedAsAction && (
+              <p className="glass-note" role="status">
+                Saved as your next action for <strong>{primaryMission.title}</strong>.{' '}
+                {!missionView && (
+                  <button type="button" className="underline" onClick={() => onNavigate('mission')}>
+                    Open in Mission
+                  </button>
+                )}
+              </p>
+            )}
+            {saveReplyError && (
+              <div role="alert" className="space-y-2">
+                <p className="glass-note">{saveReplyError}</p>
+                <button type="button" className="glass-chip glass" disabled={savingReplyAction} onClick={() => void saveReplyAsNextAction()}>
+                  Retry saving next action
+                </button>
+              </div>
+            )}
           </> : <>
             <h2 className="glass-greeting">{missionView ? 'Continue our conversation' : name ? `Hi ${name}` : 'Hi'}<span>What would you like to work through?</span></h2>
             {note && <p className="glass-note glass-home-note">{note}</p>}
@@ -283,7 +389,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
             {reply.question && <p className="glass-output-question">{reply.question}</p>}
             {reply.label && <p className="glass-output-label">{reply.label}</p>}
             <div className="glass-output-text"><ReactMarkdown components={answerComponents}>{reply.text}</ReactMarkdown></div>
-            <p className="glass-output-meta">{reply.provider ? `${reply.provider} · ` : ''}Conversation context · no project changes made.</p>
+            <p className="glass-output-meta">{reply.provider ? `${reply.provider} · ` : ''}Conversation context · {isReplySavedAsAction ? `saved as next action for ${primaryMission?.title}.` : 'no project changes made until you save.'}</p>
           </article>
         )}
       </div>

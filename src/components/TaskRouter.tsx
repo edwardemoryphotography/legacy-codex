@@ -37,15 +37,18 @@ function withPendingCorrection(weights: RouteLearning, pending: PendingRouteCorr
   return pending ? applyRouteTokens(pending.tokens, pending.lane, weights) : weights
 }
 
-export default function TaskRouter({ context, accountId, seed, canSave, onPrepare }: {
+export default function TaskRouter({ context, accountId, seed, canSave, onPrepare, onSavePreparedAction }: {
   context: TaskRouteContext
   accountId: string | null
   seed: RouteSeed | null
   canSave: boolean
   onPrepare: (draft: RoutedActionDraft | null) => void
+  onSavePreparedAction?: (draft: RoutedActionDraft) => Promise<boolean>
 }) {
   const [task, setTask] = useState('')
   const [engaged, setEngaged] = useState(false)
+  const [savingPrepared, setSavingPrepared] = useState(false)
+  const savingPreparedRef = useRef(false)
   const voice = useTaskVoice(task, setTask)
   const cancelVoice = voice.cancel
   useOrbInteraction(voice.phase === 'listening' ? 'listening' : engaged || voice.active ? 'engaged' : 'ambient')
@@ -254,6 +257,27 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
     catch { setMessage('Clipboard unavailable. Select and copy the handoff text below.') }
   }
 
+  async function savePreparedDirectly(draft: RoutedActionDraft) {
+    if (!onSavePreparedAction || savingPrepared || savingPreparedRef.current) return
+    savingPreparedRef.current = true
+    setSavingPrepared(true)
+    setMessage('')
+    try {
+      const ok = await onSavePreparedAction(draft)
+      if (!ok) {
+        setMessage('Could not save this handoff as your next action. Your routed prompt is still here — retry when ready.')
+        return
+      }
+      setMessage('Saved as your next action with the prepared handoff note. External tools are not run automatically.')
+      document.getElementById('saved-action')?.scrollIntoView({ block: 'start', behavior: motionAllowed ? 'smooth' : 'auto' })
+    } catch {
+      setMessage('Could not save this handoff as your next action. Your routed prompt is still here — retry when ready.')
+    } finally {
+      savingPreparedRef.current = false
+      setSavingPrepared(false)
+    }
+  }
+
   return <section className="task-router" id="task-router" aria-labelledby="task-router-title">
     <div className="route-intro">
       <span className="route-eyebrow">Control panel</span>
@@ -313,11 +337,18 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
           <pre tabIndex={0}>{step.prompt}</pre>
           <button type="button" className="route-secondary" onClick={() => void copy(step.prompt)}>Copy {index ? 'follow-up' : 'handoff'}</button>
         </details>)}
-        {canSave && context.mission ? <button type="button" className="route-primary" onClick={() => {
-          onPrepare({ task: active.task, note: active.note, missionId: context.mission!.id, contextKey: nextMoveContextKey(context, new Date().toISOString()) })
-          setMessage('Handoff prepared below. Review it, then save your next action. An existing unfinished action stays in place.')
-          document.getElementById('saved-action')?.scrollIntoView({ block: 'start', behavior: motionAllowed ? 'smooth' : 'auto' })
-        }}>Prepare saved action</button> : <p className="route-boundary">Choose an active mission to save this as a resumable action. You can still copy the handoff.</p>}
+        {canSave && context.mission ? <div className="flex flex-wrap gap-3">
+          {onSavePreparedAction && (
+            <button type="button" className="route-primary" disabled={savingPrepared} onClick={() => void savePreparedDirectly({ task: active.task, note: active.note, missionId: context.mission!.id, contextKey: nextMoveContextKey(context, new Date().toISOString()) })}>
+              {savingPrepared ? 'Saving next action…' : 'Save handoff as my next action'}
+            </button>
+          )}
+          <button type="button" className={onSavePreparedAction ? 'route-secondary' : 'route-primary'} onClick={() => {
+            onPrepare({ task: active.task, note: active.note, missionId: context.mission!.id, contextKey: nextMoveContextKey(context, new Date().toISOString()) })
+            setMessage('Handoff prepared below. Review it, then save your next action. An existing unfinished action stays in place.')
+            document.getElementById('saved-action')?.scrollIntoView({ block: 'start', behavior: motionAllowed ? 'smooth' : 'auto' })
+          }}>Prepare saved action</button>
+        </div> : <p className="route-boundary">Choose an active mission to save this as a resumable action. You can still copy the handoff.</p>}
       </article>
       <div className="route-teach">
         <div><h3>Teach the router</h3><p>Save corrections to your account when a project is selected.</p></div>

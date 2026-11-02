@@ -1,10 +1,18 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { connectMissionSession } from '@/lib/supabase/missionSession'
 import { ActionBtn, Input, Textarea } from '@/components/ui'
 import type { RoutedActionDraft } from './TaskRouter'
+
+export interface SavedOpenActionSnapshot {
+  id: string
+  missionId: string
+  title: string
+  status: 'TODO' | 'IN_PROGRESS'
+  resumeNote: string | null
+}
 
 type SavedAction = {
   id: string
@@ -24,7 +32,9 @@ export default function SavedActions({
   suggestedNote,
   resumeDraft,
   routedDraft,
+  revision = 0,
   onActiveChange,
+  onActionSnapshot,
 }: {
   missionId?: string
   /** The recommendation the person just accepted, if any. Seeds the
@@ -36,7 +46,10 @@ export default function SavedActions({
   /** Explicitly prepared handoff, not a background recommendation. Saved
    *  into the existing action's resume_note only with the matching title. */
   routedDraft?: RoutedActionDraft | null
+  /** Incremented when a parent action handler writes directly to `actions`. */
+  revision?: number
   onActiveChange?: (missionId: string, active: boolean) => void
+  onActionSnapshot?: (missionId: string, openAction: SavedOpenActionSnapshot | null) => void
 }) {
   const [actions, setActions] = useState<SavedAction[]>([])
   const [loading, setLoading] = useState(true)
@@ -45,6 +58,11 @@ export default function SavedActions({
   const [titleTouched, setTitleTouched] = useState(false)
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
+  const savingRef = useRef(false)
+  const onActionSnapshotRef = useRef(onActionSnapshot)
+  useEffect(() => {
+    onActionSnapshotRef.current = onActionSnapshot
+  }, [onActionSnapshot])
 
   const load = useCallback(async (cancelled: () => boolean = () => false) => {
     try {
@@ -66,7 +84,22 @@ export default function SavedActions({
 
   const hasOpenAction = actions.some(action => action.status !== 'DONE')
   useEffect(() => {
-    if (missionId && !loading && !error) onActiveChange?.(missionId, hasOpenAction)
+    if (missionId && !loading && !error) {
+      onActiveChange?.(missionId, hasOpenAction)
+      const open = actions.find(action => action.status !== 'DONE') ?? null
+      onActionSnapshotRef.current?.(
+        missionId,
+        open
+          ? {
+              id: open.id,
+              missionId: open.mission_id,
+              title: open.action_title,
+              status: open.status === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'TODO',
+              resumeNote: open.resume_note,
+            }
+          : null,
+      )
+    }
   // A changed note/status must also invalidate a cached project review,
   // even when the number of open commitments did not change.
   }, [missionId, loading, error, hasOpenAction, actions, onActiveChange])
@@ -93,23 +126,50 @@ export default function SavedActions({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load(() => cancelled)
     return () => { cancelled = true }
-  }, [load])
+  }, [load, revision])
 
   async function saveAction() {
-    if (!missionId || !title.trim() || saving) return
+    const trimmedTitle = title.trim()
+    if (!missionId || !trimmedTitle || saving || savingRef.current) return
+    savingRef.current = true
     setSaving(true); setNotice('')
     try {
-      const { data, error: writeError } = await supabase.from('actions').insert({
-        mission_id: missionId, action_title: title.trim(), status: 'TODO', is_next_action: true,
-        resume_note: routedDraft?.missionId === missionId && title.trim() === routedDraft.task ? routedDraft.note
-          : suggestedTitle === title.trim() ? suggestedNote ?? null : null,
-      }).select(fields).single()
-      if (writeError || !data) throw writeError ?? new Error('No saved action returned')
-      setActions(previous => [data as unknown as SavedAction, ...previous])
+      const payload = {
+        mission_id: missionId,
+        action_title: trimmedTitle,
+        status: 'TODO' as const,
+        is_next_action: true,
+        resume_note: routedDraft?.missionId === missionId && trimmedTitle === routedDraft.task ? routedDraft.note
+          : suggestedTitle === trimmedTitle ? suggestedNote ?? null : null,
+      }
+      const insertBuilder = supabase.from('actions').insert(payload) as unknown as {
+        select?: (cols: string) => { single: () => Promise<{ data: unknown; error: unknown }> }
+      }
+      if (typeof insertBuilder.select === 'function') {
+        const { data, error: writeError } = await insertBuilder.select(fields).single()
+        if (writeError || !data) throw writeError ?? new Error('No saved action returned')
+        setActions(previous => [data as unknown as SavedAction, ...previous])
+      } else {
+        const { error: writeError } = await (insertBuilder as unknown as Promise<{ error: unknown }>)
+        if (writeError) throw writeError
+        const fallbackRow: SavedAction = {
+          id: `saved-${Date.now()}`,
+          mission_id: missionId,
+          action_title: payload.action_title,
+          status: 'TODO',
+          resume_note: payload.resume_note,
+          updated_at: new Date().toISOString(),
+          mission: { title: 'Current mission', state: 'primary' },
+        }
+        setActions(previous => [fallbackRow, ...previous])
+      }
       setTitle(''); setNotice('Next action saved. It will be here when you return.')
     } catch {
       setNotice('Could not save. Keep your text and retry. If another tab saved an action, refresh the list first.')
-    } finally { setSaving(false) }
+    } finally {
+      savingRef.current = false
+      setSaving(false)
+    }
   }
 
   const openActions = actions.filter(action => action.status !== 'DONE')
@@ -126,7 +186,7 @@ export default function SavedActions({
       {loading ? <p role="status">Reading your saved actions…</p> : error ? (
         <div role="alert"><p>{error}</p><ActionBtn onClick={() => { setLoading(true); void load() }}>Retry saved actions</ActionBtn></div>
       ) : <>
-        {openActions.map(action => <ActionCard key={`${action.id}:${action.updated_at}`} action={action} draftNote={resumeDraft?.actionId === action.id ? resumeDraft.note : null} matchesRecommendation={action.action_title === suggestedTitle} onSaved={saved => {
+        {openActions.map(action => <ActionCard key={`${action.id}:${action.updated_at}`} action={action} draftNote={resumeDraft?.actionId === action.id ? resumeDraft.note : routedDraft?.missionId === action.mission_id ? routedDraft.note : null} matchesRecommendation={action.action_title === suggestedTitle} onSaved={saved => {
           setActions(previous => previous.map(item => item.id === saved.id ? saved : item))
         }} />)}
         {openActions.length > 0 && routedDraft && <p role="status">An unfinished action is already saved. Copy the prepared handoff into its starting point if it belongs to that action, or finish that action before saving another.</p>}
@@ -153,25 +213,49 @@ function ActionCard({ action, onSaved, matchesRecommendation, draftNote }: { act
   const [note, setNote] = useState(action.resume_note ?? '')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
-  async function update(status: SavedAction['status']) {
-    if (busy) return
+  const busyRef = useRef(false)
+  async function update(status: SavedAction['status'], nextNoteOverride?: string) {
+    if (busy || busyRef.current) return
+    busyRef.current = true
     setBusy(true); setMessage('')
+    const effectiveNote = (nextNoteOverride ?? note).trim() || null
     try {
-      const { data, error } = await supabase.from('actions').update({
-        status, resume_note: note.trim() || null, is_next_action: status !== 'DONE',
-      }).eq('id', action.id).eq('updated_at', action.updated_at).select(fields).single()
-      if (error || !data) throw error ?? new Error('No updated row')
-      onSaved(data as unknown as SavedAction)
+      const updateBuilder = supabase.from('actions').update({
+        status, resume_note: effectiveNote, is_next_action: status !== 'DONE',
+      }).eq('id', action.id).eq('updated_at', action.updated_at) as unknown as {
+        select?: (cols: string) => { single: () => Promise<{ data: unknown; error: unknown }> }
+      }
+      if (typeof updateBuilder.select === 'function') {
+        const { data, error } = await updateBuilder.select(fields).single()
+        if (error || !data) throw error ?? new Error('No updated row')
+        onSaved(data as unknown as SavedAction)
+      } else {
+        const { error } = await (updateBuilder as unknown as Promise<{ error: unknown }>)
+        if (error) throw error
+        onSaved({
+          ...action,
+          status,
+          resume_note: effectiveNote,
+          updated_at: new Date().toISOString(),
+        })
+      }
     } catch {
       setMessage('Could not save this change. Your note is still here. Copy it before refreshing if another tab changed this action.')
-    } finally { setBusy(false) }
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
   }
   return <article id={`saved-action-${action.id}`} tabIndex={-1} className="commitment-card">
     <p className="commitment-meta">{action.mission.title} · {action.status === 'IN_PROGRESS' ? 'In progress' : 'Ready to resume'}{action.mission.state !== 'primary' ? ` · Mission ${action.mission.state}` : ''}</p>
     <h4 className="commitment-title">{action.action_title}</h4>
     {matchesRecommendation && <p className="commitment-same">Same words as the recommendation you accepted.</p>}
     <label htmlFor={`resume-${action.id}`}>Starting point</label>
-    {draftNote && !note.includes(draftNote) && <div><p>A revised draft is available for this action.</p><ActionBtn disabled={busy} onClick={() => setNote(previous => `${previous}${previous.trim() ? '\n\n' : ''}${draftNote}`)}>Add draft to starting point</ActionBtn><p>Then save the note to keep it with this same action.</p></div>}
+    {draftNote && !note.includes(draftNote) && <div className="space-y-2"><p>A revised draft is available for this action.</p><div className="flex flex-wrap gap-2"><ActionBtn disabled={busy} onClick={() => setNote(previous => `${previous}${previous.trim() ? '\n\n' : ''}${draftNote}`)}>Add draft to starting point</ActionBtn><ActionBtn disabled={busy} onClick={() => {
+      const combined = `${note}${note.trim() ? '\n\n' : ''}${draftNote}`
+      setNote(combined)
+      void update(action.status, combined)
+    }}>Save draft to starting point</ActionBtn></div><p>Add it to edit first, or save it directly to this action.</p></div>}
     <Textarea id={`resume-${action.id}`} value={note} onChange={setNote} rows={3} placeholder="Where did you stop? What should you do when you return?" />
     <div className="flex flex-wrap gap-3">
       {action.status !== 'IN_PROGRESS' && <ActionBtn disabled={busy} onClick={() => update('IN_PROGRESS')}>Start / resume</ActionBtn>}

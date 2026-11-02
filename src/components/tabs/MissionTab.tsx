@@ -43,13 +43,13 @@ import {
 import { groupByMission, hasConflict, isStale } from '@/lib/evidence'
 import { ActionBtn, ActionChip, Badge, Card, Input, SectionSubtitle, SectionTitle, Textarea } from '@/components/ui'
 import NextMovePanel from '@/components/NextMovePanel'
-import SavedActions from '@/components/SavedActions'
+import SavedActions, { type SavedOpenActionSnapshot } from '@/components/SavedActions'
 import TaskRouter, { type RoutedActionDraft, type RouteSeed } from '@/components/TaskRouter'
 import { nextMoveContextKey } from '@/lib/nextMove'
 import type { TaskRouteContext } from '@/lib/taskRouting'
-import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase } from '@/components/StrategicDelta'
+import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase, type SaveNextActionResult } from '@/components/StrategicDelta'
 import type { ConfirmedLesson, LessonConfirmation, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
-import { buildDeterministicAssistance, draftStartingPoint, extractDeadline } from '@/lib/missionAssistance'
+import { buildDeterministicAssistance, deriveObservableAcceptanceChecks, draftStartingPoint, extractDeadline } from '@/lib/missionAssistance'
 import MissionFiles from '@/components/MissionFiles'
 import LessonRelayReceive from '@/components/LessonRelayReceive'
 
@@ -852,6 +852,7 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
       const assistance = buildDeterministicAssistance({
         title: mission.title,
         finishLine: mission.finishLine,
+        evidenceRequirement: mission.evidenceRequirement,
         contextNote: note,
         priorNotes,
         deadline: statedDeadlines.filter(item => item.missionId === mission.id).at(-1) ?? null,
@@ -906,6 +907,242 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
     setResumableMissionId(active ? missionId : null)
     setReviewRevision(value => value + 1)
   }, [])
+
+  const [savedActionsRevision, setSavedActionsRevision] = useState(0)
+  const [openMissionAction, setOpenMissionAction] = useState<SavedOpenActionSnapshot | null>(null)
+  const savingActionInFlight = useRef(false)
+
+  const handleActionSnapshot = useCallback((missionId: string, openAction: SavedOpenActionSnapshot | null) => {
+    setOpenMissionAction(previous => {
+      if (!openAction) return previous?.missionId === missionId ? null : previous
+      if (
+        previous?.id === openAction.id &&
+        previous.missionId === openAction.missionId &&
+        previous.title === openAction.title &&
+        previous.status === openAction.status &&
+        previous.resumeNote === openAction.resumeNote
+      ) {
+        return previous
+      }
+      return openAction
+    })
+  }, [])
+
+  const handleSaveRecommendedAction = useCallback(
+    async (delta: Delta, note?: string | null): Promise<SaveNextActionResult> => {
+      const missionId = delta.missionId
+      if (!user || !loaded || loadFailed || !missionId) {
+        return { ok: false, error: 'Your session is not ready yet. Reconnect and try again.' }
+      }
+      if (savingActionInFlight.current) {
+        return { ok: false, error: 'Already saving your next action…' }
+      }
+      const mission = board.missions[missionId]
+      if (!mission || (mission.state !== 'primary' && mission.state !== 'secondary')) {
+        return { ok: false, error: 'Only an active Primary or Secondary mission can save a next action.' }
+      }
+      savingActionInFlight.current = true
+      beginFieldWork()
+      try {
+        if (acceptedMoves[missionId] !== delta.move) {
+          const acceptedOk = await handleAcceptDelta(delta)
+          if (!acceptedOk) {
+            return {
+              ok: false,
+              error: 'Could not record the move acceptance. Your project context and draft are still here — retry when ready.',
+            }
+          }
+        }
+        const effectiveNote =
+          note !== undefined && note !== null
+            ? note
+            : projectReview?.missionId === missionId && projectReview.operation === delta.move
+              ? draftStartingPoint(projectReview)
+              : (() => {
+                  const matched = suppliedSteps.find(
+                    step => step.missionId === missionId && step.move === delta.move && step.workDraft,
+                  )
+                  return matched
+                    ? draftStartingPoint({
+                        workDraft: matched.workDraft,
+                        finishWhen: matched.finishWhen,
+                        source: 'supplied',
+                      })
+                    : null
+                })()
+
+        const existingOpen = openMissionAction?.missionId === missionId ? openMissionAction : null
+        let savedActionId = existingOpen?.id ?? `saved-${Date.now()}`
+        let savedStatus: 'TODO' | 'IN_PROGRESS' = existingOpen?.status ?? 'TODO'
+
+        if (existingOpen && !existingOpen.id.startsWith('saved-')) {
+          const updateQuery = (
+            supabase.from('actions') as unknown as {
+              update?: (values: Record<string, unknown>) => {
+                eq: (col: string, val: string) => {
+                  select?: (cols: string) => { single: () => Promise<{ data: unknown; error: unknown }> }
+                }
+              }
+            }
+          ).update?.({
+            action_title: delta.move,
+            resume_note: effectiveNote,
+            is_next_action: true,
+          })
+          if (updateQuery) {
+            const eqBuilder = updateQuery.eq('id', existingOpen.id)
+            if (typeof eqBuilder.select === 'function') {
+              const { data, error: writeError } = await eqBuilder.select('id,status').single()
+              if (writeError) throw writeError
+              const row = data as { id?: string; status?: 'TODO' | 'IN_PROGRESS' } | null
+              if (row?.id) savedActionId = row.id
+              if (row?.status) savedStatus = row.status
+            } else {
+              const { error: writeError } = await (eqBuilder as unknown as Promise<{ error: unknown }>)
+              if (writeError) throw writeError
+            }
+          }
+        } else {
+          const insertBuilder = supabase.from('actions').insert({
+            mission_id: missionId,
+            action_title: delta.move,
+            status: 'TODO',
+            is_next_action: true,
+            resume_note: effectiveNote,
+          }) as unknown as {
+            select?: (cols: string) => { single: () => Promise<{ data: unknown; error: unknown }> }
+          }
+          if (typeof insertBuilder.select === 'function') {
+            const { data, error: writeError } = await insertBuilder.select('id,status').single()
+            if (writeError || !data) throw writeError ?? new Error('No saved action returned')
+            const row = data as { id?: string; status?: 'TODO' | 'IN_PROGRESS' }
+            if (row.id) savedActionId = row.id
+            if (row.status) savedStatus = row.status
+          } else {
+            const { error: writeError } = await (insertBuilder as unknown as Promise<{ error: unknown }>)
+            if (writeError) throw writeError
+          }
+        }
+
+        setOpenMissionAction({
+          id: savedActionId,
+          missionId,
+          title: delta.move,
+          status: savedStatus,
+          resumeNote: effectiveNote,
+        })
+        setResumableMissionId(missionId)
+        setSavedActionsRevision(value => value + 1)
+        onMissionChange?.()
+        return {
+          ok: true,
+          actionId: savedActionId,
+          title: delta.move,
+          replaced: Boolean(existingOpen && existingOpen.title !== delta.move),
+        }
+      } catch {
+        return {
+          ok: false,
+          error: 'Could not save this move as your next action. Your project context and draft are still here — retry when ready.',
+        }
+      } finally {
+        savingActionInFlight.current = false
+        endFieldWork()
+      }
+    },
+    [acceptedMoves, board.missions, handleAcceptDelta, loadFailed, loaded, onMissionChange, openMissionAction, projectReview, suppliedSteps, user],
+  )
+
+  const handleStartSavedAction = useCallback(
+    async (actionId: string): Promise<boolean> => {
+      if (!user || !loaded || loadFailed || savingActionInFlight.current) return false
+      savingActionInFlight.current = true
+      beginFieldWork()
+      try {
+        const fromActions = supabase.from('actions') as unknown as {
+          update?: (values: Record<string, unknown>) => {
+            eq: (col: string, val: string) => {
+              select?: (cols: string) => { single: () => Promise<{ data: unknown; error: unknown }> }
+            }
+          }
+        }
+        if (typeof fromActions.update === 'function') {
+          const eqBuilder = fromActions.update({ status: 'IN_PROGRESS', is_next_action: true }).eq('id', actionId)
+          if (typeof eqBuilder.select === 'function') {
+            const { error: writeError } = await eqBuilder.select('id').single()
+            if (writeError) throw writeError
+          } else {
+            const { error: writeError } = await (eqBuilder as unknown as Promise<{ error: unknown }>)
+            if (writeError) throw writeError
+          }
+        }
+        setOpenMissionAction(previous => (previous ? { ...previous, status: 'IN_PROGRESS' } : previous))
+        setSavedActionsRevision(value => value + 1)
+        onMissionChange?.()
+        return true
+      } catch {
+        return false
+      } finally {
+        savingActionInFlight.current = false
+        endFieldWork()
+      }
+    },
+    [loadFailed, loaded, onMissionChange, user],
+  )
+
+  const handleSetEvidenceRequirementFromDelta = useCallback(
+    async (missionId: string, evidenceRequirement: string): Promise<boolean> => {
+      return applyAndPersist(
+        b => setEvidenceRequirement(b, missionId, evidenceRequirement, new Date().toISOString()),
+        [missionId],
+      )
+    },
+    [applyAndPersist],
+  )
+
+  const handleClearBlockerFromDelta = useCallback(
+    async (missionId: string): Promise<boolean> => {
+      return applyAndPersist(b => unblock(b, missionId, new Date().toISOString()), [missionId])
+    },
+    [applyAndPersist],
+  )
+
+  const handlePromoteMissionFromDelta = useCallback(
+    async (missionId: string): Promise<boolean> => {
+      return applyAndPersist(b => promoteToPrimary(b, missionId, new Date().toISOString()), [missionId])
+    },
+    [applyAndPersist],
+  )
+
+  const handleSavePreparedRouteAction = useCallback(
+    async (draft: RoutedActionDraft): Promise<boolean> => {
+      setRoutedDraft(draft)
+      const mission = board.missions[draft.missionId]
+      if (!mission) return false
+      const result = await handleSaveRecommendedAction(
+        {
+          missionId: mission.id,
+          missionTitle: mission.title,
+          candidateId: null,
+          move: draft.task,
+          because: 'Prepared external tool handoff saved as next action.',
+          currentReality: '',
+          wouldChangeIf: '',
+          blockingGap: null,
+          provenance: 'supplied',
+          situation: 'primary_active',
+          evidenceState: 'none',
+          assembledFrom: [],
+          proofSteps: [],
+          inhibited: [],
+          computedAt: new Date().toISOString(),
+        },
+        draft.note,
+      )
+      return result.ok
+    },
+    [board.missions, handleSaveRecommendedAction],
+  )
 
   const handleProjectReview = useCallback(async (request: ProjectReviewRequest) => {
     if (reviewInFlight.current) return
@@ -1543,81 +1780,6 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
       )}
 
 
-      {sessionReady && missionList.length > 0 && (
-        <div className="mission-invite mission-entry" aria-label="Begin a new project">
-          <div>
-            <span className="mission-entry-eyebrow">Your current focus</span>
-            <p className="mission-entry-current-title" title={primary?.title ?? 'Saved projects'}>
-              {primary?.title ?? 'Your previous projects are still saved.'}
-            </p>
-            <p className="mission-entry-support">
-              Start a new project without losing your saved work.
-            </p>
-          </div>
-          <ActionChip variant="secondary" onClick={() => {
-            rememberMissionSetup(user.id, null)
-            setFreshMissionId(null)
-            setFreshChallenge(null)
-            setFreshChangeWhat('')
-            setFreshChangeWhy('')
-            setNewTitle('')
-            setNewWhy('')
-            setNameFinish('')
-            setEntryMode('capture')
-          }}>
-            Start a new project
-          </ActionChip>
-          {resumableProjects.length > 0 && (
-            <div className="mission-resume-group" aria-label="Continue a saved project">
-              <div>
-                <span className="mission-entry-eyebrow">Continue saved setup</span>
-                <p className="mission-resume-title" title={resumableProjects[0].title}>
-                  {resumableProjects[0].title}
-                </p>
-              </div>
-              <ActionChip variant="secondary" disabled={recoveryBusy} onClick={() => {
-                const missionId = resumableProjects[0].id
-                rememberMissionSetup(user.id, missionId)
-                setFreshMissionId(missionId)
-                setFreshChallenge(null)
-                setFreshChangeWhat('')
-                setFreshChangeWhy('')
-                setEntryMode('capture')
-              }}>
-                Continue this saved project
-              </ActionChip>
-              {resumableProjects.length > 1 && (
-                <div className="mission-invite-field">
-                  <label htmlFor="saved-project-resume">Or choose another saved project</label>
-                  <select
-                    id="saved-project-resume"
-                    className="mission-invite-input"
-                    value={savedProjectChoice}
-                    onChange={event => setSavedProjectChoice(event.target.value)}
-                  >
-                    <option value="">Select a saved project…</option>
-                    {resumableProjects.map(project => (
-                      <option key={project.id} value={project.id}>{project.title}</option>
-                    ))}
-                  </select>
-                  <ActionChip variant="secondary" disabled={!savedProjectChoice || recoveryBusy} onClick={() => {
-                    if (!resumableProjects.some(project => project.id === savedProjectChoice)) return
-                    rememberMissionSetup(user.id, savedProjectChoice)
-                    setFreshMissionId(savedProjectChoice)
-                    setFreshChallenge(null)
-                    setFreshChangeWhat('')
-                    setFreshChangeWhy('')
-                    setEntryMode('capture')
-                  }}>
-                    Continue selected project
-                  </ActionChip>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
       {sessionReady && (
         <ol className="mission-path" aria-label="From idea to saved action">
           <li aria-current={stage === 'idea' ? 'step' : undefined}>
@@ -1669,6 +1831,12 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
         requestProjectReview={sessionReady && (projectAccess === 'owner' || projectAccess === 'tester' || projectAccess === 'unknown') ? handleProjectReview : undefined}
         onAssistWithContext={sessionReady ? handleAssistWithContext : undefined}
         resumable={Boolean(sessionReady && savedMissionId && resumableMissionId === savedMissionId)}
+        onSaveNextAction={sessionReady ? handleSaveRecommendedAction : undefined}
+        savedOpenAction={openMissionAction}
+        onStartSavedAction={sessionReady ? handleStartSavedAction : undefined}
+        onSetEvidenceRequirement={sessionReady ? handleSetEvidenceRequirementFromDelta : undefined}
+        onClearBlocker={sessionReady ? handleClearBlockerFromDelta : undefined}
+        onPromoteMission={sessionReady ? handlePromoteMissionFromDelta : undefined}
       >
         {canChoosePrimary && !startingNewPrimary && (
           <div className="mission-invite" aria-label="Choose your Primary mission">
@@ -1778,31 +1946,15 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
           </form>
         ) : null}
       </StrategicDelta>
-      {sessionReady && <LessonRelayReceive missions={missionList} ready={sessionReady} onLessonWrite={invalidateLessonReview} />}
-      {previousReview && <details className="sd-project-review">
-        <summary>Last saved project review</summary>
-        <p>Saved {new Date(previousReview.reviewedAt).toLocaleString()} · Historical proposal, not a current recommendation or accepted action.</p>
-        <p>Finish line at the time: {previousReview.finishLine}</p>
-        <p>Proposed next move: {previousReview.operation ?? 'No move proposed'}</p>
-        {previousReview.sources.length > 0 && <p>Sources: {previousReview.sources.map(source => source.label).join(', ')}</p>}
-        <p>Review the current project before acting on this earlier proposal.</p>
-      </details>}
 
-      {lessonNotice && <p role="status" className="mission-status">{lessonNotice}</p>}
-
-      {sessionReady && savedMissionId && board.missions[savedMissionId] && (
-        <MissionFiles key={`files:${savedMissionId}`} mission={board.missions[savedMissionId]} />
-      )}
-
-      {/* Accepting a Delta is a prediction, not a commitment — SavedActions
-          is where accepting one turns into a tracked, resumable action with
-          status and a place to leave yourself a note. */}
-      {/* Bound to the mission of the accepted move on screen — the Primary,
-          or an actionable Secondary when that is what the Delta aimed at. */}
+      {/* Keep SavedActions directly below StrategicDelta so the current
+          project, the next useful action, and its saved commitment/result sit
+          together without secondary tools wedged between them. */}
       {sessionReady && savedMissionId && (
         <SavedActions
           key={savedMissionId}
           missionId={savedMissionId}
+          revision={savedActionsRevision}
           suggestedTitle={shownAcceptance && !shownAcceptance.resumeActionId && shownAcceptance.missionId === savedMissionId ? shownAcceptance.move : null}
           routedDraft={currentDraft}
           resumeDraft={shownAcceptance?.resumeActionId && projectReview?.missionId === savedMissionId && projectReview.resumeActionId === shownAcceptance.resumeActionId && projectReview.workDraft ? { actionId: shownAcceptance.resumeActionId, note: draftStartingPoint(projectReview)! } : null}
@@ -1817,7 +1969,26 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
                 : null
           }
           onActiveChange={handleResumableAction}
+          onActionSnapshot={handleActionSnapshot}
         />
+      )}
+
+      {lessonNotice && <p role="status" className="mission-status">{lessonNotice}</p>}
+      {sessionReady && <LessonRelayReceive missions={missionList} ready={sessionReady} onLessonWrite={invalidateLessonReview} />}
+      {previousReview && <details className="sd-project-review">
+        <summary>Last saved project review</summary>
+        <p>Saved {new Date(previousReview.reviewedAt).toLocaleString()} · Historical proposal, not a current recommendation or accepted action.</p>
+        <p>Finish line at the time: {previousReview.finishLine}</p>
+        <p>Proposed next move: {previousReview.operation ?? 'No move proposed'}</p>
+        {previousReview.sources.length > 0 && <p>Sources: {previousReview.sources.map(source => source.label).join(', ')}</p>}
+        <p>Review the current project before acting on this earlier proposal.</p>
+      </details>}
+
+      {sessionReady && savedMissionId && board.missions[savedMissionId] && (
+        <details className="mission-disclosure">
+          <summary>Attach project files for Claude to read</summary>
+          <MissionFiles key={`files:${savedMissionId}`} mission={board.missions[savedMissionId]} />
+        </details>
       )}
 
       {/* Keep external tool routing behind progressive disclosure unless explicitly triggered via "Route this move". */}
@@ -1830,7 +2001,87 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
             seed={routeSeed}
             canSave={sessionReady && (routeMission?.state === 'primary' || routeMission?.state === 'secondary')}
             onPrepare={setRoutedDraft}
+            onSavePreparedAction={handleSavePreparedRouteAction}
           />
+        </details>
+      )}
+
+      {/* Keep "Start a new project" secondary while continuing existing work. */}
+      {sessionReady && missionList.length > 0 && (
+        <details className="mission-disclosure" open={!primary && !secondary}>
+          <summary>Start or switch to another project</summary>
+          <div className="mission-invite mission-entry" aria-label="Begin a new project">
+            <div>
+              <span className="mission-entry-eyebrow">Your current focus</span>
+              <p className="mission-entry-current-title" title={primary?.title ?? 'Saved projects'}>
+                {primary?.title ?? 'Your previous projects are still saved.'}
+              </p>
+              <p className="mission-entry-support">
+                Start a new project without losing your saved work.
+              </p>
+            </div>
+            <ActionChip variant="secondary" onClick={() => {
+              rememberMissionSetup(user.id, null)
+              setFreshMissionId(null)
+              setFreshChallenge(null)
+              setFreshChangeWhat('')
+              setFreshChangeWhy('')
+              setNewTitle('')
+              setNewWhy('')
+              setNameFinish('')
+              setEntryMode('capture')
+            }}>
+              Start a new project
+            </ActionChip>
+            {resumableProjects.length > 0 && (
+              <div className="mission-resume-group" aria-label="Continue a saved project">
+                <div>
+                  <span className="mission-entry-eyebrow">Continue saved setup</span>
+                  <p className="mission-resume-title" title={resumableProjects[0].title}>
+                    {resumableProjects[0].title}
+                  </p>
+                </div>
+                <ActionChip variant="secondary" disabled={recoveryBusy} onClick={() => {
+                  const missionId = resumableProjects[0].id
+                  rememberMissionSetup(user.id, missionId)
+                  setFreshMissionId(missionId)
+                  setFreshChallenge(null)
+                  setFreshChangeWhat('')
+                  setFreshChangeWhy('')
+                  setEntryMode('capture')
+                }}>
+                  Continue this saved project
+                </ActionChip>
+                {resumableProjects.length > 1 && (
+                  <div className="mission-invite-field">
+                    <label htmlFor="saved-project-resume">Or choose another saved project</label>
+                    <select
+                      id="saved-project-resume"
+                      className="mission-invite-input"
+                      value={savedProjectChoice}
+                      onChange={event => setSavedProjectChoice(event.target.value)}
+                    >
+                      <option value="">Select a saved project…</option>
+                      {resumableProjects.map(project => (
+                        <option key={project.id} value={project.id}>{project.title}</option>
+                      ))}
+                    </select>
+                    <ActionChip variant="secondary" disabled={!savedProjectChoice || recoveryBusy} onClick={() => {
+                      if (!resumableProjects.some(project => project.id === savedProjectChoice)) return
+                      rememberMissionSetup(user.id, savedProjectChoice)
+                      setFreshMissionId(savedProjectChoice)
+                      setFreshChallenge(null)
+                      setFreshChangeWhat('')
+                      setFreshChangeWhy('')
+                      setEntryMode('capture')
+                    }}>
+                      Continue selected project
+                    </ActionChip>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </details>
       )}
 
@@ -1886,6 +2137,19 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-soft)' }}>
                     <strong>Finish line:</strong> {primary.finishLine ?? 'not set'}
                   </div>
+                  {(() => {
+                    const checks = deriveObservableAcceptanceChecks(primary)
+                    return checks.length > 0 ? (
+                      <div style={{ fontSize: '0.82rem', color: 'var(--text-soft)' }}>
+                        <strong>Observable acceptance checks:</strong>
+                        <ul className="list-disc pl-5 mt-1 space-y-1">
+                          {checks.map((check, idx) => (
+                            <li key={idx}>{check}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null
+                  })()}
                   {primary.evidenceRequirement ? (
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-soft)' }}>
                       <strong>Evidence required:</strong> {primary.evidenceRequirement}
@@ -2114,23 +2378,60 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
           </details>
 
           {/* Parked / Candidate — where new missions get a finish line and become Primary */}
-          <Card>
-            <SectionTitle>Parked</SectionTitle>
-            <SectionSubtitle>New ideas land here by default. Give one a finish line to make it eligible for Primary.</SectionSubtitle>
-            {parkedOrCandidate.length === 0 ? (
-              <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>Nothing parked.</div>
-            ) : (
-              <div className="space-y-2">
-                {parkedOrCandidate.map(m => (
-                  <div key={m.id} className="p-3 rounded-codex space-y-2" style={{ border: '1px solid var(--line)', background: 'var(--surface-soft)' }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{m.title}</div>
-                    {m.finishLine ? (
-                      <>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-soft)' }}>Finish line: {m.finishLine}</div>
-                        {m.evidenceRequirement ? (
-                          <div style={{ fontSize: '0.8rem', color: 'var(--text-soft)' }}>Evidence required: {m.evidenceRequirement}</div>
+          <details className="mission-disclosure" open={!primary}>
+            <summary>Parked ideas &amp; capture ({parkedOrCandidate.length})</summary>
+            <div className="space-y-4">
+              <Card>
+                <SectionTitle>Parked</SectionTitle>
+                <SectionSubtitle>New ideas land here by default. Give one a finish line to make it eligible for Primary.</SectionSubtitle>
+                {parkedOrCandidate.length === 0 ? (
+                  <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>Nothing parked.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {parkedOrCandidate.map(m => (
+                      <div key={m.id} className="p-3 rounded-codex space-y-2" style={{ border: '1px solid var(--line)', background: 'var(--surface-soft)' }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{m.title}</div>
+                        {m.finishLine ? (
+                          <>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-soft)' }}>Finish line: {m.finishLine}</div>
+                            {m.evidenceRequirement ? (
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-soft)' }}>Evidence required: {m.evidenceRequirement}</div>
+                            ) : (
+                              <div className="space-y-2">
+                                <Input
+                                  placeholder="What will prove it is done (optional)"
+                                  aria-label={`Evidence requirement for ${m.title}`}
+                                  value={evidenceDrafts[m.id] ?? ''}
+                                  onChange={v => setEvidenceDrafts(prev => ({ ...prev, [m.id]: v }))}
+                                />
+                                <ActionChip
+                                  disabled={recoveryBusy || !(evidenceDrafts[m.id] ?? '').trim()}
+                                  onClick={async () => {
+                                    const ok = await applyAndPersist(
+                                      b => setEvidenceRequirement(b, m.id, evidenceDrafts[m.id] ?? '', now),
+                                      [m.id],
+                                    )
+                                    if (ok) setEvidenceDrafts(prev => ({ ...prev, [m.id]: '' }))
+                                  }}
+                                >
+                                  Set proof
+                                </ActionChip>
+                              </div>
+                            )}
+                            {!primary && (
+                              <ActionChip disabled={recoveryBusy} onClick={() => applyAndPersist(b => promoteToPrimary(b, m.id, now), [m.id])}>
+                                Promote to Primary
+                              </ActionChip>
+                            )}
+                          </>
                         ) : (
                           <div className="space-y-2">
+                            <Input
+                              placeholder="Exact finish line…"
+                              aria-label={`Finish line for ${m.title}`}
+                              value={finishLineDrafts[m.id] ?? ''}
+                              onChange={v => setFinishLineDrafts(prev => ({ ...prev, [m.id]: v }))}
+                            />
                             <Input
                               placeholder="What will prove it is done (optional)"
                               aria-label={`Evidence requirement for ${m.title}`}
@@ -2138,87 +2439,55 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
                               onChange={v => setEvidenceDrafts(prev => ({ ...prev, [m.id]: v }))}
                             />
                             <ActionChip
-                              disabled={recoveryBusy || !(evidenceDrafts[m.id] ?? '').trim()}
+                              disabled={recoveryBusy || !(finishLineDrafts[m.id] ?? '').trim()}
                               onClick={async () => {
                                 const ok = await applyAndPersist(
-                                  b => setEvidenceRequirement(b, m.id, evidenceDrafts[m.id] ?? '', now),
+                                  b => setFinishLine(b, m.id, finishLineDrafts[m.id] ?? '', now, evidenceDrafts[m.id] ?? ''),
                                   [m.id],
                                 )
-                                if (ok) setEvidenceDrafts(prev => ({ ...prev, [m.id]: '' }))
+                                if (ok) {
+                                  setFinishLineDrafts(prev => ({ ...prev, [m.id]: '' }))
+                                  setEvidenceDrafts(prev => ({ ...prev, [m.id]: '' }))
+                                }
                               }}
                             >
-                              Set proof
+                              Set
                             </ActionChip>
                           </div>
                         )}
-                        {!primary && (
-                          <ActionChip disabled={recoveryBusy} onClick={() => applyAndPersist(b => promoteToPrimary(b, m.id, now), [m.id])}>
-                            Promote to Primary
-                          </ActionChip>
-                        )}
-                      </>
-                    ) : (
-                      <div className="space-y-2">
-                        <Input
-                          placeholder="Exact finish line…"
-                          aria-label={`Finish line for ${m.title}`}
-                          value={finishLineDrafts[m.id] ?? ''}
-                          onChange={v => setFinishLineDrafts(prev => ({ ...prev, [m.id]: v }))}
-                        />
-                        <Input
-                          placeholder="What will prove it is done (optional)"
-                          aria-label={`Evidence requirement for ${m.title}`}
-                          value={evidenceDrafts[m.id] ?? ''}
-                          onChange={v => setEvidenceDrafts(prev => ({ ...prev, [m.id]: v }))}
-                        />
-                        <ActionChip
-                          disabled={recoveryBusy || !(finishLineDrafts[m.id] ?? '').trim()}
-                          onClick={async () => {
-                            const ok = await applyAndPersist(
-                              b => setFinishLine(b, m.id, finishLineDrafts[m.id] ?? '', now, evidenceDrafts[m.id] ?? ''),
-                              [m.id],
-                            )
-                            if (ok) {
-                              setFinishLineDrafts(prev => ({ ...prev, [m.id]: '' }))
-                              setEvidenceDrafts(prev => ({ ...prev, [m.id]: '' }))
-                            }
-                          }}
-                        >
-                          Set
-                        </ActionChip>
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+                )}
 
-            <div className="mt-4">
-              {!showNewMission ? (
-                <ActionChip onClick={() => setShowNewMission(true)}>New mission</ActionChip>
-              ) : (
-                <div className="space-y-2">
-                  <Input placeholder="Mission title" value={newTitle} onChange={setNewTitle} />
-                  <Input placeholder="Why it matters (optional)" value={newWhy} onChange={setNewWhy} />
-                  <div className="flex gap-2">
-                    <ActionBtn disabled={!newTitle.trim()} onClick={handleNewMission}>Capture</ActionBtn>
-                    <ActionChip variant="ghost" onClick={() => setShowNewMission(false)}>Cancel</ActionChip>
-                  </div>
+                <div className="mt-4">
+                  {!showNewMission ? (
+                    <ActionChip onClick={() => setShowNewMission(true)}>New mission</ActionChip>
+                  ) : (
+                    <div className="space-y-2">
+                      <Input placeholder="Mission title" value={newTitle} onChange={setNewTitle} />
+                      <Input placeholder="Why it matters (optional)" value={newWhy} onChange={setNewWhy} />
+                      <div className="flex gap-2">
+                        <ActionBtn disabled={!newTitle.trim()} onClick={handleNewMission}>Capture</ActionBtn>
+                        <ActionChip variant="ghost" onClick={() => setShowNewMission(false)}>Cancel</ActionChip>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </Card>
+              </Card>
 
-          {/* Capture Idea */}
-          <Card>
-            <SectionTitle>Capture Idea</SectionTitle>
-            <SectionSubtitle>Say it in your own words. It is Parked by default — this does not interrupt Primary.</SectionSubtitle>
-            <div className="flex gap-2">
-              <Input placeholder="Type the idea…" value={captureText} onChange={setCaptureText} />
-              <ActionBtn disabled={!captureText.trim()} onClick={handleCaptureIdea}>Capture</ActionBtn>
+              {/* Capture Idea */}
+              <Card>
+                <SectionTitle>Capture Idea</SectionTitle>
+                <SectionSubtitle>Say it in your own words. It is Parked by default — this does not interrupt Primary.</SectionSubtitle>
+                <div className="flex gap-2">
+                  <Input placeholder="Type the idea…" value={captureText} onChange={setCaptureText} />
+                  <ActionBtn disabled={!captureText.trim()} onClick={handleCaptureIdea}>Capture</ActionBtn>
+                </div>
+                {capture.status && <p role="status">{capture.status}</p>}
+              </Card>
             </div>
-            {capture.status && <p role="status">{capture.status}</p>}
-          </Card>
+          </details>
 
           {/* Evidence Status */}
           <details className="mission-disclosure">

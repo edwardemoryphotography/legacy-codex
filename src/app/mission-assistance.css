@@ -603,3 +603,86 @@ html:has(.sd[data-cognition="failed"])::after {
   .mission-entry { padding: 14px; gap: 12px; }
   .mission-entry-current-title, .mission-resume-title { font-size: 0.88rem; }
 }
+
+/* ─── Action Follow-Through & Mission Clarity Controls ───────────────────── */
+.mission-work-draft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(146, 168, 255, 0.16);
+}
+
+.sd-followthrough-box {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(62, 228, 224, 0.28);
+  background: rgba(12, 18, 38, 0.65);
+}
+
+.sd-followthrough-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.sd-followthrough-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.sd-followthrough-result {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  margin: 10px 0;
+  border-radius: var(--radius);
+  border: 1px solid rgba(56, 232, 176, 0.36);
+  background: rgba(16, 36, 34, 0.56);
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.sd-followthrough-result p {
+  margin: 0;
+}
+
+.sd-followthrough-error {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  margin: 10px 0;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 118, 118, 0.42);
+  background: rgba(44, 14, 22, 0.6);
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.sd-followthrough-error p {
+  margin: 0;
+}
+
+.sd-inline-progress {
+  font-size: 0.84rem;
+  color: var(--teal);
+  font-weight: 500;
+}
+
+.legacy-relay[data-active="false"] {
+  padding: 14px 18px;
+}
+
+.legacy-relay[data-active="false"] .legacy-relay-heading h2 {
+  font-size: 1.05rem;
+  margin: 2px 0 6px;
+}

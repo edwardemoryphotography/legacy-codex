@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DeltaCandidate, DeltaCorrection, EvidenceRecord, Mission, StrategicDelta as Delta } from '@/types'
 import { candidateTargetsClause, operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
-import { ActionBtn, ActionChip, Textarea } from '@/components/ui'
+import { ActionBtn, ActionChip, Input, Textarea } from '@/components/ui'
 import { OrbSlot, useOrbCognition } from '@/components/OrbHost'
 import ProjectLearning, { type ConfirmLesson, type RetireLesson } from '@/components/ProjectLearning'
 import MissionAssistance from '@/components/MissionAssistance'
+import type { SavedOpenActionSnapshot } from '@/components/SavedActions'
+import { deriveObservableAcceptanceChecks } from '@/lib/missionAssistance'
 import ReactMarkdown from 'react-markdown'
 import type { ConfirmedLesson, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
 
@@ -19,6 +21,15 @@ export type DeltaWrite = (delta: Delta) => void | boolean | Promise<void | boole
 export type DeltaCorrect = (delta: Delta, reason: string) => void | boolean | Promise<void | boolean>
 export type DeltaContextWrite = (delta: Delta, note: string) => void | boolean | Promise<void | boolean>
 export type DeltaSupplyStep = (delta: Delta, step: string) => void | boolean | Promise<void | boolean>
+
+export interface SaveNextActionResult {
+  ok: boolean
+  actionId?: string
+  title?: string
+  replaced?: boolean
+  error?: string
+}
+export type DeltaSaveNextAction = (delta: Delta, note?: string | null) => Promise<SaveNextActionResult>
 
 // The narrowly bounded model-assist request: one clause in, one operation
 // (or nothing) out. The caller (MissionTab) owns auth and the actual fetch
@@ -146,6 +157,18 @@ interface Props {
   onAssistWithContext?: (request: ProjectReviewRequest) => Promise<boolean | void>
   /** True when the active mission has a saved action in progress that can be resumed. */
   resumable?: boolean
+  /** Save the recommended move (and optional starting draft) directly as the mission's open next action. */
+  onSaveNextAction?: DeltaSaveNextAction
+  /** Current open saved action for the active mission, if any, so the hero can show saved/in-progress state immediately. */
+  savedOpenAction?: SavedOpenActionSnapshot | null
+  /** Mark the saved next action IN_PROGRESS directly from the recommendation card. */
+  onStartSavedAction?: (actionId: string) => Promise<boolean>
+  /** Save the evidence requirement directly when the recommendation asks what will prove completion. */
+  onSetEvidenceRequirement?: (missionId: string, evidenceRequirement: string) => Promise<boolean>
+  /** Clear the active mission's blocker directly when the recommendation is to unblock Primary. */
+  onClearBlocker?: (missionId: string) => Promise<boolean>
+  /** Promote a saved mission to Primary directly when recommended. */
+  onPromoteMission?: (missionId: string) => Promise<boolean>
   /** Missing-input controls for insufficient context. Rendered inside the
    *  hero, not below it — and never inside the live region. */
   children?: ReactNode
@@ -180,6 +203,12 @@ export default function StrategicDelta({
   requestProjectReview,
   onAssistWithContext,
   resumable = false,
+  onSaveNextAction,
+  savedOpenAction = null,
+  onStartSavedAction,
+  onSetEvidenceRequirement,
+  onClearBlocker,
+  onPromoteMission,
   children,
 }: Props) {
   // A restored review cannot follow a mission into a revised goal or an
@@ -426,6 +455,28 @@ export default function StrategicDelta({
     if (result === false) return
   }
 
+  const [savingNextAction, setSavingNextAction] = useState(false)
+  const savingNextActionRef = useRef(false)
+  const [saveActionResult, setSaveActionResult] = useState<{ actionId?: string; title: string; replaced?: boolean } | null>(null)
+  const [saveActionError, setSaveActionError] = useState<string | null>(null)
+  const [startingAction, setStartingAction] = useState(false)
+  const startingActionRef = useRef(false)
+  const [startActionError, setStartActionError] = useState<string | null>(null)
+  const [evidenceReqInput, setEvidenceReqInput] = useState('')
+  const [savingEvidenceReq, setSavingEvidenceReq] = useState(false)
+  const savingEvidenceReqRef = useRef(false)
+  const [evidenceReqSaved, setEvidenceReqSaved] = useState<string | null>(null)
+  const [evidenceReqError, setEvidenceReqError] = useState<string | null>(null)
+  const [clearingBlocker, setClearingBlocker] = useState(false)
+  const clearingBlockerRef = useRef(false)
+  const [blockerClearedNotice, setBlockerClearedNotice] = useState<string | null>(null)
+  const [blockerClearError, setBlockerClearError] = useState<string | null>(null)
+  const [promotingMission, setPromotingMission] = useState(false)
+  const promotingMissionRef = useRef(false)
+  const [promotedNotice, setPromotedNotice] = useState<string | null>(null)
+  const [promoteError, setPromoteError] = useState<string | null>(null)
+  const [copiedDraft, setCopiedDraft] = useState(false)
+
   // A correction is recorded against the mission the Delta names. An
   // insufficient-context Delta names no mission, so there is nothing to
   // correct yet — say that rather than offering a control that fails.
@@ -455,7 +506,7 @@ export default function StrategicDelta({
   // "This did not record" (and the alert atmosphere keyed on it) is reserved
   // for something the person asked to record or run that failed. A failed
   // optional read is projectReviewNotice and deliberately absent here.
-  const cognition: Cognition = persistError || shownOperationError || projectReviewError
+  const cognition: Cognition = persistError || shownOperationError || projectReviewError || saveActionError || startActionError || evidenceReqError || blockerClearError || promoteError
     ? 'failed'
     : correcting
       ? 'correcting'
@@ -501,6 +552,10 @@ export default function StrategicDelta({
   const title = needsMissionChoice ? 'No active mission' : needsClarification ? projectReview.clarification : delta ? displayTitle(delta, isFirstRun, readAvailable) : null
   const aimedMission = delta?.missionId ? missions.find(mission => mission.id === delta.missionId) ?? null : null
   const finishLine = aimedMission?.finishLine ?? null
+  const observableChecks = useMemo(
+    () => (aimedMission ? deriveObservableAcceptanceChecks(aimedMission) : []),
+    [aimedMission],
+  )
   const reviewTarget = primaryMission && !primaryMission.blocker && !primaryMission.capacityMismatch
     ? primaryMission
     : missions.find(m => m.state === 'secondary' && !m.blocker && !m.capacityMismatch) ?? null
@@ -526,16 +581,165 @@ export default function StrategicDelta({
   const provenance = delta?.provenance ?? 'deterministic'
   useOrbCognition({ cognition, provenance, recording, resumable })
 
+  const matchingSavedAction =
+    committableMission && delta && savedOpenAction?.missionId === committableMission.id && savedOpenAction.title === delta.move
+      ? savedOpenAction
+      : committableMission && delta && saveActionResult?.title === delta.move
+        ? {
+            id: saveActionResult.actionId ?? 'latest',
+            missionId: committableMission.id,
+            title: saveActionResult.title,
+            status: 'TODO' as const,
+            resumeNote: activeWorkDraft,
+          }
+        : null
+  const hasDifferentSavedAction = Boolean(
+    committableMission &&
+    delta &&
+    savedOpenAction?.missionId === committableMission.id &&
+    savedOpenAction.title !== delta.move,
+  )
+  const isNameEvidenceMove = Boolean(
+    aimedMission &&
+    aimedMission.finishLine &&
+    !aimedMission.evidenceRequirement &&
+    !aimedMission.blocker &&
+    delta?.evidenceState !== 'conflict' &&
+    onSetEvidenceRequirement,
+  )
+  const isUnblockMove = Boolean(delta?.candidateId?.startsWith('unblock:') && aimedMission?.blocker && onClearBlocker)
+  const isPromoteMove = Boolean(delta?.candidateId?.startsWith('promote:') && aimedMission && onPromoteMission)
+
+  async function saveAsNextAction() {
+    if (!delta || !committableMission || !onSaveNextAction || savingNextAction || savingNextActionRef.current) return
+    savingNextActionRef.current = true
+    setSavingNextAction(true)
+    setSaveActionError(null)
+    try {
+      const note = activeWorkDraft
+        ? `${activeWorkDraftIsModel ? 'Model-generated draft — check before using.' : 'Structured from your project notes — check before using.'}\n\n${activeWorkDraft}`
+        : null
+      const result = await onSaveNextAction(delta, note)
+      if (!result.ok) {
+        setSaveActionError(result.error ?? 'Could not save this move as your next action. Your project context and draft are still here — retry when ready.')
+        return
+      }
+      setSaveActionResult({
+        actionId: result.actionId,
+        title: result.title ?? delta.move,
+        replaced: result.replaced,
+      })
+    } catch {
+      setSaveActionError('Could not save this move as your next action. Your project context and draft are still here — retry when ready.')
+    } finally {
+      savingNextActionRef.current = false
+      setSavingNextAction(false)
+    }
+  }
+
+  async function startSavedAction(actionId: string) {
+    if (!onStartSavedAction || startingAction || startingActionRef.current) return
+    startingActionRef.current = true
+    setStartingAction(true)
+    setStartActionError(null)
+    try {
+      const ok = await onStartSavedAction(actionId)
+      if (!ok) {
+        setStartActionError('Could not start this action yet. Your saved action is still intact — retry when ready.')
+      }
+    } catch {
+      setStartActionError('Could not start this action yet. Your saved action is still intact — retry when ready.')
+    } finally {
+      startingActionRef.current = false
+      setStartingAction(false)
+    }
+  }
+
+  async function submitEvidenceRequirement() {
+    const trimmed = evidenceReqInput.trim()
+    if (!aimedMission || !onSetEvidenceRequirement || !trimmed || savingEvidenceReq || savingEvidenceReqRef.current) return
+    savingEvidenceReqRef.current = true
+    setSavingEvidenceReq(true)
+    setEvidenceReqError(null)
+    try {
+      const ok = await onSetEvidenceRequirement(aimedMission.id, trimmed)
+      if (!ok) {
+        setEvidenceReqError('Could not save the evidence requirement. Your text is still here — retry when ready.')
+        return
+      }
+      setEvidenceReqSaved(trimmed)
+      setEvidenceReqInput('')
+      setNow(new Date().toISOString())
+    } catch {
+      setEvidenceReqError('Could not save the evidence requirement. Your text is still here — retry when ready.')
+    } finally {
+      savingEvidenceReqRef.current = false
+      setSavingEvidenceReq(false)
+    }
+  }
+
+  async function submitClearBlocker() {
+    if (!aimedMission || !onClearBlocker || clearingBlocker || clearingBlockerRef.current) return
+    clearingBlockerRef.current = true
+    setClearingBlocker(true)
+    setBlockerClearError(null)
+    try {
+      const ok = await onClearBlocker(aimedMission.id)
+      if (!ok) {
+        setBlockerClearError('Could not clear the blocker. Your mission state is unchanged — retry when ready.')
+        return
+      }
+      setBlockerClearedNotice(`Blocker resolved on “${aimedMission.title}”.`)
+      setNow(new Date().toISOString())
+    } catch {
+      setBlockerClearError('Could not clear the blocker. Your mission state is unchanged — retry when ready.')
+    } finally {
+      clearingBlockerRef.current = false
+      setClearingBlocker(false)
+    }
+  }
+
+  async function submitPromoteMission() {
+    if (!aimedMission || !onPromoteMission || promotingMission || promotingMissionRef.current) return
+    promotingMissionRef.current = true
+    setPromotingMission(true)
+    setPromoteError(null)
+    try {
+      const ok = await onPromoteMission(aimedMission.id)
+      if (!ok) {
+        setPromoteError('Could not promote this mission. Your saved missions are unchanged — retry when ready.')
+        return
+      }
+      setPromotedNotice(`“${aimedMission.title}” is now your Primary mission.`)
+      setNow(new Date().toISOString())
+    } catch {
+      setPromoteError('Could not promote this mission. Your saved missions are unchanged — retry when ready.')
+    } finally {
+      promotingMissionRef.current = false
+      setPromotingMission(false)
+    }
+  }
+
+  async function copyWorkDraft() {
+    if (!activeWorkDraft) return
+    try {
+      await navigator.clipboard?.writeText(activeWorkDraft)
+      setCopiedDraft(true)
+    } catch {
+      setCopiedDraft(false)
+    }
+  }
+
   return (
     <section
       className="sd"
       data-state={reconstructing ? 'reasoning' : 'resolved'}
       data-cognition={cognition}
       data-provenance={provenance}
-      data-recording={recording ? 'true' : undefined}
+      data-recording={recording || savingNextAction || startingAction || savingEvidenceReq || clearingBlocker || promotingMission ? 'true' : undefined}
       data-resumable={resumable ? 'true' : undefined}
       data-first-run={isFirstRun ? 'true' : undefined}
-      aria-busy={reconstructing || recording}
+      aria-busy={reconstructing || recording || savingNextAction || startingAction || savingEvidenceReq || clearingBlocker || promotingMission}
       aria-label="Your next move"
     >
       <div className="sd-stage">
@@ -572,6 +776,16 @@ export default function StrategicDelta({
                 : 'Structured from your project notes — check before using.'}
             </p>
             <ReactMarkdown>{activeWorkDraft}</ReactMarkdown>
+            <div className="mission-work-draft-actions">
+              {onSaveNextAction && committableMission && !resumeActionId && !matchingSavedAction && (
+                <ActionBtn disabled={savingNextAction || recording} onClick={() => void saveAsNextAction()}>
+                  {savingNextAction ? 'Saving next action…' : 'Save move & draft as my next action'}
+                </ActionBtn>
+              )}
+              <ActionChip variant="secondary" onClick={() => void copyWorkDraft()}>
+                {copiedDraft ? 'Draft copied' : 'Copy draft'}
+              </ActionChip>
+            </div>
           </section>}
           {canAssist && reviewTarget && assistHandler && (
             <MissionAssistance
@@ -596,12 +810,147 @@ export default function StrategicDelta({
           )}
 
           {!isFirstRun && !needsMissionChoice && <div className="sd-act">
+            {isNameEvidenceMove && aimedMission && (
+              <div className="sd-followthrough-box" aria-label="Set evidence requirement">
+                <label htmlFor="sd-evidence-requirement-input" className="sd-followthrough-label">
+                  What will prove “{aimedMission.title}” is done?
+                </label>
+                <div className="sd-followthrough-row">
+                  <Input
+                    id="sd-evidence-requirement-input"
+                    value={evidenceReqInput}
+                    onChange={setEvidenceReqInput}
+                    placeholder="e.g., Me using it right now on my phone"
+                  />
+                  <ActionBtn
+                    disabled={savingEvidenceReq || !evidenceReqInput.trim()}
+                    onClick={() => void submitEvidenceRequirement()}
+                  >
+                    {savingEvidenceReq ? 'Saving evidence requirement…' : 'Save evidence requirement'}
+                  </ActionBtn>
+                </div>
+                {savingEvidenceReq && (
+                  <p className="sd-inline-progress" role="status">
+                    Saving evidence requirement for “{aimedMission.title}”…
+                  </p>
+                )}
+                {evidenceReqError && (
+                  <div className="sd-followthrough-error" role="alert">
+                    <p>{evidenceReqError}</p>
+                    <ActionBtn disabled={savingEvidenceReq || !evidenceReqInput.trim()} onClick={() => void submitEvidenceRequirement()}>
+                      Retry saving evidence requirement
+                    </ActionBtn>
+                  </div>
+                )}
+              </div>
+            )}
+            {evidenceReqSaved && (
+              <p className="sd-followthrough-result" role="status">
+                Evidence requirement saved: “{evidenceReqSaved}”.
+              </p>
+            )}
+
+            {isUnblockMove && aimedMission && (
+              <div className="sd-followthrough-box" aria-label="Resolve mission blocker">
+                <p className="sd-followthrough-label">
+                  Current blocker on “{aimedMission.title}”: <strong>{aimedMission.blocker}</strong>
+                </p>
+                <div className="sd-followthrough-row">
+                  <ActionBtn disabled={clearingBlocker} onClick={() => void submitClearBlocker()}>
+                    {clearingBlocker ? 'Clearing blocker…' : 'Mark blocker resolved & resume Primary'}
+                  </ActionBtn>
+                  {clearingBlocker && (
+                    <span className="sd-inline-progress" role="status">
+                      Updating mission blocker…
+                    </span>
+                  )}
+                </div>
+                {blockerClearError && (
+                  <div className="sd-followthrough-error" role="alert">
+                    <p>{blockerClearError}</p>
+                    <ActionBtn disabled={clearingBlocker} onClick={() => void submitClearBlocker()}>
+                      Retry clearing blocker
+                    </ActionBtn>
+                  </div>
+                )}
+              </div>
+            )}
+            {blockerClearedNotice && (
+              <p className="sd-followthrough-result" role="status">{blockerClearedNotice}</p>
+            )}
+
+            {isPromoteMove && aimedMission && (
+              <div className="sd-followthrough-box" aria-label="Promote mission to Primary">
+                <div className="sd-followthrough-row">
+                  <ActionBtn disabled={promotingMission} onClick={() => void submitPromoteMission()}>
+                    {promotingMission ? 'Promoting mission…' : `Make “${aimedMission.title}” my Primary mission`}
+                  </ActionBtn>
+                  {promotingMission && (
+                    <span className="sd-inline-progress" role="status">
+                      Promoting “{aimedMission.title}” to Primary…
+                    </span>
+                  )}
+                </div>
+                {promoteError && (
+                  <div className="sd-followthrough-error" role="alert">
+                    <p>{promoteError}</p>
+                    <ActionBtn disabled={promotingMission} onClick={() => void submitPromoteMission()}>
+                      Retry promoting mission
+                    </ActionBtn>
+                  </div>
+                )}
+              </div>
+            )}
+            {promotedNotice && (
+              <p className="sd-followthrough-result" role="status">{promotedNotice}</p>
+            )}
+
             {hasRecommendation && accepted ? (
               <div className="sd-act-primary">
-                {/* The saved action is a separate, explicit commitment. This
-                    only points at it; nothing is saved from here. */}
-                {committableMission && (
+                {committableMission && !resumeActionId && onSaveNextAction && !matchingSavedAction && (
+                  <div className="sd-followthrough-row">
+                    <ActionBtn disabled={savingNextAction || recording} onClick={() => void saveAsNextAction()}>
+                      {savingNextAction
+                        ? 'Saving next action…'
+                        : hasDifferentSavedAction
+                          ? 'Replace saved next action'
+                          : 'Save as my next action'}
+                    </ActionBtn>
+                    {savingNextAction && (
+                      <span className="sd-inline-progress" role="status">
+                        Saving commitment to {committableMission.title}…
+                      </span>
+                    )}
+                  </div>
+                )}
+                {committableMission && matchingSavedAction ? (
+                  <div className="sd-followthrough-result" role="status">
+                    <p>
+                      <strong>{matchingSavedAction.status === 'IN_PROGRESS' ? 'In progress as your next action' : 'Saved as your next action'}</strong>
+                      {' — '}“{matchingSavedAction.title}” is saved to {committableMission.title} and ready when you return.
+                    </p>
+                    <div className="sd-followthrough-row">
+                      {matchingSavedAction.status !== 'IN_PROGRESS' && onStartSavedAction && matchingSavedAction.id !== 'latest' && (
+                        <ActionBtn disabled={startingAction} onClick={() => void startSavedAction(matchingSavedAction.id)}>
+                          {startingAction ? 'Starting action…' : 'Start this action now'}
+                        </ActionBtn>
+                      )}
+                      <a className="sd-next" href={matchingSavedAction.id && matchingSavedAction.id !== 'latest' ? `#saved-action-${matchingSavedAction.id}` : '#saved-action'}>
+                        Return to this saved action
+                      </a>
+                    </div>
+                    {startActionError && <p className="sd-fail" role="alert">{startActionError}</p>}
+                  </div>
+                ) : committableMission ? (
                   <a className="sd-next" href={resumeActionId ? `#saved-action-${resumeActionId}` : '#saved-action'}>{resumeActionId ? 'Return to this saved action' : 'Save it as one action you can return to'}</a>
+                ) : null}
+                {saveActionError && (
+                  <div className="sd-followthrough-error" role="alert">
+                    <p>{saveActionError}</p>
+                    <ActionBtn disabled={savingNextAction} onClick={() => void saveAsNextAction()}>
+                      Retry saving next action
+                    </ActionBtn>
+                  </div>
                 )}
                 <p className="sd-accepted">
                   Accepted — still a prediction until there&apos;s evidence
@@ -609,9 +958,54 @@ export default function StrategicDelta({
               </div>
             ) : hasRecommendation && !accepted ? (
               <div className="sd-act-primary">
-                <ActionBtn onClick={() => void accept()}>Accept this move</ActionBtn>
+                <div className="sd-followthrough-row">
+                  {committableMission && !resumeActionId && onSaveNextAction && !matchingSavedAction && (
+                    <ActionBtn disabled={savingNextAction || recording} onClick={() => void saveAsNextAction()}>
+                      {savingNextAction
+                        ? 'Saving next action…'
+                        : hasDifferentSavedAction
+                          ? 'Replace saved next action'
+                          : 'Save as my next action'}
+                    </ActionBtn>
+                  )}
+                  <ActionBtn disabled={recording || savingNextAction} onClick={() => void accept()}>Accept this move</ActionBtn>
+                  {savingNextAction && committableMission && (
+                    <span className="sd-inline-progress" role="status">
+                      Saving commitment to {committableMission.title}…
+                    </span>
+                  )}
+                </div>
+                {committableMission && matchingSavedAction && (
+                  <div className="sd-followthrough-result" role="status">
+                    <p>
+                      <strong>{matchingSavedAction.status === 'IN_PROGRESS' ? 'In progress as your next action' : 'Saved as your next action'}</strong>
+                      {' — '}“{matchingSavedAction.title}” is saved to {committableMission.title} and ready when you return.
+                    </p>
+                    <div className="sd-followthrough-row">
+                      {matchingSavedAction.status !== 'IN_PROGRESS' && onStartSavedAction && matchingSavedAction.id !== 'latest' && (
+                        <ActionBtn disabled={startingAction} onClick={() => void startSavedAction(matchingSavedAction.id)}>
+                          {startingAction ? 'Starting action…' : 'Start this action now'}
+                        </ActionBtn>
+                      )}
+                      <a className="sd-next" href={matchingSavedAction.id && matchingSavedAction.id !== 'latest' ? `#saved-action-${matchingSavedAction.id}` : '#saved-action'}>
+                        Return to this saved action
+                      </a>
+                    </div>
+                    {startActionError && <p className="sd-fail" role="alert">{startActionError}</p>}
+                  </div>
+                )}
+                {saveActionError && (
+                  <div className="sd-followthrough-error" role="alert">
+                    <p>{saveActionError}</p>
+                    <ActionBtn disabled={savingNextAction} onClick={() => void saveAsNextAction()}>
+                      Retry saving next action
+                    </ActionBtn>
+                  </div>
+                )}
                 <p className="sd-boundary">
-                  Accepting records the recommendation. It does not save an action, and it does not prove the work is done.
+                  {onSaveNextAction && committableMission && !resumeActionId
+                    ? '“Save as my next action” records this commitment (and any starting draft) so you can start or resume it below. Accepting only records the recommendation. External tools do not run automatically — use “Route this move” to prepare a handoff.'
+                    : 'Accepting records the recommendation. It does not save an action, and it does not prove the work is done.'}
                 </p>
                 {resumeActionId && <a className="sd-next" href={`#saved-action-${resumeActionId}`}>Return to this saved action</a>}
               </div>
@@ -671,13 +1065,20 @@ export default function StrategicDelta({
                 </ActionChip>
               )}
               {readAvailable && reviewTarget?.finishLine && requestProjectReview && (
-                <ActionChip
-                  disabled={!projectReviewAvailable || projectReviewBusy || recording}
-                  onClick={() => void requestProjectReview({ missionId: reviewTarget.id, finishLine: reviewTarget.finishLine! })}
-                  variant="secondary"
-                >
-                  {projectReviewBusy ? 'Reviewing project…' : 'Review project'}
-                </ActionChip>
+                <>
+                  <ActionChip
+                    disabled={!projectReviewAvailable || projectReviewBusy || recording}
+                    onClick={() => void requestProjectReview({ missionId: reviewTarget.id, finishLine: reviewTarget.finishLine! })}
+                    variant="secondary"
+                  >
+                    {projectReviewBusy ? 'Reviewing project…' : 'Review project'}
+                  </ActionChip>
+                  {projectReviewBusy && (
+                    <span className="sd-inline-progress" role="status">
+                      Reading project context and checking sources…
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>}
@@ -701,6 +1102,18 @@ export default function StrategicDelta({
                   <dt>How you will know it is done</dt>
                   <dd>{finishLine ?? 'Not set yet — add a finish line to get a concrete step.'}</dd>
                 </div>
+                {observableChecks.length > 0 && (
+                  <div>
+                    <dt>Observable acceptance checks</dt>
+                    <dd>
+                      <ul>
+                        {observableChecks.map((check, index) => (
+                          <li key={index}>{check}</li>
+                        ))}
+                      </ul>
+                    </dd>
+                  </div>
+                )}
                 <div>
                   <dt>What will prove it is done</dt>
                   <dd>{aimedMission.evidenceRequirement ?? 'Not named yet — add it when you set the finish line.'}</dd>
@@ -744,7 +1157,7 @@ export default function StrategicDelta({
           {!needsMissionChoice && !hasRecommendation && delta.move !== title && (
             <p className="sd-because" aria-live="polite">{delta.move}</p>
           )}
-          {!evidenceLoop && !needsMissionChoice && !isFirstRun && !selectedReview && delta.because !== delta.move && (
+          {!evidenceLoop && !needsMissionChoice && !isFirstRun && !selectedReview && !(activeSuppliedCandidate?.why && activeSuppliedCandidate?.finishWhen) && delta.because !== delta.move && (
             <p className={hasRecommendation || delta.move === title ? 'sd-because' : 'sd-support'}>
               {delta.because}
             </p>
