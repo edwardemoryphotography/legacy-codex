@@ -6,6 +6,7 @@ describe('codexOrbState', () => {
   it('only shows listening and thinking when Codex is actually in those states', () => {
     expect(codexOrbState('listening')).toBe('listening')
     expect(codexOrbState('thinking')).toBe('thinking')
+    expect(codexOrbState('acting')).toBe('acting')
   })
 
   it('rests every other state in idle; there is no speaking mode', () => {

@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { useState } from 'react'
+import { getAllEntries } from '@/data/codex'
 import { emptyHomeSession } from '@/lib/homeSession'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -263,4 +264,35 @@ it('allows a new submission after cancelling a still-pending client run', async 
   fireEvent.click(screen.getByRole('button', { name: 'Send' }))
   expect(run).toHaveBeenCalledTimes(2)
   await act(async () => finish(false))
+})
+
+it('keeps complete long source text in the response region without truncation', () => {
+  // Existing canonical reference text is a layout input, not an invented AI answer.
+  const source = getAllEntries().reduce((longest, entry) => entry.content.length > longest.content.length ? entry : longest)
+  expect(source.content.length).toBeGreaterThan(1000)
+  const home = { ...emptyHomeSession(), reply: { question: '', text: source.content, label: source.title, provider: '' } }
+  render(<HomeTab onNavigate={() => {}} session={home} />)
+  const region = screen.getByRole('region', { name: 'Codex response' })
+  expect(region.querySelector('.glass-output-text')?.textContent).toBe(source.content)
+  expect(screen.getByRole('textbox', { name: 'Ask Codex' })).toBeInTheDocument()
+})
+
+it('tracks a small iPhone visual viewport and keyboard resizing without moving the composer into the response scroller', () => {
+  const previous = Object.getOwnPropertyDescriptor(window, 'visualViewport')
+  const viewport = Object.assign(new EventTarget(), { height: 664, offsetTop: 0 })
+  Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport })
+  const { unmount, container } = render(<HomeTab onNavigate={() => {}} />)
+  try {
+    expect(document.documentElement.style.getPropertyValue('--codex-viewport-height')).toBe('664px')
+    viewport.height = 340; viewport.offsetTop = 18
+    act(() => viewport.dispatchEvent(new Event('resize')))
+    expect(document.documentElement.style.getPropertyValue('--codex-viewport-height')).toBe('340px')
+    expect(document.documentElement.style.getPropertyValue('--codex-viewport-top')).toBe('18px')
+    expect(container.querySelector('.glass-dock')?.closest('.glass-results')).toBeNull()
+    unmount()
+    expect(document.documentElement.style.getPropertyValue('--codex-viewport-height')).toBe('')
+  } finally {
+    if (previous) Object.defineProperty(window, 'visualViewport', previous)
+    else Reflect.deleteProperty(window, 'visualViewport')
+  }
 })

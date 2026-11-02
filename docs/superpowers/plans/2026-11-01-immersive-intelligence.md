@@ -11,13 +11,19 @@
 - One branch/PR and existing frontend production Git pipeline; no duplicate deployment project.
 
 ## Tasks
-- [ ] Add deterministic failing contracts for state semantics, typed-question routing and appearance validation; run with Node's native TypeScript support (no dependency installation required).
-- [ ] Implement pure presentation/request/preferences helpers; keep operation separate from model processing and Ember dormant.
-- [ ] Adapt Home and PersistentOrb: bounded stage, independent readable response, session history via disclosure, actual capture states, cancellation retaining drafts, mission entry via disclosure.
-- [ ] Replace preview-only ThemeReview with compact production Appearance; apply boot preferences before paint, live WebGL palette/motion and coherent ambient tokens.
-- [ ] Add component and cancellation regressions using existing test infrastructure; run native contracts, hosted lint/types/full unit/build gates if local install is blocked.
+- [x] Add deterministic failing contracts for state semantics, typed-question routing and appearance validation; run with Node's native TypeScript support (no dependency installation required).
+- [x] Implement pure presentation/request/preferences helpers; keep operation separate from model processing and Ember dormant.
+- [x] Adapt Home and PersistentOrb: bounded stage, independent readable response, session history via disclosure, actual capture states, cancellation retaining drafts, mission entry via disclosure.
+- [x] Replace preview-only ThemeReview with compact production Appearance; apply boot preferences before paint, live WebGL palette/motion and coherent ambient tokens.
+- [x] Add component and cancellation regressions using existing test infrastructure; run native contracts, hosted lint/types/full unit/build gates if local install is blocked.
 - [ ] Obtain fresh whole-change review and address material findings. Recheck main before integration; merge only green checks. Inspect canonical READY deployment and exact commit/domain assignment.
 - [ ] Verify actual browser interactions where accessible; record network/owner/iPhone limitations explicitly and run the required builder response gate.
 
 ## Execution ledger
 Audit: canonical main/deployment 2470bf41, Vercel frontend prj_irrXhfz1elCLhO1Pdgd0ffM4wfz2. Production fetch via Vercel connector returns HTTP 200; direct browser and git hosts are denied by workspace egress. Source read through GitHub connector. npm offline install lacks zwitch; hosted CI is the available full-check path. No credentials/configuration modified.
+
+Review: fresh reviewer identified historical-failure/listening priority, navigation losing session context, and a cancellation send-lock race. Fixed by restoring capture priority, lifting account-scoped question/reply/draft memory into the existing shell (Home still unmounts to release capture/requests), and generation-scoped send tokens. Old finally handlers cannot clear a newer send. No separate application or renderer was added.
+
+Verification checkpoint: PR #145. Hosted lint, TypeScript and full unit suite passed on eb3e23b; production build was still running at this checkpoint. An earlier render-time ref access and untyped auth subscription failed hosted gates and were repaired. Native presentation regression fails against the original presentation module (saving incorrectly maps to thinking), then passes with the current implementation. Six native contracts and the authentic builder incident gate pass locally. Added complete-source-text and visual-viewport resize contracts; these are deterministic component checks, not measured browser fit.
+
+Remaining evidence: canonical production browser returns workspace-policy Forbidden. Rendered iPhone geometry, physical keyboard/microphone, real owner/provider request, browser reload appearance persistence and existing mission/action runtime remain unverified. Production release/commit/domain readiness must be inspected after integration; no mock user records were written.
