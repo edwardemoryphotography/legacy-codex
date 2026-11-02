@@ -11,6 +11,8 @@ import { BRIEF_VISITOR_COPY } from '@/components/MissionBriefPanel'
 import { homeRequest, QUESTION_LIMIT, PROMPT_LIMIT, promptHelpQuestion, type HomeTool } from '@/lib/homeRequest'
 import type { TabId } from '@/types'
 import { emptyHomeSession, type HomeSession } from '@/lib/homeSession'
+import { homeTakeaway } from '@/lib/homeTakeaway'
+import styles from './HomeTab.module.css'
 
 /** The Codex Glass home (Eddie's "Codex Glass Direction" board, 2026-10-30).
  *  Every control calls something real: the tools and composer run the existing
@@ -60,6 +62,8 @@ export default function HomeTab({ onNavigate, session, onSessionChange }: { onNa
   const input = useRef<HTMLInputElement>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [focusOpen, setFocusOpen] = useState(false)
+  const [responseOpen, setResponseOpen] = useState(false)
+  const panel = useRef<HTMLDialogElement>(null)
   const voice = useTaskVoice(text, next => setText(next.slice(0, QUESTION_LIMIT)), QUESTION_LIMIT)
 
   useEffect(() => {
@@ -151,6 +155,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange }: { onNa
       update(prev => ({ ...prev, history: prev.reply ? [...prev.history, prev.reply] : prev.history, reply: null }))
       setHistoryOpen(false)
       setFocusOpen(false)
+      setResponseOpen(false)
       const succeeded = await brief.run(request.mode, { ...payload, ...roster }, label)
       if (succeeded) {
         setText(current => current === submitted ? '' : current)
@@ -168,6 +173,15 @@ export default function HomeTab({ onNavigate, session, onSessionChange }: { onNa
   const immersive = ['listening', 'thinking', 'acting'].includes(presentation.state)
   const reply = current.reply
   const hasReply = Boolean(reply)
+  const panelOpen = responseOpen || historyOpen || focusOpen
+  const closePanel = () => { setResponseOpen(false); setHistoryOpen(false); setFocusOpen(false) }
+  useEffect(() => {
+    const dialog = panel.current
+    if (!dialog) return
+    if (panelOpen && !immersive) {
+      if (!dialog.open) dialog.showModal()
+    } else if (dialog.open) dialog.close()
+  }, [panelOpen, immersive])
   const note = !loadError && missions !== null && missionCount === 0 ? 'Ask a question, or start a mission to save ongoing work.' : ''
   const sendStatus = submitNotice || (busy ? 'Sending…'
     : brief.visitor ? BRIEF_VISITOR_COPY
@@ -180,20 +194,33 @@ export default function HomeTab({ onNavigate, session, onSessionChange }: { onNa
     : '')
 
   return (
-    <section className="glass-home" data-state={presentation.state} data-immersive={immersive ? 'true' : undefined} data-reply={hasReply || historyOpen || focusOpen ? 'true' : undefined} aria-label="Home">
+    <section className={`glass-home ${styles.home}`} data-state={presentation.state} data-immersive={immersive ? 'true' : undefined} data-reply={hasReply ? 'true' : undefined} aria-label="Home">
       <div className="glass-hero">
         <div className="glass-orb-wrap">
           <OrbSlot />
           <span className="glass-orb-state" aria-hidden="true">{presentation.state === 'idle' ? 'Ready when you are' : presentation.state === 'ready' ? 'Response ready' : presentation.label}</span>
         </div>
-        <h2 className="glass-greeting">{name ? `Hi ${name}` : 'Hi'}<span>What&apos;s the smallest next move?</span></h2>
-        <p className="glass-note glass-home-note">{note}</p>
+        <div className={styles.takeaway} hidden={immersive}>
+          {reply ? <>
+            <p className={styles.eyebrow}>{reply.label || 'Codex response'} · Excerpt</p>
+            <h2 className={styles.answer}>{homeTakeaway(reply.text)}</h2>
+            <button type="button" className={`glass-chip glass ${styles.readMore}`} aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setResponseOpen(true); setHistoryOpen(false); setFocusOpen(false) }}>Read full answer <span aria-hidden="true">↗</span></button>
+          </> : <>
+            <h2 className="glass-greeting">{name ? `Hi ${name}` : 'Hi'}<span>What&apos;s the smallest next move?</span></h2>
+            {note && <p className="glass-note glass-home-note">{note}</p>}
+          </>}
+        </div>
         <div className="glass-home-links" hidden={immersive}>
-          <button type="button" className="glass-chip glass" aria-expanded={focusOpen} onClick={() => { setFocusOpen(open => !open); setHistoryOpen(false) }}>Missions</button>
-          <button type="button" className="glass-chip glass" aria-expanded={historyOpen} onClick={() => { setHistoryOpen(open => !open); setFocusOpen(false) }}>History{history.length ? ` · ${history.length}` : ''}</button>
+          <button type="button" className="glass-chip glass" aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setFocusOpen(true); setHistoryOpen(false); setResponseOpen(false) }}>Missions</button>
+          <button type="button" className="glass-chip glass" aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setHistoryOpen(true); setFocusOpen(false); setResponseOpen(false) }}>History{history.length ? ` · ${history.length}` : ''}</button>
         </div>
       </div>
-      <div className="glass-results" hidden={immersive} role="region" aria-label={historyOpen ? 'Session history' : 'Codex response'} tabIndex={0}>
+      <dialog ref={panel} id="home-detail-panel" className={styles.panel} aria-labelledby="home-panel-title" onCancel={closePanel} onClose={closePanel} onClick={event => { if (event.target === event.currentTarget) closePanel() }}>
+      <header className={styles.panelHeader}>
+        <div><p className={styles.eyebrow}>Legacy Codex</p><h2 id="home-panel-title">{historyOpen ? 'Session history' : focusOpen ? 'Your missions' : reply?.label || 'Full answer'}</h2></div>
+        <button type="button" autoFocus className="glass-round glass" aria-label="Close details" onClick={closePanel}>✕</button>
+      </header>
+      <div className={`glass-results ${styles.panelBody}`} hidden={immersive} role="region" aria-label={historyOpen ? 'Session history' : focusOpen ? 'Saved missions' : 'Codex response'} tabIndex={0}>
         {historyOpen && <section className="glass-history">
           <h3>This session</h3>
           <p className="glass-note">Earlier responses from this Home session. Saved work stays in Mission and Resumption Log.</p>
@@ -243,6 +270,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange }: { onNa
           </article>
         )}
       </div>
+      </dialog>
 
       <div className="glass-dock">
         {busy && <button type="button" className="glass-chip glass" onClick={() => { sending.current = null; brief.reset(); setSubmitNotice('Request cancelled. Your text is still here. The server may finish processing it.'); }}>Cancel request</button>}
