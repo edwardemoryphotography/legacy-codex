@@ -155,6 +155,7 @@ export default function CodexApp() {
       )}
 
       <main className="codex-main">
+        {(activeTab === 'home' || activeTab === 'mission') && <HomeTab key={homeSession.accountId} variant={activeTab === 'mission' ? 'mission' : 'home'} projectRevision={missionRevision} onNavigate={selectTab} session={homeSession} onSessionChange={setHomeSession} />}
         <div
           className="panel-enter"
           key={activeTab}
@@ -163,8 +164,7 @@ export default function CodexApp() {
           aria-label={activeTabMeta?.label}
           tabIndex={-1}
         >
-          {activeTab === 'home'                  && <HomeTab key={homeSession.accountId} onNavigate={selectTab} session={homeSession} onSessionChange={setHomeSession} />}
-          {activeTab === 'mission' && <><HomeTab key={homeSession.accountId} projectRevision={missionRevision} variant="mission" onNavigate={selectTab} session={homeSession} onSessionChange={setHomeSession} /><MissionTab onMissionChange={refreshConversationProject} /></>}
+          {activeTab === 'mission' && <MissionTab onMissionChange={refreshConversationProject} />}
           {activeTab === 'overview'             && <OverviewTab />}
           {activeTab === 'protocols'            && <ProtocolsTab />}
           {activeTab === 'sprint-linker'        && <SprintLinkerTab />}

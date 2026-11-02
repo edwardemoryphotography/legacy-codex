@@ -49,3 +49,13 @@ it('refreshes project data without discarding an in-flight conversation', () => 
   expect(screen.getByRole('button', { name: 'Answer pending' })).toBeInTheDocument()
   expect(screen.getByText('Project revision 1')).toBeInTheDocument()
 })
+
+it('keeps a pending conversation mounted across Home and Mission navigation', () => {
+  render(<CodexApp />)
+  fireEvent.click(screen.getByRole('button', { name: 'Start question' }))
+  for (const name of ['Mission', 'Home']) {
+    fireEvent.click(screen.getByRole('button', { name: 'Menu' }))
+    fireEvent.click(screen.getByRole('button', { name }))
+    expect(screen.getByRole('button', { name: 'Answer pending' })).toBeInTheDocument()
+  }
+})
