@@ -56,9 +56,9 @@ function ConversationPresence({ status, busy, loadError, pending, voice, reply }
   return null
 }
 
-export default function HomeTab({ onNavigate, session, onSessionChange, variant = 'home' }: { variant?: 'home' | 'mission'; onNavigate: (id: TabId) => void; session?: HomeSession; onSessionChange?: Dispatch<SetStateAction<HomeSession>> }) {
+export default function HomeTab({ onNavigate, session, onSessionChange, variant = 'home', projectRevision = 0 }: { projectRevision?: number; variant?: 'home' | 'mission'; onNavigate: (id: TabId) => void; session?: HomeSession; onSessionChange?: Dispatch<SetStateAction<HomeSession>> }) {
   const missionView = variant === 'mission'
-  const { missions, loadError, actions, actionsRead } = useMissionTerritory()
+  const { missions, loadError, actions, actionsRead } = useMissionTerritory({ refreshKey: projectRevision })
   const brief = useBriefRunner()
   const name = useOwnerName()
   const presentation = useOrbPresentation()

@@ -361,3 +361,9 @@ it('renders model image markup as text without requesting an external image', ()
   expect(within(region).getByText('Project illustration')).toBeInTheDocument()
   expect(region.querySelector('img')).toBeNull()
 })
+
+it('keeps a completed answer visibly reachable in the Mission conversation', () => {
+  render(<HomeTab variant="mission" onNavigate={() => {}} session={{ ...emptyHomeSession(), reply: { question: 'Continue?', text: 'We can continue with your saved project.', label: 'Ask Codex', provider: 'test' } }} />)
+  expect(screen.getByRole('heading', { name: 'We can continue with your saved project.' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Read full answer' })).toBeInTheDocument()
+})

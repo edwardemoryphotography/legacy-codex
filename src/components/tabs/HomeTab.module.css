@@ -82,5 +82,7 @@
 .panelBody :global(.glass-output-text) { white-space: normal; overflow-wrap: anywhere; }
 .panelBody :global(.glass-output-text pre) { white-space: pre-wrap; }
 
-.mission .takeaway { display: none; }
+.mission:not([data-reply="true"]) .takeaway { display: none; }
+.mission .takeaway { gap: 8px; }
+.mission .answer { font-size: 16px; -webkit-line-clamp: 2; }
 .mission:global(.glass-home) { gap: 8px; padding: 16px; }

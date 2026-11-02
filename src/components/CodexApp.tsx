@@ -164,7 +164,7 @@ export default function CodexApp() {
           tabIndex={-1}
         >
           {activeTab === 'home'                  && <HomeTab key={homeSession.accountId} onNavigate={selectTab} session={homeSession} onSessionChange={setHomeSession} />}
-          {activeTab === 'mission' && <><HomeTab key={`${homeSession.accountId}:${missionRevision}`} variant="mission" onNavigate={selectTab} session={homeSession} onSessionChange={setHomeSession} /><MissionTab onMissionChange={refreshConversationProject} /></>}
+          {activeTab === 'mission' && <><HomeTab key={homeSession.accountId} projectRevision={missionRevision} variant="mission" onNavigate={selectTab} session={homeSession} onSessionChange={setHomeSession} /><MissionTab onMissionChange={refreshConversationProject} /></>}
           {activeTab === 'overview'             && <OverviewTab />}
           {activeTab === 'protocols'            && <ProtocolsTab />}
           {activeTab === 'sprint-linker'        && <SprintLinkerTab />}

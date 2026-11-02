@@ -2,11 +2,12 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import CodexApp from './CodexApp'
+import { useState } from 'react'
 
 vi.mock('@/lib/supabase/client', () => ({ supabase: { auth: { onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }) } } }))
 
-vi.mock('./tabs/MissionTab', () => ({ default: () => null }))
-vi.mock('./tabs/HomeTab', () => ({ default: () => <p>Glass home</p> }))
+vi.mock('./tabs/MissionTab', () => ({ default: ({ onMissionChange }: { onMissionChange?: () => void }) => <button onClick={onMissionChange}>Commit workspace change</button> }))
+vi.mock('./tabs/HomeTab', () => ({ default: function TestConversation({ projectRevision = 0 }: { projectRevision?: number }) { const [pending, setPending] = useState(false); return <><p>Glass home</p><button onClick={() => setPending(true)}>{pending ? 'Answer pending' : 'Start question'}</button><span>Project revision {projectRevision}</span></> } }))
 vi.mock('./ThemeReview', () => ({ default: () => null }))
 vi.mock('./OrbHost', () => ({
   OrbHostProvider: ({ children }: { children: unknown }) => children,
@@ -37,4 +38,14 @@ describe('the top-left menu holds every screen', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: 'Menu' })).not.toBeInTheDocument()
   })
+})
+
+it('refreshes project data without discarding an in-flight conversation', () => {
+  render(<CodexApp />)
+  fireEvent.click(screen.getByRole('button', { name: 'Menu' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Mission' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Start question' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Commit workspace change' }))
+  expect(screen.getByRole('button', { name: 'Answer pending' })).toBeInTheDocument()
+  expect(screen.getByText('Project revision 1')).toBeInTheDocument()
 })

@@ -103,6 +103,19 @@ describe('MissionTab inactive mission recovery', () => {
     expect(inserts).toEqual([])
   })
 
+  it('refreshes conversation project context only after a mission write settles', async () => {
+    const changed = vi.fn()
+    let settle!: (value: { error: unknown }) => void
+    persistMissionRows = () => new Promise(resolve => { settle = resolve })
+    render(<MissionTab onMissionChange={changed} />)
+    fireEvent.change(await screen.findByLabelText('Choose a saved mission'), { target: { value: 'saved-inactive' } })
+    changed.mockClear()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Make this Primary' })) })
+    expect(changed).not.toHaveBeenCalled()
+    await act(async () => { settle({ error: null }) })
+    await waitFor(() => expect(changed).toHaveBeenCalled())
+  })
+
   it('saves a missing finish line before offering explicit promotion', async () => {
     tables.missions = [missionToRow({ ...saved, finishLine: null }, 'user-1')]
     render(<MissionTab />)

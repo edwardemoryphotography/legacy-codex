@@ -1050,8 +1050,8 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
   const handleRetireLesson = useCallback((lessonId: string) => handleLessonWrite({ action: 'retire', lessonId }), [handleLessonWrite])
 
   useEffect(() => {
-    if (loaded && !loadFailed) onMissionChange?.()
-  }, [board, loaded, loadFailed, onMissionChange])
+    if (loaded && !loadFailed && !recoveryBusy && !missionWriteInFlight.current) onMissionChange?.()
+  }, [board, loaded, loadFailed, recoveryBusy, onMissionChange])
 
   // The narrowly bounded model-assist stage: one clause in, one operation
   // (or null) out. Owns auth and the network call so StrategicDelta.tsx
