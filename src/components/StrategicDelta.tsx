@@ -623,7 +623,7 @@ export default function StrategicDelta({
   const matchingSavedAction =
     currentSavedAction && delta && currentSavedAction.title === delta.move
       ? currentSavedAction
-      : committableMission && delta && saveActionResult?.title === delta.move
+      : committableMission && delta && !hadSavedActionRef.current && saveActionResult?.title === delta.move
         ? {
             id: saveActionResult.actionId ?? 'latest',
             missionId: committableMission.id,

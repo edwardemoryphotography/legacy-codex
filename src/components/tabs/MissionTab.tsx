@@ -1041,6 +1041,9 @@ export default function MissionTab({ onMissionChange, externalRevision = 0 }: { 
       }
 
       const existingOpen = openMissionAction?.missionId === missionId ? openMissionAction : null
+      if (existingOpen && existingOpen.title !== delta.move && !existingOpen.updatedAt) {
+        return { ok: false, error: 'Refresh the saved action before replacing it. Its latest version could not be confirmed.' }
+      }
 
       // Check 1: In-progress commitment immutability & explicit human replacement decision.
       if (existingOpen && existingOpen.title !== delta.move) {
@@ -1140,6 +1143,7 @@ export default function MissionTab({ onMissionChange, externalRevision = 0 }: { 
 
         let savedActionId = existingOpen?.id ?? `saved-${Date.now()}`
         let savedStatus: 'TODO' | 'IN_PROGRESS' = existingOpen?.status ?? 'TODO'
+        let savedUpdatedAt: string | null = existingOpen?.updatedAt ?? null
         let finalResumeNote: string | null = effectiveNote
 
         if (existingOpen && existingOpen.title !== delta.move) {
@@ -1191,19 +1195,15 @@ export default function MissionTab({ onMissionChange, externalRevision = 0 }: { 
             })
             if (updateQuery) {
               const eqBuilder = updateQuery.eq('id', existingOpen.id)
-              const versioned = existingOpen.updatedAt
-                ? (eqBuilder as unknown as { eq: (col: string, val: string) => typeof eqBuilder }).eq('updated_at', existingOpen.updatedAt)
-                : eqBuilder
-              if (typeof versioned.select === 'function') {
-                const { data, error: writeError } = await versioned.select('id,status').single()
-                if (writeError) throw writeError
-                const row = data as { id?: string; status?: 'TODO' | 'IN_PROGRESS' } | null
-                if (row?.id) savedActionId = row.id
-                if (row?.status) savedStatus = row.status
-              } else {
-                const { error: writeError } = await (versioned as unknown as Promise<{ error: unknown }>)
-                if (writeError) throw writeError
-              }
+              const versioned = (eqBuilder as unknown as { eq: (col: string, val: string) => typeof eqBuilder })
+                .eq('mission_id', missionId).eq('status', 'TODO').eq('updated_at', existingOpen.updatedAt!)
+              if (typeof versioned.select !== 'function') throw new Error('Cannot verify the replacement')
+              const { data, error: writeError } = await versioned.select('id,status,updated_at').single()
+              if (writeError || !data) throw writeError ?? new Error('Saved action changed in another tab')
+              const row = data as { id?: string; status?: 'TODO' | 'IN_PROGRESS'; updated_at?: string }
+              if (row.id) savedActionId = row.id
+              if (row.status) savedStatus = row.status
+              if (row.updated_at) savedUpdatedAt = row.updated_at
             }
           }
         } else {
@@ -1217,11 +1217,12 @@ export default function MissionTab({ onMissionChange, externalRevision = 0 }: { 
             select?: (cols: string) => { single: () => Promise<{ data: unknown; error: unknown }> }
           }
           if (typeof insertBuilder.select === 'function') {
-            const { data, error: writeError } = await insertBuilder.select('id,status').single()
+            const { data, error: writeError } = await insertBuilder.select('id,status,updated_at').single()
             if (writeError || !data) throw writeError ?? new Error('No saved action returned')
-            const row = data as { id?: string; status?: 'TODO' | 'IN_PROGRESS' }
+            const row = data as { id?: string; status?: 'TODO' | 'IN_PROGRESS'; updated_at?: string }
             if (row.id) savedActionId = row.id
             if (row.status) savedStatus = row.status
+            if (row.updated_at) savedUpdatedAt = row.updated_at
           } else {
             const { error: writeError } = await (insertBuilder as unknown as Promise<{ error: unknown }>)
             if (writeError) throw writeError
@@ -1234,7 +1235,7 @@ export default function MissionTab({ onMissionChange, externalRevision = 0 }: { 
           title: delta.move,
           status: savedStatus,
           resumeNote: finalResumeNote,
-          updatedAt: new Date().toISOString(),
+          updatedAt: savedUpdatedAt,
         })
         setResumableMissionId(missionId)
         setSavedActionsRevision(value => value + 1)
@@ -1260,28 +1261,25 @@ export default function MissionTab({ onMissionChange, externalRevision = 0 }: { 
 
   const handleStartSavedAction = useCallback(
     async (actionId: string): Promise<boolean> => {
-      if (!user || !loaded || loadFailed || savingActionInFlight.current) return false
+      const snapshot = openMissionAction
+      if (!user || !loaded || loadFailed || savingActionInFlight.current ||
+          !snapshot || snapshot.id !== actionId || snapshot.status !== 'TODO' || !snapshot.updatedAt) return false
       savingActionInFlight.current = true
       beginFieldWork()
       try {
-        const fromActions = supabase.from('actions') as unknown as {
-          update?: (values: Record<string, unknown>) => {
-            eq: (col: string, val: string) => {
-              select?: (cols: string) => { single: () => Promise<{ data: unknown; error: unknown }> }
-            }
-          }
-        }
-        if (typeof fromActions.update === 'function') {
-          const eqBuilder = fromActions.update({ status: 'IN_PROGRESS', is_next_action: true }).eq('id', actionId)
-          if (typeof eqBuilder.select === 'function') {
-            const { error: writeError } = await eqBuilder.select('id').single()
-            if (writeError) throw writeError
-          } else {
-            const { error: writeError } = await (eqBuilder as unknown as Promise<{ error: unknown }>)
-            if (writeError) throw writeError
-          }
-        }
-        setOpenMissionAction(previous => (previous ? { ...previous, status: 'IN_PROGRESS' } : previous))
+        // Only start the exact unfinished version the user saw. Another tab
+        // completing or replacing it must not be undone by this click.
+        const { data, error: writeError } = await supabase.from('actions')
+          .update({ status: 'IN_PROGRESS', is_next_action: true })
+          .eq('id', actionId)
+          .eq('mission_id', snapshot.missionId)
+          .eq('status', 'TODO')
+          .eq('updated_at', snapshot.updatedAt)
+          .select('id,status,updated_at').single()
+        if (writeError || !data || data.status !== 'IN_PROGRESS') return false
+        setOpenMissionAction(previous => previous?.id === actionId
+          ? { ...previous, status: 'IN_PROGRESS', updatedAt: data.updated_at }
+          : previous)
         setSavedActionsRevision(value => value + 1)
         onMissionChange?.()
         return true
@@ -1292,7 +1290,7 @@ export default function MissionTab({ onMissionChange, externalRevision = 0 }: { 
         endFieldWork()
       }
     },
-    [loadFailed, loaded, onMissionChange, user],
+    [loadFailed, loaded, onMissionChange, openMissionAction, user],
   )
 
   const handleSetEvidenceRequirementFromDelta = useCallback(

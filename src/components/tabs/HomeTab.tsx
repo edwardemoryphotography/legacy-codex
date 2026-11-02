@@ -81,6 +81,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const [savingReplyAction, setSavingReplyAction] = useState(false)
   const savingReplyActionRef = useRef(false)
   const [savedReplyText, setSavedReplyText] = useState<string | null>(null)
+  const [savedReplyMissionId, setSavedReplyMissionId] = useState<string | null>(null)
   const [saveReplyError, setSaveReplyError] = useState<string | null>(null)
   const panel = useRef<HTMLDialogElement>(null)
   const voice = useTaskVoice(text, next => setText(next.slice(0, QUESTION_LIMIT)), QUESTION_LIMIT)
@@ -214,7 +215,8 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const isReplySavedAsAction = Boolean(
     reply &&
     primaryMission &&
-    ((savedAction && savedAction.action_title === takeawayTitle) || savedReplyText === reply.text),
+    ((savedAction && savedAction.action_title === takeawayTitle) ||
+     (actionsRead === 'pending' && savedReplyMissionId === primaryMission.id && savedReplyText === reply.text)),
   )
 
   async function saveReplyAsNextAction() {
@@ -226,6 +228,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     if (savedAction && savedAction.action_title === takeawayTitle) {
       // Idempotent duplicate save: never overwrite status or resume_note.
       setSavedReplyText(reply.text)
+      setSavedReplyMissionId(primaryMission.id)
       return
     }
     if (savedAction && savedAction.action_title !== takeawayTitle) {
@@ -266,6 +269,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       }
 
       setSavedReplyText(reply.text)
+      setSavedReplyMissionId(primaryMission.id)
       onProjectChange?.()
     } catch {
       setSaveReplyError('Could not save this response as your next action. Your conversation is still here — retry when ready.')

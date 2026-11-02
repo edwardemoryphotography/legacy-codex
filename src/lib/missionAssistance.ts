@@ -209,7 +209,14 @@ export function deriveObservableAcceptanceChecks(mission: {
   const hasUsabilityProof =
     /\b(phone|mobile|using it|try it|test it|right now|live|screen|interact)\b/i.test(evidence)
 
-  if (!isBroadFinishLine && !hasUsabilityProof) return []
+  // Do not apply Codex save-and-resume checks to unrelated work merely
+  // because its finish line says "ready", "clean", or "better".
+  const codexContext = /\b(?:legacy\s+codex|codex)\b/i.test(
+    [mission.title, finishLine, evidence].join(' '),
+  )
+  const explicitInterfaceTest = /\b(?:design|interface|app|ui|ux)\b/i.test(mission.title) &&
+    /\b(?:using it|interact(?:ing)?|app|screen)\b/i.test(evidence)
+  if ((!codexContext && !explicitInterfaceTest) || (!isBroadFinishLine && !hasUsabilityProof)) return []
 
   const checks = [
     `Current focus (“${mission.title.trim()}”) and one next action are immediately visible without hunting through secondary panels.`,
