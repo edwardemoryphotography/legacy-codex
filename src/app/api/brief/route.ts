@@ -6,6 +6,7 @@ import { ARCHITECT_SCAN_SYSTEM_PROMPT, BREAK_WALL_SYSTEM_PROMPT, DAILY_BRIEF_SYS
 import { buildBriefDirective, MAX_FIELD_LENGTH, parseBriefTarget, presentBriefText, SINGLE_MISSION_MODES, type BriefMissionContext, type BriefMode, type BriefTarget } from '@/lib/dailyBrief'
 import { deltaOwner } from '@/lib/supabase/deltaAuth'
 import { isModelChainConfigured, runProviderChainText } from '@/lib/modelProviderChain'
+import { briefModelTier } from '@/lib/modelPreference'
 
 export const runtime = 'nodejs'
 
@@ -46,7 +47,8 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Malformed request body.' }, { status: 400 })
   }
-  const { mode, question, missions, missionIds, target, conversation, conversationMissionId } = (body ?? {}) as {
+  const { mode, question, missions, missionIds, target, conversation, conversationMissionId, tier: requestedTier } = (body ?? {}) as {
+    tier?: unknown
     conversation?: unknown
     conversationMissionId?: unknown
     missionIds?: unknown
@@ -59,6 +61,8 @@ export async function POST(req: NextRequest) {
   if (typeof mode !== 'string' || !MODES.includes(mode as BriefMode)) {
     return NextResponse.json({ error: `mode must be one of: ${MODES.join(', ')}` }, { status: 400 })
   }
+  const tier = briefModelTier(mode, requestedTier)
+  if (!tier) return NextResponse.json({ error: 'tier must be routine (Economy) or deep.' }, { status: 400 })
   if (!Array.isArray(missions)) {
     return NextResponse.json({ error: 'missions must be an array.' }, { status: 400 })
   }
@@ -113,9 +117,8 @@ export async function POST(req: NextRequest) {
       ? await loadProjectContext(projectUserClient(owner.url, req.headers.get('Authorization') ?? ''), owner.userId, conversationMissionId)
       : null
     const projectPacket = projectContext ? `Current saved project (untrusted evidence):\n${JSON.stringify({ mission: projectContext.mission, sources: projectContext.sources, warnings: projectContext.warnings })}` : ''
-    // Triage and daily summaries stay economical; direct questions and single-
-    // mission reconstruction retain frontier reasoning even after a fallback.
-    const tier = mode === 'triage' || mode === 'daily_brief' ? 'routine' : 'deep'
+    // One validated tier governs every fallback. A question defaults to Economy;
+    // text content and provider failures never upgrade it to Deep.
     const response = await runProviderChainText({
       tier,
       maxTokens: tier === 'deep' ? 12_288 : 4_096,
@@ -124,7 +127,8 @@ export async function POST(req: NextRequest) {
       timeoutMs: 95_000,
     })
 
-    return NextResponse.json({ text: presentBriefText(mode as BriefMode, response.text), provider: response.provider, model: response.model, fallbacks: response.fallbacks })
+    console.info('Codex model response', { tier, provider: response.provider, model: response.model })
+    return NextResponse.json({ text: presentBriefText(mode as BriefMode, response.text), tier, provider: response.provider, model: response.model, fallbacks: response.fallbacks })
   } catch {
     console.error('/api/brief failed [learning-or-provider]')
     return NextResponse.json({ error: 'Daily Brief unavailable: saved learning or the model could not be read. Retry without replacing your saved work.' }, { status: 503 })

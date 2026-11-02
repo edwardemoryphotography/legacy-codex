@@ -164,7 +164,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       setHistoryOpen(false)
       setFocusOpen(false)
       setResponseOpen(false)
-      const succeeded = await brief.run(request.mode, { ...payload, ...roster, ...(request.mode === 'question' ? { conversation: recentConversation(current), ...(primaryMission ? { conversationMissionId: primaryMission.id } : {}) } : {}) }, label)
+      const succeeded = await brief.run(request.mode, { ...payload, tier: current.tier ?? 'routine', ...roster, ...(request.mode === 'question' ? { conversation: recentConversation(current), ...(primaryMission ? { conversationMissionId: primaryMission.id } : {}) } : {}) }, label)
       if (succeeded) {
         setText(current => current === submitted ? '' : current)
         setTool(current => current === tool ? null : current)
@@ -291,6 +291,12 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       </dialog>
 
       <div className="glass-dock">
+        <fieldset className={styles.modelChoice} disabled={busy || voice.active}>
+          <legend>Intelligence</legend>
+          <button type="button" aria-pressed={current.tier !== 'deep'} onClick={() => update(prev => ({ ...prev, tier: 'routine' }))}>Economy</button>
+          <button type="button" aria-pressed={current.tier === 'deep'} onClick={() => update(prev => ({ ...prev, tier: 'deep' }))}>Deep</button>
+          <span>{current.tier === 'deep' ? 'Higher-cost reasoning' : 'Lower-cost models · default'}</span>
+        </fieldset>
         <p className="glass-note">Continue here or in Mission. Recent conversation stays in this browser tab.</p>
         {busy && <button type="button" className="glass-chip glass" onClick={() => { sending.current = null; brief.reset(); setSubmitNotice('Request cancelled. Your text is still here. The server may finish processing it.'); }}>Cancel request</button>}
         {brief.status === 'error' && <button type="button" className="glass-chip glass" onClick={() => void send()}>Try again</button>}

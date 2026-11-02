@@ -105,7 +105,7 @@ describe('HomeTab send arrow', () => {
     fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'Hey' } })
     expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
     fireEvent.keyDown(screen.getByLabelText('Ask Codex'), { key: 'Enter' })
-    expect(run).toHaveBeenCalledWith('question', { mode: 'question', missions: [], missionIds: [], conversation: [], question: 'Hey' }, 'Ask Codex')
+    expect(run).toHaveBeenCalledWith('question', { mode: 'question', tier: 'routine', missions: [], missionIds: [], conversation: [], question: 'Hey' }, 'Ask Codex')
   })
 
   it('keeps failed text and the chosen tool instead of erasing them on submission', async () => {
@@ -216,7 +216,7 @@ describe('immersive Home contracts', () => {
     fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'What the fuck is this thing actually doing?' } })
     expect(screen.getByText('Your typed text will be sent to Ask Codex instead.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
-    expect(run).toHaveBeenCalledWith('question', { mode: 'question', question: 'What the fuck is this thing actually doing?', missions: [], missionIds: [], conversation: [] }, 'Ask Codex')
+    expect(run).toHaveBeenCalledWith('question', { mode: 'question', tier: 'routine', question: 'What the fuck is this thing actually doing?', missions: [], missionIds: [], conversation: [] }, 'Ask Codex')
   })
   it('names the text-free operation and allows reversing selection', () => {
     render(<HomeTab onNavigate={() => {}} />)
@@ -366,4 +366,26 @@ it('keeps a completed answer visibly reachable in the Mission conversation', () 
   render(<HomeTab variant="mission" onNavigate={() => {}} session={{ ...emptyHomeSession(), reply: { question: 'Continue?', text: 'We can continue with your saved project.', label: 'Ask Codex', provider: 'test' } }} />)
   expect(screen.getByRole('heading', { name: 'We can continue with your saved project.' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Read full answer' })).toBeInTheDocument()
+})
+
+describe('explicit conversation intelligence choice', () => {
+  it('defaults to Economy and sends the selected tier without changing the question', () => {
+    missions = []
+    render(<HomeTab onNavigate={() => {}} />)
+    expect(screen.getByRole('button', { name: 'Economy' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'What the fuck is this thing actually doing?' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Deep' }))
+    expect(screen.getByRole('button', { name: 'Deep' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(run).toHaveBeenCalledWith('question', expect.objectContaining({ tier: 'deep', question: 'What the fuck is this thing actually doing?' }), 'Ask Codex')
+  })
+  it('can return to Economy before sending', () => {
+    missions = []
+    render(<HomeTab onNavigate={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Deep' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Economy' }))
+    fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'How do I talk to you best?' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(run).toHaveBeenCalledWith('question', expect.objectContaining({ tier: 'routine' }), 'Ask Codex')
+  })
 })

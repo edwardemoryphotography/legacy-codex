@@ -79,7 +79,7 @@ describe('/api/brief owner gate', () => {
   it('lets the owner through to the model', async () => {
     const response = await POST(request({ mode: 'daily_brief', missions: [mission] }, userToken(OWNER_ID)))
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ text: 'Brief text.', provider: 'anthropic', model: 'claude-sonnet-5-5', fallbacks: [] })
+    expect(await response.json()).toEqual({ text: 'Brief text.', tier: 'routine', provider: 'anthropic', model: 'claude-sonnet-5-5', fallbacks: [] })
     expect(createMessage).toHaveBeenCalledOnce()
   })
 
@@ -233,4 +233,48 @@ describe('/api/brief owner gate', () => {
     expect(await response.json()).toEqual({ error: expect.stringContaining('unavailable') })
   })
 
+})
+
+describe('explicit question cost tier', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key')
+    vi.stubEnv('GEMINI_API_KEY', '')
+    vi.stubEnv('OPENAI_API_KEY', '')
+    vi.stubEnv('DELTA_OPERATION_ALLOWED_USER_ID', OWNER_ID)
+    vi.stubEnv('SUPABASE_URL', '')
+    vi.stubEnv('SUPABASE_JWKS_URL', '')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://example-project.supabase.co')
+    vi.stubEnv('SUPABASE_JWKS', TEST_JWKS)
+    // No answer is fabricated. Assert the real outgoing model request on failure.
+    createMessage.mockRejectedValue({ status: 429 })
+  })
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs() })
+  it.each([
+    [undefined, 'claude-sonnet-5-5', 4096],
+    ['routine', 'claude-sonnet-5-5', 4096],
+    ['deep', 'claude-opus-5-5', 12288],
+  ])('honors tier %s before invoking the provider', async (tier, model, maxTokens) => {
+    const response = await POST(request({ mode: 'question', question: 'How do I talk to you best?', missions: [], ...(tier ? { tier } : {}) }, userToken(OWNER_ID)))
+    expect(response.status).toBe(503)
+    expect(createMessage).toHaveBeenCalledWith(expect.objectContaining({ model, max_tokens: maxTokens }))
+    expect(createMessage).toHaveBeenCalledOnce()
+  })
+  it('rejects an unknown tier before reading saved context or invoking a provider', async () => {
+    const response = await POST(request({ mode: 'question', question: 'How do I talk to you best?', missions: [], tier: 'auto' }, userToken(OWNER_ID)))
+    expect(response.status).toBe(400)
+    expect(loadLearnedContext).not.toHaveBeenCalled()
+    expect(createMessage).not.toHaveBeenCalled()
+  })
+  it('keeps an Economy fallback within the routine tier', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-openai-key')
+    const outgoing = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 503 }))
+    const response = await POST(request({ mode: 'question', question: 'How do I talk to you best?', missions: [], tier: 'routine' }, userToken(OWNER_ID)))
+    expect(response.status).toBe(503)
+    expect(createMessage.mock.calls[0][0].model).toBe('claude-sonnet-5-5')
+    const payload = JSON.parse(outgoing.mock.calls[0][1]!.body as string)
+    expect(payload.model).toBe('gpt-6.1-terra')
+    expect(payload.max_output_tokens).toBe(4096)
+    expect(payload.reasoning.effort).toBe('low')
+  })
 })
