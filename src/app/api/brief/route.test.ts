@@ -83,6 +83,13 @@ describe('/api/brief owner gate', () => {
     expect(createMessage).toHaveBeenCalledOnce()
   })
 
+  it('rejects oversized requests before reading account context or calling a model', async () => {
+    const response = await POST(request({ mode: 'question', question: 'x'.repeat(512_001), missions: [] }, userToken(OWNER_ID)))
+    expect(response.status).toBe(413)
+    expect(createMessage).not.toHaveBeenCalled()
+    expect(loadProjectContext).not.toHaveBeenCalled()
+  })
+
   it('includes recent dialogue as untrusted context in the next answer', async () => {
     const response = await POST(request({ mode: 'question', question: 'Can we continue?', missions: [], conversation: [{ role: 'user', text: 'How do I talk to you best?' }, { role: 'assistant', text: 'Tell me what matters.' }] }, userToken(OWNER_ID)))
     expect(response.status).toBe(200)

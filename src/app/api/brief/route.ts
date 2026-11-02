@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   let body: unknown
   try {
     const raw = await req.text()
-    if (Buffer.byteLength(raw) > 100_000) return NextResponse.json({ error: 'Request is too large.' }, { status: 413 })
+    if (Buffer.byteLength(raw) > 512_000) return NextResponse.json({ error: 'Request is too large.' }, { status: 413 })
     body = JSON.parse(raw)
   } catch {
     return NextResponse.json({ error: 'Malformed request body.' }, { status: 400 })
