@@ -1,7 +1,29 @@
 {
-  "generatedAt": "2026-11-01T20:15:25.250Z",
+  "generatedAt": "2026-11-02T04:44:51.264Z",
   "unavailableSources": [],
   "records": [
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-145",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#145",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #145 \"Make the existing Codex orb the immersive Home interface\" merged. 2 check run(s), 2 passing.",
+      "observedAt": "2026-11-02T01:55:09Z",
+      "fetchedAt": "2026-11-02T04:44:46.120Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-142",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#142",
+      "kind": "custom",
+      "status": "unverified",
+      "claim": "PR #142 \"feat: modern model tiers and reasoning-compatible fallback APIs\" open, not yet merged.",
+      "observedAt": "2026-11-01T22:04:38Z",
+      "fetchedAt": "2026-11-02T04:44:46.120Z",
+      "prReadSucceeded": true
+    },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-144",
       "missionId": null,
@@ -10,7 +32,7 @@
       "status": "verified",
       "claim": "PR #144 \"Legacy Relay: make one person's learned ceiling another person's starting floor\" merged. 1 check run(s), 1 passing.",
       "observedAt": "2026-11-01T12:15:04Z",
-      "fetchedAt": "2026-11-01T20:15:20.252Z",
+      "fetchedAt": "2026-11-02T04:44:46.457Z",
       "prReadSucceeded": true
     },
     {
@@ -21,18 +43,7 @@
       "status": "verified",
       "claim": "PR #143 \"feat: modern tiered Claude / Gemini / OpenAI routing for Legacy Codex\" merged. 1 check run(s), 1 passing.",
       "observedAt": "2026-11-01T07:03:28Z",
-      "fetchedAt": "2026-11-01T20:15:20.541Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-142",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#142",
-      "kind": "custom",
-      "status": "unverified",
-      "claim": "PR #142 \"feat: modern model tiers and reasoning-compatible fallback APIs\" open, not yet merged.",
-      "observedAt": "2026-11-01T06:28:06Z",
-      "fetchedAt": "2026-11-01T20:15:20.541Z",
+      "fetchedAt": "2026-11-02T04:44:46.798Z",
       "prReadSucceeded": true
     },
     {
@@ -43,7 +54,7 @@
       "status": "verified",
       "claim": "PR #141 \"Bring saved Mission continuity and truthful boomerang evidence into Codex Glass\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-01T01:12:15Z",
-      "fetchedAt": "2026-11-01T20:15:20.884Z",
+      "fetchedAt": "2026-11-02T04:44:47.083Z",
       "prReadSucceeded": true
     },
     {
@@ -54,7 +65,7 @@
       "status": "verified",
       "claim": "PR #140 \"Home: make Enter submit, preserve failed text, and expose microphone feedback\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-10-31T09:49:16Z",
-      "fetchedAt": "2026-11-01T20:15:21.227Z",
+      "fetchedAt": "2026-11-02T04:44:47.409Z",
       "prReadSucceeded": true
     },
     {
@@ -65,7 +76,7 @@
       "status": "verified",
       "claim": "PR #139 \"Preserve the real builder failure and give Home a direct Mission entry\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-10-31T08:46:01Z",
-      "fetchedAt": "2026-11-01T20:15:21.545Z",
+      "fetchedAt": "2026-11-02T04:44:47.688Z",
       "prReadSucceeded": true
     },
     {
@@ -76,7 +87,7 @@
       "status": "verified",
       "claim": "PR #138 \"Sign-in: accept the 8-digit email code\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-10-31T07:36:47Z",
-      "fetchedAt": "2026-11-01T20:15:21.837Z",
+      "fetchedAt": "2026-11-02T04:44:48.038Z",
       "prReadSucceeded": true
     },
     {
@@ -87,7 +98,7 @@
       "status": "verified",
       "claim": "PR #137 \"Make the Codex Glass screen the home, with one menu for everything else\" merged. 3 check run(s), 3 passing.",
       "observedAt": "2026-10-30T22:52:27Z",
-      "fetchedAt": "2026-11-01T20:15:22.121Z",
+      "fetchedAt": "2026-11-02T04:44:48.348Z",
       "prReadSucceeded": true
     },
     {
@@ -98,7 +109,7 @@
       "status": "verified",
       "claim": "PR #136 \"Render the orb as the Codex Glass orb\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-10-30T20:54:16Z",
-      "fetchedAt": "2026-11-01T20:15:22.426Z",
+      "fetchedAt": "2026-11-02T04:44:48.680Z",
       "prReadSucceeded": true
     },
     {
@@ -109,7 +120,7 @@
       "status": "unverified",
       "claim": "PR #135 \"Connect the Mission orb to project review and lesson inheritance\" open, not yet merged.",
       "observedAt": "2026-10-30T19:31:56Z",
-      "fetchedAt": "2026-11-01T20:15:22.426Z",
+      "fetchedAt": "2026-11-02T04:44:48.680Z",
       "prReadSucceeded": true
     },
     {
@@ -120,7 +131,7 @@
       "status": "unverified",
       "claim": "PR #133 \"test(mission): cover failed-save draft retention and parked Set proof path (follow-up to #112)\" open, not yet merged.",
       "observedAt": "2026-10-30T08:53:38Z",
-      "fetchedAt": "2026-11-01T20:15:22.426Z",
+      "fetchedAt": "2026-11-02T04:44:48.680Z",
       "prReadSucceeded": true
     },
     {
@@ -131,7 +142,7 @@
       "status": "verified",
       "claim": "PR #132 \"Refine canonical Aurora presence and expose typed runtime status\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-10-29T22:10:24Z",
-      "fetchedAt": "2026-11-01T20:15:22.732Z",
+      "fetchedAt": "2026-11-02T04:44:49.022Z",
       "prReadSucceeded": true
     },
     {
@@ -142,7 +153,7 @@
       "status": "verified",
       "claim": "PR #131 \"Record production review audit and release evidence\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-10-29T01:39:31Z",
-      "fetchedAt": "2026-11-01T20:15:23.015Z",
+      "fetchedAt": "2026-11-02T04:44:49.354Z",
       "prReadSucceeded": true
     },
     {
@@ -153,7 +164,7 @@
       "status": "verified",
       "claim": "PR #130 \"Preserve saved project review history\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-10-29T00:42:32Z",
-      "fetchedAt": "2026-11-01T20:15:23.308Z",
+      "fetchedAt": "2026-11-02T04:44:49.707Z",
       "prReadSucceeded": true
     },
     {
@@ -164,7 +175,7 @@
       "status": "verified",
       "claim": "PR #129 \"Add email code sign-in and OpenAI fallback for Territory\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-28T02:47:42Z",
-      "fetchedAt": "2026-11-01T20:15:23.628Z",
+      "fetchedAt": "2026-11-02T04:44:50.061Z",
       "prReadSucceeded": true
     },
     {
@@ -175,7 +186,7 @@
       "status": "verified",
       "claim": "PR #128 \"Territory in the bottom bar, fit-to-screen graph, phone-test fixes\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-28T00:57:20Z",
-      "fetchedAt": "2026-11-01T20:15:23.974Z",
+      "fetchedAt": "2026-11-02T04:44:50.365Z",
       "prReadSucceeded": true
     },
     {
@@ -186,7 +197,7 @@
       "status": "verified",
       "claim": "PR #127 \"Mission: attach project files for Claude to read\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-28T00:32:17Z",
-      "fetchedAt": "2026-11-01T20:15:24.277Z",
+      "fetchedAt": "2026-11-02T04:44:50.688Z",
       "prReadSucceeded": true
     },
     {
@@ -197,7 +208,7 @@
       "status": "verified",
       "claim": "PR #126 \"Territory phase 3: Graph view\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-28T00:00:28Z",
-      "fetchedAt": "2026-11-01T20:15:24.662Z",
+      "fetchedAt": "2026-11-02T04:44:50.990Z",
       "prReadSucceeded": true
     },
     {
@@ -208,18 +219,7 @@
       "status": "verified",
       "claim": "PR #125 \"Territory phase 2 to main: Territory tab (re-land of #124)\" merged. 4 check run(s), 4 passing.",
       "observedAt": "2026-10-27T23:59:54Z",
-      "fetchedAt": "2026-11-01T20:15:24.936Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-124",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#124",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #124 \"Territory phase 2: Territory tab, list view\" merged. 4 check run(s), 4 passing.",
-      "observedAt": "2026-10-27T23:25:48Z",
-      "fetchedAt": "2026-11-01T20:15:25.249Z",
+      "fetchedAt": "2026-11-02T04:44:51.264Z",
       "prReadSucceeded": true
     }
   ]
