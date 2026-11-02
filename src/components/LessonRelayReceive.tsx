@@ -12,7 +12,7 @@ interface ReceivedLesson {
   confirmedAt: string
 }
 
-export default function LessonRelayReceive({ missions, ready }: { missions: Mission[]; ready: boolean }) {
+export default function LessonRelayReceive({ missions, ready, onLessonWrite }: { missions: Mission[]; ready: boolean; onLessonWrite: () => void }) {
   const [code, setCode] = useState('')
   const [missionId, setMissionId] = useState('')
   const [scope, setScope] = useState<'mission' | 'account'>('mission')
@@ -67,6 +67,7 @@ export default function LessonRelayReceive({ missions, ready }: { missions: Miss
       })
       const payload = await response.json() as { received?: boolean; retired?: boolean; error?: string }
       if (!response.ok || (!payload.received && !payload.retired)) throw new Error(payload.error || 'The change was not saved.')
+      onLessonWrite()
       setRevision(value => value + 1)
       setNotice(payload.received
         ? 'Lesson saved to your work. Future eligible project reviews can consider it under its conditions.'

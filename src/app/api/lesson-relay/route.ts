@@ -2,11 +2,12 @@ import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { deltaUser } from '@/lib/supabase/deltaAuth'
 import { projectUserClient } from '@/lib/projectReviewServer'
-import { decodeLessonRelay } from '@/lib/lessonRelay'
+import { decodeLessonRelay, MAX_RELAY_INPUT_LENGTH } from '@/lib/lessonRelay'
 
 export const runtime = 'nodejs'
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i
-const MAX_BODY = 6_000
+// Allow the maximum relay link and JSON request overhead, while bounding reads.
+const MAX_BODY = MAX_RELAY_INPUT_LENGTH + 1_024
 
 /** A relay is always explicit. It does not grant access to source records. */
 export async function POST(req: NextRequest) {
