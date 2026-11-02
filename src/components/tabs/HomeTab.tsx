@@ -166,7 +166,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange }: { onNa
   }
 
   const immersive = ['listening', 'thinking', 'acting'].includes(presentation.state)
-  const reply = current.reply ?? (brief.status === 'done' && brief.output ? { question: question.current, text: brief.output, label: brief.outputLabel, provider: brief.providerLabel } : null)
+  const reply = current.reply
   const hasReply = Boolean(reply)
   const note = !loadError && missions !== null && missionCount === 0 ? 'Ask a question, or start a mission to save ongoing work.' : ''
   const sendStatus = submitNotice || (busy ? 'Sending…'
@@ -239,7 +239,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange }: { onNa
             {reply.question && <p className="glass-output-question">{reply.question}</p>}
             {reply.label && <p className="glass-output-label">{reply.label}</p>}
             <p className="glass-output-text">{reply.text}</p>
-            {reply.provider && <p className="glass-output-meta">{reply.provider} · Generated response, nothing was saved.</p>}
+            <p className="glass-output-meta">{reply.provider ? `${reply.provider} · ` : ''}Generated response, nothing was saved.</p>
           </article>
         )}
       </div>

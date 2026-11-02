@@ -90,12 +90,15 @@ export default function CodexOrb({ state }: { state: OrbPresentationState }) {
       return s
     }
     const program = gl.createProgram()!
-    gl.attachShader(program, shader(gl.VERTEX_SHADER, VERT))
-    gl.attachShader(program, shader(gl.FRAGMENT_SHADER, FRAG))
+    const vertexShader = shader(gl.VERTEX_SHADER, VERT)
+    const fragmentShader = shader(gl.FRAGMENT_SHADER, FRAG)
+    gl.attachShader(program, vertexShader)
+    gl.attachShader(program, fragmentShader)
     gl.linkProgram(program)
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) { setFallback(true); return }
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) { gl.deleteShader(vertexShader); gl.deleteShader(fragmentShader); gl.deleteProgram(program); setFallback(true); return }
     gl.useProgram(program)
-    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer())
+    const buffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW)
     const loc = gl.getAttribLocation(program, 'a')
     gl.enableVertexAttribArray(loc)
@@ -198,6 +201,10 @@ export default function CodexOrb({ state }: { state: OrbPresentationState }) {
       canvas.removeEventListener('webglcontextlost', onLost)
       canvas.removeEventListener('webglcontextrestored', onRestored)
       document.removeEventListener('visibilitychange', kick)
+      gl.deleteBuffer(buffer)
+      gl.deleteShader(vertexShader)
+      gl.deleteShader(fragmentShader)
+      gl.deleteProgram(program)
       kickRef.current = () => {}
     }
   }, [still])

@@ -72,7 +72,7 @@
 :root[data-theme="light"] .glass-go[data-ready] { background: var(--g-mist); color: var(--g-ink); }
 :root[data-theme="light"] .glass-menu-item[aria-current="page"] { background: rgba(40,48,78,.1); }
 :root[data-theme="light"] .glass-aurora { opacity: calc(var(--ambient-glow) * .35); }
-:root[data-motion="soft"] { --g-speed: 40s; }
+:root[data-motion="soft"] .codex-shell { --g-speed: 40s; }
 :root[data-motion="reduced"] .glass-blob { animation: none; }
 :root[data-motion="reduced"] .glass-home *, :root[data-reduced-motion="true"] .glass-home * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 @media (prefers-reduced-motion: reduce) {
@@ -90,3 +90,5 @@
 :root[data-home-keyboard="true"] .glass-home .glass-greeting,
 :root[data-home-keyboard="true"] .glass-home .glass-home-note,
 :root[data-home-keyboard="true"] .glass-home .glass-home-links { display: none; }
+
+.codex-shell[data-screen="home"] .glass-menu { left: 12px; }
