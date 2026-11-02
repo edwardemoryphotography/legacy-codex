@@ -2,8 +2,8 @@ import '@testing-library/jest-dom/vitest'
 import { useState } from 'react'
 import { getAllEntries } from '@/data/codex'
 import { emptyHomeSession } from '@/lib/homeSession'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import HomeTab, { promptHelpQuestion } from './HomeTab'
 
 const run = vi.fn(async () => true)
@@ -17,6 +17,13 @@ let briefStatus = 'idle'
 let briefOutput = ''
 let orbState = 'idle'
 const reset = vi.fn()
+
+// jsdom has no native dialog lifecycle; real focus trapping and Escape are
+// verified in the browser. Keep component tests faithful to open/close state.
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.open = true }
+  HTMLDialogElement.prototype.close = function () { this.open = false }
+})
 
 vi.mock('@/lib/supabase/client', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: null } }) } } }))
 vi.mock('@/hooks/useMissionTerritory', () => ({ useMissionTerritory: () => ({ missions, loadError }) }))
@@ -209,9 +216,13 @@ describe('immersive Home contracts', () => {
   it('keeps the orb stage outside the independently scrolling response', () => {
     briefStatus = 'done'; briefOutput = observedReply; orbState = 'ready'
     const { container } = render(<HomeTab onNavigate={() => {}} />)
-    expect(screen.getByText(observedReply)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: observedReply })).toBeInTheDocument()
     expect(container.querySelector('.glass-orb-wrap')?.closest('.glass-results')).toBeNull()
-    expect(screen.getByRole('region', { name: 'Codex response' })).toContainElement(screen.getByText(observedReply))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Read full answer' }))
+    expect(within(screen.getByRole('region', { name: 'Codex response' })).getByText(observedReply)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close details' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
   it('conceals responses during processing and offers cancellation without erasing input', () => {
     briefStatus = 'running'; orbState = 'thinking'
@@ -245,7 +256,7 @@ it('retains the draft and actual displayed response across Home navigation withi
   briefStatus = 'idle'; briefOutput = ''
   fireEvent.click(screen.getByRole('button', { name: 'Toggle Home' }))
   expect(screen.getByLabelText('Ask Codex')).toHaveValue('What the fuck is this thing actually doing?')
-  expect(screen.getByText(observedReply)).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: observedReply })).toBeInTheDocument()
 })
 
 it('allows a new submission after cancelling a still-pending client run', async () => {
@@ -272,6 +283,8 @@ it('keeps complete long source text in the response region without truncation', 
   expect(source.content.length).toBeGreaterThan(1000)
   const home = { ...emptyHomeSession(), reply: { question: '', text: source.content, label: source.title, provider: '' } }
   render(<HomeTab onNavigate={() => {}} session={home} />)
+  expect(screen.queryByRole('region', { name: 'Codex response' })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Read full answer' }))
   const region = screen.getByRole('region', { name: 'Codex response' })
   expect(region.querySelector('.glass-output-text')?.textContent).toBe(source.content)
   expect(screen.getByRole('textbox', { name: 'Ask Codex' })).toBeInTheDocument()
