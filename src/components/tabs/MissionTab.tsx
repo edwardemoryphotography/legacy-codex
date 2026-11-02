@@ -797,7 +797,6 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
       missionStatus: !loaded ? 'loading' : loadFailed || !user ? 'unavailable' : 'ready',
       evidence,
       evidenceStatus,
-      learningRevision: reviewRevision,
       corrections: corrections
         .filter(item => item.missionId === missionId)
         .map(item => ({ correctedMove: item.correctedMove, reason: item.reason })),
@@ -806,7 +805,7 @@ export default function MissionTab({ onMissionChange }: { onMissionChange?: () =
         .map(item => item.note),
     }
     return nextMoveContextKey(context, new Date().toISOString())
-  }, [board.missions, loaded, loadFailed, user, evidence, evidenceStatus, reviewRevision, corrections, routeNotes])
+  }, [board.missions, loaded, loadFailed, user, evidence, evidenceStatus, corrections, routeNotes])
 
   // Idempotent per (mission, move): accepting what is already the live
   // acceptance — e.g. after reload, or a second tap — records nothing new.
