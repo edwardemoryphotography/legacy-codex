@@ -11,7 +11,9 @@ describe('review claim publication gate', () => {
   it('holds a documented assertion about CI success for authoritative evidence, even if a model repeats it', () => {
     const observed = continuity.split('\n').find(line => line.includes('passed every gate'))
     expect(observed).toBeDefined()
-    expect(unsupportedOutcomeAssertions(observed!)).not.toHaveLength(0)
+    // Remove Markdown link syntax; preserve the actual published words.
+    const readable = observed!.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    expect(unsupportedOutcomeAssertions(readable)).not.toHaveLength(0)
   })
 
   it('does not turn an explicit limit on verification into an affirmative completion claim', () => {
@@ -26,8 +28,8 @@ describe('review claim publication gate', () => {
     expect(unsupportedOutcomeAssertions(rule!)).toHaveLength(0)
   })
 
-  it('does not promote the documented repair proposal into an asserted production result', () => {
-    const rule = continuity.split('\n').find(line => line.includes('not a real person'))
+  it('does not treat an actual user-workflow limitation as a completed result', () => {
+    const rule = continuity.split('\n').find(line => line.includes('No mission, action or lesson was submitted.'))
     expect(rule).toBeDefined()
     expect(unsupportedOutcomeAssertions(rule!)).toHaveLength(0)
   })
