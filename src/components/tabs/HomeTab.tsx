@@ -14,6 +14,7 @@ import type { TabId } from '@/types'
 import { emptyHomeSession, type HomeSession } from '@/lib/homeSession'
 import { homeTakeaway } from '@/lib/homeTakeaway'
 import { deriveNextAction, type NextActionReadState } from '@/lib/nextAction'
+import { latestAcceptance } from '@/lib/nextActionLedger'
 import styles from './HomeTab.module.css'
 import ReactMarkdown from 'react-markdown'
 import { recentConversation } from '@/lib/homeSession'
@@ -60,7 +61,7 @@ function ConversationPresence({ status, busy, loadError, pending, voice, reply }
 
 export default function HomeTab({ onNavigate, session, onSessionChange, variant = 'home', projectRevision = 0, onProjectChange }: { projectRevision?: number; onProjectChange?: () => void; variant?: 'home' | 'mission'; onNavigate: (id: TabId) => void; session?: HomeSession; onSessionChange?: Dispatch<SetStateAction<HomeSession>> }) {
   const missionView = variant === 'mission'
-  const { missions, loadError, actions, actionsRead } = useMissionTerritory({ refreshKey: projectRevision })
+  const { missions, loadError, actions, actionsRead, events, eventsRead } = useMissionTerritory({ withEvents: true, refreshKey: projectRevision })
   const brief = useBriefRunner()
   const name = useOwnerName()
   const presentation = useOrbPresentation()
@@ -134,8 +135,9 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const savedAction = actionsRead === 'ok' && primaryMission && actions
     ? actions.find(action => action.mission_id === primaryMission.id && (action.status === 'TODO' || action.status === 'IN_PROGRESS')) ?? null
     : null
+  const acceptance = primaryMission && eventsRead === 'ok' ? latestAcceptance(events, primaryMission) : null
   const homeReadState: NextActionReadState =
-    loadError || actionsRead === 'failed'
+    loadError || actionsRead === 'failed' || eventsRead === 'failed'
       ? 'error'
       : missions === null || actionsRead === 'pending'
         ? 'loading'
@@ -146,6 +148,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     readState: homeReadState,
     mission: primaryMission,
     delta: null,
+    acceptance,
     savedAction: savedAction
       ? {
           id: savedAction.id,
@@ -350,6 +353,16 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
                 {!missionView && (
                   <button type="button" className="underline" onClick={() => onNavigate('mission')}>
                     Continue in Mission
+                  </button>
+                )}
+              </p>
+            )}
+            {primaryMission && !savedAction && homeNextAction.state === 'accepted' && (
+              <p className={`glass-note ${styles.currentAction}`} role="status" data-next-action-precedence="accepted">
+                Accepted move: <strong>{homeNextAction.title}</strong>.{' '}
+                {!missionView && (
+                  <button type="button" className="underline" onClick={() => onNavigate('mission')}>
+                    Open Mission
                   </button>
                 )}
               </p>

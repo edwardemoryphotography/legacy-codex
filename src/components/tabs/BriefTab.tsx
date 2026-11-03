@@ -5,6 +5,7 @@ import { missionsToBriefContext } from '@/lib/dailyBrief'
 import { useBriefRunner } from '@/hooks/useBriefRunner'
 import { useMissionTerritory } from '@/hooks/useMissionTerritory'
 import MissionBriefPanel, { BriefOutput } from '@/components/MissionBriefPanel'
+import { latestAcceptance } from '@/lib/nextActionLedger'
 import { ActionBtn, Badge, Card, FieldLabel, HelperLine, SectionSubtitle, SectionTitle, Select, Textarea } from '@/components/ui'
 
 export { ACTIONS_READ_FAILED_COPY, BRIEF_VISITOR_COPY } from '@/components/MissionBriefPanel'
@@ -15,13 +16,15 @@ export { ACTIONS_READ_FAILED_COPY, BRIEF_VISITOR_COPY } from '@/components/Missi
 // provenance, nothing Mission's accept/correct lifecycle has to account
 // for. See src/lib/dailyBrief.ts and src/app/api/brief/route.ts.
 export default function BriefTab() {
-  const { missions, loadError, actions, actionsRead } = useMissionTerritory()
+  const { missions, loadError, actions, actionsRead, events, eventsRead } = useMissionTerritory({ withEvents: true })
   const brief = useBriefRunner()
   const [question, setQuestion] = useState('')
   const [chosenId, setChosenId] = useState('')
 
   const focus = missions?.find(m => m.id === chosenId) ?? missions?.find(m => m.state === 'primary') ?? missions?.[0] ?? null
   const focusAction = focus ? actions.find(a => a.mission_id === focus.id) ?? null : null
+  const focusAcceptance = focus && eventsRead === 'ok' ? latestAcceptance(events, focus) : null
+  const canonicalActionsRead = eventsRead === 'failed' ? 'failed' as const : actionsRead
   const missionCount = missions?.length ?? 0
   const busy = brief.status === 'running'
   const unavailable = !brief.configured || brief.visitor
@@ -79,7 +82,7 @@ export default function BriefTab() {
                 ))}
               </Select>
               <div className="mt-3">
-                <MissionBriefPanel key={focus.id} mission={focus} action={focusAction} actionsRead={actionsRead} brief={brief} />
+                <MissionBriefPanel key={focus.id} mission={focus} action={focusAction} acceptance={focusAcceptance} actionsRead={canonicalActionsRead} brief={brief} />
               </div>
             </Card>
           )}

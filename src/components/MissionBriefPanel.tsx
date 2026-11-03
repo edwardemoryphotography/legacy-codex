@@ -4,7 +4,7 @@ import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { singleMissionRequest, UNKNOWN_LINE, type BriefMode } from '@/lib/dailyBrief'
-import { deriveNextAction, type NextActionReadState } from '@/lib/nextAction'
+import { deriveNextAction, type AcceptanceSnapshot, type NextActionReadState } from '@/lib/nextAction'
 import type { OpenAction } from '@/lib/territory'
 import type { BriefRunner } from '@/hooks/useBriefRunner'
 import type { ReadState } from '@/hooks/useMissionTerritory'
@@ -23,9 +23,10 @@ const MODE_LABELS: Partial<Record<BriefMode, string>> = { architect: 'Architect 
 
 // Model calls about ONE mission. Render with key={mission.id} so the chosen
 // wall and question reset with the mission; the parent resets the runner.
-export default function MissionBriefPanel({ mission, action, actionsRead, brief, withTriageAndAsk = false }: {
+export default function MissionBriefPanel({ mission, action, acceptance = null, actionsRead, brief, withTriageAndAsk = false }: {
   mission: Mission
   action: OpenAction | null
+  acceptance?: AcceptanceSnapshot | null
   actionsRead: ReadState
   brief: BriefRunner
   withTriageAndAsk?: boolean
@@ -38,6 +39,7 @@ export default function MissionBriefPanel({ mission, action, actionsRead, brief,
     readState: briefReadState,
     mission,
     delta: null,
+    acceptance,
     savedAction: action
       ? {
           id: action.id,

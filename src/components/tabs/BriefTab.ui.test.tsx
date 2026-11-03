@@ -19,9 +19,21 @@ const db = vi.hoisted(() => ({ missions: [] as Record<string, unknown>[], action
 vi.mock('@/lib/supabase/client', () => ({
   supabase: {
     auth: { getSession: async () => ({ data: { session: { access_token: 'visitor-token' } }, error: null }) },
-    from: (table: string) => table === 'actions'
-      ? { select: () => ({ not: () => ({ neq: async () => db.actions }) }) }
-      : { select: () => ({ eq: async () => ({ data: db.missions, error: null }) }) },
+    from: (table: string) => {
+      if (table === 'actions') return { select: () => ({ not: () => ({ neq: async () => db.actions }) }) }
+      if (table === 'mission_events') {
+        const query = {
+          eq: () => query,
+          in: () => query,
+          order: () => query,
+          limit: async () => ({ data: [], error: null }),
+          range: async () => ({ data: [], error: null }),
+        }
+        return { select: () => query }
+      }
+      if (table === 'evidence_snapshots') return { select: () => ({ not: () => ({ order: async () => ({ data: [], error: null }) }) }) }
+      return { select: () => ({ eq: async () => ({ data: db.missions, error: null }) }) }
+    },
   },
 }))
 

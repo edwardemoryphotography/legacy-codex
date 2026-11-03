@@ -153,7 +153,9 @@ function acceptanceStaleness(
   mission: Mission,
   contextKey: string | null,
 ): string | null {
-  if (!delta) return 'No current prediction is available to compare against.'
+  // No fresh prediction is not evidence that the accepted move changed.
+  // Mission will mark it stale if a recomputed Delta no longer matches.
+  if (!delta) return null
   const reasons: string[] = []
   if (acceptance.candidateId && delta.candidateId && acceptance.candidateId !== delta.candidateId) {
     reasons.push('The prediction changed.')
