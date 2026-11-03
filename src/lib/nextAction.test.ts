@@ -174,7 +174,7 @@ describe('deriveNextAction', () => {
     expect(result.staleReason).toBe('The project context changed since you accepted this.')
   })
 
-  it('marks an acceptance stale when there is no prediction to compare against', () => {
+  it('keeps an acceptance current when no fresh prediction is available', () => {
     const result = deriveNextAction({
       mission,
       delta: null,
@@ -183,8 +183,8 @@ describe('deriveNextAction', () => {
     })
 
     expect(result.state).toBe('accepted')
-    expect(result.stale).toBe(true)
-    expect(result.staleReason).toBe('No current prediction is available to compare against.')
+    expect(result.stale).toBe(false)
+    expect(result.staleReason).toBeNull()
   })
 
   it('ignores an acceptance recorded for another mission', () => {

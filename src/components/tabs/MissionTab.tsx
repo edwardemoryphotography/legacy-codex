@@ -49,6 +49,8 @@ import { nextMoveContextKey } from '@/lib/nextMove'
 import type { TaskRouteContext } from '@/lib/taskRouting'
 import StrategicDelta, { type DeltaOperationRequest, type DeltaPhase, type SaveNextActionOptions, type SaveNextActionResult } from '@/components/StrategicDelta'
 import { stableHash, type AcceptanceSnapshot } from '@/lib/nextAction'
+import { replaceSavedActionAtomic } from '@/lib/replaceSavedAction'
+import { acceptanceLedger, currentAcceptances, liveAcceptances, type LedgerAcceptance } from '@/lib/nextActionLedger'
 import type { ConfirmedLesson, LessonConfirmation, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
 import { buildDeterministicAssistance, deriveObservableAcceptanceChecks, draftStartingPoint, extractDeadline } from '@/lib/missionAssistance'
 import MissionFiles from '@/components/MissionFiles'
@@ -212,6 +214,8 @@ export function rowToSuppliedStep(row: MissionEventRow): DeltaCandidate | null {
 // newer rows are JSON with the candidate id and the finish line the move was
 // accepted under. All read back as the move, which is what the displayed
 // Delta is compared against.
+export { acceptanceLedger, liveAcceptances } from '@/lib/nextActionLedger'
+
 export function acceptanceDetail(
   move: string,
   candidateId: string | null | undefined,
@@ -224,102 +228,6 @@ export function acceptanceDetail(
     ...(finishLine ? { finishLine } : {}),
     ...(contextKey ? { contextKey } : {}),
   })
-}
-
-export interface LedgerAcceptance {
-  move: string
-  /** The finish line in force when it was accepted; absent on older rows. */
-  finishLine?: string
-  candidateId?: string
-  contextKey?: string
-  eventId?: string
-  createdAt?: string
-}
-
-function acceptanceFromDetail(detail: string, row?: Pick<MissionEventRow, 'id' | 'created_at'>): LedgerAcceptance | null {
-  try {
-    const parsed: unknown = JSON.parse(detail)
-    if (parsed && typeof parsed === 'object' && typeof (parsed as { move?: unknown }).move === 'string') {
-      const { move, finishLine, candidateId, contextKey } = parsed as {
-        move: string
-        finishLine?: unknown
-        candidateId?: unknown
-        contextKey?: unknown
-      }
-      if (!move.trim()) return null
-      return {
-        move,
-        ...(typeof finishLine === 'string' ? { finishLine } : {}),
-        ...(typeof candidateId === 'string' ? { candidateId } : {}),
-        ...(typeof contextKey === 'string' ? { contextKey } : {}),
-        ...(row?.id ? { eventId: row.id } : {}),
-        ...(row?.created_at ? { createdAt: row.created_at } : {}),
-      }
-    }
-  } catch {
-    // Plain prose — the older format.
-  }
-  return detail.trim()
-    ? {
-        move: detail,
-        ...(row?.id ? { eventId: row.id } : {}),
-        ...(row?.created_at ? { createdAt: row.created_at } : {}),
-      }
-    : null
-}
-
-// Events that change what the Delta is predicting for a mission. A later one
-// means an earlier acceptance was agreement with a prediction that has since
-// been replaced, so it must not come back as "Accepted" after reload.
-// finish_line_set covers older acceptance rows that did not record their
-// finish line (the only in-app way to change a finish line writes it).
-const INVALIDATES_ACCEPTANCE = new Set([
-  'delta_corrected',
-  'delta_step_supplied',
-  'delta_assistance_generated',
-  'finish_line_set',
-])
-
-/** mission id → the latest acceptance still standing in the event ledger:
- *  the newest delta_accepted per mission, unless a correction, supplied step
- *  or finish-line change for that mission came after it. */
-export function acceptanceLedger(rows: MissionEventRow[]): Record<string, LedgerAcceptance> {
-  const live: Record<string, LedgerAcceptance> = {}
-  const ordered = [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at))
-  for (const row of ordered) {
-    if (row.type === 'delta_accepted') {
-      const acceptance = acceptanceFromDetail(row.detail, row)
-      if (acceptance) live[row.mission_id] = acceptance
-    } else if (row.type && INVALIDATES_ACCEPTANCE.has(row.type)) {
-      delete live[row.mission_id]
-    }
-  }
-  return live
-}
-
-/** mission id → accepted move, dropping any acceptance recorded under a
- *  finish line the mission no longer has (a revision made outside this
- *  screen writes no event this session saw). */
-export function currentAcceptances(
-  ledger: Record<string, LedgerAcceptance>,
-  missions?: Record<string, Pick<Mission, 'finishLine'>>,
-): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const [missionId, acceptance] of Object.entries(ledger)) {
-    const mission = missions?.[missionId]
-    if (missions && acceptance.finishLine !== undefined && mission?.finishLine !== acceptance.finishLine) continue
-    out[missionId] = acceptance.move
-  }
-  return out
-}
-
-/** Ledger fold and finish-line check in one step. The UI still shows
- *  "Accepted" only when the move equals the Delta it is displaying. */
-export function liveAcceptances(
-  rows: MissionEventRow[],
-  missions?: Record<string, Pick<Mission, 'finishLine'>>,
-): Record<string, string> {
-  return currentAcceptances(acceptanceLedger(rows), missions)
 }
 
 function withoutMission<T>(entries: Record<string, T>, missionId: string): Record<string, T> {
@@ -1139,57 +1047,29 @@ export default function MissionTab({ onMissionChange, externalRevision = 0 }: { 
         let finalResumeNote: string | null = effectiveNote
 
         if (existingOpen && existingOpen.title !== delta.move) {
-          // Confirmed replacement of an unstarted (TODO) saved action:
-          // 1. Record audit event in mission_events BEFORE mutating the action row.
-          const auditDetail = JSON.stringify({
-            actionId: existingOpen.id,
-            previousTitle: existingOpen.title,
-            previousStatus: existingOpen.status,
-            previousResumeNote: existingOpen.resumeNote,
-            nextTitle: delta.move,
-            candidateId: delta.candidateId,
-          })
-          const auditOk = await recordDeltaEvent(
-            'action_replaced',
-            missionId,
-            auditDetail,
-            `action_replaced:${stableHash(JSON.stringify({
-              missionId,
-              actionId: existingOpen.id,
-              next: delta.candidateId ?? delta.move,
-            }))}`,
-          )
-          if (!auditOk) {
-            return {
-              ok: false,
-              error: 'Could not record the replacement in your mission history, so your existing saved action was kept unchanged.',
-            }
+          if (!existingOpen.updatedAt) {
+            return { ok: false, error: 'Refresh the saved action before replacing it. Its latest version could not be confirmed.' }
           }
-          // 2. Preserve any prior resume_note so context is never silently lost.
+          // Preserve any prior resume_note so context is never silently lost.
           finalResumeNote =
             existingOpen.resumeNote && effectiveNote && !effectiveNote.includes(existingOpen.resumeNote)
               ? `${effectiveNote}\n\n---\nPrevious starting point (${existingOpen.title}):\n${existingOpen.resumeNote}`
               : effectiveNote ?? existingOpen.resumeNote ?? null
 
-          if (!existingOpen.id.startsWith('saved-')) {
-            const { data, error: writeError } = await supabase.from('actions')
-              .update({
-                action_title: delta.move,
-                resume_note: finalResumeNote,
-                is_next_action: true,
-              })
-              .eq('id', existingOpen.id)
-              .eq('mission_id', missionId)
-              .eq('status', 'TODO')
-              .eq('updated_at', existingOpen.updatedAt!)
-              .select('id,status,updated_at')
-              .single()
-            if (writeError || !data) throw writeError ?? new Error('Saved action changed in another tab')
-            const row = data as { id?: string; status?: 'TODO' | 'IN_PROGRESS'; updated_at?: string }
-            if (row.id) savedActionId = row.id
-            if (row.status) savedStatus = row.status
-            if (row.updated_at) savedUpdatedAt = row.updated_at
-          }
+          // One transactional RPC: the version-checked action update and the
+          // action_replaced history row commit or roll back together.
+          const replaced = await replaceSavedActionAtomic(supabase, {
+            actionId: existingOpen.id,
+            missionId,
+            expectedUpdatedAt: existingOpen.updatedAt,
+            newTitle: delta.move,
+            newNote: finalResumeNote,
+          })
+          if (!replaced.ok) throw new Error(replaced.error)
+          savedActionId = replaced.action.id
+          savedStatus = replaced.action.status
+          savedUpdatedAt = replaced.action.updatedAt
+          finalResumeNote = replaced.action.resumeNote
         } else {
           const insertBuilder = supabase.from('actions').insert({
             mission_id: missionId,
@@ -1240,7 +1120,7 @@ export default function MissionTab({ onMissionChange, externalRevision = 0 }: { 
         endFieldWork()
       }
     },
-    [acceptedMoves, board.missions, handleAcceptDelta, loadFailed, loaded, onMissionChange, openMissionAction, projectReview, recordDeltaEvent, suppliedSteps, user],
+    [acceptedMoves, board.missions, handleAcceptDelta, loadFailed, loaded, onMissionChange, openMissionAction, projectReview, suppliedSteps, user],
   )
 
   const handleStartSavedAction = useCallback(
