@@ -1,7 +1,8 @@
 # NextAction contract — final gap checklist
 
-Status: implementation prepared; release is blocked on applying the additive
-`replace_saved_action_atomic` migration to the canonical Supabase project.
+Status: implementation complete; the additive `replace_saved_action_atomic`
+migration is applied to the canonical Supabase project and the database
+transaction/rollback checks passed.
 
 ## Closed in this change
 
@@ -32,22 +33,28 @@ Status: implementation prepared; release is blocked on applying the additive
   not recompute the richer Mission Delta (model assistance, project review,
   evidence freshness); a prediction is still surfaced on Mission, where its
   context is available. They never invent a prediction.
-- The SQL function is transactionally atomic by construction, but this
-  environment has no local Postgres/Docker and no service-role or database
-  credential. `supabase projects list` is unavailable; the migration was not
-  applied and the rollback/conflict paths were not injected against a database.
-  Mocked client tests do not prove rollback.
+- The function is verified in the canonical database as a security-invoker
+  function. A rolled-back transaction exercised success, retry, stale-version
+  conflict, A→B→A→B, and in-progress rejection; it left 0 test missions,
+  0 actions, and 0 events after rollback. A forced history-insert failure was
+  not injected because the SQL editor role does not own `mission_events`;
+  atomicity there rests on the single PL/pgSQL transaction.
 - Completion remains a human report, not independent verification.
 
 ## Verification run
 
+- Canonical database: `replace_saved_action_atomic` exists with
+  `security_definer = false`.
+- Transactional test: final history count `4` after success + retry +
+  A→B→A→B; conflict and in-progress guards fired; rollback counts
+  missions/actions/events = `0/0/0`.
 - `npx vitest run`: full suite passed (including `replaceSavedAction` unit
   tests, NextAction ledger tests, Mission/Home/Brief UI tests).
 - `npx tsc --noEmit`, `npm run lint` (0 errors), `npm run build`: passed.
 - Migration file: `supabase/migrations/20261103000000_atomic_replace_saved_action.sql`.
 
-## Release blocker
+## Release note
 
-The migration must be applied by an authorized database operator before the
-client is merged/deployed. Without it, replacement attempts fail closed and
-create neither an update nor a false history row.
+The migration is applied. The client may now be merged and deployed; if the
+function is ever absent, replacement fails closed and creates neither an update
+nor a false history row.
