@@ -16,6 +16,8 @@ let visitor = false
 let briefStatus = 'idle'
 let briefOutput = ''
 let orbState = 'idle'
+let actionInsertError: { message: string } | null = null
+const actionRows: Record<string, unknown>[] = []
 const reset = vi.fn()
 
 // jsdom has no native dialog lifecycle; real focus trapping and Escape are
@@ -25,8 +27,44 @@ beforeAll(() => {
   HTMLDialogElement.prototype.close = function () { this.open = false }
 })
 
-vi.mock('@/lib/supabase/client', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: null } }) } } }))
-vi.mock('@/hooks/useMissionTerritory', () => ({ useMissionTerritory: () => ({ missions, loadError }) }))
+vi.mock('@/lib/supabase/client', () => ({
+  supabase: {
+    auth: {
+      getSession: async () => ({ data: { session: null } }),
+      getUser: async () => ({ data: { user: { id: 'user-1' } } }),
+    },
+    from: (table: string) => ({
+      select: () => ({
+        eq: (_col: string, val: string) => ({
+          in: () => ({
+            order: () => ({
+              limit: () => Promise.resolve({
+                data: table === 'actions' ? actionRows.filter(r => r.mission_id === val) : [],
+                error: null,
+              }),
+            }),
+          }),
+        }),
+      }),
+      insert: (row: Record<string, unknown>) => {
+        if (actionInsertError) return Promise.resolve({ error: actionInsertError })
+        const created = { id: `act-${actionRows.length + 1}`, ...row }
+        actionRows.push(created)
+        return Promise.resolve({ data: created, error: null })
+      },
+      update: (patch: Record<string, unknown>) => ({
+        eq: (_col: string, val: string) => {
+          if (actionInsertError) return Promise.resolve({ error: actionInsertError })
+          const idx = actionRows.findIndex(r => r.id === val)
+          if (idx >= 0) actionRows[idx] = { ...actionRows[idx], ...patch }
+          return Promise.resolve({ error: null })
+        },
+      }),
+    }),
+  },
+}))
+vi.mock('@/lib/supabase/missionSession', () => ({ connectMissionSession: async () => ({ id: 'user-1' }) }))
+vi.mock('@/hooks/useMissionTerritory', () => ({ useMissionTerritory: () => ({ missions, loadError, actions: actionRows, actionsRead: 'ok' }) }))
 vi.mock('@/hooks/useBriefRunner', () => ({ useBriefRunner: () => ({ configured: true, visitor, status: briefStatus, activeMode: null, output: briefOutput, outputLabel: '', providerLabel: '', run, reset }) }))
 vi.mock('@/hooks/useTaskVoice', () => ({
   useTaskVoice: (_value: string, onChange: (value: string) => void) => {
@@ -41,7 +79,7 @@ vi.mock('@/components/OrbHost', () => ({
   useOrbPresentation: () => ({ state: orbState, label: orbState === 'thinking' ? 'Thinking' : '' }),
 }))
 
-afterEach(() => { cleanup(); briefStatus = 'idle'; briefOutput = ''; orbState = 'idle'; reset.mockClear(); run.mockReset(); run.mockResolvedValue(true); voiceActive = false; voiceStatus = ''; visitor = false; loadError = null; missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }] })
+afterEach(() => { cleanup(); briefStatus = 'idle'; briefOutput = ''; orbState = 'idle'; actionInsertError = null; actionRows.length = 0; reset.mockClear(); run.mockReset(); run.mockResolvedValue(true); voiceActive = false; voiceStatus = ''; visitor = false; loadError = null; missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }] })
 
 describe('promptHelpQuestion', () => {
   it('stays within the 400-character question limit /api/brief enforces', () => {
@@ -387,5 +425,44 @@ describe('explicit conversation intelligence choice', () => {
     fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'How do I talk to you best?' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     expect(run).toHaveBeenCalledWith('question', expect.objectContaining({ tier: 'routine' }), 'Ask Codex')
+  })
+
+  it('saves a conversation reply as the next action for the Primary mission with failure recovery and no duplicate rows', async () => {
+    const navigate = vi.fn()
+    const onProjectChange = vi.fn()
+    const session = {
+      ...emptyHomeSession(),
+      reply: {
+        question: 'What is my next move?',
+        text: 'Save the recommended move as your next action and verify it on your phone.',
+        label: 'Ask Codex',
+        provider: 'test',
+      },
+    }
+    render(<HomeTab onNavigate={navigate} onProjectChange={onProjectChange} session={session} />)
+
+    actionInsertError = { message: 'Temporary network glitch' }
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Save as my next action' }))
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not save this response as your next action. Your conversation is still here — retry when ready.')
+    expect(actionRows).toHaveLength(0)
+
+    actionInsertError = null
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry saving next action' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Retry saving next action' }))
+    })
+    expect(actionRows).toHaveLength(1)
+    expect(actionRows[0]).toMatchObject({
+      mission_id: 'm1',
+      action_title: 'Save the recommended move as your next action and verify it on your phone.',
+      status: 'TODO',
+      is_next_action: true,
+    })
+    expect(onProjectChange).toHaveBeenCalledTimes(1)
+    expect(screen.getByText(/Saved as your next action for/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Open in Mission' }))
+    expect(navigate).toHaveBeenCalledWith('mission')
   })
 })

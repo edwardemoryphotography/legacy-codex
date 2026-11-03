@@ -190,6 +190,48 @@ function summarizeNote(note: string, maxLen = 72): string {
 }
 
 /**
+ * Derives concrete, observable acceptance checks to display beneath a broad or
+ * experiential finish line (e.g., "when this is intuitive and easy and
+ * beautiful to interact with") or alongside a live usability evidence
+ * requirement (e.g., "Me using it right now on my phone"). Never replaces the
+ * person's own finish line.
+ */
+export function deriveObservableAcceptanceChecks(mission: {
+  title: string
+  finishLine: string | null
+  evidenceRequirement?: string | null
+}): string[] {
+  const finishLine = mission.finishLine?.trim() ?? ''
+  if (!finishLine) return []
+  const evidence = mission.evidenceRequirement?.trim() ?? ''
+  const isBroadFinishLine =
+    /\b(intuitive|easy|beautiful|clean|simple|clear|smooth|seamless|usable|good|great|better|ready|working|works|polish(?:ed)?|natural|effortless|feel(?:s)?)\b/i.test(finishLine)
+  const hasUsabilityProof =
+    /\b(phone|mobile|using it|try it|test it|right now|live|screen|interact)\b/i.test(evidence)
+
+  // Do not apply Codex save-and-resume checks to unrelated work merely
+  // because its finish line says "ready", "clean", or "better".
+  const codexContext = /\b(?:legacy\s+codex|codex)\b/i.test(
+    [mission.title, finishLine, evidence].join(' '),
+  )
+  const explicitInterfaceTest = /\b(?:design|interface|app|ui|ux)\b/i.test(mission.title) &&
+    /\b(?:using it|interact(?:ing)?|app|screen)\b/i.test(evidence)
+  if ((!codexContext && !explicitInterfaceTest) || (!isBroadFinishLine && !hasUsabilityProof)) return []
+
+  const checks = [
+    `Current focus (“${mission.title.trim()}”) and one next action are immediately visible without hunting through secondary panels.`,
+    `Clicking “Save as my next action” executes the stated operation, shows progress beside the control, and displays the saved result in place.`,
+    `The saved commitment is immediately visible and resumable in Your saved actions (and survives reload).`,
+  ]
+  if (evidence) {
+    checks.push(`Verified through your stated proof (“${evidence}”) at phone width and desktop width without copying text or losing drafts.`)
+  } else {
+    checks.push(`One real recommendation → click → saved commitment pass is verified end-to-end toward “${finishLine}”.`)
+  }
+  return checks
+}
+
+/**
  * Builds an honest, deterministic starting step and working outline strictly
  * from the user's own mission title, finish line, and supplied note when
  * model-assisted review is unavailable or restricted. Never invents topics,
@@ -199,6 +241,7 @@ export function buildDeterministicAssistance(input: {
   title: string
   finishLine: string
   contextNote: string
+  evidenceRequirement?: string | null
   priorNotes?: string[]
   /** A deadline the person stated elsewhere (e.g. when changing priority). */
   deadline?: { text: string; saidAt: string } | null
@@ -214,6 +257,11 @@ export function buildDeterministicAssistance(input: {
   const pageTarget = declared.find(q => q.unit === 'pages')
   const pageCount = pageTarget ? pageTarget.max : null
   const deadline = deadlineLine(input.deadline)
+  const acceptanceChecks = deriveObservableAcceptanceChecks({
+    title,
+    finishLine,
+    evidenceRequirement: input.evidenceRequirement,
+  })
 
   if (isWritingOrResearch && needsTopicSelection) {
     const step = `Write down 2–3 candidate research questions from your note (${shortNote}) and lock one working thesis for “${title}”.`
@@ -292,19 +340,34 @@ export function buildDeterministicAssistance(input: {
     return { step, finishWhen, why, ...applyQuantityGuard(budget ? budget.map(pageLabel).join(' ') : '', outline(budgetedPlan), () => outline(unbudgetedPlan), declared) }
   }
 
-  const step = `Outline the first concrete work block for “${title}” based on your note: ${shortNote}`
-  const finishWhen = `The first work block from your note is drafted and checked against “${finishLine}”.`
-  const why = `Structured directly from the project context you shared (“${shortNote}”) to turn “${finishLine}” into an immediate starting step.`
+  const evidenceLine = input.evidenceRequirement?.trim()
+    ? [`- **Evidence required:** ${input.evidenceRequirement.trim()}`]
+    : []
+  const step = acceptanceChecks.length > 0
+    ? `Complete and verify the first concrete work block for “${title}” against the acceptance checks beneath “${finishLine}”.`
+    : `Outline the first concrete work block for “${title}” based on your note: ${shortNote}`
+  const finishWhen = acceptanceChecks.length > 0
+    ? `The first work block is completed and checked against the observable acceptance checks beneath “${finishLine}”.`
+    : `The first work block from your note is drafted and checked against “${finishLine}”.`
+  const why = acceptanceChecks.length > 0
+    ? `Turns your broad finish line (“${finishLine}”) and context note into an executable starting step with observable acceptance checks.`
+    : `Structured directly from the project context you shared (“${shortNote}”) to turn “${finishLine}” into an immediate starting step.`
   const workDraft = [
     `## Starting Plan — ${title}`,
-    `- **Finish condition:** ${finishLine}`,
-    `- **From your note:** ${note}`,
+    `- **Preserved finish line:** ${finishLine}`,
+    ...evidenceLine,
     ...deadline,
+    ...(acceptanceChecks.length > 0
+      ? [
+          '- **Observable acceptance checks:**',
+          ...acceptanceChecks.map((check, idx) => `  ${idx + 1}. ${check}`),
+        ]
+      : []),
     '',
     '### Next Steps from Your Context',
-    `1. **Define the first slice:** Use your note (*${shortNote}*) to list the 2–3 concrete parts required for *${finishLine}*.`,
+    `1. **Define the first slice:** List the 2–3 concrete parts required to reach *${finishLine}*.`,
     `2. **Draft the opening part:** Complete the first part before expanding the rest.`,
-    `3. **Check against finish line:** Verify what remains to reach *${finishLine}*.`,
+    `3. **Check against finish line:** Verify what remains to reach *${finishLine}*${input.evidenceRequirement?.trim() ? ` using your stated proof (*${input.evidenceRequirement.trim()}*)` : ''}.`,
   ].join('\n')
   return { step, finishWhen, why, ...applyQuantityGuard('', workDraft, () => workDraft, declared) }
 }

@@ -854,5 +854,107 @@ describe('MissionTab Vaughn Psych research paper journey', () => {
     await waitFor(() => expect(document.querySelector('section.sd')?.getAttribute('data-resumable')).toBe('true'))
     expect(inserts).toHaveLength(0)
   })
+
+  it('saves a recommended move and working draft in one click via "Save as my next action", survives failed write + retry without duplicate records, and resumes after reload', async () => {
+    const eddieMission: Mission = {
+      id: 'm-eddie',
+      title: 'the design of this',
+      why: '',
+      finishLine: 'when this is intuitive and easy and beautiful to interact with',
+      evidenceRequirement: null,
+      state: 'primary',
+      blocker: null,
+      capacityMismatch: false,
+      createdAt: '2026-11-02T01:00:00.000Z',
+      updatedAt: '2026-11-02T01:00:00.000Z',
+    }
+    tables = {
+      missions: [{ ...missionToRow(eddieMission, 'user-eddie'), created_at: eddieMission.createdAt }],
+      evidence_snapshots: [],
+      actions: [],
+      mission_events: [],
+    }
+    connectMissionSession.mockResolvedValue({ id: 'user-eddie' })
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/api/delta-review?capabilities=1')) {
+        return { ok: true, status: 200, json: async () => ({ configured: false, tester: false }) }
+      }
+      return { ok: true, status: 200, json: async () => ({ review: null, lessons: [] }) }
+    }))
+
+    const view = render(<MissionTab />)
+    expect(await screen.findByLabelText('What do you have so far, and what would you like help with next?')).toBeTruthy()
+
+    // 1. Set evidence requirement inline ("Me using it right now on my phone")
+    const proofInput = await screen.findByLabelText(/What will prove “the design of this” is done\?/)
+    fireEvent.change(proofInput, { target: { value: 'Me using it right now on my phone' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Save evidence requirement' }))
+    })
+    expect(inserts.some(i => i.table === 'missions' && i.row.evidence_requirement === 'Me using it right now on my phone')).toBe(true)
+    expect(await screen.findByText(/Evidence requirement saved: “Me using it right now on my phone”/)).toBeTruthy()
+
+    // 2. Add project context to generate a deterministic recommendation and starting plan
+    const assistTextarea = screen.getByLabelText('What do you have so far, and what would you like help with next?')
+    fireEvent.change(assistTextarea, {
+      target: { value: 'I want buttons that follow through to execute instead of just giving me more text.' },
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Help me move this forward' }))
+    })
+
+    expect(await screen.findByText(/Complete and verify the first concrete work block for “the design of this”/)).toBeTruthy()
+    expect(screen.getByText('Observable acceptance checks')).toBeTruthy()
+
+    // 3. Simulate a failed actions insert first, then retry safely without duplicating delta_accepted
+    failInsert.actions = true
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Save as my next action' }))
+    })
+    expect(await screen.findByText(/Could not save this move as your next action/)).toBeTruthy()
+    expect(inserts.filter(i => i.table === 'mission_events' && i.row.type === 'delta_accepted')).toHaveLength(1)
+
+    failInsert.actions = false
+    inserts = inserts.filter(i => !(i.table === 'actions'))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry saving next action' }))
+    })
+
+    expect(await screen.findByText(/Saved as your next action/)).toBeTruthy()
+    // delta_accepted must not be duplicated on retry
+    expect(inserts.filter(i => i.table === 'mission_events' && i.row.type === 'delta_accepted')).toHaveLength(1)
+    const actionInserts = inserts.filter(i => i.table === 'actions')
+    expect(actionInserts).toHaveLength(1)
+    expect(actionInserts[0].row.mission_id).toBe('m-eddie')
+    expect(String(actionInserts[0].row.action_title)).toContain('Complete and verify the first concrete work block for “the design of this”')
+    expect(String(actionInserts[0].row.resume_note)).toContain('Starting Plan — the design of this')
+
+    // 4. Simulate reload and verify the saved commitment is immediately visible and resumable
+    const persistedEvents = inserts
+      .filter(i => i.table === 'mission_events')
+      .map((i, idx) => ({ ...i.row, id: `ev-eddie-${idx}`, created_at: `2026-11-02T01:05:0${idx}.000Z` }))
+    const persistedActions = actionInserts.map((i, idx) => ({
+      ...i.row,
+      id: `act-eddie-${idx}`,
+      created_at: `2026-11-02T01:06:0${idx}.000Z`,
+      updated_at: `2026-11-02T01:06:0${idx}.000Z`,
+      mission: { title: eddieMission.title, state: eddieMission.state },
+    }))
+    view.unmount()
+    inserts = []
+    tables = {
+      missions: [{ ...missionToRow({ ...eddieMission, evidenceRequirement: 'Me using it right now on my phone' }, 'user-eddie'), created_at: eddieMission.createdAt }],
+      evidence_snapshots: [],
+      actions: persistedActions,
+      mission_events: persistedEvents,
+    }
+
+    render(<MissionTab />)
+    expect(await screen.findByText(/Saved as your next action/)).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Start / resume' })).toBeTruthy()
+    expect(inserts).toHaveLength(0)
+  })
 })
+
 

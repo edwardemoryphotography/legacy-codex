@@ -733,3 +733,178 @@ describe('StrategicDelta failed state is for failed writes, not optional reads',
     expect(screen.getByText('This did not record')).toBeTruthy()
   })
 })
+
+describe('StrategicDelta — action follow-through and Mission clarity', () => {
+  const eddieMission = mission({
+    id: 'm-eddie',
+    state: 'primary',
+    title: 'the design of this',
+    finishLine: 'when this is intuitive and easy and beautiful to interact with',
+    evidenceRequirement: 'Me using it right now on my phone',
+  })
+
+  it('saves a recommended move as next action with inline progress, visible result, and duplicate-click guard', async () => {
+    let settleSave!: (res: { ok: boolean; actionId?: string; title?: string }) => void
+    const onSaveNextAction = vi.fn(() => new Promise<{ ok: boolean; actionId?: string; title?: string }>(resolve => { settleSave = resolve }))
+    const onStartSavedAction = vi.fn(async () => true)
+    const candidate: DeltaCandidate = {
+      id: 'assist:m-eddie',
+      targetId: 'clause:m-eddie:0',
+      clause: 'when this is intuitive',
+      kind: 'supplied_operation',
+      missionId: eddieMission.id,
+      move: 'Define the first concrete milestone and immediate next action for “the design of this”',
+      workDraft: '### Starting Plan — the design of this\n1. Verify on phone.',
+      why: 'Structured from your project context.',
+      finishWhen: 'You have a concrete next action saved.',
+      rank: 0,
+    }
+
+    renderDelta([eddieMission], {
+      suppliedOperations: [candidate],
+      onSaveNextAction,
+      onStartSavedAction,
+    })
+
+    // Verify Why now is rendered once (not duplicated below WhatCodexHas)
+    expect(screen.getAllByText(/Structured from your project context\./)).toHaveLength(1)
+
+    // Verify observable acceptance checks beneath the broad finish line
+    expect(screen.getByText('Observable acceptance checks')).toBeTruthy()
+
+    const saveBtn = screen.getByRole('button', { name: 'Save as my next action' })
+    fireEvent.click(saveBtn)
+    fireEvent.click(saveBtn) // Rapid second click must be ignored
+    expect(onSaveNextAction).toHaveBeenCalledTimes(1)
+    expect(screen.getByText(/Saving commitment to the design of this/)).toBeTruthy()
+
+    settleSave({ ok: true, actionId: 'act-99', title: candidate.move })
+    expect(await screen.findByText(/Saved as your next action/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Return to this saved action' }).getAttribute('href')).toBe('#saved-action-act-99')
+
+    const startBtn = screen.getByRole('button', { name: 'Start this action now' })
+    fireEvent.click(startBtn)
+    await waitFor(() => expect(onStartSavedAction).toHaveBeenCalledWith('act-99'))
+  })
+
+  it('shows an in-progress saved action as current and does not save a new prediction over it', async () => {
+    const onSaveNextAction = vi.fn()
+    renderDelta([BLOCKED], {
+      savedOpenAction: {
+        id: 'act-old',
+        missionId: 'm1',
+        title: 'The action already in progress',
+        status: 'IN_PROGRESS',
+        resumeNote: 'I stopped at the export.',
+      },
+      onSaveNextAction,
+    })
+
+    expect(await screen.findByText(BLOCKED_MOVE)).toBeTruthy()
+    expect(screen.getByText(/Current move \(in progress\)/)).toBeTruthy()
+    expect(screen.getByText(/A new prediction will not overwrite or reset it/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Save as my next action|Replace saved next action/ })).toBeNull()
+    expect(onSaveNextAction).not.toHaveBeenCalled()
+  })
+
+  it('requires explicit confirmation before replacing an unstarted saved action', async () => {
+    const onSaveNextAction = vi.fn(async () => ({ ok: true, actionId: 'act-new', title: BLOCKED_MOVE }))
+    renderDelta([BLOCKED], {
+      savedOpenAction: {
+        id: 'act-old',
+        missionId: 'm1',
+        title: 'The unstarted action',
+        status: 'TODO',
+        resumeNote: 'Old starting point',
+      },
+      onSaveNextAction,
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Replace saved next action' }))
+    expect(onSaveNextAction).not.toHaveBeenCalled()
+    expect(screen.getByText(/Replace your unstarted saved action/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm replace saved action' }))
+    await waitFor(() => expect(onSaveNextAction).toHaveBeenCalledWith(expect.anything(), null, { confirmReplace: true }))
+  })
+
+  it('preserves draft and context on failed save and allows a safe retry', async () => {
+    let attempt = 0
+    const onSaveNextAction = vi.fn(async () => {
+      attempt += 1
+      return attempt === 1
+        ? { ok: false, error: 'Database write failed — your draft is preserved.' }
+        : { ok: true, actionId: 'act-100', title: 'Define the first concrete milestone and immediate next action for “the design of this”' }
+    })
+    const candidate: DeltaCandidate = {
+      id: 'assist:m-eddie',
+      targetId: 'clause:m-eddie:0',
+      clause: 'when this is intuitive',
+      kind: 'supplied_operation',
+      missionId: eddieMission.id,
+      move: 'Define the first concrete milestone and immediate next action for “the design of this”',
+      workDraft: '### Starting Plan — preserved on failure',
+      rank: 0,
+    }
+
+    renderDelta([eddieMission], {
+      suppliedOperations: [candidate],
+      onSaveNextAction,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save move & draft as my next action' }))
+    expect(await screen.findByText('Database write failed — your draft is preserved.')).toBeTruthy()
+    expect(screen.getByText('Starting Plan — preserved on failure')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry saving next action' }))
+    expect(await screen.findByText(/Saved as your next action/)).toBeTruthy()
+    expect(onSaveNextAction).toHaveBeenCalledTimes(2)
+  })
+
+  it('executes inline evidence requirement, blocker resolution, and mission promotion when recommended', async () => {
+    const noProofMission = mission({
+      id: 'm-proof',
+      state: 'primary',
+      title: 'the design of this',
+      finishLine: 'when this is intuitive and easy and beautiful to interact with',
+      evidenceRequirement: null,
+    })
+    const onSetEvidenceRequirement = vi.fn(async () => true)
+    const view = render(
+      <StrategicDelta
+        missions={[noProofMission]}
+        evidence={[]}
+        corrections={[]}
+        phase="resolved"
+        readAvailable={true}
+        onAccept={vi.fn()}
+        onCorrect={vi.fn()}
+        onSupplyStep={vi.fn()}
+        onContextAdded={vi.fn()}
+        onRecheck={vi.fn()}
+        onSetEvidenceRequirement={onSetEvidenceRequirement}
+      />,
+    )
+
+    const input = screen.getByLabelText(/What will prove “the design of this” is done\?/)
+    fireEvent.change(input, { target: { value: 'Me using it right now on my phone' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save evidence requirement' }))
+    await waitFor(() => expect(onSetEvidenceRequirement).toHaveBeenCalledWith('m-proof', 'Me using it right now on my phone'))
+    expect(await screen.findByText(/Evidence requirement saved: “Me using it right now on my phone”/)).toBeTruthy()
+
+    view.unmount()
+
+    const blockedMission = mission({
+      id: 'm-blocked',
+      state: 'primary',
+      title: 'the design of this',
+      finishLine: 'when this is intuitive and easy and beautiful to interact with',
+      blocker: 'Technical and code problems',
+    })
+    const onClearBlocker = vi.fn(async () => true)
+    renderDelta([blockedMission], { onClearBlocker })
+    fireEvent.click(screen.getByRole('button', { name: 'Mark blocker resolved & resume Primary' }))
+    await waitFor(() => expect(onClearBlocker).toHaveBeenCalledWith('m-blocked'))
+    expect(await screen.findByText(/Blocker resolved on “the design of this”/)).toBeTruthy()
+  })
+})

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   acceptanceDetail,
+  acceptanceLedger,
   liveAcceptances,
   missionToRow,
   rowToCorrection,
@@ -225,6 +226,25 @@ describe('liveAcceptances', () => {
     const detail = acceptanceDetail(MOVE, 'clause:m1:0')
     expect(JSON.parse(detail)).toEqual({ move: MOVE, candidateId: 'clause:m1:0' })
     expect(liveAcceptances([event('a1', 'm1', 'delta_accepted', detail, '2026-09-20T00:00:00.000Z')])).toEqual({ m1: MOVE })
+  })
+
+  it('stores and rehydrates the context key and event identity', () => {
+    const detail = acceptanceDetail(MOVE, 'clause:m1:0', 'The goal is met', 'context-key-1')
+    expect(JSON.parse(detail)).toEqual({
+      move: MOVE,
+      candidateId: 'clause:m1:0',
+      finishLine: 'The goal is met',
+      contextKey: 'context-key-1',
+    })
+    const ledger = acceptanceLedger([event('a1', 'm1', 'delta_accepted', detail, '2026-09-20T00:00:00.000Z')])
+    expect(ledger.m1).toMatchObject({
+      move: MOVE,
+      candidateId: 'clause:m1:0',
+      finishLine: 'The goal is met',
+      contextKey: 'context-key-1',
+      eventId: 'a1',
+      createdAt: '2026-09-20T00:00:00.000Z',
+    })
   })
 
   it('treats prose that happens to parse as JSON (a number, a quoted string) as the move itself', () => {

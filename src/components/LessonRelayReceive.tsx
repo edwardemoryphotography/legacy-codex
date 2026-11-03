@@ -79,13 +79,17 @@ export default function LessonRelayReceive({ missions, ready, onLessonWrite }: {
     } finally { setBusy(false) }
   }
 
-  return <section className="legacy-relay" aria-label="Receive lessons from others">
+  const isRelayRelevant = Boolean(code.trim() || received.length > 0 || notice || error)
+
+  return <section className="legacy-relay" data-active={isRelayRelevant ? 'true' : 'false'} aria-label="Receive lessons from others">
     <div className="legacy-relay-heading">
       <p className="legacy-relay-eyebrow">PASS IT FORWARD</p>
       <h2>My ceiling becomes someone else’s floor.</h2>
-      <p>Someone else’s hard-earned understanding can become a better starting point for your own work. You choose what to inherit. No one else’s private project records are transferred.</p>
+      {isRelayRelevant && (
+        <p>Someone else’s hard-earned understanding can become a better starting point for your own work. You choose what to inherit. No one else’s private project records are transferred.</p>
+      )}
     </div>
-    <div className="legacy-relay-steps" aria-hidden="true"><span /><span /><span /><span /></div>
+    {isRelayRelevant && <div className="legacy-relay-steps" aria-hidden="true"><span /><span /><span /><span /></div>}
     <details open={Boolean(code)}>
       <summary>Receive a shared lesson</summary>
       {missions.length === 0 ? <p>Start a mission first, then return here to carry this lesson into your own work.</p> : <>

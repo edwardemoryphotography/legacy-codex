@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { singleMissionRequest, UNKNOWN_LINE, type BriefMode } from '@/lib/dailyBrief'
+import { deriveNextAction, type NextActionReadState } from '@/lib/nextAction'
 import type { OpenAction } from '@/lib/territory'
 import type { BriefRunner } from '@/hooks/useBriefRunner'
 import type { ReadState } from '@/hooks/useMissionTerritory'
@@ -29,9 +30,28 @@ export default function MissionBriefPanel({ mission, action, actionsRead, brief,
 }) {
   const [wall, setWall] = useState<Wall | ''>('')
   const [question, setQuestion] = useState('')
-  const walls: Wall[] = [...(mission.blocker?.trim() ? ['blocker' as const] : []), ...(action ? ['action' as const] : [])]
+  const briefReadState: NextActionReadState =
+    actionsRead === 'failed' ? 'error' : actionsRead === 'pending' ? 'loading' : 'loaded'
+  const canonicalNextAction = deriveNextAction({
+    readState: briefReadState,
+    mission,
+    delta: null,
+    savedAction: action
+      ? {
+          id: action.id,
+          missionId: action.mission_id,
+          title: action.action_title,
+          status: action.status === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'TODO',
+          resumeNote: action.resume_note,
+          updatedAt: action.updated_at,
+        }
+      : null,
+  })
+  const hasSavedNextAction =
+    canonicalNextAction.state === 'saved' || canonicalNextAction.state === 'in_progress'
+  const walls: Wall[] = [...(mission.blocker?.trim() ? ['blocker' as const] : []), ...(hasSavedNextAction ? ['action' as const] : [])]
   const chosenWall = walls.includes(wall as Wall) ? (wall as Wall) : walls[0]
-  const wallText = chosenWall === 'action' ? `unfinished action: ${action?.action_title}` : `blocker: ${mission.blocker}`
+  const wallText = chosenWall === 'action' ? `unfinished action: ${canonicalNextAction.title}` : `blocker: ${mission.blocker}`
   const busy = brief.status === 'running'
   const unavailable = !brief.configured || brief.visitor
 
@@ -42,7 +62,7 @@ export default function MissionBriefPanel({ mission, action, actionsRead, brief,
   const thinking = (mode: BriefMode) => busy && brief.activeMode === mode
 
   return (
-    <div>
+    <div data-next-action-state={canonicalNextAction.state} data-next-action-read={canonicalNextAction.readState}>
       <div className="flex flex-wrap gap-2">
         {/* An unread action list is not an empty one: Architect Scan would
             report a saved commitment as unsaved, so it waits for the read. */}

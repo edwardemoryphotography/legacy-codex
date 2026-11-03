@@ -173,6 +173,9 @@ export type MissionEventType =
   // A deterministic starting step & working framework generated from the
   // user's project notes when external model review is unavailable.
   | 'delta_assistance_generated'
+  // Recorded when the user explicitly confirms replacing an unstarted TODO
+  // saved action so the previous commitment and resume note stay in history.
+  | 'action_replaced'
 
 export interface MissionEvent {
   id: string

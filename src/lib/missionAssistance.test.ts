@@ -3,6 +3,7 @@ import {
   applyQuantityGuard,
   buildDeterministicAssistance,
   declaredQuantities,
+  deriveObservableAcceptanceChecks,
   extractDeadline,
   plannedQuantities,
   quantityConflicts,
@@ -147,5 +148,32 @@ describe('deadline extraction ignores causal "due to"', () => {
 
   it('keeps looking past a causal phrase for a real deadline', () => {
     expect(extractDeadline('Moved up due to the storm, and it is due Friday')).toBe('due Friday')
+  })
+})
+
+describe('observable acceptance checks and non-repetitive starting plan', () => {
+  it('derives observable acceptance checks beneath Eddie’s broad finish line and phone usability proof', () => {
+    const checks = deriveObservableAcceptanceChecks({
+      finishLine: 'when this is intuitive and easy and beautiful to interact with',
+      evidenceRequirement: 'Me using it right now on my phone',
+      title: 'the design of this',
+    })
+    expect(checks.length).toBeGreaterThanOrEqual(4)
+    expect(checks.some(c => c.includes('“Save as my next action”'))).toBe(true)
+    expect(checks.some(c => c.includes('phone width'))).toBe(true)
+  })
+
+  it('does not repeat the raw project note verbatim inside the starting plan for non-writing projects', () => {
+    const rawNote = 'im interacting within the legacy codex right now. i have this entire interface open on my phone.'
+    const result = buildDeterministicAssistance({
+      title: 'the design of this',
+      finishLine: 'when this is intuitive and easy and beautiful to interact with',
+      evidenceRequirement: 'Me using it right now on my phone',
+      contextNote: rawNote,
+    })
+    expect(result.workDraft).toContain('**Preserved finish line:** when this is intuitive and easy and beautiful to interact with')
+    expect(result.workDraft).toContain('**Observable acceptance checks:**')
+    expect(result.workDraft).not.toContain(rawNote.slice(0, 80))
+    expect(result.why).not.toContain(rawNote.slice(0, 40))
   })
 })

@@ -50,6 +50,51 @@ describe('TaskRouter with real supplied intent and unavailable account context',
     expect(screen.queryByRole('button', { name: 'Prepare saved action' })).toBeNull()
   })
 
+  it('distinguishes preparing a handoff from saving the handoff as the next action, with retry on failure', async () => {
+    const mission = {
+      id: '11111111-1111-4111-8111-111111111111',
+      title: 'the design of this',
+      why: '',
+      finishLine: 'when this is intuitive and easy and beautiful to interact with',
+      evidenceRequirement: 'Me using it right now on my phone',
+      state: 'primary' as const,
+      blocker: null,
+      capacityMismatch: false,
+      createdAt: '2026-11-02T01:00:00.000Z',
+      updatedAt: '2026-11-02T01:00:00.000Z',
+    }
+    let attempt = 0
+    const onSavePreparedAction = vi.fn(async () => {
+      attempt += 1
+      return attempt > 1
+    })
+    const onPrepare = vi.fn()
+    render(
+      <TaskRouter
+        context={{ mission, missionStatus: 'ready', evidence: [], evidenceStatus: 'ready' }}
+        accountId={null}
+        seed={null}
+        canSave={true}
+        onPrepare={onPrepare}
+        onSavePreparedAction={onSavePreparedAction}
+      />,
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'Task to route' }), { target: { value: intent } })
+    fireEvent.click(screen.getByRole('button', { name: 'Route task' }))
+
+    // Both "Save handoff as my next action" and "Prepare saved action" are available
+    expect(screen.getByRole('button', { name: 'Prepare saved action' })).toBeTruthy()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Save handoff as my next action' }))
+    })
+    expect(screen.getByRole('status', { name: 'Routing status' }).textContent).toContain('Could not save this handoff as your next action')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Save handoff as my next action' }))
+    })
+    expect(onSavePreparedAction).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('status', { name: 'Routing status' }).textContent).toContain('Saved as your next action with the prepared handoff note.')
+  })
+
   it('never revives an invalidated route after editing the task back', () => {
     render(<TaskRouter {...props} />)
     const input = screen.getByRole('textbox', { name: 'Task to route' })

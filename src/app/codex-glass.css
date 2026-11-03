@@ -47,9 +47,13 @@ html::before, html::after, body::before, body::after { display: none; }
 /* Menu: everything that is not Home. */
 .glass-menu-overlay { position: fixed; inset: 0; z-index: 60; background: rgba(5, 6, 15, .45); }
 .glass-menu { position: absolute; top: calc(max(12px, env(safe-area-inset-top)) + 52px); left: max(12px, calc((100vw - 1080px) / 2 + 12px)); width: min(300px, calc(100vw - 24px)); max-height: calc(100dvh - 96px); overflow: auto; border-radius: 28px; padding: 8px; font-family: var(--g-body); }
-.glass-menu nav { display: grid; gap: 2px; }
-.glass-menu-item { display: flex; align-items: center; background: none; border: 0; color: var(--g-mist); font: 500 16px var(--g-body); padding: 12px 16px; border-radius: 20px; cursor: pointer; text-align: left; }
-.glass-menu-item:hover { background: rgba(255, 255, 255, .1); }
+.glass-menu nav { display: grid; gap: 8px; }
+.glass-menu-group { display: grid; gap: 2px; }
+.glass-menu-group + .glass-menu-group { border-top: 1px solid rgba(255, 255, 255, .1); padding-top: 8px; }
+.glass-menu-heading { margin: 4px 16px 2px; font: 700 10px var(--g-body); letter-spacing: .12em; text-transform: uppercase; color: var(--g-mist-dim); }
+.glass-menu-item { display: flex; align-items: center; background: none; border: 0; color: var(--g-mist); font: 500 16px var(--g-body); padding: 11px 16px; border-radius: 20px; cursor: pointer; text-align: left; }
+.glass-menu-item-secondary { font-size: 14px; padding: 9px 16px; color: var(--g-mist-dim); }
+.glass-menu-item:hover { background: rgba(255, 255, 255, .1); color: #fff; }
 .glass-menu-item[aria-current="page"] { background: rgba(255, 255, 255, .14); color: #fff; }
 .glass-menu .theme-review, .glass-menu > :not(nav) { margin: 8px 8px 4px; }
 

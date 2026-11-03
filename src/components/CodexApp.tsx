@@ -26,21 +26,26 @@ interface Tab {
   label: string
 }
 
-const TABS: Tab[] = [
-  { id: 'home',                   label: 'Home' },
-  { id: 'mission',                label: 'Mission' },
-  { id: 'overview',              label: 'Overview' },
-  { id: 'protocols',             label: 'Protocols' },
-  { id: 'sprint-linker',         label: 'Sprint Linker' },
-  { id: 'resumption-log',        label: 'Resumption Log' },
-  { id: 'biometrics',            label: 'Biometrics' },
-  { id: 'constraint-validator',  label: 'Constraint Validator' },
-  { id: 'codex',                 label: 'Codex' },
-  { id: 'controls',             label: 'Controls' },
-  { id: 'brief',                 label: 'Brief' },
-  { id: 'territory',             label: 'Territory' },
-  { id: 'origin',                label: 'Origin Atlas' },
+const PRIMARY_TABS: Tab[] = [
+  { id: 'home',      label: 'Home' },
+  { id: 'mission',   label: 'Mission' },
+  { id: 'codex',     label: 'Codex' },
+  { id: 'territory', label: 'Territory' },
+  { id: 'controls',  label: 'Controls' },
 ]
+
+const SECONDARY_TABS: Tab[] = [
+  { id: 'brief',                label: 'Brief' },
+  { id: 'overview',             label: 'Overview' },
+  { id: 'protocols',            label: 'Protocols' },
+  { id: 'sprint-linker',        label: 'Sprint Linker' },
+  { id: 'resumption-log',       label: 'Resumption Log' },
+  { id: 'biometrics',           label: 'Biometrics' },
+  { id: 'constraint-validator', label: 'Constraint Validator' },
+  { id: 'origin',               label: 'Origin Atlas' },
+]
+
+const TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS]
 
 // One menu, opened from the top-left button, holds every screen; Home is the
 // Codex Glass screen and the default (Eddie, 2026-10-30). Nothing else sits in
@@ -136,18 +141,36 @@ export default function CodexApp() {
             onClick={event => event.stopPropagation()}
           >
             <nav aria-label="Legacy Codex">
-              {TABS.map(tab => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  data-menu-item
-                  aria-current={activeTab === tab.id ? 'page' : undefined}
-                  onClick={() => selectTab(tab.id)}
-                  className="glass-menu-item"
-                >
-                  {tab.label}
-                </button>
-              ))}
+              <div className="glass-menu-group" role="group" aria-label="Primary workspace">
+                <p className="glass-menu-heading">Workspace</p>
+                {PRIMARY_TABS.map(tab => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    data-menu-item
+                    aria-current={activeTab === tab.id ? 'page' : undefined}
+                    onClick={() => selectTab(tab.id)}
+                    className="glass-menu-item"
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <div className="glass-menu-group" role="group" aria-label="Reference and diagnostics">
+                <p className="glass-menu-heading">Reference &amp; diagnostics</p>
+                {SECONDARY_TABS.map(tab => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    data-menu-item
+                    aria-current={activeTab === tab.id ? 'page' : undefined}
+                    onClick={() => selectTab(tab.id)}
+                    className="glass-menu-item glass-menu-item-secondary"
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             </nav>
             <ThemeReview />
           </div>
@@ -155,7 +178,7 @@ export default function CodexApp() {
       )}
 
       <main className="codex-main">
-        {(activeTab === 'home' || activeTab === 'mission') && <HomeTab key={homeSession.accountId} variant={activeTab === 'mission' ? 'mission' : 'home'} projectRevision={missionRevision} onNavigate={selectTab} session={homeSession} onSessionChange={setHomeSession} />}
+        {(activeTab === 'home' || activeTab === 'mission') && <HomeTab key={homeSession.accountId} variant={activeTab === 'mission' ? 'mission' : 'home'} projectRevision={missionRevision} onProjectChange={refreshConversationProject} onNavigate={selectTab} session={homeSession} onSessionChange={setHomeSession} />}
         {activeTab !== 'home' && <div
           className="panel-enter"
           key={activeTab}
@@ -164,7 +187,7 @@ export default function CodexApp() {
           aria-label={activeTabMeta?.label}
           tabIndex={-1}
         >
-          {activeTab === 'mission' && <MissionTab onMissionChange={refreshConversationProject} />}
+          {activeTab === 'mission' && <MissionTab onMissionChange={refreshConversationProject} externalRevision={missionRevision} />}
           {activeTab === 'overview'             && <OverviewTab />}
           {activeTab === 'protocols'            && <ProtocolsTab />}
           {activeTab === 'sprint-linker'        && <SprintLinkerTab />}
