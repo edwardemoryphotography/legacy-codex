@@ -180,7 +180,15 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     if (brief.visitor) { setSubmitNotice(BRIEF_VISITOR_COPY); return }
     if (!brief.configured) { setSubmitNotice('AI is not configured on the server yet. Your text is still here.'); return }
     if (noTextNeeded && missionCount === 0) { setSubmitNotice('Add a mission before requesting a Daily Brief or Triage. You can ask a question here without one.'); return }
-    const scopedMissions = homeMissionRoster(missions)
+    // Routine summaries concern current work. Keep parked/finished projects in
+    // Mission and in explicit questions without repeatedly surfacing them in Triage.
+    const scopedMissions = homeMissionRoster(missions).filter(mission =>
+      !noTextNeeded || ['primary', 'secondary', 'blocked'].includes(mission.state),
+    )
+    if (noTextNeeded && scopedMissions.length === 0) {
+      setSubmitNotice('No active missions to review. Open Mission to choose work to continue.')
+      return
+    }
     const roster = { missions: missionsToBriefContext(scopedMissions), missionIds: scopedMissions.map(m => m.id) }
     const request = homeRequest(tool, text)
     const { label, ...payload } = request
@@ -337,7 +345,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
               )}
             </div>
             {primaryMission && savedAction && !isReplySavedAsAction && (
-              <p className="glass-note" role="status" data-next-action-precedence="saved-first">
+              <p className={`glass-note ${styles.currentAction}`} role="status" data-next-action-precedence="saved-first">
                 Current saved action ({savedAction.status === 'IN_PROGRESS' ? 'In progress' : 'Saved'}): <strong>{savedAction.action_title}</strong>.{' '}
                 {!missionView && (
                   <button type="button" className="underline" onClick={() => onNavigate('mission')}>

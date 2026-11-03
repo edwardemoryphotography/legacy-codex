@@ -2,22 +2,31 @@
    in its existing shell; a reply never changes its stage into a transcript. */
 .home:global(.glass-home) {
   --home-orb-size: min(340px, calc(100vw - 64px), max(72px, calc((var(--codex-viewport-height, 100dvh) - 300px) * .9)));
-  gap: 12px;
+  gap: 8px;
+  min-height: 0;
+  overflow: hidden;
 }
 .home:global(.glass-home) :global(.glass-hero) {
-  flex: 1 1 auto;
-  gap: 16px;
+  flex: 1 1 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  justify-content: safe center;
+  gap: 12px;
   padding: 0;
   min-height: 0;
-  --home-orb-size: inherit;
+  --home-orb-size: min(220px, calc(100vw - 64px), max(72px, calc((var(--codex-viewport-height, 100dvh) - 380px) * .8)));
 }
+.home:global(.glass-home[data-reply="true"]) :global(.glass-hero) { flex: 1 1 0; }
 .home:global(.glass-home) :global(.glass-orb-wrap) {
-  flex: 1 1 auto;
+  flex: none;
   height: auto;
-  min-height: 72px;
+  min-height: 0;
 }
 .home :global(.glass-orb-wrap .sd-field-slot) {
-  height: min(var(--home-orb-size), calc(100% - 24px));
+  width: var(--home-orb-size);
+  height: var(--home-orb-size);
+  max-width: 100%;
+  flex: none;
 }
 .home :global(.glass-orb-state) { margin-top: 8px; color: var(--g-mist-dim); font-size: 12px; }
 .takeaway { flex: none; width: 100%; max-width: 480px; display: grid; justify-items: center; gap: 12px; }
@@ -27,7 +36,7 @@
 .home :global(.glass-home-links) { gap: 6px; }
 .home :global(.glass-home-links .glass-chip) { background: transparent; border-color: transparent; color: var(--g-mist-dim); font-size: 13px; }
 .home :global(.glass-home-links .glass-chip:hover) { color: var(--g-mist); border-color: var(--g-glass-edge); }
-.home :global(.glass-dock) { width: min(640px, 100%); align-self: center; }
+.home :global(.glass-dock) { position: relative; flex: none; left: auto; bottom: auto; transform: none; width: min(640px, 100%); align-self: center; padding: 8px 0 max(12px, env(safe-area-inset-bottom)); }
 .home :global(.glass-pill) { min-height: 64px; box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 12px 40px rgba(0,0,0,.12); }
 .panel {
   position: fixed; inset: 16px 16px 16px auto; margin: 0;
@@ -74,10 +83,11 @@
   .home:global(.glass-home[data-reply="true"]) :global(.glass-home-links) { display: none; }
 }
 
-.context { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; font-size: 13px; color: var(--g-mist-dim); overflow-wrap: anywhere; }
+.context { flex: none; min-width: 0; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; font-size: 13px; color: var(--g-mist-dim); overflow-wrap: anywhere; }
+.context > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: 100%; }
 .context button { min-height: 44px; }
 .mission:global(.glass-home) { height: auto; min-height: 0; padding: 20px; margin-bottom: 20px; border: 1px solid var(--g-glass-edge); border-radius: 24px; }
-.mission:global(.glass-home) :global(.glass-hero) { flex: none; }
+.mission:global(.glass-home) :global(.glass-hero) { flex: none; overflow: visible; }
 .mission .takeaway { max-width: 640px; }
 .panelBody :global(.glass-output-text) { white-space: normal; overflow-wrap: anywhere; }
 .panelBody :global(.glass-output-text pre) { white-space: pre-wrap; }
@@ -93,3 +103,17 @@
 .modelChoice button[aria-pressed="true"] { border-color: var(--g-teal); background: color-mix(in srgb, var(--g-teal) 12%, transparent); }
 .modelChoice:disabled { opacity: .65; }
 .modelChoice button:focus-visible { outline: 2px solid var(--g-teal); outline-offset: 2px; }
+
+/* Keep detail recoverable without repeating whole mission/action notes on Home. */
+.currentAction { max-width: 100%; }
+.currentAction strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+/* Safari can resize innerHeight along with visualViewport; focus is an
+   independent compact-layout signal, so keyboard detection cannot be the
+   only thing preventing the greeting and dock from colliding. */
+.home:has(:global(.glass-pill input:focus)) .context > span,
+.home:has(:global(.glass-pill input:focus)) .takeaway,
+.home:has(:global(.glass-pill input:focus)) :global(.glass-home-links),
+.home:has(:global(.glass-pill input:focus)) :global(.glass-dock) > :global(.glass-note),
+.home:has(:global(.glass-pill input:focus)) .modelChoice > span { display: none; }
+.home:has(:global(.glass-pill input:focus)) :global(.glass-hero) { --home-orb-size: 72px; }
+.home:has(:global(.glass-pill input:focus)) :global(.glass-orb-wrap) { flex: none; height: auto; }
