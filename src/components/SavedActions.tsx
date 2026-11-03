@@ -202,7 +202,7 @@ export default function SavedActions({
           <ActionBtn disabled={saving || !title.trim()} onClick={saveAction}>{saving ? 'Saving…' : 'Save next action'}</ActionBtn>
         </div> : <p>No unfinished actions are saved. Choose your next action on the Mission screen.</p>)}
         {doneActions.length > 0 && <details><summary>Actions you marked done ({doneActions.length})</summary>
-          {doneActions.map(action => <div key={action.id} className="mt-3"><p>{action.action_title}</p><p className="text-sm" style={{ color: 'var(--text-dim)' }}>{action.resume_note || 'No completion note saved.'}</p></div>)}
+          {doneActions.map(action => <div key={action.id} className="mt-3 commitment-done"><p>{action.action_title}</p><p className="text-sm" style={{ color: 'var(--text-dim)' }}>{action.resume_note || 'No completion note saved.'}</p></div>)}
         </details>}
         <button type="button" className="underline text-sm" onClick={() => { setLoading(true); void load() }}>Refresh saved actions</button>
       </>}
