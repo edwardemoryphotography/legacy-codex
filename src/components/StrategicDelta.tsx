@@ -477,23 +477,23 @@ export default function StrategicDelta({
   const [savingNextAction, setSavingNextAction] = useState(false)
   const savingNextActionRef = useRef(false)
   const [saveActionResult, setSaveActionResult] = useState<{ actionId?: string; title: string; replaced?: boolean } | null>(null)
-  const hadSavedActionRef = useRef(false)
+  // A successful save may precede the authoritative SavedActions reload.
+  // Preserve the confirmed write receipt until a saved-row snapshot arrives,
+  // but never fall back to that receipt once an authoritative row was observed
+  // and subsequently completed or removed.
+  const [sawAuthoritativeSavedAction, setSawAuthoritativeSavedAction] = useState(false)
   useEffect(() => {
     if (savedOpenAction) {
-      // A different action or its completion invalidates the optimistic result.
+      setSawAuthoritativeSavedAction(true)
       if (saveActionResult?.actionId && savedOpenAction.id !== saveActionResult.actionId) {
         setSaveActionResult(null)
       }
-      hadSavedActionRef.current = true
       return
     }
-    // Only clear after a real snapshot existed; an initial null is "not read
-    // yet", not "completed".
-    if (hadSavedActionRef.current) {
-      hadSavedActionRef.current = false
+    if (sawAuthoritativeSavedAction && saveActionResult) {
       setSaveActionResult(null)
     }
-  }, [savedOpenAction, saveActionResult])
+  }, [savedOpenAction, saveActionResult, sawAuthoritativeSavedAction])
   const [saveActionError, setSaveActionError] = useState<string | null>(null)
   const [confirmingReplace, setConfirmingReplace] = useState(false)
   const [startingAction, setStartingAction] = useState(false)
@@ -623,7 +623,7 @@ export default function StrategicDelta({
   const matchingSavedAction =
     currentSavedAction && delta && currentSavedAction.title === delta.move
       ? currentSavedAction
-      : savedOpenAction === undefined && committableMission && delta && saveActionResult?.title === delta.move
+      : !sawAuthoritativeSavedAction && committableMission && delta && saveActionResult?.title === delta.move
         ? {
             id: saveActionResult.actionId ?? 'latest',
             missionId: committableMission.id,
