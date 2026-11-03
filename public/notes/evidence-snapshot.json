@@ -1,7 +1,40 @@
 {
-  "generatedAt": "2026-11-02T17:53:09.659Z",
+  "generatedAt": "2026-11-03T02:01:42.382Z",
   "unavailableSources": [],
   "records": [
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-153",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#153",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #153 \"Fix iPhone orb sizing and keyboard overlap on Home\" merged. 2 check run(s), 2 passing.",
+      "observedAt": "2026-11-03T01:43:22Z",
+      "fetchedAt": "2026-11-03T02:01:37.089Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-152",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#152",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #152 \"feat(mission): turn recommendations into executable saved actions and clarify Mission flow\" merged. 2 check run(s), 2 passing.",
+      "observedAt": "2026-11-03T00:49:10Z",
+      "fetchedAt": "2026-11-03T02:01:37.356Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-151",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#151",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #151 \"Default conversations to Economy and make Deep an explicit choice\" merged. 2 check run(s), 2 passing.",
+      "observedAt": "2026-11-02T20:25:25Z",
+      "fetchedAt": "2026-11-03T02:01:37.738Z",
+      "prReadSucceeded": true
+    },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-150",
       "missionId": null,
@@ -10,7 +43,7 @@
       "status": "verified",
       "claim": "PR #150 \"Continue the conversation between Home and Mission\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-02T16:01:43Z",
-      "fetchedAt": "2026-11-02T17:53:03.486Z",
+      "fetchedAt": "2026-11-03T02:01:38.078Z",
       "prReadSucceeded": true
     },
     {
@@ -21,7 +54,7 @@
       "status": "verified",
       "claim": "PR #149 \"Fix iPhone Home Screen icon with the existing Codex Glass orb\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-02T09:06:24Z",
-      "fetchedAt": "2026-11-02T17:53:03.837Z",
+      "fetchedAt": "2026-11-03T02:01:38.394Z",
       "prReadSucceeded": true
     },
     {
@@ -32,7 +65,7 @@
       "status": "verified",
       "claim": "PR #148 \"Keep mission read failures explicit inside Home details\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-02T08:32:47Z",
-      "fetchedAt": "2026-11-02T17:53:04.354Z",
+      "fetchedAt": "2026-11-03T02:01:38.725Z",
       "prReadSucceeded": true
     },
     {
@@ -43,7 +76,7 @@
       "status": "verified",
       "claim": "PR #147 \"Keep Home centered on Codex Glass with optional answer details\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-02T08:22:27Z",
-      "fetchedAt": "2026-11-02T17:53:04.729Z",
+      "fetchedAt": "2026-11-03T02:01:39.049Z",
       "prReadSucceeded": true
     },
     {
@@ -54,7 +87,7 @@
       "status": "verified",
       "claim": "PR #146 \"Fix relay review invalidation and long lesson links\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-02T07:43:12Z",
-      "fetchedAt": "2026-11-02T17:53:05.206Z",
+      "fetchedAt": "2026-11-03T02:01:39.320Z",
       "prReadSucceeded": true
     },
     {
@@ -65,7 +98,7 @@
       "status": "verified",
       "claim": "PR #145 \"Make the existing Codex orb the immersive Home interface\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-02T01:55:09Z",
-      "fetchedAt": "2026-11-02T17:53:05.563Z",
+      "fetchedAt": "2026-11-03T02:01:39.689Z",
       "prReadSucceeded": true
     },
     {
@@ -76,7 +109,7 @@
       "status": "unverified",
       "claim": "PR #142 \"feat: modern model tiers and reasoning-compatible fallback APIs\" open, not yet merged.",
       "observedAt": "2026-11-01T22:04:38Z",
-      "fetchedAt": "2026-11-02T17:53:05.563Z",
+      "fetchedAt": "2026-11-03T02:01:39.689Z",
       "prReadSucceeded": true
     },
     {
@@ -87,7 +120,7 @@
       "status": "verified",
       "claim": "PR #144 \"Legacy Relay: make one person's learned ceiling another person's starting floor\" merged. 1 check run(s), 1 passing.",
       "observedAt": "2026-11-01T12:15:04Z",
-      "fetchedAt": "2026-11-02T17:53:05.983Z",
+      "fetchedAt": "2026-11-03T02:01:40.027Z",
       "prReadSucceeded": true
     },
     {
@@ -98,7 +131,7 @@
       "status": "verified",
       "claim": "PR #143 \"feat: modern tiered Claude / Gemini / OpenAI routing for Legacy Codex\" merged. 1 check run(s), 1 passing.",
       "observedAt": "2026-11-01T07:03:28Z",
-      "fetchedAt": "2026-11-02T17:53:06.319Z",
+      "fetchedAt": "2026-11-03T02:01:40.347Z",
       "prReadSucceeded": true
     },
     {
@@ -109,7 +142,7 @@
       "status": "verified",
       "claim": "PR #141 \"Bring saved Mission continuity and truthful boomerang evidence into Codex Glass\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-01T01:12:15Z",
-      "fetchedAt": "2026-11-02T17:53:06.682Z",
+      "fetchedAt": "2026-11-03T02:01:40.710Z",
       "prReadSucceeded": true
     },
     {
@@ -120,7 +153,7 @@
       "status": "verified",
       "claim": "PR #140 \"Home: make Enter submit, preserve failed text, and expose microphone feedback\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-10-31T09:49:16Z",
-      "fetchedAt": "2026-11-02T17:53:06.980Z",
+      "fetchedAt": "2026-11-03T02:01:41.054Z",
       "prReadSucceeded": true
     },
     {
@@ -131,7 +164,7 @@
       "status": "verified",
       "claim": "PR #139 \"Preserve the real builder failure and give Home a direct Mission entry\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-10-31T08:46:01Z",
-      "fetchedAt": "2026-11-02T17:53:07.365Z",
+      "fetchedAt": "2026-11-03T02:01:41.416Z",
       "prReadSucceeded": true
     },
     {
@@ -142,7 +175,7 @@
       "status": "verified",
       "claim": "PR #138 \"Sign-in: accept the 8-digit email code\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-10-31T07:36:47Z",
-      "fetchedAt": "2026-11-02T17:53:07.713Z",
+      "fetchedAt": "2026-11-03T02:01:41.783Z",
       "prReadSucceeded": true
     },
     {
@@ -153,7 +186,7 @@
       "status": "verified",
       "claim": "PR #137 \"Make the Codex Glass screen the home, with one menu for everything else\" merged. 3 check run(s), 3 passing.",
       "observedAt": "2026-10-30T22:52:27Z",
-      "fetchedAt": "2026-11-02T17:53:08.071Z",
+      "fetchedAt": "2026-11-03T02:01:42.053Z",
       "prReadSucceeded": true
     },
     {
@@ -164,7 +197,7 @@
       "status": "verified",
       "claim": "PR #136 \"Render the orb as the Codex Glass orb\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-10-30T20:54:16Z",
-      "fetchedAt": "2026-11-02T17:53:08.431Z",
+      "fetchedAt": "2026-11-03T02:01:42.382Z",
       "prReadSucceeded": true
     },
     {
@@ -175,7 +208,7 @@
       "status": "unverified",
       "claim": "PR #135 \"Connect the Mission orb to project review and lesson inheritance\" open, not yet merged.",
       "observedAt": "2026-10-30T19:31:56Z",
-      "fetchedAt": "2026-11-02T17:53:08.431Z",
+      "fetchedAt": "2026-11-03T02:01:42.382Z",
       "prReadSucceeded": true
     },
     {
@@ -186,40 +219,7 @@
       "status": "unverified",
       "claim": "PR #133 \"test(mission): cover failed-save draft retention and parked Set proof path (follow-up to #112)\" open, not yet merged.",
       "observedAt": "2026-10-30T08:53:38Z",
-      "fetchedAt": "2026-11-02T17:53:08.431Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-132",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#132",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #132 \"Refine canonical Aurora presence and expose typed runtime status\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-10-29T22:10:24Z",
-      "fetchedAt": "2026-11-02T17:53:08.869Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-131",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#131",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #131 \"Record production review audit and release evidence\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-10-29T01:39:31Z",
-      "fetchedAt": "2026-11-02T17:53:09.237Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-130",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#130",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #130 \"Preserve saved project review history\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-10-29T00:42:32Z",
-      "fetchedAt": "2026-11-02T17:53:09.659Z",
+      "fetchedAt": "2026-11-03T02:01:42.382Z",
       "prReadSucceeded": true
     }
   ]
