@@ -30,8 +30,7 @@ export async function GET(req: NextRequest) {
     const context = await loadProjectContext(client, owner.userId, missionId)
     const history = await client.from('mission_events').select('detail').eq('user_id', owner.userId).eq('mission_id', missionId).eq('type', 'delta_reviewed').order('created_at', { ascending: false }).limit(1)
     if (history.error) throw new Error('Could not read review history.')
-    const restored = history.data?.[0] ? historicalReview(history.data[0].detail, missionId) : null
-    const previousReview = restored && unsupportedReviewAssertions(restored).length === 0 ? restored : null
+    const previousReview = history.data?.[0] ? historicalReview(history.data[0].detail, missionId) : null
     return NextResponse.json({ previousReview, review: projectIsReviewable(context) ? await cachedProjectReview(client, owner.userId, context) : null, lessons: context.lessons }, { headers: { 'Cache-Control': 'no-store' } })
   } catch {
     return NextResponse.json({ error: 'Could not restore the project review. Your saved work is unchanged.' }, { status: 503 })
