@@ -1172,31 +1172,23 @@ export default function MissionTab({ onMissionChange, externalRevision = 0 }: { 
               : effectiveNote ?? existingOpen.resumeNote ?? null
 
           if (!existingOpen.id.startsWith('saved-')) {
-            const updateQuery = (
-              supabase.from('actions') as unknown as {
-                update?: (values: Record<string, unknown>) => {
-                  eq: (col: string, val: string) => {
-                    select?: (cols: string) => { single: () => Promise<{ data: unknown; error: unknown }> }
-                  }
-                }
-              }
-            ).update?.({
-              action_title: delta.move,
-              resume_note: finalResumeNote,
-              is_next_action: true,
-            })
-            if (updateQuery) {
-              const eqBuilder = updateQuery.eq('id', existingOpen.id)
-              const versioned = (eqBuilder as unknown as { eq: (col: string, val: string) => typeof eqBuilder })
-                .eq('mission_id', missionId).eq('status', 'TODO').eq('updated_at', existingOpen.updatedAt!)
-              if (typeof versioned.select !== 'function') throw new Error('Cannot verify the replacement')
-              const { data, error: writeError } = await versioned.select('id,status,updated_at').single()
-              if (writeError || !data) throw writeError ?? new Error('Saved action changed in another tab')
-              const row = data as { id?: string; status?: 'TODO' | 'IN_PROGRESS'; updated_at?: string }
-              if (row.id) savedActionId = row.id
-              if (row.status) savedStatus = row.status
-              if (row.updated_at) savedUpdatedAt = row.updated_at
-            }
+            const { data, error: writeError } = await supabase.from('actions')
+              .update({
+                action_title: delta.move,
+                resume_note: finalResumeNote,
+                is_next_action: true,
+              })
+              .eq('id', existingOpen.id)
+              .eq('mission_id', missionId)
+              .eq('status', 'TODO')
+              .eq('updated_at', existingOpen.updatedAt!)
+              .select('id,status,updated_at')
+              .single()
+            if (writeError || !data) throw writeError ?? new Error('Saved action changed in another tab')
+            const row = data as { id?: string; status?: 'TODO' | 'IN_PROGRESS'; updated_at?: string }
+            if (row.id) savedActionId = row.id
+            if (row.status) savedStatus = row.status
+            if (row.updated_at) savedUpdatedAt = row.updated_at
           }
         } else {
           const insertBuilder = supabase.from('actions').insert({
