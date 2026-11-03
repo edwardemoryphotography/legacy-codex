@@ -1963,6 +1963,21 @@ body {
   border-top: 1px solid var(--line);
 }
 
+/* Expanded completion notes can contain long URLs or a single unbroken
+   sentence. They must wrap inside the card instead of widening the page. */
+.commitment-done {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.commitment-done p {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .commitment-title {
   font-size: 1.2rem;
   font-weight: 650;
