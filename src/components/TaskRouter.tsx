@@ -203,7 +203,7 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
     const routed = buildTaskRoute(task, effectiveContext, options, weights, chosen)
     setResult({ route: routed, inputKey: JSON.stringify([task, options, contextKey, learningScope, weights]) })
     setCorrection(routed.primary.key)
-    setMessage('')
+    setMessage('Handoff prepared below. Review it, then copy or save it.')
   }
 
   async function savePendingCorrection(pending: PendingRouteCorrection, localSaved: boolean) {
@@ -329,6 +329,7 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
         <p className="route-boundary">Local rules · Handoffs only. Selecting a tool does not connect it or run your task.</p>
       </div>
     </form>
+    {message && <p className="route-notice" role="status" aria-label="Routing status">{message}</p>}
     {result && !active && <p className="route-notice" role="status">The task or context changed. Route again before copying or saving.</p>}
     {pendingSave && <div className="route-teach" aria-label="Pending routing correction">
       <div><h3>Correction waiting to sync</h3><p>The bounded route tokens and chosen lane remain in this browser; the task text was not stored.</p></div>
@@ -369,6 +370,5 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
         <button type="button" className="route-secondary" disabled={saving || effectiveContext.learningStatus === 'loading'} onClick={() => void teach()}>Use this lane</button>
       </div>
     </div>}
-    {message && <p className="route-notice" role="status" aria-label="Routing status">{message}</p>}
   </section>
 }

@@ -61,6 +61,7 @@ describe('TaskRouter with real supplied intent and unavailable account context',
       fireEvent.change(input, { target: { value: 'x'.repeat(5000) } })
       fireEvent.click(screen.getByRole('button', { name: 'Route task' }))
       expect(screen.getByRole('article', { name: 'Task route' })).toBeTruthy()
+      expect(screen.getByText('Handoff prepared below. Review it, then copy or save it.')).toBeTruthy()
       expect(scroll).toHaveBeenCalled()
     } finally {
       HTMLElement.prototype.scrollIntoView = original
