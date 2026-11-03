@@ -6,6 +6,7 @@ import { deltaReviewer } from '@/lib/supabase/deltaAuth'
 import { parseAssistanceNote } from '@/lib/missionAssistance'
 import { loadProjectContext, projectUserClient } from '@/lib/projectReviewServer'
 import { parseProjectReview, type ProjectReview, type ReviewProposal } from '@/lib/projectReview'
+import { unsupportedReviewAssertions } from '@/lib/claimIntegrity'
 import { measureTransfer } from '@/lib/structuralTransfer'
 import { isConcreteMove } from '@/lib/strategicDelta'
 import { cachedProjectReview, projectIsReviewable } from '@/lib/projectReviewStore'
@@ -29,7 +30,8 @@ export async function GET(req: NextRequest) {
     const context = await loadProjectContext(client, owner.userId, missionId)
     const history = await client.from('mission_events').select('detail').eq('user_id', owner.userId).eq('mission_id', missionId).eq('type', 'delta_reviewed').order('created_at', { ascending: false }).limit(1)
     if (history.error) throw new Error('Could not read review history.')
-    const previousReview = history.data?.[0] ? historicalReview(history.data[0].detail, missionId) : null
+    const restored = history.data?.[0] ? historicalReview(history.data[0].detail, missionId) : null
+    const previousReview = restored && unsupportedReviewAssertions(restored).length === 0 ? restored : null
     return NextResponse.json({ previousReview, review: projectIsReviewable(context) ? await cachedProjectReview(client, owner.userId, context) : null, lessons: context.lessons }, { headers: { 'Cache-Control': 'no-store' } })
   } catch {
     return NextResponse.json({ error: 'Could not restore the project review. Your saved work is unchanged.' }, { status: 503 })
@@ -106,6 +108,8 @@ export async function POST(req: NextRequest) {
     })
     if (comparingLessons) {
       baseline = draft.stopReason === 'tool_use' && draft.toolInput ? parseProjectReview(JSON.stringify(draft.toolInput), withheld, body.missionId) : null
+      // Model-asserted verification cannot qualify as a lesson-withheld baseline.
+      if (baseline && unsupportedReviewAssertions(baseline).length) baseline = null
       // A malformed baseline cannot become a measured comparison. Still allow
       // the normal final critique to help the person, with unavailable metrics.
     } else if (draft.stopReason !== 'end_turn') return NextResponse.json({ error: 'The review draft did not complete. No recommendation was accepted.' }, { status: 502 })
@@ -124,6 +128,13 @@ export async function POST(req: NextRequest) {
       ? parseProjectReview(JSON.stringify(final.toolInput), context.sources, body.missionId) : null
     if (!parsed || (parsed.operation && !isConcreteMove(parsed.operation, { title: context.mission.title, finishLine: context.mission.finish_line }))) {
       return NextResponse.json({ error: 'The review did not return a grounded choice with a finish condition. No recommendation was accepted.' }, { status: 502 })
+    }
+    const unsupportedClaims = unsupportedReviewAssertions(parsed)
+    if (unsupportedClaims.length) {
+      // No private model output is emitted to logs. Fail closed; do not cache or
+      // present unverified completion claims as a reviewed result.
+      console.warn('/api/delta-review blocked unsupported outcome claims', { fields: unsupportedClaims })
+      return NextResponse.json({ error: 'This review claimed a verified or completed result without independent evidence. No recommendation was accepted.' }, { status: 502 })
     }
     // Do not apply a proposal if notes, corrections, commitments or sources
     // changed while the two model calls were running.
