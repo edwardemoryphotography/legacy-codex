@@ -1092,45 +1092,37 @@ export default function MissionTab({ onMissionChange, externalRevision = 0 }: { 
                     : null
                 })()
 
-        // Idempotent duplicate save: same open action title already saved on this mission.
-        // Never reset IN_PROGRESS to TODO or wipe an existing resumeNote on a duplicate save.
+        // A duplicate click is idempotent: never reset status or overwrite notes.
+        // If the user explicitly supplied a new draft, fill an empty resume note
+        // only if the saved action still has exactly the same database version.
         if (existingOpen && existingOpen.title === delta.move) {
-          const preservedStatus = existingOpen.status
-          const preservedNote = existingOpen.resumeNote ?? effectiveNote ?? null
-          if (!existingOpen.resumeNote && effectiveNote && !existingOpen.id.startsWith('saved-')) {
-            const updateQuery = (
-              supabase.from('actions') as unknown as {
-                update?: (values: Record<string, unknown>) => {
-                  eq: (col: string, val: string) => {
-                    select?: (cols: string) => { single: () => Promise<{ data: unknown; error: unknown }> }
-                  }
-                }
-              }
-            ).update?.({
-              resume_note: effectiveNote,
-              is_next_action: true,
-            })
-            if (updateQuery) {
-              const eqBuilder = updateQuery.eq('id', existingOpen.id)
-              const versioned = existingOpen.updatedAt
-                ? (eqBuilder as unknown as { eq: (col: string, val: string) => typeof eqBuilder }).eq('updated_at', existingOpen.updatedAt)
-                : eqBuilder
-              if (typeof versioned.select === 'function') {
-                const { error: writeError } = await versioned.select('id,status').single()
-                if (writeError) throw writeError
-              } else {
-                const { error: writeError } = await (versioned as unknown as Promise<{ error: unknown }>)
-                if (writeError) throw writeError
-              }
+          let savedNote = existingOpen.resumeNote ?? effectiveNote ?? null
+          let savedVersion = existingOpen.updatedAt ?? null
+          if (!existingOpen.resumeNote && effectiveNote) {
+            if (!existingOpen.updatedAt) {
+              return { ok: false, error: 'Refresh this saved action before adding a draft. Its current version could not be confirmed.' }
             }
+            const { data, error: writeError } = await supabase.from('actions')
+              .update({ resume_note: effectiveNote, is_next_action: true })
+              .eq('id', existingOpen.id)
+              .eq('mission_id', missionId)
+              .eq('status', existingOpen.status)
+              .eq('updated_at', existingOpen.updatedAt)
+              .select('id,status,resume_note,updated_at')
+              .single()
+            if (writeError || !data) throw writeError ?? new Error('Saved action changed in another tab')
+            savedNote = data.resume_note
+            savedVersion = data.updated_at
+            setSavedActionsRevision(value => value + 1)
+            onMissionChange?.()
           }
           setOpenMissionAction({
             id: existingOpen.id,
             missionId,
             title: existingOpen.title,
-            status: preservedStatus,
-            resumeNote: preservedNote,
-            updatedAt: existingOpen.updatedAt ?? null,
+            status: existingOpen.status,
+            resumeNote: savedNote,
+            updatedAt: savedVersion,
           })
           setResumableMissionId(missionId)
           return {
