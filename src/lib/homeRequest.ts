@@ -1,5 +1,5 @@
 export type HomeTool = 'brief' | 'triage' | 'ask' | 'prompt'
-export const QUESTION_LIMIT = 400
+export const QUESTION_LIMIT = 8000
 const PROMPT_HELP = 'Help me write a clear, specific prompt an AI can act on, for this: '
 export const PROMPT_LIMIT = QUESTION_LIMIT - PROMPT_HELP.length
 export function promptHelpQuestion(text: string) {

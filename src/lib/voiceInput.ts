@@ -1,5 +1,5 @@
 /** Browser-owned transcripts only. Never add inferred or generated words. */
-export const TASK_INPUT_LIMIT = 2000
+export const TASK_INPUT_LIMIT = 8000
 
 export function appendVoiceTranscript(base: string, transcript: string, maxLength = TASK_INPUT_LIMIT): string {
   const spoken = transcript.trim()
