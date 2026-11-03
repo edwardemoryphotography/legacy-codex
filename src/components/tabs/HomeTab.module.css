@@ -116,3 +116,4 @@
 .home:has(:global(.glass-pill input:focus)) .modelChoice > span { display: none; }
 .home:has(:global(.glass-pill input:focus)) :global(.glass-hero) { --home-orb-size: 72px; }
 .home:has(:global(.glass-pill input:focus)) :global(.glass-orb-wrap) { flex: none; height: auto; }
+.home:has(:global(.glass-pill input:focus)) :global(.glass-orb-state) { display: none; }

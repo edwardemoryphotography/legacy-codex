@@ -12,9 +12,10 @@
    paints, so only one orb is ever visible and its CSS loops stop running. */
 :root .sd.sd-orb-host[data-orb] .sd-field { background: none; box-shadow: none; border: 0; }
 :root .sd.sd-orb-host[data-orb] .sd-field::before, :root .sd.sd-orb-host[data-orb] .sd-field > * { display: none; }
-.codex-orb-stage { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
-/* Explicit dimensions avoid Safari grid intrinsic sizing clipping the sphere to a strip. */
-.codex-orb { position: absolute; inset: 0; width: 100%; height: 100%; min-width: 0; min-height: 0; }
+.codex-orb-stage { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; container-type: size; }
+/* Size from the shorter axis so a tall, narrow host (72x132 on desktop and
+   some iPhone states) cannot stretch the sphere into a vertical strip. */
+.codex-orb { position: relative; width: 100%; width: min(100cqw, 100cqh); height: auto; aspect-ratio: 1; min-width: 0; min-height: 0; }
 .codex-orb > canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
 .codex-orb-fallback { border-radius: 50%; background: radial-gradient(circle at 40% 35%, #22D3BE, #6A5CFF 60%, #0D0F22); }
 .sd-field-slot { height: 196px; }
