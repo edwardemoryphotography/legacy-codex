@@ -40,6 +40,7 @@ export interface BriefMissionContext {
 const MAX_MISSIONS = 40
 // Also the server-side clamp in /api/brief for every text field.
 export const MAX_FIELD_LENGTH = 400
+export const MAX_QUESTION_LENGTH = 8000
 
 function clip(value: string | null | undefined, max = MAX_FIELD_LENGTH): string | null {
   if (!value) return null

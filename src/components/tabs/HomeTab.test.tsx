@@ -5,6 +5,7 @@ import { emptyHomeSession, type HomeSession } from '@/lib/homeSession'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import HomeTab, { promptHelpQuestion } from './HomeTab'
+import { QUESTION_LIMIT } from '@/lib/homeRequest'
 
 const run = vi.fn(async () => true)
 let voiceWrite: (value: string) => void = () => {}
@@ -82,8 +83,8 @@ vi.mock('@/components/OrbHost', () => ({
 afterEach(() => { cleanup(); briefStatus = 'idle'; briefOutput = ''; orbState = 'idle'; actionInsertError = null; actionRows.length = 0; reset.mockClear(); run.mockReset(); run.mockResolvedValue(true); voiceActive = false; voiceStatus = ''; visitor = false; loadError = null; missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }] })
 
 describe('promptHelpQuestion', () => {
-  it('stays within the 400-character question limit /api/brief enforces', () => {
-    expect(promptHelpQuestion('x'.repeat(1000)).length).toBe(400)
+  it('stays within the shared question limit /api/brief enforces', () => {
+    expect(promptHelpQuestion('x'.repeat(QUESTION_LIMIT + 100)).length).toBe(QUESTION_LIMIT)
   })
 
   it('keeps the person’s words after the instruction', () => {
@@ -94,18 +95,18 @@ describe('promptHelpQuestion', () => {
 describe('HomeTab never cuts a question silently', () => {
   it('clamps a long voice transcript to what can be sent', () => {
     render(<HomeTab onNavigate={() => {}} />)
-    act(() => voiceWrite('y'.repeat(600)))
-    expect(screen.getByLabelText('Ask Codex')).toHaveValue('y'.repeat(400))
-    expect(screen.getByText('Character limit reached (400).')).toBeInTheDocument()
+    act(() => voiceWrite('y'.repeat(QUESTION_LIMIT + 100)))
+    expect(screen.getByLabelText('Ask Codex')).toHaveValue('y'.repeat(QUESTION_LIMIT))
+    expect(screen.getByText(`Character limit reached (${QUESTION_LIMIT}).`)).toBeInTheDocument()
   })
 
   it('blocks Prompt help when the text no longer fits, and says why', () => {
     render(<HomeTab onNavigate={() => {}} />)
-    act(() => voiceWrite('z'.repeat(400)))
+    act(() => voiceWrite('z'.repeat(QUESTION_LIMIT)))
     fireEvent.click(screen.getByRole('button', { name: 'Open tools' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Help me write a prompt' }))
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
-    expect(screen.getByText(/Too long to send: shorten it to \d+ characters \(now 400\)\./)).toBeInTheDocument()
+    expect(screen.getByText(new RegExp(`Too long to send: shorten it to \\d+ characters \\(now ${QUESTION_LIMIT}\\)\\.`))).toBeInTheDocument()
     expect(run).not.toHaveBeenCalled()
   })
 

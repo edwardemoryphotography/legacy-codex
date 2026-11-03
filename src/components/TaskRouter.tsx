@@ -8,6 +8,7 @@ import { nextMoveContextExpiresAt, nextMoveContextKey } from '@/lib/nextMove'
 import { applyRouteTokens, buildTaskRoute, correctTaskRoute, HANDOFF_TOOLS, readRouteLearning, ROUTE_LANES, type HandoffTool, type RouteLane, type RouteLearning, type RouteOptions, type TaskRoute, type TaskRouteContext } from '@/lib/taskRouting'
 import { useMotionAllowed } from '@/hooks/useMotionAllowed'
 import { useTaskVoice } from '@/hooks/useTaskVoice'
+import { TASK_INPUT_LIMIT } from '@/lib/voiceInput'
 import { useOrbInteraction } from '@/components/OrbHost'
 
 export type RoutedActionDraft = { task: string; note: string; missionId: string; contextKey: string }
@@ -66,6 +67,7 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
   const [message, setMessage] = useState('')
   const [clock, setClock] = useState(() => new Date().toISOString())
   const field = useRef<HTMLTextAreaElement>(null)
+  const resultRef = useRef<HTMLDivElement>(null)
   const motionAllowed = useMotionAllowed()
   const storageKey = accountId ? `legacy-codex-route-learning-v1:${accountId}` : null
   const pendingKey = pendingStorageKey(accountId)
@@ -77,6 +79,16 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
   const contextKey = nextMoveContextKey(effectiveContext, new Date().toISOString())
   const inputKey = JSON.stringify([task, options, contextKey, learningScope, learning])
   const active = result?.inputKey === inputKey ? result.route : null
+
+  // On a phone the result renders below the preferences, so a successful
+  // Route task looks like a no-op unless the new panel is brought into view.
+  useEffect(() => {
+    if (!active) return
+    const node = resultRef.current
+    if (!node) return
+    node.scrollIntoView?.({ block: 'start', behavior: motionAllowed ? 'smooth' : 'auto' })
+    node.focus?.({ preventScroll: true })
+  }, [active, motionAllowed])
 
   useEffect(() => { cancelVoice() }, [missionId, cancelVoice])
 
@@ -191,7 +203,7 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
     const routed = buildTaskRoute(task, effectiveContext, options, weights, chosen)
     setResult({ route: routed, inputKey: JSON.stringify([task, options, contextKey, learningScope, weights]) })
     setCorrection(routed.primary.key)
-    setMessage('')
+    setMessage('Handoff prepared below. Review it, then copy or save it.')
   }
 
   async function savePendingCorrection(pending: PendingRouteCorrection, localSaved: boolean) {
@@ -289,11 +301,11 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
     <form onSubmit={event => { event.preventDefault(); if (task.trim()) route() }}>
       <div className="route-composer" data-engaged={engaged || voice.active ? 'true' : undefined} data-motion={motionAllowed ? 'true' : 'false'} data-voice={voice.phase} onFocusCapture={() => setEngaged(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setEngaged(false) }}>
         <label className="sr-only" htmlFor="route-task">Task to route</label>
-        <textarea ref={field} id="route-task" rows={4} maxLength={2000} value={task} onChange={event => { voice.cancel(); setTask(event.target.value); setMessage('') }} placeholder="Describe the real task you want to do…" onKeyDown={event => {
+        <textarea ref={field} id="route-task" rows={4} maxLength={TASK_INPUT_LIMIT} value={task} onChange={event => { voice.cancel(); setTask(event.target.value); setMessage('') }} placeholder="Describe the real task you want to do…" onKeyDown={event => {
           if (event.key === 'Escape') voice.cancel()
           if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && task.trim()) { event.preventDefault(); route() }
         }} />
-        <div className="route-composer-foot"><span>⌘ / Ctrl + Enter</span><div className="route-composer-actions">
+        <div className="route-composer-foot"><span>⌘ / Ctrl + Enter · {task.length.toLocaleString()} / {TASK_INPUT_LIMIT.toLocaleString()}</span><div className="route-composer-actions">
           <button className="route-mic" type="button" onClick={voice.toggle} disabled={voice.phase === 'stopping'} aria-label={voice.active ? 'Stop voice input' : 'Start voice input'} aria-pressed={voice.active} aria-describedby="route-voice-status" title="Speak your task">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-3 0h6" /></svg>
           </button>
@@ -317,6 +329,7 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
         <p className="route-boundary">Local rules · Handoffs only. Selecting a tool does not connect it or run your task.</p>
       </div>
     </form>
+    {message && <p className="route-notice" role="status" aria-label="Routing status">{message}</p>}
     {result && !active && <p className="route-notice" role="status">The task or context changed. Route again before copying or saving.</p>}
     {pendingSave && <div className="route-teach" aria-label="Pending routing correction">
       <div><h3>Correction waiting to sync</h3><p>The bounded route tokens and chosen lane remain in this browser; the task text was not stored.</p></div>
@@ -326,7 +339,7 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
         void savePendingCorrection(pendingSave, localSaved)
       }}>Retry account save</button>
     </div>}
-    {active && <div className="route-results">
+    {active && <div className="route-results" ref={resultRef} tabIndex={-1}>
       <article className="route-result" aria-label="Task route">
         <div className="route-card-heading"><span className="route-badge">{active.secondary ? 'Hybrid route' : 'Single route'}</span><span>Local rules</span></div>
         <h3>{active.primary.tool}<span className="route-arrow" aria-hidden="true"> ↗</span></h3>
@@ -357,6 +370,5 @@ export default function TaskRouter({ context, accountId, seed, canSave, onPrepar
         <button type="button" className="route-secondary" disabled={saving || effectiveContext.learningStatus === 'loading'} onClick={() => void teach()}>Use this lane</button>
       </div>
     </div>}
-    {message && <p className="route-notice" role="status" aria-label="Routing status">{message}</p>}
   </section>
 }

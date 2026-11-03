@@ -50,6 +50,24 @@ describe('TaskRouter with real supplied intent and unavailable account context',
     expect(screen.queryByRole('button', { name: 'Prepare saved action' })).toBeNull()
   })
 
+  it('allows a longer task and brings the routed result into view', () => {
+    const scroll = vi.fn()
+    const original = HTMLElement.prototype.scrollIntoView
+    HTMLElement.prototype.scrollIntoView = scroll
+    try {
+      render(<TaskRouter {...props} />)
+      const input = screen.getByRole('textbox', { name: 'Task to route' }) as HTMLTextAreaElement
+      expect(input.maxLength).toBe(8000)
+      fireEvent.change(input, { target: { value: 'x'.repeat(5000) } })
+      fireEvent.click(screen.getByRole('button', { name: 'Route task' }))
+      expect(screen.getByRole('article', { name: 'Task route' })).toBeTruthy()
+      expect(screen.getByText('Handoff prepared below. Review it, then copy or save it.')).toBeTruthy()
+      expect(scroll).toHaveBeenCalled()
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original
+    }
+  })
+
   it('distinguishes preparing a handoff from saving the handoff as the next action, with retry on failure', async () => {
     const mission = {
       id: '11111111-1111-4111-8111-111111111111',

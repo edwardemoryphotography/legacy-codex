@@ -158,7 +158,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       : null,
   })
   const noTextNeeded = (tool === 'brief' || tool === 'triage') && !text.trim()
-  // Prompt help spends part of the 400 characters on its instruction.
+  // Prompt help spends part of the question limit on its instruction.
   const limit = tool === 'prompt' ? PROMPT_LIMIT : QUESTION_LIMIT
   const over = !noTextNeeded && text.length > limit
   // Send and microphone remain separate controls. An unavailable submission

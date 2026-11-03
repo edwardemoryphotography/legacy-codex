@@ -3,7 +3,7 @@ import { loadProjectContext, projectUserClient } from '@/lib/projectReviewServer
 import { loadLearnedContext, MISSION_UUID } from '@/lib/learnedContextServer'
 import { NextRequest, NextResponse } from 'next/server'
 import { ARCHITECT_SCAN_SYSTEM_PROMPT, BREAK_WALL_SYSTEM_PROMPT, DAILY_BRIEF_SYSTEM_PROMPT } from '@/lib/cognitiveDoctrine'
-import { buildBriefDirective, MAX_FIELD_LENGTH, parseBriefTarget, presentBriefText, SINGLE_MISSION_MODES, type BriefMissionContext, type BriefMode, type BriefTarget } from '@/lib/dailyBrief'
+import { buildBriefDirective, MAX_FIELD_LENGTH, MAX_QUESTION_LENGTH, parseBriefTarget, presentBriefText, SINGLE_MISSION_MODES, type BriefMissionContext, type BriefMode, type BriefTarget } from '@/lib/dailyBrief'
 import { deltaOwner } from '@/lib/supabase/deltaAuth'
 import { isModelChainConfigured, runProviderChainText } from '@/lib/modelProviderChain'
 import { briefModelTier } from '@/lib/modelPreference'
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
       capacityMismatch: Boolean(r.capacityMismatch),
     }
   })
-  const safeQuestion = clamp(question) ?? undefined
+  const safeQuestion = clamp(question, MAX_QUESTION_LENGTH) ?? undefined
   if (mode === 'question' && !safeQuestion?.trim()) {
     return NextResponse.json({ error: 'A question is required for mode "question".' }, { status: 400 })
   }
@@ -135,6 +135,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function clamp(value: unknown): string | null {
-  return typeof value === 'string' ? value.slice(0, MAX_FIELD_LENGTH) : null
+function clamp(value: unknown, max = MAX_FIELD_LENGTH): string | null {
+  return typeof value === 'string' ? value.slice(0, max) : null
 }

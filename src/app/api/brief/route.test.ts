@@ -22,6 +22,7 @@ vi.mock('@/lib/projectReviewServer', () => ({ projectUserClient: vi.fn(() => 'ac
 import { loadProjectContext, projectUserClient } from '@/lib/projectReviewServer'
 import { loadLearnedContext } from '@/lib/learnedContextServer'
 import { GET, POST } from './route'
+import { MAX_FIELD_LENGTH, MAX_QUESTION_LENGTH } from '@/lib/dailyBrief'
 
 const OWNER_ID = '00000000-0000-4000-8000-000000000001'
 const GUEST_ID = '00000000-0000-4000-8000-000000000002'
@@ -123,8 +124,8 @@ describe('/api/brief owner gate', () => {
     expect(createMessage).not.toHaveBeenCalled()
   })
 
-  it('trims every over-length text field to 400 characters instead of rejecting', async () => {
-    const long = (ch: string) => ch.repeat(1_000)
+  it('trims mission fields to 400 and the question to its own longer ceiling', async () => {
+    const long = (ch: string) => ch.repeat(MAX_QUESTION_LENGTH + 1)
     const response = await POST(request({
       mode: 'question',
       question: long('q'),
@@ -133,9 +134,11 @@ describe('/api/brief owner gate', () => {
 
     expect(response.status).toBe(200)
     const directive = directiveSent()
-    for (const ch of ['q', 't', 'w', 'f', 'b']) {
-      expect(directive).toContain(ch.repeat(400))
-      expect(directive).not.toContain(ch.repeat(401))
+    expect(directive).toContain('q'.repeat(MAX_QUESTION_LENGTH))
+    expect(directive).not.toContain('q'.repeat(MAX_QUESTION_LENGTH + 1))
+    for (const ch of ['t', 'w', 'f', 'b']) {
+      expect(directive).toContain(ch.repeat(MAX_FIELD_LENGTH))
+      expect(directive).not.toContain(ch.repeat(MAX_FIELD_LENGTH + 1))
     }
   })
   it('Architect Scan sends only the chosen mission, its system prompt, and learning scoped to it', async () => {
