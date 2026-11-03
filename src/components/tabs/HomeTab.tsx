@@ -182,9 +182,9 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     if (noTextNeeded && missionCount === 0) { setSubmitNotice('Add a mission before requesting a Daily Brief or Triage. You can ask a question here without one.'); return }
     // Routine summaries concern current work. Keep parked/finished projects in
     // Mission and in explicit questions without repeatedly surfacing them in Triage.
-    const scopedMissions = homeMissionRoster(missions).filter(mission =>
-      !noTextNeeded || ['primary', 'secondary', 'blocked'].includes(mission.state),
-    )
+    const scopedMissions = homeMissionRoster(noTextNeeded
+      ? missions.filter(mission => ['primary', 'secondary', 'blocked'].includes(mission.state))
+      : missions)
     if (noTextNeeded && scopedMissions.length === 0) {
       setSubmitNotice('No active missions to review. Open Mission to choose work to continue.')
       return
