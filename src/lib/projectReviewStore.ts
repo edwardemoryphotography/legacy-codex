@@ -1,4 +1,5 @@
 import { parseProjectReview, type ProjectReview } from './projectReview'
+import { unsupportedReviewAssertions } from './claimIntegrity'
 import { measureTransfer } from './structuralTransfer'
 import type { loadProjectContext, projectUserClient } from './projectReviewServer'
 
@@ -10,9 +11,11 @@ export async function cachedProjectReview(client: ReturnType<typeof projectUserC
     const previous = JSON.parse(cached.data[0].detail) as ProjectReview
     const valid = parseProjectReview(JSON.stringify(previous), context.sources, context.mission.id)
     const age = Date.now() - Date.parse(previous.reviewedAt)
+    if (valid && unsupportedReviewAssertions(valid).length) return null
     if (previous.missionId !== context.mission.id || previous.finishLine !== context.mission.finish_line || previous.contextKey !== context.contextKey || !valid || !Number.isFinite(age) || age < 0 || age > 3_600_000) return null
-    const baseline = previous.transferObservation?.baseline
+    const candidateBaseline = previous.transferObservation?.baseline
       ? parseProjectReview(JSON.stringify(previous.transferObservation.baseline), context.sources.filter(source => source.kind !== 'lesson'), context.mission.id) : null
+    const baseline = candidateBaseline && !unsupportedReviewAssertions(candidateBaseline).length ? candidateBaseline : null
     // Recompute the classification; never trust a stored/model-written claim of
     // inheritance. Old observations without intervention provenance are unknown.
     const transferObservation = measureTransfer({ baseline, after: valid, sources: context.sources, lessons: context.lessons,
