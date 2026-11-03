@@ -83,6 +83,18 @@ describe('BriefTab Architect Scan and Break Wall', () => {
     expect(screen.queryByText(/Fallback: Claude/)).toBeNull()
   })
 
+  it('renders model Markdown instead of literal asterisks', async () => {
+    stubFetch(200, { text: '**Proposal only.** Nothing was saved.', tier: 'routine', provider: 'anthropic', model: 'claude-sonnet-5-5' })
+    render(<BriefTab />)
+    const button = await screen.findByRole('button', { name: 'Daily Brief' })
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(button)
+
+    const strong = await screen.findByText('Proposal only.')
+    expect(strong.tagName).toBe('STRONG')
+    expect(screen.queryByText(/\*\*Proposal only/)).toBeNull()
+  })
+
   it('disables Break Wall with Unknown copy when nothing is saved to break', async () => {
     stubFetch(200, { text: 'ok' })
     render(<BriefTab />)

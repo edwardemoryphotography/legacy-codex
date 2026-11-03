@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { singleMissionRequest, UNKNOWN_LINE, type BriefMode } from '@/lib/dailyBrief'
 import { deriveNextAction, type NextActionReadState } from '@/lib/nextAction'
 import type { OpenAction } from '@/lib/territory'
@@ -57,7 +59,18 @@ export default function MissionBriefPanel({ mission, action, actionsRead, brief,
 
   const ask = (mode: BriefMode) => {
     const label = `${MODE_LABELS[mode]} · ${mission.title || 'Untitled mission'}${mode === 'unblock' ? ` · ${wallText}` : ''}`
-    void brief.run(mode, singleMissionRequest(mode, mission, action, chosenWall ?? 'blocker', mode === 'question' ? question.trim() : undefined), label)
+    const body: Record<string, unknown> = singleMissionRequest(
+      mode,
+      mission,
+      action,
+      chosenWall ?? 'blocker',
+      mode === 'question' ? question.trim() : undefined,
+    )
+    // Ask and Triage are ordinary conversation turns; they stay on Economy
+    // even if the server default ever changes. Architect/Break Wall keep
+    // their existing explicit Deep default.
+    if (mode === 'question' || mode === 'triage') body.tier = 'routine'
+    void brief.run(mode, body, label)
   }
   const thinking = (mode: BriefMode) => busy && brief.activeMode === mode
 
@@ -113,10 +126,12 @@ export default function MissionBriefPanel({ mission, action, actionsRead, brief,
 export function BriefOutput({ brief }: { brief: BriefRunner }) {
   if (!brief.output) return null
   return (
-    <Card style={{ whiteSpace: 'pre-wrap', fontSize: '0.92rem', lineHeight: 1.6 }}>
+    <Card style={{ fontSize: '0.92rem', lineHeight: 1.6 }}>
       {brief.outputLabel && <Badge tone="muted">{brief.outputLabel}</Badge>}
       {brief.providerLabel && <p style={{ color: 'var(--text-soft)', overflowWrap: 'anywhere' }}>{brief.providerLabel}</p>}
-      {brief.outputLabel ? `\n${brief.output}` : brief.output}
+      <div className="codex-markdown">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{brief.output}</ReactMarkdown>
+      </div>
     </Card>
   )
 }
