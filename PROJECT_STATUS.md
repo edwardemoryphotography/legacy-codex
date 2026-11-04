@@ -1,66 +1,62 @@
-| Merged | `origin/main` at `2bcf8e401490f9659cc17d9780a0de7b28535491` |
-| Deployed | Canonical Vercel project `frontend` production deployment `dpl_yvzgfdQFiLL1WP79rzYUGf9YKR8P` is `READY` at the exact merged SHA. |
-| Runtime verified | 2026-09-07 persistent production session completed save → start → note → pause → reload → resume with mission `8d561af2-1c61-4302-8f4e-6d97f5423448` and exactly one action `df2f3ffe-137b-4a73-862a-bcfdd417969c`. The saved ID/note survived reload; no duplicate or application error occurred. `POST /api/analyze` now returns the correct unauthenticated 401 boundary instead of the reproduced configuration 500; Vercel reported no runtime errors in the verification window. |# Legacy Codex — Current Project Status
+# Legacy Codex — Current Project Status
 
-**Last reconciled:** 2026-09-07
+**Last reconciled:** 2026-11-04  
+**Canonical repository:** edwardemoryphotography/legacy-codex  
+**Canonical production:** https://legacy-codex.vercel.app  
+**Vercel project:** frontend (prj_irrXhfz1elCLhO1Pdgd0ffM4wfz2)
 
-**Canonical repository:** `edwardemoryphotography/legacy-codex`
+The [source graph](docs/architecture/canonical-source-graph.md) assigns authority. This file owns dated release and acceptance state. The [September 7 snapshot](docs/verification/project-status-2026-09-07.md) preserves the earlier mixed baseline verbatim; it is historical.
 
-**Canonical checkout:** `~/legacy-codex`
-**Canonical production URL:** `https://legacy-codex.vercel.app`
+## Purpose and boundary
 
-This file is dated coordination state. Recheck GitHub, Vercel, and the live product before promoting any claim. The source-of-truth map is `docs/architecture/canonical-source-graph.md`.
+Preserve human intent so another intelligence can reconstruct, execute, verify and continue it. Discovery, recognition, creation and understanding are valid outcomes before an action is ready. The execution loop remains Capture → Clarify → Constrain → Choose → Act → Resume.
 
-## Current product milestone
+Legacy Codex is the single normal front door. Foundry is internal builder/operations; Control Panel is a transitional routing reference/service; codex-system-architecture owns governance and the Goose Cookbook. Artful Intelligence retains its separate photography purpose.
 
-Make the human execution loop usable from the single canonical Legacy Codex front door:
+## Release observation — November 4, before this reconciliation
 
-`Capture -> Clarify -> Constrain -> Choose -> Act -> Resume`
-
-The human execution loop is now production-verified in a persistent real session: one real mission was captured and promoted; exactly one linked action was saved, started, paused with a note, reloaded as Ready to resume with the same ID and note, and resumed without an error or duplicate. Recovery of Eddie's historical anonymous identity specifically from his original physical iPhone remains a distinct device/session-continuity check, not an unresolved defect in the verified general workflow.
-
-Since 2026-08-31: Mission Right Now emphasis (#66); Orb/Beam Mission redesign (#68, #70); mission-aware next move + connection recovery (#71); save/resume mission-linked next actions (#72) repaired (#73); evidence CI fix (#67); transitions skills (#69).
-
-## Verified baseline
-
-`2bcf8e401490f9659cc17d9780a0de7b28535491` is the verified application-bearing production baseline. It includes PR #76's analyzer-auth repair on top of the Mission save/resume work.
-
-| State | Evidence |
+| Stage | Observation / limit |
 | --- | --- |
-| Merged | `origin/main` at `be17ccba9200fac1e43253c09a3f4108f598b280` |
-| Deployed | Checked directly against the Vercel API (not only GitHub's status mirror) — `READY` Production deployments at this exact SHA: `frontend` (`dpl_8rXPSVB3FkKYUEsG3mPF7a1fcbwx`), `legacy-codex` (`dpl_CMc8JMWZr3ZVa4UDGAzvvitevW4U`), `codex-starforge-dashboard` (`dpl_CdJHi7wW6os42GM9QVksUMHRPDPc`), `legacy-codex-vercel-diagnostic` (`dpl_5bJANDmgrZJk7DncuYj6CbNbGhUp`) |
-| Runtime verified | 2026-08-31 browser check loaded the Mission screen at `legacy-codex.vercel.app` and completed anonymous sign-in. Mission save/resume is shipped on this SHA; owner-session iPhone verification of save / pause / reload / resume is still pending. |
-| Live | `https://legacy-codex.vercel.app` is the canonical reachable product URL — confirmed via the Vercel project's domain list to belong to project `frontend` |
+| Merged | GitHub main 85149b72eb22cbeb8d05412cd30d28d1091096f4; #160 guard merged at d25f316 and #163 requirements merged at 85149b7 |
+| Deployed | Canonical-domain Vercel lookup: dpl_B1m6ySNfnaRGrsfUANuSZpQGefNt, READY Production, d25f3163182c3b3236e7a16aa6e29ea0d50b01e1, frontend, canonical alias present. This carries #160; #163 is a later documentation-only merge |
+| Runtime | No fresh authenticated owner interaction in this pass. Desktop Commander reported the owner's Mac offline |
+| Acceptance | Current physical-iPhone voice, useful owner reconstruction, later lesson application and second-person Relay remain open |
 
-The 2026-08-31 check also found that the duplicate `https://legacy-codex-kappa.vercel.app` failed anonymous sign-in. The duplicate projects are therefore not behaviorally equivalent and must not be retired or receive the canonical alias until configuration parity is proven.
+Later releases must supersede this dated observation with exact evidence. This table does not claim this documentation commit is deployed.
 
-## Consolidation decisions
+## Capability / evidence map
 
-- Root Legacy Codex app — **CANONICAL**.
-- Foundry Console — **INTERNAL COMPONENT**, with a deliberately separate owner-auth boundary until it can be exposed safely behind the canonical product.
-- Codex Control Panel — **MIGRATE INTO CANONICAL**. Human-facing next-move routing moves into the Mission screen; guarded Foundry persistence remains transitional.
-- `codex-system-architecture` — **ARCHITECTURE / GOVERNANCE**.
-- Artful Intelligence — **SEPARATE — ON PURPOSE**.
-- Static Consolidation tab — **SUPERSEDED** by the source graph and this dated status file.
-- Historical version labels — **HISTORICAL**, not current product naming.
+| Capability | Merged sources | Acceptance boundary |
+| --- | --- | --- |
+| Action continuity | September 7 real save/start/note/pause/reload/resume; #159 atomic replacement; #166 loading repair | [NextAction record](docs/verification/nextaction-contract-2026-11-03.md); a non-writing read differs from an owner replacement |
+| Reconstruction | #90, #92, #109, #116 | Current real review output and later usefulness need observed results |
+| Confirmed lessons | Human confirmation, scope, provenance, retirement and route-wide retrieval | Nov 4 read-only query for the account owning the documented design mission found no events of types delta_reviewed, delta_lesson_confirmed, delta_lesson_retired or delta_corrected; documented mission existence separately confirmed. No records created |
+| Human feedback | #122: Vaughn's three-page finish line | Documented quantitative repair; distinct from testing the seven-phase method cold |
+| Codex Glass / Home | #145 and later continuity/iPhone repairs | Device keyboard, scrolling and appearance checks remain specific to the actual browser |
+| Economy / Deep | #151, #156 | Explicit tiers, routine default, fallbacks within tier; no automatic complexity classifier or measured savings claim |
+| Legacy Relay | #144 | [Real two-person sequence](docs/verification/legacy-relay-2026-11-01.md); receipt and benefit are separate |
+| Territory | #168, #169, release record #171 | Owner-device create/edit/reload/delete remains open |
+| GPT-Live | #167, #170, #173, #174 | #173 reports Production owner allowlist present, Preview absent; #174 bounds startup. Current owner reciprocal audio remains unobserved |
+| Accountability | #162 contract, #160 bounded guard and #163 broader requirement merged | Consult current GitHub state; preserved requirements are not active enforcement |
 
-## Known contradictions and remaining gates
+## Historical closures
 
-1. The Vercel project named `frontend` owns `legacy-codex.vercel.app`; the better-named `legacy-codex` project is not configuration-equivalent yet.
-2. `/api/analyze` now reuses the already-configured public browser Supabase project URL when the duplicate unprefixed URL is absent, derives its HTTPS JWKS endpoint, and preserves required user authentication. Full authenticated file analysis still depends on a real signed-in session and a real supported artifact.
-3. Human missions and Foundry actions now have an explicit boundary, but `evidence_snapshots` and `mission_events` remain transitional stores in production code.
-4. Control Panel's owner-gated `persist_route_atomic` transport still depends on server-only configuration in the standalone service. Do not expose or copy service-role credentials into browser code.
-5. Old branches and deployment projects remain archaeology until their domain/configuration dependencies are checked. Do not delete them by age or name alone.
-6. PocketForge is a supporting module, not the Legacy Codex front door. Its Convex `agent.ts` contains a previously merged, partially reconciled Daytona/Vercel implementation and does not currently parse; repair requires a separate PocketForge architecture decision rather than an opportunistic consolidation edit.
+- #47 routing foundation was verified/hardened via #52.
+- #58's specific security defect was production-verified and merged August 9; this is not a fresh comprehensive security audit.
+- Data Ownership v2 was established August 9; [existing ownership](docs/architecture/data-ownership.md) governs.
+- Control Panel #11 merged August 9 despite stale PR-body text; merge metadata does not establish its persistence acceptance result.
+- Earlier neurofeedback/Gumroad/cohort product definitions remain historical.
 
-## Release gates
+## Now / next / blocked
 
-```bash
-npm ci
-npm test
-npm run lint
-npx tsc --noEmit
-npm run build
-```
+1. #160's narrow review guard passed 626 tests, TypeScript, lint (0 errors, 17 existing warnings), builder/immersive/Economy checks and build, then reached READY canonical Production. #163 preserves accepted broader requirements; chronology/narrative-difference/receipt verification remains implementation work, not shipped protection.
+2. Follow [November acceptance](docs/verification/november-acceptance-2026-11-04.md) for the owner demo, reconstruction, later lesson use and consenting recipient.
+3. Plan forward-only convergence of transitional stores with preservation, parity and rollback evidence before retirement.
 
-Verified after merge: exact production SHA/deployment, real Mission capture and next-move behavior, save / pause / reload / resume of one action, database absence of duplicates, correct analyzer authentication boundary, and no Vercel runtime errors. The original physical-iPhone identity recovery check may still be run separately if continuity with that historical anonymous session matters.
+Missing real-use inputs: available authenticated owner browser/device, a genuine human-confirmed lesson, a different later task and a consenting recipient. Administrator writes, builder-controlled second identities and fabricated records cannot substitute for them.
+
+## Verification and updates
+
+Code gates: builder/immersive/Economy contracts, lint, TypeScript, Vitest and production build. Run the builder outcome gate before closing a session. CI, deployment metadata, interactive runtime and observed benefit are distinct.
+
+Update this file when release/acceptance state changes, linking dated evidence. Preserve prior observations in their verification records. Never promote an older successful session into proof of the current owner/device path.

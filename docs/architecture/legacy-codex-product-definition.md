@@ -4,7 +4,7 @@
 
 **Originally decided:** July 2026
 
-**Last reconciled:** August 31, 2026
+**Last reconciled:** November 4, 2026
 
 **Status:** Canonical
 **Decision owner:** Edward Emory Frye
@@ -29,7 +29,9 @@ Reconstruction is evidence-grounded and correctable: observations, interpretatio
 
 Legacy Codex is a **personal cognitive operating system**.
 
-It is the user-facing cognitive command layer that protects context, identifies what matters now, and helps an individual move toward the next meaningful action.
+Legacy Codex preserves the structure of human intent, reconstructs the larger purpose from real context, recognizes useful connections, carries confirmed lessons into later work, and helps people act and resume without repeatedly rebuilding their understanding.
+
+Discovery, creation, exploration, synthesis and recognition are valid results before a mission or commitment exists. A next action is one expression of the purpose. Confirmed lessons retain conditions, scope, provenance and retirement; sharing and recipient adoption are explicit.
 
 ### Foundry Console
 
@@ -44,7 +46,7 @@ It is the technical systems and execution layer.
 | Legacy Codex | The individual neurodivergent creator/operator |
 | Foundry Console | The builder/operator managing systems, integrations, deployments, and agent infrastructure |
 
-A person may use both products, but each product must remain optimized for its assigned role.
+A person may use both layers; each interface remains optimized for its assigned role within the single product system.
 
 ## 3. Core jobs
 
@@ -53,6 +55,8 @@ A person may use both products, but each product must remain optimized for its a
 - What matters right now?
 - What should I do next?
 - What context must not be lost?
+- What larger structure connects these real artifacts?
+- What lesson applies here, and under which conditions?
 
 ### Foundry Console answers
 
@@ -159,7 +163,7 @@ If these questions cannot be answered clearly, the feature remains an **Experime
 
 ### We will
 
-- Design Legacy Codex around cognitive continuity, prioritization, and next action.
+- Design Legacy Codex around reconstruction, meaningful connections, cognitive continuity, scoped lessons and useful action.
 - Design Foundry Console around construction, execution, observability, and maintenance.
 - Treat Cognition, PocketForge, Semantic Starfield, and Cognitive Profile as modules or surfaces.
 - Use shared services through explicit boundaries.

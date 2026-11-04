@@ -10,12 +10,14 @@ _(nothing logged yet — new items land here first; triage by moving to Now/Next
 
 ## Now
 
-_(no approved items currently queued)_
+- Complete the owner demo and reconstruction sequence in [November acceptance](docs/verification/november-acceptance-2026-11-04.md). Blocked by unavailable authenticated owner device; preserve the current Primary blocker until genuinely resolved.
 
 ## Next
 
-_(no approved items currently queued)_
+- Confirm a genuine source-grounded lesson through the owner workflow, then observe use on a different real task without restating the correction.
+- Test Legacy Relay with a consenting different person; do not message contacts or widen model access without specific authorization.
+- Implement remaining #163 requirements against actual incident sources and canonical evidence_items/events: receipts, protected chronology, narrative differences and independently inspectable investigation. The merged #160 lexical review guard is only the first bounded safeguard.
 
 ## Later
 
-_(no approved items currently queued)_
+- Execute the forward convergence plan in docs/architecture/data-ownership.md only after read parity, provenance, account isolation, transaction/idempotency and rollback are established. No destructive production cutover is authorized by a planning entry.
