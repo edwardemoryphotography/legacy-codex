@@ -120,7 +120,18 @@ export default function TerritoryTab() {
       {!loadError && missions === null && <HelperLine>Loading your missions…</HelperLine>}
       {!loadError && missions !== null && territory.readState === 'pending' && !hasAny && <HelperLine>Loading territory entities…</HelperLine>}
       {!loadError && missions !== null && !hasAny && territory.readState !== 'pending' && (
-        <HelperLine>{UNKNOWN_LINE} — add a mission in Mission first, or add a project, doctrine, or constraint here.</HelperLine>
+        <>
+          <HelperLine>{UNKNOWN_LINE} — add a mission in Mission first, or add a project, doctrine, or constraint here.</HelperLine>
+          {territory.readState === 'ok' && (editor ? (
+            <EntityEditor
+              initial={null}
+              onSave={saveEntity}
+              onCancel={() => setEditor(null)}
+            />
+          ) : (
+            <ActionBtn variant="secondary" onClick={() => setEditor({ mode: 'new' })}>+ Add entity</ActionBtn>
+          ))}
+        </>
       )}
       {territory.readState === 'failed' && <HelperLine variant="error">{TERRITORY_NODES_READ_FAILED_COPY}</HelperLine>}
 
