@@ -14,6 +14,8 @@ let missions: { id: string; title: string; state: string }[] | null = [{ id: 'm1
 let loadError: string | null = null
 let voiceStatus = ''
 let visitor = false
+let accessState: 'checking' | 'owner' | 'signed-out' | 'no-access' | 'unconfigured' | 'error' = 'owner'
+let accessName = 'Eddie'
 let briefStatus = 'idle'
 let briefOutput = ''
 let orbState = 'idle'
@@ -67,6 +69,7 @@ vi.mock('@/lib/supabase/client', () => ({
 vi.mock('@/lib/supabase/missionSession', () => ({ connectMissionSession: async () => ({ id: 'user-1' }) }))
 vi.mock('@/hooks/useMissionTerritory', () => ({ useMissionTerritory: () => ({ missions, loadError, actions: actionRows, actionsRead: 'ok' }) }))
 vi.mock('@/hooks/useBriefRunner', () => ({ useBriefRunner: () => ({ configured: true, visitor, status: briefStatus, activeMode: null, output: briefOutput, outputLabel: '', providerLabel: '', run, reset }) }))
+vi.mock('@/hooks/useHomeAccess', () => ({ useHomeAccess: () => ({ state: accessState, configured: accessState === 'owner', name: accessName }) }))
 vi.mock('@/hooks/useTaskVoice', () => ({
   useTaskVoice: (_value: string, onChange: (value: string) => void) => {
     voiceWrite = onChange
@@ -80,7 +83,7 @@ vi.mock('@/components/OrbHost', () => ({
   useOrbPresentation: () => ({ state: orbState, label: orbState === 'thinking' ? 'Thinking' : '' }),
 }))
 
-afterEach(() => { cleanup(); briefStatus = 'idle'; briefOutput = ''; orbState = 'idle'; actionInsertError = null; actionRows.length = 0; reset.mockClear(); run.mockReset(); run.mockResolvedValue(true); voiceActive = false; voiceStatus = ''; visitor = false; loadError = null; missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }] })
+afterEach(() => { cleanup(); briefStatus = 'idle'; briefOutput = ''; orbState = 'idle'; actionInsertError = null; actionRows.length = 0; reset.mockClear(); run.mockReset(); run.mockResolvedValue(true); voiceActive = false; voiceStatus = ''; visitor = false; loadError = null; accessState = 'owner'; accessName = 'Eddie'; missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }] })
 
 describe('promptHelpQuestion', () => {
   it('stays within the shared question limit /api/brief enforces', () => {
@@ -89,6 +92,19 @@ describe('promptHelpQuestion', () => {
 
   it('keeps the person’s words after the instruction', () => {
     expect(promptHelpQuestion('plan a night shoot')).toMatch(/plan a night shoot$/)
+  })
+})
+
+describe('Home account capability', () => {
+  it('does not present AI as ready for a non-owner account, and routes directly to sign-in', async () => {
+    accessState = 'no-access'
+    accessName = ''
+    const onSignIn = vi.fn()
+    render(<HomeTab onNavigate={() => {}} onSignIn={onSignIn} />)
+    expect(await screen.findByText(/This browser account cannot use AI/)).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to your existing account' }))
+    expect(onSignIn).toHaveBeenCalledOnce()
   })
 })
 
@@ -426,6 +442,30 @@ describe('explicit conversation intelligence choice', () => {
     fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'How do I talk to you best?' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     expect(run).toHaveBeenCalledWith('question', expect.objectContaining({ tier: 'routine' }), 'Ask Codex')
+  })
+
+
+  it('saves the structured proposed action instead of the answer excerpt', async () => {
+    const session = {
+      ...emptyHomeSession(),
+      reply: {
+        question: 'What is next?',
+        text: 'The export is the blocker. Finish that before anything else.',
+        label: 'Live Codex',
+        provider: 'Economy · Claude · test',
+        actionTitle: 'Open the export and run one missing test.',
+      },
+    }
+    render(<HomeTab onNavigate={() => {}} session={session} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Save as my next action' }))
+    })
+    expect(actionRows).toHaveLength(1)
+    expect(actionRows[0]).toMatchObject({
+      mission_id: 'm1',
+      action_title: 'Open the export and run one missing test.',
+      status: 'TODO',
+    })
   })
 
   it('saves a conversation reply as the next action for the Primary mission with failure recovery and no duplicate rows', async () => {

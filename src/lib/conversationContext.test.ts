@@ -20,6 +20,13 @@ describe('conversation continuity boundaries', () => {
     sessionStorage.setItem('codex-conversation:b', sessionStorage.getItem('codex-conversation:a')!)
     expect(restoreHomeSession('b')).toEqual(emptyHomeSession('b'))
   })
+
+  it('restores a long draft up to the current question limit', () => {
+    const text = 'A long draft. '.repeat(300)
+    preserveHomeSession({ ...emptyHomeSession('a'), text })
+    expect(restoreHomeSession('a').text).toBe(text)
+  })
+
   it('recovers safely from malformed browser storage', () => {
     sessionStorage.setItem('codex-conversation:a', '{bad')
     expect(restoreHomeSession('a')).toEqual(emptyHomeSession('a'))

@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase/client'
 import { missionsToBriefContext } from '@/lib/dailyBrief'
 import { homeMissionRoster, QUESTION_LIMIT } from '@/lib/homeRequest'
 import type { Mission } from '@/types'
+import { parseVoiceAction } from '@/lib/liveVoiceAction'
 import styles from './CodexLiveVoice.module.css'
 
 export type LiveVoicePhase = 'idle' | 'connecting' | 'listening' | 'reasoning' | 'responding'
@@ -16,7 +17,7 @@ type LiveEvent = {
   offset_ms?: number
   delegation?: { id?: string; target?: string }
 }
-type VoiceAnswer = { question: string; text: string; provider: string }
+export type VoiceAnswer = { question: string; text: string; provider: string; actionTitle: string | null }
 type UserFragment = { text: string; start: number; end: number }
 
 const MAX_SESSION_MS = 15 * 60 * 1000
@@ -35,7 +36,7 @@ function sendLive(channel: RTCDataChannel, type: string, delegationId: string | 
 
 /** Browser-side GPT-Live transport. Actual reasoning still uses owner-gated /api/brief. */
 export default function CodexLiveVoice({
-  missions, primaryMissionId, tier, disabled, onAnswer, onPhaseChange,
+  missions, primaryMissionId, tier, disabled, canSave = false, onAnswer, onPhaseChange, onSaveAnswer,
 }: {
   missions: Mission[]
   primaryMissionId: string | null
@@ -43,6 +44,8 @@ export default function CodexLiveVoice({
   disabled?: boolean
   onAnswer: (answer: VoiceAnswer) => void
   onPhaseChange: (phase: LiveVoicePhase) => void
+  onSaveAnswer?: (answer: VoiceAnswer) => Promise<{ ok: boolean; error?: string }>
+  canSave?: boolean
 }) {
   const [phase, setPhase] = useState<LiveVoicePhase>('idle')
   const [status, setStatus] = useState('')
@@ -50,6 +53,8 @@ export default function CodexLiveVoice({
   const [outputCaption, setOutputCaption] = useState('')
   const [lastAnswer, setLastAnswer] = useState<VoiceAnswer | null>(null)
   const [audioBlocked, setAudioBlocked] = useState(false)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [saveError, setSaveError] = useState('')
   const peer = useRef<RTCPeerConnection | null>(null)
   const microphone = useRef<MediaStream | null>(null)
   const audio = useRef<HTMLAudioElement | null>(null)
@@ -136,6 +141,8 @@ export default function CodexLiveVoice({
     setInputCaption('')
     setOutputCaption('')
     setLastAnswer(null)
+    setSaveState('idle')
+    setSaveError('')
     setPhase('connecting')
     userParts.current = []
     handledThrough.current = 0
@@ -282,6 +289,7 @@ export default function CodexLiveVoice({
                   missions: missionsToBriefContext(scoped),
                   missionIds: scoped.map(m => m.id),
                   conversation: previousTurns.current.slice(-10),
+                  liveVoiceAction: true,
                   ...(current.primaryMissionId && scoped.some(m => m.id === current.primaryMissionId)
                     ? { conversationMissionId: current.primaryMissionId } : {}),
                 }),
@@ -292,15 +300,18 @@ export default function CodexLiveVoice({
               const names: Record<string, string> = { anthropic: 'Claude', gemini: 'Gemini', openai: 'OpenAI' }
               const provider = (result.tier === 'deep' ? 'Deep' : 'Economy') + ' · ' +
                 (names[result.provider || ''] || 'Codex') + (result.model ? ' · ' + result.model : '')
-              const actual: VoiceAnswer = { question: utterance, text: result.text, provider }
+              const parsed = parseVoiceAction(result.text)
+              const actual: VoiceAnswer = { question: utterance, text: parsed.text, provider, actionTitle: parsed.actionTitle }
+              setSaveState('idle')
+              setSaveError('')
               previousTurns.current = [...previousTurns.current, { role: 'user' as const, text: utterance },
-                { role: 'assistant' as const, text: result.text.slice(0, 4000) }].slice(-10)
+                { role: 'assistant' as const, text: parsed.text.slice(0, 4000) }].slice(-10)
               setLastAnswer(actual)
               current.onAnswer(actual)
               setStatus('Real Codex response received. Nothing has been saved automatically.')
               sendLive(events, 'session.commentary.append', delegationId,
                 'Legacy Codex backend returned this answer, which is not a saved action: ' +
-                result.text.slice(0, MAX_SPOKEN_UPDATE))
+                parsed.text.slice(0, MAX_SPOKEN_UPDATE))
               setPhase('responding')
             } catch (error) {
               if (generation.current !== attempt || requestVersion.current !== version || controller.signal.aborted) return
@@ -381,7 +392,7 @@ export default function CodexLiveVoice({
   return (
     <section className={styles.root} data-active={active ? 'true' : undefined} aria-label="Legacy Codex live voice">
       {!active ? (
-        <button type="button" className={styles.start} disabled={disabled} onClick={() => void start()}>
+        <button type="button" className={styles.start} disabled={disabled} title="Live audio is billed per connected second. No project write happens without confirmation." aria-description="Live audio is billed per connected second. No project write happens without confirmation." onClick={() => void start()}>
           <span aria-hidden="true">◉</span> Talk live with Codex
         </button>
       ) : (
@@ -389,9 +400,38 @@ export default function CodexLiveVoice({
           <p className={styles.state} role="status">
             {phase === 'connecting' ? 'Connecting' : phase === 'reasoning' ? 'Codex is working' : phase === 'responding' ? 'Codex responding' : 'Listening'}
           </p>
-          {inputCaption && <p className={styles.caption}><span>You</span> {inputCaption}</p>}
-          {outputCaption && <p className={styles.caption}><span>Codex</span> {outputCaption}</p>}
-          {lastAnswer && <details className={styles.details}><summary>Latest real backend answer · {lastAnswer.provider}</summary><p>{lastAnswer.text}</p></details>}
+          {inputCaption && <p className={styles.caption} data-role="user"><span>You</span> {inputCaption}</p>}
+          {outputCaption && <p className={styles.caption} data-role="codex"><span>Codex</span> {outputCaption}</p>}
+          {lastAnswer && (
+            <section className={styles.answer} aria-label="Codex answer and proposed action">
+              <p className={styles.answerMeta}>{lastAnswer.provider} · spoken answer</p>
+              <p className={styles.userTurn}><span>You</span>{lastAnswer.question}</p>
+              <div className={styles.assistantTurn}><span>Codex</span><p>{lastAnswer.text}</p></div>
+              {lastAnswer.actionTitle ? (
+                <div className={styles.proposedAction}>
+                  <p>Proposed next action</p>
+                  <strong>{lastAnswer.actionTitle}</strong>
+                  {onSaveAnswer && canSave ? (
+                    <button type="button" className={styles.save} disabled={saveState !== 'idle'} onClick={() => {
+                      setSaveState('saving')
+                      setSaveError('')
+                      void onSaveAnswer(lastAnswer).then(result => {
+                        if (result.ok) setSaveState('saved')
+                        else { setSaveState('idle'); setSaveError(result.error || 'Could not save this action.') }
+                      })
+                    }}>
+                      {saveState === 'saved' ? 'Saved as next action' : saveState === 'saving' ? 'Saving…' : 'Save as my next action'}
+                    </button>
+                  ) : (
+                    <p className={styles.noAction}>Choose a Primary mission in Mission before saving this action.</p>
+                  )}
+                  {saveError && <p className={styles.saveError} role="alert">{saveError}</p>}
+                </div>
+              ) : (
+                <p className={styles.noAction}>No concrete action was proposed, so there is nothing to save from this answer.</p>
+              )}
+            </section>
+          )}
           {audioBlocked && <button type="button" className={styles.audio} onClick={() => void audio.current?.play().then(() => setAudioBlocked(false)).catch(() => setStatus('Speaker playback is blocked in this browser.'))}>Enable speaker audio</button>}
           <button type="button" className={styles.end} onClick={() => stop()}>End voice session</button>
         </div>

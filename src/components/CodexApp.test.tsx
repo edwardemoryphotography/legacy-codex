@@ -44,6 +44,7 @@ it('refreshes project data without discarding an in-flight conversation', () => 
   render(<CodexApp />)
   fireEvent.click(screen.getByRole('button', { name: 'Menu' }))
   fireEvent.click(screen.getByRole('button', { name: 'Mission' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Continue conversation with Codex' }))
   fireEvent.click(screen.getByRole('button', { name: 'Start question' }))
   fireEvent.click(screen.getByRole('button', { name: 'Commit workspace change' }))
   expect(screen.getByRole('button', { name: 'Answer pending' })).toBeInTheDocument()
@@ -56,6 +57,7 @@ it('keeps a pending conversation mounted across Home and Mission navigation', ()
   for (const name of ['Mission', 'Home']) {
     fireEvent.click(screen.getByRole('button', { name: 'Menu' }))
     fireEvent.click(screen.getByRole('button', { name }))
+    if (name === 'Mission') fireEvent.click(screen.getByRole('button', { name: 'Continue conversation with Codex' }))
     expect(screen.getByRole('button', { name: 'Answer pending' })).toBeInTheDocument()
   }
 })

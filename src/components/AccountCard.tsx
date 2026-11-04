@@ -6,14 +6,15 @@ import type { EmailAccountFlow } from '@/types'
 import { AccountSwitchWarning, confirmConversion, confirmEmailSignIn, emailAccountMessage, isEmailAccount, sendConversionCode, sendSignInCode, signOutEmailAccount } from '@/lib/supabase/emailAccount'
 import { ActionBtn, Card, Input, SectionTitle } from '@/components/ui'
 
-export default function AccountCard({ user, loading, connectionError, onRetry, onConverted }: {
+export default function AccountCard({ user, loading, connectionError, onRetry, onConverted, initialFlow = 'attach' }: {
+  initialFlow?: EmailAccountFlow
   user: User | null
   loading: boolean
   connectionError: string
   onRetry: () => void
   onConverted: (user: User) => void
 }) {
-  const [flow, setFlow] = useState<EmailAccountFlow>('attach')
+  const [flow, setFlow] = useState<EmailAccountFlow>(initialFlow)
   const [email, setEmail] = useState(user?.new_email ?? '')
   const [sentEmail, setSentEmail] = useState(user?.new_email ?? '')
   const [code, setCode] = useState('')
@@ -74,7 +75,7 @@ export default function AccountCard({ user, loading, connectionError, onRetry, o
       const converted = await confirmConversion(sentEmail, code, user.id)
       setCode('')
       setSentEmail('')
-      setNotice('Email confirmed. Your account and saved missions have kept the same account id.')
+      setNotice('Email confirmed. Your account and saved missions stayed together.')
       onConverted(converted)
     } else if (flow === 'signin') {
       await confirmEmailSignIn(sentEmail, code, user?.id ?? null, acknowledged)
@@ -87,7 +88,6 @@ export default function AccountCard({ user, loading, connectionError, onRetry, o
     <Card>
       <section aria-label="Account" className="space-y-4 min-w-0" style={{ fontSize: '1rem', overflowWrap: 'anywhere' }} aria-busy={busy || loading}>
         <SectionTitle>Account</SectionTitle>
-        {user && <p style={{ color: 'var(--text-soft)', fontSize: '0.8rem' }}>Account ID: {user.id}</p>}
         {loading ? <p role="status">Checking this browser’s account…</p> : <>
           {connectionError && <div role="alert" className="space-y-3">
             <p>{connectionError}</p>
