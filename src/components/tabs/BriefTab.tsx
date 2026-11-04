@@ -24,7 +24,8 @@ export default function BriefTab() {
   const focus = missions?.find(m => m.id === chosenId) ?? missions?.find(m => m.state === 'primary') ?? missions?.[0] ?? null
   const focusAction = focus ? actions.find(a => a.mission_id === focus.id) ?? null : null
   const focusAcceptance = focus && eventsRead === 'ok' ? latestAcceptance(events, focus) : null
-  const canonicalActionsRead = eventsRead === 'failed' ? 'failed' as const : actionsRead
+  // An unread acceptance ledger is not an empty one: hold the panel in loading until it arrives.
+  const canonicalActionsRead = eventsRead === 'failed' ? 'failed' as const : eventsRead === 'pending' ? 'pending' as const : actionsRead
   const missionCount = missions?.length ?? 0
   const busy = brief.status === 'running'
   const unavailable = !brief.configured || brief.visitor

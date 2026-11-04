@@ -1,17 +1,20 @@
 'use client'
 
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
-import { buildTerritoryGraph, CHILD_BOX, MISSION_BOX, PER_KIND_LIMIT, type EvidenceLite, type GraphNode, type GraphNodeKind } from '@/lib/territoryGraph'
+import { buildTerritoryGraph, CHILD_BOX, ENTITY_BOX, MISSION_BOX, PER_KIND_LIMIT, type EvidenceLite, type GraphNode, type GraphNodeKind } from '@/lib/territoryGraph'
 import { GROUP_OF_STATE, type MissionEventLite, type OpenAction } from '@/lib/territory'
+import { TERRITORY_SIGNAL_LABELS, type TerritoryEntity } from '@/lib/territoryEntities'
 import type { Mission } from '@/types'
 
 const KIND_LABELS: Record<GraphNodeKind, string> = {
   mission: 'Mission', action: 'Unfinished action', blocker: 'Blocker', lesson: 'Confirmed lesson', correction: 'Correction', evidence: 'Evidence',
+  project: 'Project', doctrine: 'Doctrine', constraint: 'Constraint',
 }
 // One hue per kind of saved record. Colour names the record type only; it
 // never signals progress or certainty.
 const KIND_COLORS: Record<GraphNodeKind, string> = {
   mission: '#8b7bff', action: '#38bdf8', blocker: '#fbbf24', lesson: '#c084fc', correction: '#fb7185', evidence: '#94a3b8',
+  project: '#a78bfa', doctrine: '#34d399', constraint: '#fbbf24',
 }
 const short = (value: string, max: number) => (value.length > max ? `${value.slice(0, max - 1)}…` : value)
 const TAP_SLOP = 6
@@ -28,12 +31,14 @@ function twoLines(text: string, perLine: number): [string, string] {
 // one column on a phone, more on wider screens. Dragging a node moves it for
 // this view only — positions are not saved. Nodes allow vertical page scroll
 // on touch, so the graph never traps a scrolling finger.
-export default function TerritoryGraph({ missions, actions, links, evidence, onOpen }: {
+export default function TerritoryGraph({ missions, actions, links, evidence, entities = [], onOpen, onOpenEntity }: {
   missions: Mission[]
   actions: OpenAction[]
   links: (MissionEventLite & { id?: string })[]
   evidence: EvidenceLite[]
+  entities?: TerritoryEntity[]
   onOpen: (missionId: string) => void
+  onOpenEntity?: (entityId: string) => void
 }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -52,10 +57,11 @@ export default function TerritoryGraph({ missions, actions, links, evidence, onO
     return () => observer.disconnect()
   }, [])
 
-  const { nodes, edges, width, height } = buildTerritoryGraph(missions, actions, links, evidence, maxColumns)
+  const { nodes, edges, width, height } = buildTerritoryGraph(missions, actions, links, evidence, maxColumns, entities)
   const byId = new Map(nodes.map(n => [n.id, n]))
   const pos = (n: GraphNode) => ({ x: n.x + (offsets[n.id]?.dx ?? 0), y: n.y + (offsets[n.id]?.dy ?? 0) })
   const missionCount = nodes.filter(n => n.kind === 'mission').length
+  const entityCount = nodes.filter(n => n.kind === 'project' || n.kind === 'doctrine' || n.kind === 'constraint').length
 
   const start = (e: PointerEvent, id: string) => {
     ;(e.currentTarget as Element).setPointerCapture?.(e.pointerId)
@@ -78,6 +84,12 @@ export default function TerritoryGraph({ missions, actions, links, evidence, onO
     drag.current = null
     if (d && !d.moved) onOpen(missionId)
   }
+  const entityKey = (e: KeyboardEvent, entityId: string) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onOpenEntity?.(entityId)
+    }
+  }
   const key = (e: KeyboardEvent, missionId: string) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
@@ -88,7 +100,7 @@ export default function TerritoryGraph({ missions, actions, links, evidence, onO
   return (
     <div ref={wrapRef}>
       <p className="text-sm mb-2" style={{ color: 'var(--text-soft)' }}>
-        {missionCount} mission{missionCount === 1 ? '' : 's'} · {edges.length} saved link{edges.length === 1 ? '' : 's'} · no links between missions yet (none saved)
+        {missionCount} mission{missionCount === 1 ? '' : 's'} · {entityCount} territor{entityCount === 1 ? 'y' : 'ies'} · {edges.length} saved link{edges.length === 1 ? '' : 's'}
       </p>
       <div className="flex flex-wrap gap-3 mb-3 text-xs" aria-hidden="true">
         {(Object.keys(KIND_LABELS) as GraphNodeKind[]).map(kind => (
@@ -105,7 +117,7 @@ export default function TerritoryGraph({ missions, actions, links, evidence, onO
           viewBox={`0 0 ${width} ${height}`}
           style={{ width: '100%', maxWidth: width * 1.5, height: 'auto', display: 'block', margin: '0 auto' }}
           role="group"
-          aria-label={`Territory graph: ${missionCount} missions, ${edges.length} saved links`}
+          aria-label={`Territory graph: ${missionCount} missions, ${entityCount} territory entities, ${edges.length} saved links`}
           onPointerMove={move}
           onPointerCancel={() => { drag.current = null }}
         >
@@ -149,6 +161,31 @@ export default function TerritoryGraph({ missions, actions, links, evidence, onO
 
           {nodes.map(node => {
             const { x, y } = pos(node)
+            const isEntity = node.kind === 'project' || node.kind === 'doctrine' || node.kind === 'constraint'
+            if (isEntity) {
+              const [line1, line2] = twoLines(node.label, 26)
+              return (
+                <g
+                  key={node.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${KIND_LABELS[node.kind]}: ${node.label}. Open its detail.`}
+                  transform={`translate(${x - ENTITY_BOX.w / 2}, ${y - ENTITY_BOX.h / 2})`}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => node.entityId && onOpenEntity?.(node.entityId)}
+                  onKeyDown={e => node.entityId && entityKey(e, node.entityId)}
+                >
+                  <title>{`${KIND_LABELS[node.kind]}: ${node.label}`}</title>
+                  <rect width={ENTITY_BOX.w} height={ENTITY_BOX.h} rx={16} fill="rgba(10,16,32,0.94)" stroke={KIND_COLORS[node.kind]} strokeOpacity={0.9} strokeWidth={1.4} filter="url(#tg-glow)" />
+                  <text x={14} y={20} fontSize={9.5} fill={KIND_COLORS[node.kind]} style={{ textTransform: 'uppercase', letterSpacing: '0.1em' }}>{KIND_LABELS[node.kind]}</text>
+                  <text x={14} y={38} fontSize={13} fontWeight={700} fill="var(--text)">{line1}</text>
+                  {line2 ? <text x={14} y={54} fontSize={13} fontWeight={700} fill="var(--text)">{line2}</text> : null}
+                  <text x={14} y={line2 ? 67 : 58} fontSize={10} fill="var(--text-dim)">
+                    {node.signal ? TERRITORY_SIGNAL_LABELS[node.signal] : 'No saved signal'}{node.cluster ? ` · ${short(node.cluster, 16)}` : ''}
+                  </text>
+                </g>
+              )
+            }
             const isMission = node.kind === 'mission'
             const box = isMission ? MISSION_BOX : CHILD_BOX
             const color = node.kind === 'mission' && node.state === 'blocked' ? KIND_COLORS.blocker : KIND_COLORS[node.kind]

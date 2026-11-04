@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { buildTerritoryGraph, CHILD_BOX, MISSION_BOX, PER_KIND_LIMIT, type EvidenceLite } from './territoryGraph'
+import { buildTerritoryGraph, CHILD_BOX, ENTITY_BOX, MISSION_BOX, PER_KIND_LIMIT, type EvidenceLite } from './territoryGraph'
 import type { MissionEventLite, OpenAction } from './territory'
 import type { Mission } from '@/types'
+import type { TerritoryEntity } from './territoryEntities'
 
 function mission(overrides: Partial<Mission> = {}): Mission {
   return {
@@ -12,6 +13,10 @@ function mission(overrides: Partial<Mission> = {}): Mission {
 const ev = (overrides: Partial<MissionEventLite & { id: string }>) => ({ id: 'e1', mission_id: 'm1', type: 'x', detail: '', created_at: '2026-01-01T00:00:00Z', ...overrides })
 const action: OpenAction = { id: 'a1', mission_id: 'm1', action_title: 'Email the lab', status: 'TODO', resume_note: null }
 const evidence: EvidenceLite = { id: 's1', mission_id: 'm1', kind: 'merged_pr', status: 'unverified', claim: 'PR merged', observed_at: '2026-01-01T00:00:00Z' }
+const entity = (overrides: Partial<TerritoryEntity> = {}): TerritoryEntity => ({
+  id: 'p1', kind: 'project', label: 'Print studio', description: 'Prints', signal: 'wip', cluster: 'Revenue',
+  createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', ...overrides,
+})
 
 describe('buildTerritoryGraph', () => {
   it('draws only saved relationships, each with its provenance', () => {
@@ -52,6 +57,34 @@ describe('buildTerritoryGraph', () => {
     const b = buildTerritoryGraph([mission({ id: 'm2', title: 'Beta', state: 'paused' }), mission()], [], many, [])
     expect(a.edges.filter(e => e.label === 'correction')).toHaveLength(PER_KIND_LIMIT)
     expect(a.nodes).toEqual(b.nodes)
+  })
+
+
+  it('draws projects, doctrine and constraints as first-class nodes without inventing edges', () => {
+    const entities = [
+      entity(),
+      entity({ id: 'd1', kind: 'doctrine', label: 'Preserve the lesson', description: '', signal: null, cluster: null }),
+      entity({ id: 'c1', kind: 'constraint', label: 'Trader Joe\'s', description: '', signal: null, cluster: 'Struggle' }),
+    ]
+    const g = buildTerritoryGraph([mission()], [], [], [], 3, entities)
+    expect(g.nodes.filter(n => n.kind === 'project' || n.kind === 'doctrine' || n.kind === 'constraint')).toHaveLength(3)
+    expect(g.nodes.filter(n => n.entityId).map(n => n.label)).toEqual(['Print studio', 'Preserve the lesson', 'Trader Joe\'s'])
+    expect(g.edges).toEqual([])
+    expect(g.nodes.find(n => n.id === 'project:p1')?.y).toBeLessThan(g.nodes.find(n => n.id === 'mission:m1')!.y)
+    for (const a of g.nodes) for (const b of g.nodes) {
+      if (a === b) continue
+      const box = (n: (typeof g.nodes)[number]) => n.kind === 'mission' ? MISSION_BOX : n.entityId ? ENTITY_BOX : CHILD_BOX
+      const overlap = Math.abs(a.x - b.x) < (box(a).w + box(b).w) / 2 && Math.abs(a.y - b.y) < (box(a).h + box(b).h) / 2
+      expect(overlap, `${a.id} overlaps ${b.id}`).toBe(false)
+    }
+  })
+
+  it('can draw an entity-only territory without requiring a mission', () => {
+    const g = buildTerritoryGraph([], [], [], [], 3, [entity()])
+    expect(g.nodes).toHaveLength(1)
+    expect(g.edges).toEqual([])
+    expect(g.width).toBeGreaterThan(0)
+    expect(g.height).toBeGreaterThan(0)
   })
 
   it('keeps a fully populated mission readable: no two drawn boxes overlap', () => {
