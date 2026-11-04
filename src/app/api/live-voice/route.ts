@@ -16,6 +16,25 @@ const LIVE_INSTRUCTIONS = [
   'If backend information is unavailable, say so directly. Do not treat a suggestion as completed work.',
 ].join(' ')
 
+/** A no-cost authorization/configuration preflight before asking for microphone access. */
+export async function GET(req: NextRequest) {
+  const owner = await deltaOwner(req)
+  if ('response' in owner) {
+    if (owner.response.status === 403 && !process.env.DELTA_OPERATION_ALLOWED_USER_ID) {
+      return NextResponse.json({
+        error: 'This deployment has no owner AI access configured. The project account and missions have not been changed.',
+      }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
+    }
+    return owner.response
+  }
+  if (!process.env.OPENAI_API_KEY) {
+    return NextResponse.json({ error: 'OpenAI live voice is not configured on this server.' }, {
+      status: 503, headers: { 'Cache-Control': 'no-store' },
+    })
+  }
+  return NextResponse.json({ ready: true }, { headers: { 'Cache-Control': 'no-store' } })
+}
+
 /** Owner-gated server-side SDP exchange. The OpenAI project key never reaches the browser. */
 export async function POST(req: NextRequest) {
   const owner = await deltaOwner(req)
