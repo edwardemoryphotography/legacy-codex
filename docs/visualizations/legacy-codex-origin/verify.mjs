@@ -23,9 +23,19 @@ const server = http.createServer(async (req,res) => {
 });
 await new Promise(resolveReady => server.listen(0,'127.0.0.1',resolveReady));
 const url = `http://127.0.0.1:${server.address().port}/`;
-const browser = await chromium.launch({headless:true});
+let browser;
 try {
+  // Use separately updated stable Chrome; never fall back to bundled Chromium
+  // or disable its sandbox to make a restricted environment pass.
+  browser = await chromium.launch({headless:true,channel:'chrome',chromiumSandbox:true});
   const context = await browser.newContext({viewport:{width:1440,height:1000},reducedMotion:'reduce'});
+  // This artifact is self-contained. Block external HTTP resources and redirects.
+  await context.route('**/*', route => {
+    const target = new URL(route.request().url());
+    return target.protocol === 'file:' || target.origin === new URL(url).origin
+      ? route.continue()
+      : route.abort('blockedbyclient');
+  });
   const page = await context.newPage();
   page.on('pageerror',error => errors.push(error.message));
   await page.goto(url,{waitUntil:'networkidle'});
@@ -115,6 +125,6 @@ try {
   await writeFile(resolve(artifacts,'verification.json'),JSON.stringify({passed:true,browser:await browser.version(),checks,errors,viewports:[390,430,768,1440],screenshots:['desktop.png','mobile.png'],visualInspection:'pending-human-or-agent-image-review'},null,2) + '\n');
   console.log(JSON.stringify({passed:true,checks,errors},null,2));
 } finally {
-  await browser.close();
+  await browser?.close();
   await new Promise(resolveClose => server.close(resolveClose));
 }
