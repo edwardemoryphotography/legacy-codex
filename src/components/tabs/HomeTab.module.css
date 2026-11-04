@@ -116,6 +116,7 @@
 
 .mission:not([data-reply="true"]) .takeaway { display: none; }
 .mission:not([data-reply="true"]) :global(.glass-hero) { display: none; }
+.mission:global(.glass-home[data-access-gate="true"]) :global(.glass-hero) { display: flex; flex: 1 1 auto; }
 .mission .takeaway { gap: 8px; }
 .mission:global(.glass-home) { padding: 10px 12px; }
 .mission :global(.glass-greeting) { font-size: 20px; }
@@ -164,3 +165,49 @@
 .home :global(.glass-hero)::-webkit-scrollbar { display: none; }
 
 @media (max-width: 700px) { .home:global(.glass-home[data-reply="true"]) :global(.glass-orb-wrap) { display: none; } }
+
+/* First-use and capability gate: one primary action, no disabled chat shell. */
+.accessGate {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: min(460px, 100%);
+  margin: 0 auto;
+  padding: 22px 18px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, .42);
+  border-radius: 24px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .015) 52%),
+    rgba(7, 9, 22, .24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .62), 0 18px 44px rgba(0, 0, 0, .28);
+  backdrop-filter: blur(7px) saturate(130%);
+  -webkit-backdrop-filter: blur(7px) saturate(130%);
+}
+.accessGate h2 {
+  margin: 0;
+  color: var(--g-mist);
+  font: 600 clamp(22px, 6vw, 30px)/1.12 var(--g-display);
+  letter-spacing: -.015em;
+  text-wrap: balance;
+}
+.accessGate p:not(:global(.eyebrow)) {
+  margin: 0;
+  max-width: 34ch;
+  color: var(--g-mist-dim);
+  font: 400 14px/1.55 var(--g-body);
+}
+.accessPrimary {
+  min-height: 48px;
+  padding: 11px 20px;
+  margin-top: 4px;
+  border-color: rgba(255, 255, 255, .82) !important;
+  background: var(--g-mist) !important;
+  color: var(--g-ink) !important;
+  font-weight: 700;
+}
+:root[data-glass-opaque="true"] .accessGate { background: var(--g-ink); backdrop-filter: none; -webkit-backdrop-filter: none; }
+@media (prefers-reduced-transparency: reduce) { .accessGate { background: var(--g-ink); backdrop-filter: none; -webkit-backdrop-filter: none; } }

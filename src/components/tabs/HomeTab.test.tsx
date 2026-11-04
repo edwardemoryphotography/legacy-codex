@@ -96,13 +96,23 @@ describe('promptHelpQuestion', () => {
 })
 
 describe('Home account capability', () => {
+
+  it('shows the access gate instead of a blank Mission conversation for a non-owner', () => {
+    accessState = 'no-access'
+    accessName = ''
+    render(<HomeTab variant="mission" onNavigate={() => {}} />)
+    expect(screen.getByRole('heading', { name: /This browser account cannot use AI yet/ })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Ask Codex' })).toBeNull()
+  })
+
   it('does not present AI as ready for a non-owner account, and routes directly to sign-in', async () => {
     accessState = 'no-access'
     accessName = ''
     const onSignIn = vi.fn()
     render(<HomeTab onNavigate={() => {}} onSignIn={onSignIn} />)
-    expect(await screen.findByText(/This browser account cannot use AI/)).toBeTruthy()
-    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(await screen.findByText(/This browser account cannot use AI yet/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Send' })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: 'Ask Codex' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Sign in to your existing account' }))
     expect(onSignIn).toHaveBeenCalledOnce()
   })
