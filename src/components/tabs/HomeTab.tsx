@@ -139,7 +139,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const homeReadState: NextActionReadState =
     loadError || actionsRead === 'failed' || eventsRead === 'failed'
       ? 'error'
-      : missions === null || actionsRead === 'pending'
+      : missions === null || actionsRead === 'pending' || eventsRead === 'pending'
         ? 'loading'
         : !primaryMission
           ? 'empty'
