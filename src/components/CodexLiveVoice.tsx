@@ -129,7 +129,7 @@ export default function CodexLiveVoice({
     }
 
     const attempt = ++generation.current
-    setStatus('Requesting microphone permission…')
+    setStatus('Checking Codex account access…')
     setInputCaption('')
     setOutputCaption('')
     setLastAnswer(null)
@@ -140,6 +140,26 @@ export default function CodexLiveVoice({
     sessionController.current = new AbortController()
 
     try {
+      // Check this exact deployment's paid-model owner gate before opening the
+      // microphone. A successful email login and a working mission read do not
+      // imply the deployment's DELTA_OPERATION_ALLOWED_USER_ID matches.
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
+      if (generation.current !== attempt) return
+      if (!currentSession?.access_token) throw new Error('This browser has no active account session. Your saved missions have not been changed.')
+      const preflight = await fetch('/api/live-voice', {
+        method: 'GET',
+        headers: { Authorization: 'Bearer ' + currentSession.access_token },
+        signal: sessionController.current?.signal,
+        cache: 'no-store',
+      })
+      if (generation.current !== attempt) return
+      if (!preflight.ok) {
+        const body = await preflight.json().catch(() => ({})) as { error?: string }
+        throw new Error(preflight.status === 403
+          ? "You are signed in, but this deployment has not granted this account owner AI access. Check the deployment's DELTA_OPERATION_ALLOWED_USER_ID. Do not sign out or move your missions."
+          : body.error || 'Could not verify live voice access.')
+      }
+      setStatus('Requesting microphone permission…')
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
       if (generation.current !== attempt) { stream.getTracks().forEach(track => track.stop()); return }
       microphone.current = stream
