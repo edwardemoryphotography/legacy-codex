@@ -17,8 +17,8 @@ Legacy Codex is the single normal front door. Foundry is internal builder/operat
 
 | Stage | Observation / limit |
 | --- | --- |
-| Merged | GitHub main 7c20b554a7eed81d81516ce2a9b656444339cfc9, including #174 |
-| Deployed | Canonical-domain Vercel lookup: dpl_ZHq32Yd1oGVQsx8jAsLvrYq1zhao, READY Production, same SHA, frontend, canonical alias present, no alias error |
+| Merged | GitHub main 85149b72eb22cbeb8d05412cd30d28d1091096f4; #160 guard merged at d25f316 and #163 requirements merged at 85149b7 |
+| Deployed | Canonical-domain Vercel lookup: dpl_B1m6ySNfnaRGrsfUANuSZpQGefNt, READY Production, d25f3163182c3b3236e7a16aa6e29ea0d50b01e1, frontend, canonical alias present. This carries #160; #163 is a later documentation-only merge |
 | Runtime | No fresh authenticated owner interaction in this pass. Desktop Commander reported the owner's Mac offline |
 | Acceptance | Current physical-iPhone voice, useful owner reconstruction, later lesson application and second-person Relay remain open |
 
@@ -37,7 +37,7 @@ Later releases must supersede this dated observation with exact evidence. This t
 | Legacy Relay | #144 | [Real two-person sequence](docs/verification/legacy-relay-2026-11-01.md); receipt and benefit are separate |
 | Territory | #168, #169, release record #171 | Owner-device create/edit/reload/delete remains open |
 | GPT-Live | #167, #170, #173, #174 | #173 reports Production owner allowlist present, Preview absent; #174 bounds startup. Current owner reciprocal audio remains unobserved |
-| Accountability | #162 contract and #160 bounded guard merged; #163 broader requirement in reconciliation | Consult current GitHub state; preserved requirements are not active enforcement |
+| Accountability | #162 contract, #160 bounded guard and #163 broader requirement merged | Consult current GitHub state; preserved requirements are not active enforcement |
 
 ## Historical closures
 
@@ -49,7 +49,7 @@ Later releases must supersede this dated observation with exact evidence. This t
 
 ## Now / next / blocked
 
-1. Reconcile current source/product/ownership documents and finish #160 through checks and canonical deployment; preserve #163's broader narrative-integrity requirement with implementation limits explicit.
+1. #160's narrow review guard passed 626 tests, TypeScript, lint (0 errors, 17 existing warnings), builder/immersive/Economy checks and build, then reached READY canonical Production. #163 preserves accepted broader requirements; chronology/narrative-difference/receipt verification remains implementation work, not shipped protection.
 2. Follow [November acceptance](docs/verification/november-acceptance-2026-11-04.md) for the owner demo, reconstruction, later lesson use and consenting recipient.
 3. Plan forward-only convergence of transitional stores with preservation, parity and rollback evidence before retirement.
 
