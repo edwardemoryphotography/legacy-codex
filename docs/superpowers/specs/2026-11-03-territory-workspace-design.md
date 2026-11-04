@@ -1,6 +1,6 @@
 # Territory workspace — Path 1 design
 
-**Status:** implementation design, approved to build
+**Status:** implemented and released; `territory_links` remains Path 2
 **Scope:** the existing Territory tab, not a new product surface
 **Reference:** `Legacy Codex Territory Dashboard.html` (standalone prototype)
 
