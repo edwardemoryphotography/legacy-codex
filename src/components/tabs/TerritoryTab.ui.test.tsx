@@ -80,6 +80,16 @@ describe('TerritoryTab', () => {
     expect(screen.getByRole('button', { name: 'Architect Scan' })).toBeTruthy()
   })
 
+
+  it('lets a first entity be added before any mission exists', async () => {
+    render(<TerritoryTab />)
+    fireEvent.click(await screen.findByRole('button', { name: '+ Add entity' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'First project' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add entity' }))
+    expect(await screen.findByText('First project')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Projects \(1\)/ })).toBeTruthy()
+  })
+
   it('says the graph is missing links when a read fails', async () => {
     db.missions = [row({})]
     db.evidence = { data: [], error: { message: 'network' } }
