@@ -19,7 +19,14 @@ const LIVE_INSTRUCTIONS = [
 /** A no-cost authorization/configuration preflight before asking for microphone access. */
 export async function GET(req: NextRequest) {
   const owner = await deltaOwner(req)
-  if ('response' in owner) return owner.response
+  if ('response' in owner) {
+    if (owner.response.status === 403 && !process.env.DELTA_OPERATION_ALLOWED_USER_ID) {
+      return NextResponse.json({
+        error: 'This deployment has no owner AI access configured. The project account and missions have not been changed.',
+      }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
+    }
+    return owner.response
+  }
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json({ error: 'OpenAI live voice is not configured on this server.' }, {
       status: 503, headers: { 'Cache-Control': 'no-store' },
