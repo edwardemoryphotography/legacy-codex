@@ -7,6 +7,7 @@ import { missionsToBriefContext } from '@/lib/dailyBrief'
 import { useBriefRunner } from '@/hooks/useBriefRunner'
 import { useMissionTerritory } from '@/hooks/useMissionTerritory'
 import { useTaskVoice } from '@/hooks/useTaskVoice'
+import CodexLiveVoice, { type LiveVoicePhase } from '@/components/CodexLiveVoice'
 import { OrbSlot, useOrbCognition, useOrbInteraction, useOrbPresentation } from '@/components/OrbHost'
 import { BRIEF_VISITOR_COPY } from '@/components/MissionBriefPanel'
 import { homeMissionRoster, homeRequest, QUESTION_LIMIT, PROMPT_LIMIT, promptHelpQuestion, type HomeTool } from '@/lib/homeRequest'
@@ -53,9 +54,10 @@ function useOwnerName() {
 }
 
 
-function ConversationPresence({ status, busy, loadError, pending, voice, reply }: { status: string; busy: boolean; loadError: string; pending: string | null; voice: { active: boolean; phase: string }; reply: boolean }) {
-  useOrbCognition({ cognition: status === 'error' || loadError ? 'failed' : busy ? 'deriving' : status === 'done' || reply ? 'settled' : 'insufficient', operation: pending, provenance: busy ? 'model' : 'insufficient_context', recording: false })
-  useOrbInteraction(voice.phase === 'listening' ? 'listening' : voice.active ? 'engaged' : 'ambient')
+function ConversationPresence({ status, busy, loadError, pending, voice, live, reply }: { status: string; busy: boolean; loadError: string; pending: string | null; voice: { active: boolean; phase: string }; live: LiveVoicePhase; reply: boolean }) {
+  const consulting = busy || live === 'reasoning'
+  useOrbCognition({ cognition: status === 'error' || loadError ? 'failed' : consulting ? 'deriving' : status === 'done' || reply || live === 'responding' ? 'settled' : 'insufficient', operation: live === 'reasoning' ? 'Consulting saved Codex context' : pending, provenance: consulting ? 'model' : 'insufficient_context', recording: false })
+  useOrbInteraction(live === 'listening' || voice.phase === 'listening' ? 'listening' : live !== 'idle' || voice.active ? 'engaged' : 'ambient')
   return null
 }
 
@@ -66,6 +68,8 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const name = useOwnerName()
   const presentation = useOrbPresentation()
   const [local, setLocal] = useState(emptyHomeSession)
+  const [livePhase, setLivePhase] = useState<LiveVoicePhase>('idle')
+  const liveActive = livePhase !== 'idle'
   const current = session ?? local
   const update = onSessionChange ?? setLocal
   const { text, tool, history } = current
@@ -219,7 +223,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     if (event.key === 'Enter') { event.preventDefault(); void send() }
   }
 
-  const immersive = !missionView && ['listening', 'thinking', 'acting'].includes(presentation.state)
+  const immersive = !missionView && (liveActive || ['listening', 'thinking', 'acting'].includes(presentation.state))
   const reply = current.reply
   const hasReply = Boolean(reply)
   const takeawayTitle = reply ? homeTakeaway(reply.text).slice(0, 240) : ''
@@ -314,13 +318,14 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     <section
       className={`glass-home ${styles.home} ${missionView ? styles.mission : ''}`}
       data-state={presentation.state}
+      data-live-voice-active={liveActive ? 'true' : undefined}
       data-immersive={immersive ? 'true' : undefined}
       data-reply={hasReply ? 'true' : undefined}
       data-next-action-state={homeNextAction.state}
       data-next-action-read={homeNextAction.readState}
       aria-label={missionView ? 'Project conversation' : 'Home'}
     >
-      {(!missionView || busy || voice.active) && <ConversationPresence status={brief.status} busy={busy} loadError={loadError} pending={!loadError && !busy && !voice.active ? missions === null ? 'Reading saved missions' : actionsRead === 'pending' ? 'Reading saved actions' : null : null} voice={voice} reply={Boolean(current.reply)} />}
+      {(!missionView || busy || voice.active || liveActive) && <ConversationPresence status={brief.status} busy={busy} loadError={loadError} pending={!loadError && !busy && !voice.active && !liveActive ? missions === null ? 'Reading saved missions' : actionsRead === 'pending' ? 'Reading saved actions' : null : null} voice={voice} live={livePhase} reply={Boolean(current.reply)} />}
       <div className={styles.context}>
         <span>{primaryMission ? `Working on: ${primaryMission.title}` : 'Your conversation with Codex'}</span>
         <button type="button" className="glass-chip glass" onClick={() => onNavigate(missionView ? 'home' : 'mission')}>{missionView ? 'Back to Home' : 'Open project workspace'}</button>
@@ -458,6 +463,23 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       </dialog>
 
       <div className="glass-dock">
+        <CodexLiveVoice
+          missions={missions ?? []}
+          primaryMissionId={primaryMission?.id ?? null}
+          tier={current.tier === 'deep' ? 'deep' : 'routine'}
+          disabled={busy || voice.active || missions === null || Boolean(loadError) || !brief.configured || brief.visitor}
+          onPhaseChange={setLivePhase}
+          onAnswer={answer => {
+            update(previous => ({
+              ...previous,
+              history: previous.reply ? [...previous.history, previous.reply].slice(-6) : previous.history,
+              reply: { question: answer.question, text: answer.text, label: 'Live Codex', provider: answer.provider },
+            }))
+            setSavedReplyText(null)
+            setSavedReplyMissionId(null)
+            setSaveReplyError(null)
+          }}
+        />
         <fieldset className={styles.modelChoice} disabled={busy || voice.active}>
           <legend>Intelligence</legend>
           <button type="button" aria-pressed={current.tier !== 'deep'} onClick={() => update(prev => ({ ...prev, tier: 'routine' }))}>Economy</button>
