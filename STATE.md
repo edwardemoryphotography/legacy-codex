@@ -8,6 +8,8 @@ This file records project truth and durable lessons; it is not a hidden authoriz
 
 ## Repo-local notes
 
+- **2026-11-02 — Model-claim integrity candidate (PR #160, not merged or live).** The real October 7 Grok voice incident and November 2 owner correction reinforced the public-protection outcome: another person should not need to spot confident false claims unaided. A bounded project-review publication gate now rejects unattributed assertions of verified/deployed/tested/completed outcomes before saving, checks restored cached/historical reviews, and discards tainted comparison baselines; it does not alter the user's own draft or create a second evidence authority. Source and limits: `docs/verification/claim-integrity-2026-11-02.md`. Current proposal does not read canonical `evidence_items`, does not establish general factual accuracy, and awaits hosted tests and actual runtime verification. No production records or provider settings were changed.
+
 - **2026-11-03 — NextAction is finished; do not reduce Legacy Codex to it.** The
   replacement/history write is one security-invoker transaction
   (`replace_saved_action_atomic`), verified against the canonical database and
