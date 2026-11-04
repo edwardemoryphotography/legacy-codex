@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-04T11:53:16.229Z",
+  "generatedAt": "2026-11-04T19:26:15.688Z",
   "unavailableSources": [],
   "records": [
     {
@@ -10,7 +10,7 @@
       "status": "verified",
       "claim": "PR #174 \"Bound iPhone Live Voice startup so connecting never hangs indefinitely\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T09:15:40Z",
-      "fetchedAt": "2026-11-04T11:53:09.858Z",
+      "fetchedAt": "2026-11-04T19:26:09.388Z",
       "prReadSucceeded": true
     },
     {
@@ -21,7 +21,7 @@
       "status": "verified",
       "claim": "PR #173 \"Fix iPhone Home vertical jumping and restore voice access diagnostics\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T08:43:00Z",
-      "fetchedAt": "2026-11-04T11:53:10.206Z",
+      "fetchedAt": "2026-11-04T19:26:09.763Z",
       "prReadSucceeded": true
     },
     {
@@ -32,7 +32,7 @@
       "status": "verified",
       "claim": "PR #172 \"Refresh NextAction canonical deployment handoff\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T08:22:30Z",
-      "fetchedAt": "2026-11-04T11:53:10.626Z",
+      "fetchedAt": "2026-11-04T19:26:10.115Z",
       "prReadSucceeded": true
     },
     {
@@ -43,7 +43,7 @@
       "status": "verified",
       "claim": "PR #170 \"Fix live voice login confusion: authorize before microphone\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T07:38:03Z",
-      "fetchedAt": "2026-11-04T11:53:11.115Z",
+      "fetchedAt": "2026-11-04T19:26:10.520Z",
       "prReadSucceeded": true
     },
     {
@@ -54,7 +54,7 @@
       "status": "verified",
       "claim": "PR #171 \"Record Territory workspace release evidence\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T07:34:40Z",
-      "fetchedAt": "2026-11-04T11:53:11.486Z",
+      "fetchedAt": "2026-11-04T19:26:10.892Z",
       "prReadSucceeded": true
     },
     {
@@ -65,7 +65,7 @@
       "status": "verified",
       "claim": "PR #169 \"Fix Territory empty state: add the first entity before a mission\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T07:26:19Z",
-      "fetchedAt": "2026-11-04T11:53:11.861Z",
+      "fetchedAt": "2026-11-04T19:26:11.314Z",
       "prReadSucceeded": true
     },
     {
@@ -76,7 +76,7 @@
       "status": "verified",
       "claim": "PR #168 \"Build the Territory map workspace with first-class entities\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T07:16:18Z",
-      "fetchedAt": "2026-11-04T11:53:12.280Z",
+      "fetchedAt": "2026-11-04T19:26:11.655Z",
       "prReadSucceeded": true
     },
     {
@@ -87,7 +87,7 @@
       "status": "verified",
       "claim": "PR #167 \"Add GPT-Live voice conversation mode to existing Legacy Codex Home\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T07:07:55Z",
-      "fetchedAt": "2026-11-04T11:53:12.650Z",
+      "fetchedAt": "2026-11-04T19:26:12.035Z",
       "prReadSucceeded": true
     },
     {
@@ -98,7 +98,7 @@
       "status": "verified",
       "claim": "PR #166 \"fix(nextaction): hold Home/Brief in loading while acceptance is unread\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T03:31:17Z",
-      "fetchedAt": "2026-11-04T11:53:13.039Z",
+      "fetchedAt": "2026-11-04T19:26:12.375Z",
       "prReadSucceeded": true
     },
     {
@@ -109,7 +109,7 @@
       "status": "unverified",
       "claim": "PR #165 \"Use sandboxed stable Chrome for local artifact verification\" open, not yet merged.",
       "observedAt": "2026-11-04T02:58:39Z",
-      "fetchedAt": "2026-11-04T11:53:13.040Z",
+      "fetchedAt": "2026-11-04T19:26:12.376Z",
       "prReadSucceeded": true
     },
     {
@@ -120,7 +120,7 @@
       "status": "verified",
       "claim": "PR #164 \"Record final NextAction state and governing corrections\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-03T13:31:16Z",
-      "fetchedAt": "2026-11-04T11:53:13.433Z",
+      "fetchedAt": "2026-11-04T19:26:12.740Z",
       "prReadSucceeded": true
     },
     {
@@ -131,7 +131,7 @@
       "status": "unverified",
       "claim": "PR #163 \"Specify AI anti-gaslighting, narrative integrity, and evidence-based accountability\" open, not yet merged.",
       "observedAt": "2026-11-03T06:39:58Z",
-      "fetchedAt": "2026-11-04T11:53:13.433Z",
+      "fetchedAt": "2026-11-04T19:26:12.740Z",
       "prReadSucceeded": true
     },
     {
@@ -142,7 +142,7 @@
       "status": "verified",
       "claim": "PR #162 \"docs: preserve model accountability and transparency contract\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-03T06:29:30Z",
-      "fetchedAt": "2026-11-04T11:53:13.824Z",
+      "fetchedAt": "2026-11-04T19:26:13.079Z",
       "prReadSucceeded": true
     },
     {
@@ -153,7 +153,7 @@
       "status": "unverified",
       "claim": "PR #160 \"feat: block unsupported verified-outcome claims in project reviews\" open, not yet merged.",
       "observedAt": "2026-11-03T06:23:07Z",
-      "fetchedAt": "2026-11-04T11:53:13.824Z",
+      "fetchedAt": "2026-11-04T19:26:13.079Z",
       "prReadSucceeded": true
     },
     {
@@ -164,7 +164,7 @@
       "status": "verified",
       "claim": "PR #159 \"Finish NextAction atomic replacement and shared acceptance read\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-03T05:53:14Z",
-      "fetchedAt": "2026-11-04T11:53:14.175Z",
+      "fetchedAt": "2026-11-04T19:26:13.471Z",
       "prReadSucceeded": true
     },
     {
@@ -175,7 +175,7 @@
       "status": "verified",
       "claim": "PR #158 \"Raise Route task limits and bring the result into view\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-03T05:21:34Z",
-      "fetchedAt": "2026-11-04T11:53:14.580Z",
+      "fetchedAt": "2026-11-04T19:26:13.840Z",
       "prReadSucceeded": true
     },
     {
@@ -186,7 +186,7 @@
       "status": "verified",
       "claim": "PR #157 \"Wrap expanded done-action notes inside the phone card\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-03T04:43:53Z",
-      "fetchedAt": "2026-11-04T11:53:14.955Z",
+      "fetchedAt": "2026-11-04T19:26:14.201Z",
       "prReadSucceeded": true
     },
     {
@@ -197,7 +197,7 @@
       "status": "verified",
       "claim": "PR #156 \"Render Brief answers as Markdown and keep Ask on Economy\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-03T04:32:20Z",
-      "fetchedAt": "2026-11-04T11:53:15.359Z",
+      "fetchedAt": "2026-11-04T19:26:14.978Z",
       "prReadSucceeded": true
     },
     {
@@ -208,7 +208,7 @@
       "status": "verified",
       "claim": "PR #155 \"Keep the Mission saved-action card inside the phone viewport\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-03T04:03:45Z",
-      "fetchedAt": "2026-11-04T11:53:15.797Z",
+      "fetchedAt": "2026-11-04T19:26:15.317Z",
       "prReadSucceeded": true
     },
     {
@@ -219,7 +219,7 @@
       "status": "verified",
       "claim": "PR #154 \"Keep the iPhone orb square and clear of the keyboard label\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-03T02:22:45Z",
-      "fetchedAt": "2026-11-04T11:53:16.229Z",
+      "fetchedAt": "2026-11-04T19:26:15.688Z",
       "prReadSucceeded": true
     }
   ]
