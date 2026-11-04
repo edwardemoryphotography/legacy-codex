@@ -60,6 +60,7 @@ export default function CodexLiveVoice({
   const taskController = useRef<AbortController | null>(null)
   const autoClose = useRef<ReturnType<typeof setTimeout> | null>(null)
   const disconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const startupTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const generation = useRef(0)
   const requestVersion = useRef(0)
   const userParts = useRef<UserFragment[]>([])
@@ -78,8 +79,10 @@ export default function CodexLiveVoice({
     taskController.current = null
     if (autoClose.current) clearTimeout(autoClose.current)
     if (disconnectTimer.current) clearTimeout(disconnectTimer.current)
+    if (startupTimer.current) clearTimeout(startupTimer.current)
     autoClose.current = null
     disconnectTimer.current = null
+    startupTimer.current = null
 
     const id = sessionId.current
     const token = accessToken.current
@@ -160,7 +163,17 @@ export default function CodexLiveVoice({
           : body.error || 'Could not verify live voice access.')
       }
       setStatus('Requesting microphone permission…')
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+      // A permission prompt can remain unresolved indefinitely on iOS. Stop
+      // this attempt without creating a remote session or leaving the UI busy.
+      const permissionTimeout = setTimeout(() => {
+        if (generation.current === attempt) stop('Microphone permission timed out. Check Safari microphone access and try again.')
+      }, 45_000)
+      let stream: MediaStream
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+      } finally {
+        clearTimeout(permissionTimeout)
+      }
       if (generation.current !== attempt) { stream.getTracks().forEach(track => track.stop()); return }
       microphone.current = stream
       const connection = new RTCPeerConnection()
@@ -201,6 +214,8 @@ export default function CodexLiveVoice({
         try { event = JSON.parse(String(message.data)) as LiveEvent } catch { return }
 
         if (event.type === 'session.started') {
+          if (startupTimer.current) clearTimeout(startupTimer.current)
+          startupTimer.current = null
           setPhase('listening')
           setStatus('Listening. Interrupt or change direction whenever you want.')
           const title = currentInputs.current.missions.find(m => m.id === currentInputs.current.primaryMissionId)?.title
@@ -347,6 +362,12 @@ export default function CodexLiveVoice({
       }
       if (!response.ok || !created.sdp || !created.id) throw new Error(created.error || 'Voice session did not start.')
       sessionId.current = created.id
+      // A successful SDP exchange is not a listening session. Bound the wait
+      // for the authoritative session.started event, including data-channel
+      // establishment on iOS. Abort and hang up on timeout.
+      startupTimer.current = setTimeout(() => {
+        if (generation.current === attempt) stop('Live voice did not reach Listening. The connection timed out; no records were changed.')
+      }, 15_000)
       await connection.setRemoteDescription({ type: 'answer', sdp: created.sdp })
       // session.started is the authoritative signal that the channel is ready.
     } catch (error) {
