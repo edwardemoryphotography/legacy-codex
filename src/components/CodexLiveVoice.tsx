@@ -258,8 +258,8 @@ export default function CodexLiveVoice({
               const provider = (result.tier === 'deep' ? 'Deep' : 'Economy') + ' · ' +
                 (names[result.provider || ''] || 'Codex') + (result.model ? ' · ' + result.model : '')
               const actual: VoiceAnswer = { question: utterance, text: result.text, provider }
-              previousTurns.current = [...previousTurns.current, { role: 'user', text: utterance },
-                { role: 'assistant', text: result.text.slice(0, 4000) }].slice(-10)
+              previousTurns.current = [...previousTurns.current, { role: 'user' as const, text: utterance },
+                { role: 'assistant' as const, text: result.text.slice(0, 4000) }].slice(-10)
               setLastAnswer(actual)
               current.onAnswer(actual)
               setStatus('Real Codex response received. Nothing has been saved automatically.')
