@@ -117,3 +117,18 @@
 .home:has(:global(.glass-pill input:focus)) :global(.glass-hero) { --home-orb-size: 72px; }
 .home:has(:global(.glass-pill input:focus)) :global(.glass-orb-wrap) { flex: none; height: auto; }
 .home:has(:global(.glass-pill input:focus)) :global(.glass-orb-state) { display: none; }
+
+
+/* One immersive surface during a real GPT-Live session. The existing orb
+   remains the only primary presence; detailed project controls return on exit. */
+.home[data-live-voice-active="true"] .context,
+.home[data-live-voice-active="true"] .takeaway,
+.home[data-live-voice-active="true"] .modelChoice,
+.home[data-live-voice-active="true"] :global(.glass-home-links),
+.home[data-live-voice-active="true"] :global(.glass-dock > .glass-note),
+.home[data-live-voice-active="true"] :global(.glass-dock > .glass-pill),
+.home[data-live-voice-active="true"] :global(.glass-dock > .glass-sheet),
+.home[data-live-voice-active="true"] :global(.glass-dock > .glass-tool-tag) { display: none; }
+.home[data-live-voice-active="true"] :global(.glass-hero) { flex: 1; min-height: 0; }
+.home[data-live-voice-active="true"] :global(.glass-orb-wrap) { justify-content: center; }
+.home[data-live-voice-active="true"] :global(.glass-dock) { padding-bottom: env(safe-area-inset-bottom, 0px); }

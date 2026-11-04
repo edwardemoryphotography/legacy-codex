@@ -8,6 +8,22 @@ This file records project truth and durable lessons; it is not a hidden authoriz
 
 ## Repo-local notes
 
+- **2026-11-02 — Model-claim integrity candidate (PR #160, not merged or live).** The real October 7 Grok voice incident and November 2 owner correction reinforced the public-protection outcome: another person should not need to spot confident false claims unaided. A bounded project-review publication gate now rejects unattributed assertions of verified/deployed/tested/completed outcomes before saving, checks restored cached/historical reviews, and discards tainted comparison baselines; it does not alter the user's own draft or create a second evidence authority. Source and limits: `docs/verification/claim-integrity-2026-11-02.md`. Current proposal does not read canonical `evidence_items`, does not establish general factual accuracy, and awaits hosted tests and actual runtime verification. No production records or provider settings were changed.
+
+- **2026-11-03 — NextAction is finished; do not reduce Legacy Codex to it.** The
+  replacement/history write is one security-invoker transaction
+  (`replace_saved_action_atomic`), verified against the canonical database and
+  an isolated PostgreSQL instance for retry, conflict, A→B→A→B, forced history
+  failure, and concurrent replacement. PR #159 merged at `201f537`; the initial
+  deployment was `dpl_BPvWieQ5gDz8eKqvKptaNY9xQGiA`. Current canonical
+  `0623a56` (`dpl_GSQcQJLWj1fTpoC94PVNr8QpGWfr`) carries the same atomic path,
+  and the canonical Mission loaded the real saved action without a read error. Preserve the larger purpose: discovery,
+  creation, synthesis, and recognition need not produce a NextAction;
+  corrections are candidate lessons with provenance, scope, confirmation, and
+  retirement, not automatic doctrine; the Argon handoff is an acceptance case,
+  not product certification. No navigation, Handoff product surface, lesson
+  workflow, native wrapper, or replacement notes system is authorized yet.
+
 - **2026-11-02 — iPhone layout repair candidate:** Eddie supplied IMG_0287 (keyboard open) and IMG_0295 (keyboard closed), exposing a vertically clipped orb and overlapping Home controls. Explicit orb dimensions replace intrinsic grid sizing; Home reserves space for the in-flow composer, scrolls its answer/action text separately from the orb, and compacts on input focus independently of keyboard-height detection. Long mission/action previews remain bounded with full context in Mission. Text-free Brief/Triage omit parked/finished work; explicit questions retain cross-project context. Screenshot findings and six source links are saved on design mission 31123919-e675-419a-8f13-7f5b8c8cb00e. Source/test/build verification does not establish physical-iPhone rendering.
 
 - **2026-11-02 — Conversation and Mission continuity candidate:** Home and Mission share an account-scoped browser-tab draft and recent dialogue, including reload restoration. Questions can reread the selected Primary project through the caller's RLS client and include bounded prior turns as untrusted conversation. Answers render Markdown; starting a new project is a secondary control in the existing workspace. The real recording's follow-up, raw formatting and competing start control drove this slice. Local fixtures and provider doubles establish contracts only; physical iPhone resume and real model continuity require separate proof. See `docs/verification/conversation-continuity-2026-11-02.md`.

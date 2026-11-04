@@ -6,9 +6,21 @@ import { activeState, GROUP_LABELS, groupTerritory, type TerritoryCard } from '@
 import TerritoryGraph from '@/components/TerritoryGraph'
 import { useBriefRunner } from '@/hooks/useBriefRunner'
 import { useMissionTerritory, type ReadState } from '@/hooks/useMissionTerritory'
+import { TERRITORY_NODES_READ_FAILED_COPY, useTerritoryNodes } from '@/hooks/useTerritoryNodes'
 import MissionBriefPanel, { BriefOutput, BRIEF_VISITOR_COPY } from '@/components/MissionBriefPanel'
 import { missionsToBriefContext } from '@/lib/dailyBrief'
-import { ActionBtn, Badge, Card, FieldLabel, HelperLine, SectionSubtitle, SectionTitle } from '@/components/ui'
+import {
+  TERRITORY_ENTITY_KINDS,
+  TERRITORY_KIND_LABELS,
+  TERRITORY_KIND_ORDER,
+  TERRITORY_SIGNAL_LABELS,
+  TERRITORY_SIGNALS,
+  type TerritoryEntity,
+  type TerritoryEntityInput,
+  type TerritoryEntityKind,
+  type TerritorySignal,
+} from '@/lib/territoryEntities'
+import { ActionBtn, Badge, Card, FieldLabel, HelperLine, Input, SectionSubtitle, SectionTitle, Select, Textarea } from '@/components/ui'
 
 const when = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 
@@ -18,101 +30,361 @@ export const GRAPH_TRUNCATED_COPY = 'Only your newest 5,000 lessons and correcti
 
 export const EVENTS_READ_FAILED_COPY = 'Mission history could not be read right now, so last activity uses each mission’s own saved time and reported capacity is unknown.'
 
-// Territory: the person's own saved missions, grouped by saved state, with
-// Active State taken from data Mission already keeps. Read-only — every
-// model call goes through /api/brief and is display-only.
+type Lens = 'all' | 'mission' | TerritoryEntityKind
+type View = 'map' | 'list'
+type EditorState = { mode: 'new' } | { mode: 'edit'; entity: TerritoryEntity }
+
+const LENSES: { key: Lens; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'mission', label: 'Missions' },
+  { key: 'project', label: 'Projects' },
+  { key: 'doctrine', label: 'Doctrine' },
+  { key: 'constraint', label: 'Constraints' },
+]
+
+const EMPTY_INPUT: TerritoryEntityInput = { kind: 'project', label: '', description: '', signal: null, cluster: null }
+
+// Territory: saved missions plus first-class projects, doctrine and
+// constraints. Read-only mission/AI paths stay read-only; territory entities
+// have their own owner-scoped table. No inferred links are drawn.
 export default function TerritoryTab() {
   const { missions, loadError, actions, actionsRead, events, eventsRead, evidence, evidenceRead, links, linksRead, linksTruncated } = useMissionTerritory({ withEvents: true })
-  const [view, setView] = useState<'list' | 'graph'>('graph')
-  const brief = useBriefRunner()
+  const territory = useTerritoryNodes()
+  const [view, setView] = useState<View>('map')
+  const [lens, setLens] = useState<Lens>('all')
   const [openId, setOpenId] = useState<string | null>(null)
+  const [openEntityId, setOpenEntityId] = useState<string | null>(null)
+  const [editor, setEditor] = useState<EditorState | null>(null)
+  const brief = useBriefRunner()
 
+  const entities = territory.nodes ?? []
   const groups = missions ? groupTerritory(missions, actions, events) : []
   const open = groups.flatMap(g => g.cards).find(c => c.mission.id === openId) ?? null
-  const select = (id: string | null) => {
-    brief.reset()
-    setOpenId(id)
+  const openEntity = openEntityId ? entities.find(entity => entity.id === openEntityId) ?? null : null
+  const filteredMissions = lens === 'all' || lens === 'mission' ? missions ?? [] : []
+  const filteredEntities = lens === 'all' ? entities : lens === 'mission' ? [] : entities.filter(entity => entity.kind === lens)
+  const entityGroups = TERRITORY_KIND_ORDER.map(kind => ({ kind, items: filteredEntities.filter(entity => entity.kind === kind) })).filter(group => group.items.length > 0)
+  const hasAny = (missions?.length ?? 0) > 0 || entities.length > 0
+
+  const scrollTop = () => {
     if (typeof window !== 'undefined') window.scrollTo?.({ top: 0 })
   }
+  const selectMission = (id: string) => {
+    brief.reset()
+    setOpenId(id)
+    setOpenEntityId(null)
+    setEditor(null)
+    scrollTop()
+  }
+  const selectEntity = (id: string) => {
+    brief.reset()
+    setOpenEntityId(id)
+    setOpenId(null)
+    setEditor(null)
+    scrollTop()
+  }
+  const back = () => {
+    brief.reset()
+    setOpenId(null)
+    setOpenEntityId(null)
+    setEditor(null)
+    scrollTop()
+  }
+  const saveEntity = async (input: TerritoryEntityInput) => {
+    const result = editor?.mode === 'edit' ? await territory.update(editor.entity.id, input) : await territory.create(input)
+    if (result.ok) {
+      setEditor(null)
+      if (editor?.mode === 'edit') setOpenEntityId(result.entity.id)
+    }
+    return result
+  }
+  const deleteEntity = async (entity: TerritoryEntity) => {
+    const result = await territory.remove(entity.id)
+    if (result.ok) back()
+    return result
+  }
+
+  const countFor = (key: Lens) => key === 'all' ? (missions?.length ?? 0) + entities.length
+    : key === 'mission' ? missions?.length ?? 0
+    : entities.filter(entity => entity.kind === key).length
 
   return (
     <section>
       <SectionTitle>Territory</SectionTitle>
       <SectionSubtitle>
-        Your saved missions, grouped by their saved state. Only what is saved is shown — nothing here is inferred,
-        and nothing you ask here is saved.
+        Your saved missions and the projects, doctrine and constraints they live inside. Only what is saved is shown.
+        Missions can be opened; entities are named, not inferred.
       </SectionSubtitle>
 
       {loadError && <HelperLine variant="error">{loadError}</HelperLine>}
       {!loadError && missions === null && <HelperLine>Loading your missions…</HelperLine>}
-      {!loadError && missions?.length === 0 && <HelperLine>{UNKNOWN_LINE} — add a mission in Mission first.</HelperLine>}
+      {!loadError && missions !== null && territory.readState === 'pending' && !hasAny && <HelperLine>Loading territory entities…</HelperLine>}
+      {!loadError && missions !== null && !hasAny && territory.readState !== 'pending' && (
+        <>
+          <HelperLine>{UNKNOWN_LINE} — add a mission in Mission first, or add a project, doctrine, or constraint here.</HelperLine>
+          {territory.readState === 'ok' && (editor ? (
+            <EntityEditor
+              initial={null}
+              onSave={saveEntity}
+              onCancel={() => setEditor(null)}
+            />
+          ) : (
+            <ActionBtn variant="secondary" onClick={() => setEditor({ mode: 'new' })}>+ Add entity</ActionBtn>
+          ))}
+        </>
+      )}
+      {territory.readState === 'failed' && <HelperLine variant="error">{TERRITORY_NODES_READ_FAILED_COPY}</HelperLine>}
 
-      {!loadError && missions && missions.length > 0 && (
+      {!loadError && missions !== null && hasAny && (
         open ? (
-          <>
-            <div className="mb-3">
-              <ActionBtn variant="secondary" onClick={() => select(null)}>← All missions</ActionBtn>
-            </div>
-            <Card className="mb-4">
-              <MissionFacts card={open} actionsRead={actionsRead} heading />
-              <div className="mt-3">
-                <MissionBriefPanel key={open.mission.id} mission={open.mission} action={open.action} actionsRead={actionsRead} brief={brief} withTriageAndAsk />
-              </div>
-            </Card>
-            <BriefOutput brief={brief} />
-          </>
+          <MissionDetail card={open} actionsRead={actionsRead} brief={brief} onBack={back} />
+        ) : openEntity ? (
+          editor ? (
+            <>
+              <div className="mb-3"><ActionBtn variant="secondary" onClick={() => setEditor(null)}>← Back to entity</ActionBtn></div>
+              <EntityEditor
+                initial={openEntity}
+                onSave={saveEntity}
+                onCancel={() => setEditor(null)}
+              />
+            </>
+          ) : (
+            <EntityDetail
+              entity={openEntity}
+              onBack={back}
+              onEdit={() => setEditor({ mode: 'edit', entity: openEntity })}
+              onDelete={() => deleteEntity(openEntity)}
+            />
+          )
         ) : (
           <>
-            <ActiveStateCard actionsRead={actionsRead} eventsRead={eventsRead} state={activeState(missions, actions, events)} />
+            {editor && (
+              <EntityEditor
+                initial={editor.mode === 'edit' ? editor.entity : null}
+                onSave={saveEntity}
+                onCancel={() => setEditor(null)}
+              />
+            )}
+
+            {missions.length > 0 && <ActiveStateCard actionsRead={actionsRead} eventsRead={eventsRead} state={activeState(missions, actions, events)} />}
             {eventsRead === 'failed' && <HelperLine variant="error">{EVENTS_READ_FAILED_COPY}</HelperLine>}
+
             <div className="flex flex-wrap gap-2 mb-2">
               {(['daily_brief', 'triage'] as const).map(mode => (
                 <ActionBtn
                   key={mode}
                   variant={mode === 'daily_brief' ? 'primary' : 'secondary'}
-                  disabled={brief.status === 'running' || !brief.configured || brief.visitor}
+                  disabled={brief.status === 'running' || !brief.configured || brief.visitor || missions.length === 0}
                   onClick={() => void brief.run(mode, { mode, missions: missionsToBriefContext(missions), missionIds: missions.slice(0, 40).map(m => m.id) }, mode === 'daily_brief' ? 'Daily Brief · all missions' : 'Triage · all missions')}
                 >
                   {brief.status === 'running' && brief.activeMode === mode ? 'Thinking…' : mode === 'daily_brief' ? 'Daily Brief' : 'Triage'}
                 </ActionBtn>
               ))}
+              <ActionBtn variant="secondary" onClick={() => setEditor({ mode: 'new' })}>+ Add entity</ActionBtn>
             </div>
             {brief.visitor && <HelperLine>{BRIEF_VISITOR_COPY}</HelperLine>}
             <div className="mb-3"><BriefOutput brief={brief} /></div>
-            <div className="flex gap-2 mb-3" role="group" aria-label="Territory view">
-              <ActionBtn variant={view === 'list' ? 'primary' : 'secondary'} onClick={() => setView('list')}>List</ActionBtn>
-              <ActionBtn variant={view === 'graph' ? 'primary' : 'secondary'} onClick={() => setView('graph')}>Graph</ActionBtn>
+
+            <div className="flex flex-wrap gap-2 mb-2" role="group" aria-label="Territory lens">
+              {LENSES.map(item => (
+                <ActionBtn key={item.key} variant={lens === item.key ? 'primary' : 'secondary'} onClick={() => setLens(item.key)}>
+                  {item.label} ({countFor(item.key)})
+                </ActionBtn>
+              ))}
             </div>
-            {view === 'graph' && (
+            <div className="flex gap-2 mb-3" role="group" aria-label="Territory view">
+              <ActionBtn variant={view === 'map' ? 'primary' : 'secondary'} onClick={() => setView('map')}>Map</ActionBtn>
+              <ActionBtn variant={view === 'list' ? 'primary' : 'secondary'} onClick={() => setView('list')}>List</ActionBtn>
+            </div>
+
+            {view === 'map' && (
               <>
                 {[actionsRead, linksRead, evidenceRead].includes('failed') && <HelperLine variant="error">{GRAPH_PARTIAL_COPY}</HelperLine>}
                 {linksTruncated && <HelperLine>{GRAPH_TRUNCATED_COPY}</HelperLine>}
-                <TerritoryGraph missions={missions} actions={actions} links={links} evidence={evidence} onOpen={select} />
+                {filteredMissions.length === 0 && filteredEntities.length === 0
+                  ? <HelperLine>Nothing saved in this lens yet.</HelperLine>
+                  : <TerritoryGraph missions={filteredMissions} actions={actions} links={links} evidence={evidence} entities={filteredEntities} onOpen={selectMission} onOpenEntity={selectEntity} />}
               </>
             )}
-            {view === 'list' && groups.map(({ group, cards }) => (
-              <div key={group} className="mb-4">
-                <h3 className="font-bold mb-2" style={{ fontSize: '0.95rem' }}>
-                  {GROUP_LABELS[group]} <span style={{ color: 'var(--text-dim)', fontWeight: 600 }}>({cards.length})</span>
-                </h3>
-                {cards.map(card => (
-                  <button
-                    key={card.mission.id}
-                    type="button"
-                    onClick={() => select(card.mission.id)}
-                    className="card interactive-control"
-                    style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 10, color: 'inherit', font: 'inherit', cursor: 'pointer' }}
-                    aria-label={`Open ${card.mission.title || 'Untitled mission'}`}
-                  >
-                    <MissionFacts card={card} actionsRead={actionsRead} />
-                  </button>
+            {view === 'list' && (
+              <>
+                {entityGroups.map(({ kind, items }) => (
+                  <div key={kind} className="mb-4">
+                    <h3 className="font-bold mb-2" style={{ fontSize: '0.95rem' }}>
+                      {TERRITORY_KIND_LABELS[kind]} <span style={{ color: 'var(--text-dim)', fontWeight: 600 }}>({items.length})</span>
+                    </h3>
+                    {items.map(entity => <EntityCard key={entity.id} entity={entity} onOpen={() => selectEntity(entity.id)} />)}
+                  </div>
                 ))}
-              </div>
-            ))}
+                {(lens === 'all' || lens === 'mission') && groups.map(({ group, cards }) => (
+                  <div key={group} className="mb-4">
+                    <h3 className="font-bold mb-2" style={{ fontSize: '0.95rem' }}>
+                      {GROUP_LABELS[group]} <span style={{ color: 'var(--text-dim)', fontWeight: 600 }}>({cards.length})</span>
+                    </h3>
+                    {cards.map(card => (
+                      <button
+                        key={card.mission.id}
+                        type="button"
+                        onClick={() => selectMission(card.mission.id)}
+                        className="card interactive-control"
+                        style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 10, color: 'inherit', font: 'inherit', cursor: 'pointer' }}
+                        aria-label={`Open ${card.mission.title || 'Untitled mission'}`}
+                      >
+                        <MissionFacts card={card} actionsRead={actionsRead} />
+                      </button>
+                    ))}
+                  </div>
+                ))}
+                {filteredMissions.length === 0 && entityGroups.length === 0 && <HelperLine>Nothing saved in this lens yet.</HelperLine>}
+              </>
+            )}
           </>
         )
       )}
     </section>
+  )
+}
+
+function MissionDetail({ card, actionsRead, brief, onBack }: {
+  card: TerritoryCard
+  actionsRead: ReadState
+  brief: ReturnType<typeof useBriefRunner>
+  onBack: () => void
+}) {
+  return (
+    <>
+      <div className="mb-3"><ActionBtn variant="secondary" onClick={onBack}>← All missions</ActionBtn></div>
+      <Card className="mb-4">
+        <MissionFacts card={card} actionsRead={actionsRead} heading />
+        <div className="mt-3">
+          <MissionBriefPanel key={card.mission.id} mission={card.mission} action={card.action} actionsRead={actionsRead} brief={brief} withTriageAndAsk />
+        </div>
+      </Card>
+      <BriefOutput brief={brief} />
+    </>
+  )
+}
+
+function EntityCard({ entity, onOpen }: { entity: TerritoryEntity; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="card interactive-control"
+      style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 10, color: 'inherit', font: 'inherit', cursor: 'pointer' }}
+      aria-label={`Open ${entity.label}`}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone={entity.kind === 'constraint' ? 'amber' : entity.kind === 'doctrine' ? 'success' : 'teal'}>{TERRITORY_KIND_LABELS[entity.kind]}</Badge>
+        {entity.signal && <Badge tone="muted">{TERRITORY_SIGNAL_LABELS[entity.signal]}</Badge>}
+        {entity.cluster && <span className="text-xs" style={{ color: 'var(--text-dim)' }}>{entity.cluster}</span>}
+      </div>
+      <strong style={{ display: 'block', marginTop: 8, overflowWrap: 'anywhere' }}>{entity.label}</strong>
+      {entity.description && <p className="text-sm mt-1" style={{ color: 'var(--text-soft)', overflowWrap: 'anywhere' }}>{entity.description}</p>}
+    </button>
+  )
+}
+
+function EntityDetail({ entity, onBack, onEdit, onDelete }: {
+  entity: TerritoryEntity
+  onBack: () => void
+  onEdit: () => void
+  onDelete: () => Promise<{ ok: true } | { ok: false; error: string }>
+}) {
+  const [confirming, setConfirming] = useState(false)
+  const [error, setError] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const remove = async () => {
+    if (!confirming) { setConfirming(true); return }
+    setDeleting(true)
+    const result = await onDelete()
+    setDeleting(false)
+    if (!result.ok) setError(result.error)
+  }
+  return (
+    <>
+      <div className="mb-3"><ActionBtn variant="secondary" onClick={onBack}>← All territory</ActionBtn></div>
+      <Card className="mb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone={entity.kind === 'constraint' ? 'amber' : entity.kind === 'doctrine' ? 'success' : 'teal'}>{TERRITORY_KIND_LABELS[entity.kind]}</Badge>
+          {entity.signal && <Badge tone="muted">{TERRITORY_SIGNAL_LABELS[entity.signal]}</Badge>}
+          {entity.cluster && <Badge tone="muted">{entity.cluster}</Badge>}
+        </div>
+        <h3 className="font-bold mt-3" style={{ overflowWrap: 'anywhere' }}>{entity.label}</h3>
+        <p className="text-sm mt-2" style={{ color: 'var(--text-soft)', overflowWrap: 'anywhere' }}>{entity.description || UNKNOWN_LINE}</p>
+        <p className="text-xs mt-3" style={{ color: 'var(--text-dim)' }}>Saved in territory_nodes · updated {when(entity.updatedAt)}</p>
+        <div className="flex flex-wrap gap-2 mt-4">
+          <ActionBtn variant="secondary" onClick={onEdit}>Edit entity</ActionBtn>
+          <ActionBtn variant="secondary" disabled={deleting} onClick={() => void remove()}>
+            {deleting ? 'Deleting…' : confirming ? 'Confirm delete' : 'Delete entity'}
+          </ActionBtn>
+        </div>
+        {error && <HelperLine variant="error">{error}</HelperLine>}
+      </Card>
+    </>
+  )
+}
+
+function EntityEditor({ initial, onSave, onCancel }: {
+  initial: TerritoryEntity | null
+  onSave: (input: TerritoryEntityInput) => Promise<{ ok: true } | { ok: false; error: string }>
+  onCancel: () => void
+}) {
+  const [kind, setKind] = useState<TerritoryEntityKind>(initial?.kind ?? 'project')
+  const [label, setLabel] = useState(initial?.label ?? '')
+  const [description, setDescription] = useState(initial?.description ?? '')
+  const [signal, setSignal] = useState<TerritorySignal | null>(initial?.signal ?? null)
+  const [cluster, setCluster] = useState(initial?.cluster ?? '')
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const submit = async () => {
+    if (!label.trim()) { setError('Give the entity a name first.'); return }
+    setSaving(true)
+    setError('')
+    const result = await onSave({ kind, label, description, signal, cluster: cluster.trim() || null })
+    setSaving(false)
+    if (!result.ok) setError(result.error)
+  }
+
+  return (
+    <Card className="mb-4">
+      <FieldLabel>{initial ? 'Edit territory entity' : 'New territory entity'}</FieldLabel>
+      <div className="grid gap-3">
+        <div>
+          <FieldLabel htmlFor="territory-kind">Kind</FieldLabel>
+          <Select id="territory-kind" value={kind} onChange={value => setKind(value as TerritoryEntityKind)}>
+            {TERRITORY_ENTITY_KINDS.map(value => <option key={value} value={value}>{TERRITORY_KIND_LABELS[value]}</option>)}
+          </Select>
+        </div>
+        <div>
+          <FieldLabel htmlFor="territory-label">Name</FieldLabel>
+          <Input id="territory-label" value={label} onChange={setLabel} placeholder="What is this?" />
+        </div>
+        <div>
+          <FieldLabel htmlFor="territory-description">What it is</FieldLabel>
+          <Textarea id="territory-description" value={description} onChange={setDescription} rows={3} compact placeholder="Only what is saved and true." />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <FieldLabel htmlFor="territory-signal">Saved signal</FieldLabel>
+            <Select id="territory-signal" value={signal ?? ''} onChange={value => setSignal(value ? value as TerritorySignal : null)}>
+              <option value="">No signal</option>
+              {TERRITORY_SIGNALS.map(value => <option key={value} value={value}>{TERRITORY_SIGNAL_LABELS[value]}</option>)}
+            </Select>
+          </div>
+          <div>
+            <FieldLabel htmlFor="territory-cluster">Cluster</FieldLabel>
+            <Input id="territory-cluster" value={cluster} onChange={setCluster} placeholder="e.g. Revenue" />
+          </div>
+        </div>
+      </div>
+      {error && <HelperLine variant="error">{error}</HelperLine>}
+      <div className="flex flex-wrap gap-2 mt-4">
+        <ActionBtn onClick={() => void submit()} disabled={saving}>{saving ? 'Saving…' : initial ? 'Save changes' : 'Add entity'}</ActionBtn>
+        <ActionBtn variant="secondary" onClick={onCancel} disabled={saving}>Cancel</ActionBtn>
+      </div>
+    </Card>
   )
 }
 

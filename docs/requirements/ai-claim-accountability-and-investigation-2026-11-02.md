@@ -1,9 +1,13 @@
 # AI claim accountability and independent investigation — Requirement 001
 
 **Date:** 2026-11-02  
-**Status:** Proposed requirement; not yet implemented or runtime-verified  
+**Status:** Accepted requirement for implementation; broad controls are not yet implemented or runtime-verified  
 **Product:** Legacy Codex (existing app, not a new application)  
 **Scope:** AI manipulation, gaslighting, narrative rewriting, suppression or sanitization of evidence, misleading confidence, model claims, provenance, investigation, correction, and enforceable accountability
+
+## Related implementation and verification
+
+The existing [accountability contract](../verification/model-accountability-transparency-2026-11-02.md) preserves the earlier specification. [PR #160](https://github.com/edwardemoryphotography/legacy-codex/pull/160) merged on November 4 with a bounded lexical guard for selected project-review explanations, cache restoration and comparison baselines. That narrow guard does not implement the chronology, narrative-difference, receipt validation or independent investigation required below. Keep this requirement and the runtime release status separate.
 
 ## Governing user outcome
 
