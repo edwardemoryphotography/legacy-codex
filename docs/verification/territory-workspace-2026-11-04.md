@@ -1,6 +1,6 @@
 # Territory workspace — Path 1 verification
 
-**Status:** implementation complete; canonical migration applied and verified.
+**Status:** implementation complete; migration applied; merged, deployed and live.
 **Spec:** `docs/superpowers/specs/2026-11-03-territory-workspace-design.md`
 
 ## Implemented
@@ -51,10 +51,33 @@ proof.
 - The table had 0 rows immediately after migration; no production records were
   fabricated.
 
+## Release evidence
+
+- **Merged:** [PR #168](https://github.com/edwardemoryphotography/legacy-codex/pull/168)
+  (`da93627`) and the first-entity empty-state fix
+  [PR #169](https://github.com/edwardemoryphotography/legacy-codex/pull/169)
+  (`b86831b`).
+- **Migration applied:** `public.territory_nodes` exists with 0 rows and four
+  owner policies (SELECT/INSERT/UPDATE/DELETE).
+- **Deployed:** `dpl_7fQxy8JRtzd2rxQB2v68cfy8znTy`, canonical
+  `https://legacy-codex.vercel.app`, Ready at `b86831b`.
+- **Runtime verified (non-writing):** the canonical Territory tab loaded the
+  Map workspace; with a new/empty account it showed the explicit empty copy and
+  the **+ Add entity** control, with no entity-read error. This confirms the
+  client can reach `territory_nodes` under RLS. A real-account create/edit/delete
+  walk was not performed because this browser session is a new anonymous
+  account; the owner CRUD path is covered by the isolated PostgreSQL test below.
+- **Final repository checks:** 622 Vitest tests, `tsc --noEmit`, lint (0 errors),
+  production build.
+- **Still device-only:** sign in on the canonical account, add/edit/delete one
+  real project/doctrine/constraint, and confirm the phone focus view. Clean up
+  any test entity afterward.
+
 ## Release sequence
 
 1. ~~Apply the migration.~~ Done.
-2. Merge the client PR through normal protections.
-3. Deploy and verify the canonical Territory tab with a real session.
-4. Exercise create/edit/delete on the canonical account only after the table is
-   present; do not leave test entities behind.
+2. ~~Merge the client PR through normal protections.~~ Done (`#168`, `#169`).
+3. ~~Deploy and verify the canonical Territory tab.~~ Done for the non-writing
+   path; real-account CRUD remains device confirmation.
+4. Exercise create/edit/delete on the canonical account with real content; do
+   not leave test entities behind.
