@@ -55,16 +55,45 @@ export default function CodexApp() {
   const [missionRevision, setMissionRevision] = useState(0)
   const refreshConversationProject = useCallback(() => setMissionRevision(value => value + 1), [])
   const [menuOpen, setMenuOpen] = useState(false)
+  const [signInRequested, setSignInRequested] = useState(false)
+  const [missionTalkOpen, setMissionTalkOpen] = useState(false)
   const [homeSession, setHomeSession] = useState(emptyHomeSession)
   useEffect(() => {
     if (typeof supabase.auth.onAuthStateChange !== 'function') return
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       const id = session?.user.id ?? null
-      setHomeSession(current => current.accountId === id ? current : id ? restoreHomeSession(id) : emptyHomeSession())
+      setHomeSession(current => {
+        if (current.accountId === id) return current
+        if (!id) return emptyHomeSession()
+        const restored = restoreHomeSession(id)
+        // The first session read can establish an anonymous account after the
+        // person has already started typing. Keep that draft; do not carry a
+        // previous account's reply history across the identity change.
+        return {
+          ...restored,
+          text: current.text || restored.text,
+          tool: current.tool ?? restored.tool,
+          history: restored.history,
+          reply: restored.reply,
+        }
+      })
     })
     return () => subscription.unsubscribe()
   }, [])
   useEffect(() => { preserveHomeSession(homeSession) }, [homeSession])
+  useEffect(() => {
+    // Apply the saved accessibility preferences before Controls is opened;
+    // otherwise a reload would temporarily show transparency the person opted out of.
+    try {
+      const raw = localStorage.getItem('nd_ux_prefs_v1')
+      if (!raw) return
+      const prefs = JSON.parse(raw) as { highContrast?: boolean; reducedMotion?: boolean; opaqueGlass?: boolean }
+      const root = document.documentElement
+      root.setAttribute('data-high-contrast', prefs.highContrast ? 'true' : 'false')
+      root.setAttribute('data-reduced-motion', prefs.reducedMotion ? 'true' : 'false')
+      root.setAttribute('data-glass-opaque', prefs.opaqueGlass ? 'true' : 'false')
+    } catch { /* keep the system defaults */ }
+  }, [])
   const menuTriggerRef = useRef<HTMLButtonElement>(null)
   const menuSheetRef = useRef<HTMLDivElement>(null)
   const activeTabMeta = TABS.find(tab => tab.id === activeTab)
@@ -82,6 +111,13 @@ export default function CodexApp() {
 
   const selectTab = useCallback((id: TabId) => {
     setActiveTab(id)
+    setMenuOpen(false)
+    if (id !== 'controls') setSignInRequested(false)
+    if (id !== 'mission') setMissionTalkOpen(false)
+  }, [])
+  const requestSignIn = useCallback(() => {
+    setSignInRequested(true)
+    setActiveTab('controls')
     setMenuOpen(false)
   }, [])
 
@@ -140,6 +176,7 @@ export default function CodexApp() {
             className="glass-menu glass"
             onClick={event => event.stopPropagation()}
           >
+            <ThemeReview />
             <nav aria-label="Legacy Codex">
               <div className="glass-menu-group" role="group" aria-label="Primary workspace">
                 <p className="glass-menu-heading">Workspace</p>
@@ -172,13 +209,23 @@ export default function CodexApp() {
                 ))}
               </div>
             </nav>
-            <ThemeReview />
           </div>
         </div>
       )}
 
       <main className="codex-main">
-        {(activeTab === 'home' || activeTab === 'mission') && <HomeTab key={homeSession.accountId} variant={activeTab === 'mission' ? 'mission' : 'home'} projectRevision={missionRevision} onProjectChange={refreshConversationProject} onNavigate={selectTab} session={homeSession} onSessionChange={setHomeSession} />}
+        {activeTab === 'mission' && (
+          <div className="mission-conversation-bar">
+            <button type="button" className="glass-chip glass" aria-expanded={missionTalkOpen} aria-controls="home-conversation" onClick={() => setMissionTalkOpen(open => !open)}>
+              {missionTalkOpen ? 'Hide conversation' : 'Continue conversation with Codex'}
+            </button>
+          </div>
+        )}
+        {(activeTab === 'home' || activeTab === 'mission') && (
+          <div id="home-conversation" hidden={activeTab === 'mission' && !missionTalkOpen}>
+            <HomeTab key={homeSession.accountId} variant={activeTab === 'mission' ? 'mission' : 'home'} projectRevision={missionRevision} onProjectChange={refreshConversationProject} onNavigate={selectTab} onSignIn={requestSignIn} session={homeSession} onSessionChange={setHomeSession} />
+          </div>
+        )}
         {activeTab !== 'home' && <div
           className="panel-enter"
           key={activeTab}
@@ -195,7 +242,7 @@ export default function CodexApp() {
           {activeTab === 'biometrics'           && <BiometricsTab />}
           {activeTab === 'constraint-validator' && <ConstraintValidatorTab />}
           {activeTab === 'codex'                && <CodexTab />}
-          {activeTab === 'controls'             && <ControlsTab />}
+          {activeTab === 'controls'             && <ControlsTab key={signInRequested ? 'signin' : 'default'} initialAccountFlow={signInRequested ? 'signin' : 'attach'} />}
           {activeTab === 'brief'                 && <BriefTab />}
           {activeTab === 'territory'             && <TerritoryTab />}
           {activeTab === 'origin'                && <OriginTab />}

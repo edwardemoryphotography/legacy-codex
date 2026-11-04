@@ -11,9 +11,8 @@ import {
 } from '@/lib/biometrics'
 
 // This governor never invents, fabricates, simulates, or interpolates
-// biometric values. The committed /notes/biometric-trends.json is SAMPLE
-// data (confirmed by Eddie, 2026-10-03), so it is always labelled as sample
-// with its date range — never as live. With no file, the UI renders an
+// biometric values. The production /notes/biometric-trends.json ships empty;
+// only a real bridge may supply day records. With no data, the UI renders an
 // explicit "data required" state with no numeric values and no chart.
 
 const TREND_URL = '/notes/biometric-trends.json'
@@ -272,7 +271,7 @@ export default function BiometricsTab() {
         </p>
         <p className="text-sm" style={{ color: 'var(--text-soft)', lineHeight: 1.55 }}>
           Live bridge target (not built yet): write normalized metrics to{' '}
-          <code style={{ color: 'var(--amber)', fontSize: '0.85em' }}>notes/biometric-trends.json</code>. This tab reads only that file. Today it holds sample data, so it is labelled as sample, never as live.
+          <code style={{ color: 'var(--amber)', fontSize: '0.85em' }}>notes/biometric-trends.json</code>. This tab reads only that file. Today it holds no readings; a connected bridge must supply real day records.
         </p>
       </div>
     </section>

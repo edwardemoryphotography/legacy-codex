@@ -5,14 +5,15 @@ import { supabase } from '@/lib/supabase/client'
 import { connectMissionSession } from '@/lib/supabase/missionSession'
 import { missionsToBriefContext } from '@/lib/dailyBrief'
 import { useBriefRunner } from '@/hooks/useBriefRunner'
+import { useHomeAccess } from '@/hooks/useHomeAccess'
 import { useMissionTerritory } from '@/hooks/useMissionTerritory'
 import { useTaskVoice } from '@/hooks/useTaskVoice'
-import CodexLiveVoice, { type LiveVoicePhase } from '@/components/CodexLiveVoice'
+import CodexLiveVoice, { type LiveVoicePhase, type VoiceAnswer } from '@/components/CodexLiveVoice'
 import { OrbSlot, useOrbCognition, useOrbInteraction, useOrbPresentation } from '@/components/OrbHost'
 import { BRIEF_VISITOR_COPY } from '@/components/MissionBriefPanel'
 import { homeMissionRoster, homeRequest, QUESTION_LIMIT, PROMPT_LIMIT, promptHelpQuestion, type HomeTool } from '@/lib/homeRequest'
 import type { TabId } from '@/types'
-import { emptyHomeSession, type HomeSession } from '@/lib/homeSession'
+import { emptyHomeSession, type HomeReply, type HomeSession } from '@/lib/homeSession'
 import { homeTakeaway } from '@/lib/homeTakeaway'
 import { deriveNextAction, type NextActionReadState } from '@/lib/nextAction'
 import { latestAcceptance } from '@/lib/nextActionLedger'
@@ -32,26 +33,6 @@ type Tool = HomeTool
 const TOOL_LABEL: Record<Tool, string> = { brief: 'Daily Brief', triage: 'Triage', ask: 'Ask Codex', prompt: 'Prompt help' }
 export { promptHelpQuestion }
 
-/** "Eddie" only for the owner account; everyone else is greeted plainly. */
-function useOwnerName() {
-  const [name, setName] = useState('')
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const { data } = await supabase.auth.getSession()
-        const token = data.session?.access_token
-        if (!token) return
-        const res = await fetch('/api/delta-review?capabilities=1', { headers: { Authorization: `Bearer ${token}` } })
-        if (!res.ok) return
-        const body = await res.json() as { tester?: boolean }
-        if (!cancelled && body.tester === false) setName('Eddie')
-      } catch { /* a plain greeting is the honest fallback */ }
-    })()
-    return () => { cancelled = true }
-  }, [])
-  return name
-}
 
 
 function ConversationPresence({ status, busy, loadError, pending, voice, live, reply }: { status: string; busy: boolean; loadError: string; pending: string | null; voice: { active: boolean; phase: string }; live: LiveVoicePhase; reply: boolean }) {
@@ -61,11 +42,13 @@ function ConversationPresence({ status, busy, loadError, pending, voice, live, r
   return null
 }
 
-export default function HomeTab({ onNavigate, session, onSessionChange, variant = 'home', projectRevision = 0, onProjectChange }: { projectRevision?: number; onProjectChange?: () => void; variant?: 'home' | 'mission'; onNavigate: (id: TabId) => void; session?: HomeSession; onSessionChange?: Dispatch<SetStateAction<HomeSession>> }) {
+export default function HomeTab({ onNavigate, session, onSessionChange, variant = 'home', projectRevision = 0, onProjectChange, onSignIn }: { projectRevision?: number; onProjectChange?: () => void; variant?: 'home' | 'mission'; onNavigate: (id: TabId) => void; session?: HomeSession; onSessionChange?: Dispatch<SetStateAction<HomeSession>>; onSignIn?: () => void }) {
   const missionView = variant === 'mission'
   const { missions, loadError, actions, actionsRead, events, eventsRead } = useMissionTerritory({ withEvents: true, refreshKey: projectRevision })
   const brief = useBriefRunner()
-  const name = useOwnerName()
+  const access = useHomeAccess()
+  const name = access.name
+  const requestSignIn = onSignIn ?? (() => onNavigate('controls'))
   const presentation = useOrbPresentation()
   const [local, setLocal] = useState(emptyHomeSession)
   const [livePhase, setLivePhase] = useState<LiveVoicePhase>('idle')
@@ -79,7 +62,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const [submitNotice, setSubmitNotice] = useState('')
   const sending = useRef<symbol | null>(null)
   const question = useRef('')
-  const input = useRef<HTMLInputElement>(null)
+  const input = useRef<HTMLTextAreaElement>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [focusOpen, setFocusOpen] = useState(false)
   const [responseOpen, setResponseOpen] = useState(false)
@@ -88,6 +71,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const [savedReplyText, setSavedReplyText] = useState<string | null>(null)
   const [savedReplyMissionId, setSavedReplyMissionId] = useState<string | null>(null)
   const [saveReplyError, setSaveReplyError] = useState<string | null>(null)
+  const [composerExpanded, setComposerExpanded] = useState(false)
   const panel = useRef<HTMLDialogElement>(null)
   const voice = useTaskVoice(text, next => setText(next.slice(0, QUESTION_LIMIT)), QUESTION_LIMIT)
 
@@ -122,6 +106,15 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       delete root.dataset.homeKeyboard
     }
   }, [])
+
+  useEffect(() => {
+    const field = input.current
+    if (!field) return
+    field.style.height = 'auto'
+    const next = Math.max(28, Math.min(field.scrollHeight || 28, 120))
+    field.style.height = `${next}px`
+    setComposerExpanded(next > 34 || text.includes('\n'))
+  }, [text])
 
   const busy = brief.status === 'running'
 
@@ -171,7 +164,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const over = !noTextNeeded && text.length > limit
   // Send and microphone remain separate controls. An unavailable submission
   // explains its reason beside the input instead of silently consuming Enter.
-  const ready = !busy && !voice.active && !over && (noTextNeeded || text.trim() !== '')
+  const ready = access.state === 'owner' && access.configured && !busy && !voice.active && !over && (noTextNeeded || text.trim() !== '')
 
   const pick = (next: Tool) => {
     setTool(next)
@@ -181,6 +174,12 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
 
   const send = async () => {
     if (sending.current || busy) return
+    if (access.state !== 'owner') {
+      setSubmitNotice(access.state === 'checking'
+        ? 'Checking whether this account can use AI. Your text is still here.'
+        : 'AI is not enabled for this browser account. Sign in to your existing account. Your text is still here.')
+      return
+    }
     if (voice.active) return // The visible voice status and Stop control remain available.
     if (over) { setSubmitNotice(`Too long to send: shorten it to ${limit} characters (now ${text.length}).`); return }
     if (!noTextNeeded && !text.trim()) { setSubmitNotice('Type a question before sending.'); return }
@@ -213,53 +212,58 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       const succeeded = await brief.run(request.mode, { ...payload, tier: current.tier ?? 'routine', ...roster, ...(request.mode === 'question' ? { conversation: recentConversation(current), ...(primaryMission ? { conversationMissionId: primaryMission.id } : {}) } : {}) }, label)
       if (succeeded) {
         setText(current => current === submitted ? '' : current)
+        if (text === submitted) setComposerExpanded(false)
         setTool(current => current === tool ? null : current)
       }
     } finally { if (sending.current === token) sending.current = null }
   }
 
-  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     // Enter while an IME (Chinese, Japanese, Korean) is composing picks a candidate; it must not send.
     if (event.nativeEvent.isComposing || event.keyCode === 229) return
-    if (event.key === 'Enter') { event.preventDefault(); void send() }
+    if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send() }
   }
 
   const immersive = !missionView && (liveActive || ['listening', 'thinking', 'acting'].includes(presentation.state))
   const reply = current.reply
   const hasReply = Boolean(reply)
   const takeawayTitle = reply ? homeTakeaway(reply.text).slice(0, 240) : ''
+  const proposedTitle = reply?.actionTitle?.trim() || takeawayTitle
   const isReplySavedAsAction = Boolean(
     reply &&
     primaryMission &&
-    ((savedAction && savedAction.action_title === takeawayTitle) ||
+    ((savedAction && savedAction.action_title === proposedTitle) ||
      (actionsRead === 'pending' && savedReplyMissionId === primaryMission.id && savedReplyText === reply.text)),
   )
 
-  async function saveReplyAsNextAction() {
-    if (!reply || !primaryMission || savingReplyAction || savingReplyActionRef.current) return
+  async function saveReplyAsNextAction(candidate: HomeReply | null = reply, titleOverride?: string): Promise<{ ok: boolean; error?: string }> {
+    if (!candidate || !primaryMission || savingReplyAction || savingReplyActionRef.current) {
+      return { ok: false, error: 'Open a Primary mission before saving an action.' }
+    }
+    const title = (titleOverride?.trim() || candidate.actionTitle?.trim() || homeTakeaway(candidate.text)).slice(0, 240)
     if (actionsRead !== 'ok') {
-      setSaveReplyError('Wait for your saved actions to finish loading before saving a new one.')
-      return
+      const message = 'Wait for your saved actions to finish loading before saving a new one.'
+      setSaveReplyError(message)
+      return { ok: false, error: message }
     }
-    if (savedAction && savedAction.action_title === takeawayTitle) {
+    if (savedAction && savedAction.action_title === title) {
       // Idempotent duplicate save: never overwrite status or resume_note.
-      setSavedReplyText(reply.text)
+      setSavedReplyText(candidate.text)
       setSavedReplyMissionId(primaryMission.id)
-      return
+      return { ok: true }
     }
-    if (savedAction && savedAction.action_title !== takeawayTitle) {
+    if (savedAction && savedAction.action_title !== title) {
       // Never silently overwrite an existing TODO or IN_PROGRESS saved action from conversation.
-      setSaveReplyError(
-        `“${savedAction.action_title}” is already saved for ${primaryMission.title}. Open Mission to resume, complete, or explicitly replace that saved action.`,
-      )
-      return
+      const message = `“${savedAction.action_title}” is already saved for ${primaryMission.title}. Open Mission to resume, complete, or explicitly replace that saved action.`
+      setSaveReplyError(message)
+      return { ok: false, error: message }
     }
     savingReplyActionRef.current = true
     setSavingReplyAction(true)
     setSaveReplyError(null)
     try {
       await connectMissionSession()
-      const note = `From ${reply.label || 'Codex conversation'}${reply.question ? ` (“${reply.question}”)` : ''}:\n\n${reply.text}`
+      const note = `From ${candidate.label || 'Codex conversation'}${candidate.question ? ` (“${candidate.question}”)` : ''}:\n\n${candidate.text}`
       const fromActions = (supabase as unknown as {
         from?: (table: string) => {
           insert?: (row: Record<string, unknown>) => {
@@ -271,7 +275,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
 
       const insertBuilder = fromActions.insert({
         mission_id: primaryMission.id,
-        action_title: takeawayTitle,
+        action_title: title,
         status: 'TODO',
         is_next_action: true,
         resume_note: note,
@@ -284,15 +288,28 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
         if (writeError) throw writeError
       }
 
-      setSavedReplyText(reply.text)
+      setSavedReplyText(candidate.text)
       setSavedReplyMissionId(primaryMission.id)
       onProjectChange?.()
+      return { ok: true }
     } catch {
-      setSaveReplyError('Could not save this response as your next action. Your conversation is still here — retry when ready.')
+      const message = 'Could not save this response as your next action. Your conversation is still here — retry when ready.'
+      setSaveReplyError(message)
+      return { ok: false, error: message }
     } finally {
       savingReplyActionRef.current = false
       setSavingReplyAction(false)
     }
+  }
+
+  async function saveLiveAnswer(answer: VoiceAnswer) {
+    return saveReplyAsNextAction({
+      question: answer.question,
+      text: answer.text,
+      label: 'Live Codex',
+      provider: answer.provider,
+      actionTitle: answer.actionTitle,
+    })
   }
 
   const panelOpen = responseOpen || historyOpen || focusOpen
@@ -322,6 +339,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       data-live-voice-active={liveActive ? 'true' : undefined}
       data-immersive={immersive ? 'true' : undefined}
       data-reply={hasReply ? 'true' : undefined}
+      data-composer-expanded={composerExpanded ? 'true' : undefined}
       data-next-action-state={homeNextAction.state}
       data-next-action-read={homeNextAction.readState}
       aria-label={missionView ? 'Project conversation' : 'Home'}
@@ -331,10 +349,14 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
         <span>{primaryMission ? `Working on: ${primaryMission.title}` : 'Your conversation with Codex'}</span>
         <button type="button" className="glass-chip glass" onClick={() => onNavigate(missionView ? 'home' : 'mission')}>{missionView ? 'Back to Home' : 'Open project workspace'}</button>
       </div>
+        <div className="glass-home-links" hidden={immersive}>
+          <button type="button" className="glass-chip glass" aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setFocusOpen(true); setHistoryOpen(false); setResponseOpen(false) }}>Missions</button>
+          <button type="button" className="glass-chip glass" aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setHistoryOpen(true); setFocusOpen(false); setResponseOpen(false) }}>History{history.length ? ` · ${history.length}` : ''}</button>
+        </div>
       <div className="glass-hero">
         {!missionView && <div className="glass-orb-wrap">
           <OrbSlot />
-          <span className="glass-orb-state" aria-hidden="true">{presentation.state === 'idle' ? 'Ready when you are' : presentation.state === 'ready' ? 'Response ready' : presentation.label}</span>
+          <span className="glass-orb-state" aria-hidden="true">{access.state === 'checking' ? 'Checking access' : access.state !== 'owner' ? 'View only · sign in for AI' : presentation.state === 'idle' ? 'Ready when you are' : presentation.state === 'ready' ? 'Response ready' : presentation.label}</span>
         </div>}
         <div className={styles.takeaway} hidden={immersive}>
           {reply ? <>
@@ -396,10 +418,6 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
             {note && <p className="glass-note glass-home-note">{note}</p>}
           </>}
         </div>
-        <div className="glass-home-links" hidden={immersive}>
-          <button type="button" className="glass-chip glass" aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setFocusOpen(true); setHistoryOpen(false); setResponseOpen(false) }}>Missions</button>
-          <button type="button" className="glass-chip glass" aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setHistoryOpen(true); setFocusOpen(false); setResponseOpen(false) }}>History{history.length ? ` · ${history.length}` : ''}</button>
-        </div>
       </div>
       <dialog ref={panel} id="home-detail-panel" className={styles.panel} aria-labelledby="home-panel-title" onCancel={closePanel} onClose={closePanel} onClick={event => { if (event.target === event.currentTarget) closePanel() }}>
       <header className={styles.panelHeader}>
@@ -443,7 +461,13 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
               </button>
             </section>
           ) : (
-            <div>
+            <div className="glass-focus-empty">
+              {missionCount === 0 && <p className="glass-note">No saved missions are visible in this browser account.</p>}
+              {missionCount === 0 && access.state !== 'owner' && (
+                <button type="button" className="glass-chip glass" style={{ minHeight: 44, marginBottom: 8 }} onClick={requestSignIn}>
+                  Sign in to your existing account
+                </button>
+              )}
               <button type="button" className="glass-chip glass" style={{ minHeight: 44 }} onClick={() => onNavigate('mission')}>
                 {missionCount === 0 ? 'Start a mission' : 'Open your missions'}
               </button>
@@ -468,13 +492,15 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
           missions={missions ?? []}
           primaryMissionId={primaryMission?.id ?? null}
           tier={current.tier === 'deep' ? 'deep' : 'routine'}
-          disabled={busy || voice.active || missions === null || Boolean(loadError) || !brief.configured}
+          disabled={busy || voice.active || missions === null || Boolean(loadError) || !brief.configured || access.state !== 'owner'}
           onPhaseChange={setLivePhase}
+          onSaveAnswer={saveLiveAnswer}
+          canSave={Boolean(primaryMission)}
           onAnswer={answer => {
             update(previous => ({
               ...previous,
               history: previous.reply ? [...previous.history, previous.reply].slice(-6) : previous.history,
-              reply: { question: answer.question, text: answer.text, label: 'Live Codex', provider: answer.provider },
+              reply: { question: answer.question, text: answer.text, label: 'Live Codex', provider: answer.provider, actionTitle: answer.actionTitle },
             }))
             setSavedReplyText(null)
             setSavedReplyMissionId(null)
@@ -487,7 +513,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
           <button type="button" aria-pressed={current.tier === 'deep'} onClick={() => update(prev => ({ ...prev, tier: 'deep' }))}>Deep</button>
           <span>{current.tier === 'deep' ? 'Higher-cost reasoning' : 'Lower-cost models · default'}</span>
         </fieldset>
-        <p className="glass-note">Continue here or in Mission. Recent conversation stays in this browser tab.</p>
+        <p className="glass-note home-runtime-note">Continue here or in Mission. Recent conversation stays in this browser tab.</p>
         {busy && <button type="button" className="glass-chip glass" onClick={() => { sending.current = null; brief.reset(); setSubmitNotice('Request cancelled. Your text is still here. The server may finish processing it.'); }}>Cancel request</button>}
         {brief.status === 'error' && <button type="button" className="glass-chip glass" onClick={() => void send()}>Try again</button>}
         {(sendStatus || voice.status) && (
@@ -519,15 +545,29 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
         )}
+        {access.state === 'checking' && <p className="glass-note" role="status">Checking account access…</p>}
+        {access.state !== 'owner' && access.state !== 'checking' && (
+          <p className="glass-note" role="status">
+            {access.state === 'unconfigured'
+              ? 'AI is not configured on the server. Your text is still here.'
+              : 'This browser account cannot use AI. '}
+            {access.state !== 'unconfigured' && (
+              <button type="button" className="underline" style={{ minHeight: 44 }} onClick={requestSignIn}>
+                Sign in to your existing account
+              </button>
+            )}
+            {access.state !== 'unconfigured' && ' to use it. Your draft stays here.'}
+          </p>
+        )}
         <form className="glass-pill glass" onSubmit={event => { event.preventDefault(); void send() }}>
           <button type="button" className="glass-round glass-plus" aria-label="Open tools" aria-expanded={sheetOpen} aria-controls="glass-tools" disabled={busy || voice.active} onClick={() => setSheetOpen(open => !open)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
           </button>
-          <input
+          <textarea
             ref={input}
-            type="text"
+            rows={1}
             value={text}
-            onChange={event => { setText(event.target.value); setSubmitNotice('') }}
+            onChange={event => { const value = event.target.value; setText(value); setComposerExpanded(value.includes('\n') || value.length > 80); setSubmitNotice('') }}
             onKeyDown={onKeyDown}
             placeholder={noTextNeeded ? `${TOOL_LABEL[tool!]} · or type a question` : "Ask Codex"}
             aria-label="Ask Codex"

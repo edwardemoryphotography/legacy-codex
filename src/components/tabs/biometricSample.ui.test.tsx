@@ -5,10 +5,9 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ControlsTab from './ControlsTab'
 import BiometricsTab from './BiometricsTab'
-import { TREND_SAMPLE_LABEL } from '@/lib/biometrics'
 
-// The committed file itself, not a fixture: whatever ships in
-// public/notes/biometric-trends.json is what these surfaces must label.
+// The production file must contain no fabricated readings. These tests read
+// the committed file rather than a fixture so a sample cannot return silently.
 const SHIPPED_FILE = readFileSync(path.resolve(__dirname, '../../../public/notes/biometric-trends.json'), 'utf8')
 
 vi.mock('@/lib/supabase/client', () => ({
@@ -24,19 +23,22 @@ beforeEach(() => {
     : { ok: false, status: 404, text: async () => '', json: async () => ({}) }))
 })
 
-describe('biometric-trends.json is labelled as sample, never live', () => {
-  it('Controls labels the readiness as sample data with its dates', async () => {
-    render(<ControlsTab />)
-    expect(await screen.findByText(TREND_SAMPLE_LABEL)).toBeTruthy()
-    expect(screen.getByText('June 2026')).toBeTruthy()
-    expect(screen.queryByText(/live data/i)).toBeNull()
-    expect(document.body.textContent).not.toMatch(/live data/i)
+describe('production biometric source has no fabricated readings', () => {
+  it('ships an empty day list, not sample measurements', () => {
+    expect(JSON.parse(SHIPPED_FILE)).toEqual([])
   })
 
-  it('Biometric Governor labels the same file as sample data with its dates', async () => {
+  it('Controls reports no live data and shows no readiness number', async () => {
+    render(<ControlsTab />)
+    expect(await screen.findByText(/No live data/)).toBeTruthy()
+    expect(screen.queryByText(/Readiness:/)).toBeNull()
+    expect(screen.queryByText(/June 2026/)).toBeNull()
+  })
+
+  it('Biometric Governor reports no live records and shows no readings', async () => {
     render(<BiometricsTab />)
-    await waitFor(() => expect(document.body.textContent).toContain(TREND_SAMPLE_LABEL))
-    expect(document.body.textContent).toContain('June 2026')
-    expect(document.body.textContent).not.toMatch(/live data|real record/i)
+    await waitFor(() => expect(screen.getByText('No live biometric records loaded.')).toBeTruthy())
+    expect(screen.queryByText(/Readiness:/)).toBeNull()
+    expect(screen.queryByText(/June 2026/)).toBeNull()
   })
 })

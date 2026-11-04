@@ -47,7 +47,8 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Malformed request body.' }, { status: 400 })
   }
-  const { mode, question, missions, missionIds, target, conversation, conversationMissionId, tier: requestedTier } = (body ?? {}) as {
+  const { mode, question, missions, missionIds, target, conversation, conversationMissionId, liveVoiceAction, tier: requestedTier } = (body ?? {}) as {
+    liveVoiceAction?: unknown
     tier?: unknown
     conversation?: unknown
     conversationMissionId?: unknown
@@ -109,7 +110,13 @@ export async function POST(req: NextRequest) {
   const turns = parseConversation(conversation ?? [])
   if (!turns || (conversationMissionId !== undefined && (mode !== 'question' || typeof conversationMissionId !== 'string' || !MISSION_UUID.test(conversationMissionId) || !Array.isArray(missionIds) || !missionIds.includes(conversationMissionId)))) return NextResponse.json({ error: 'Invalid conversation context.' }, { status: 400 })
 
-  const directive = buildBriefDirective(mode as BriefMode, safeMissions, safeQuestion, safeTarget)
+  if (liveVoiceAction !== undefined && typeof liveVoiceAction !== 'boolean') {
+    return NextResponse.json({ error: 'liveVoiceAction must be a boolean.' }, { status: 400 })
+  }
+  const directive = buildBriefDirective(mode as BriefMode, safeMissions, safeQuestion, safeTarget) +
+    (liveVoiceAction === true && mode === 'question'
+      ? '\n\nFor this live conversation, finish with exactly one concrete next action on its own final line using this exact format: NEXT ACTION: <one imperative physical or executable move, under 140 characters>. Ground it only in the supplied saved context. Name the object and the verb; do not propose “consider”, “decide”, “check”, “review”, or “leave it as-is”. If there is no honest action, write exactly NEXT ACTION: NONE. Do not put anything after that line.'
+      : '')
 
   try {
     const learnedContext = await loadLearnedContext(owner.url, req.headers.get('Authorization') ?? '', owner.userId, Array.isArray(missionIds) ? missionIds.filter((id): id is string => typeof id === 'string') : [])

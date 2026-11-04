@@ -50,6 +50,14 @@ describe('Account card with a mocked Supabase client', () => {
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy()
   })
 
+
+  it('opens directly in the existing-account sign-in flow when requested', () => {
+    render(<AccountCard initialFlow="signin" user={anon} loading={false} connectionError="" onRetry={vi.fn()} onConverted={converted} />)
+    expect(screen.getByLabelText('Email')).toBeTruthy()
+    expect(screen.getByText(/Sign in with the email you already added/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Keep this browser’s account — add an email instead' })).toBeTruthy()
+  })
+
   it('warns before sign-in with saved missions and requires explicit acknowledgement', async () => {
     mock.limit.mockResolvedValue({ data: [{ id: 'saved-mission' }], error: null })
     render(<Account />)

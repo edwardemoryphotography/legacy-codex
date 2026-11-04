@@ -103,6 +103,7 @@ export interface UIPrefs {
   fontScale: number
   highContrast: boolean
   reducedMotion: boolean
+  opaqueGlass: boolean
 }
 
 export interface CaptureItem {
