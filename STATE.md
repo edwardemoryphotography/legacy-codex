@@ -12,9 +12,10 @@ This file records project truth and durable lessons; it is not a hidden authoriz
   replacement/history write is one security-invoker transaction
   (`replace_saved_action_atomic`), verified against the canonical database and
   an isolated PostgreSQL instance for retry, conflict, A→B→A→B, forced history
-  failure, and concurrent replacement. PR #159 merged at `201f537`, deployed as
-  `dpl_BPvWieQ5gDz8eKqvKptaNY9xQGiA`, and the canonical Mission loaded the real
-  saved action without a read error. Preserve the larger purpose: discovery,
+  failure, and concurrent replacement. PR #159 merged at `201f537`; the initial
+  deployment was `dpl_BPvWieQ5gDz8eKqvKptaNY9xQGiA`. Current canonical
+  `0623a56` (`dpl_GSQcQJLWj1fTpoC94PVNr8QpGWfr`) carries the same atomic path,
+  and the canonical Mission loaded the real saved action without a read error. Preserve the larger purpose: discovery,
   creation, synthesis, and recognition need not produce a NextAction;
   corrections are candidate lessons with provenance, scope, confirmation, and
   retirement, not automatic doctrine; the Argon handoff is an acceptance case,
