@@ -3,6 +3,7 @@
 // column it came from. No edge is inferred, and no two missions are linked:
 // there is no stored, human-confirmed mission-to-mission link yet.
 import { GROUP_OF_STATE, type MissionEventLite, type OpenAction, type TerritoryGroup } from './territory'
+import { sortTerritoryEntities, type TerritoryEntity, type TerritorySignal } from './territoryEntities'
 import type { Mission, MissionState } from '@/types'
 
 export interface EvidenceLite {
@@ -14,7 +15,7 @@ export interface EvidenceLite {
   observed_at: string
 }
 
-export type GraphNodeKind = 'mission' | 'action' | 'blocker' | 'lesson' | 'correction' | 'evidence'
+export type GraphNodeKind = 'mission' | 'action' | 'blocker' | 'lesson' | 'correction' | 'evidence' | 'project' | 'doctrine' | 'constraint'
 
 export interface GraphNode {
   id: string
@@ -26,6 +27,10 @@ export interface GraphNode {
   // Mission cards only: the saved state and finish line, shown on the card.
   state?: MissionState
   detail?: string | null
+  // Territory entity cards only. They have no mission owner and no edges yet.
+  entityId?: string
+  signal?: TerritorySignal | null
+  cluster?: string | null
 }
 
 export interface GraphEdge {
@@ -41,6 +46,7 @@ export const PER_KIND_LIMIT = 3
 // keeps side children clear of the card, and RING_Y flattens the ring so a
 // stacked phone layout stays short. The overlap test checks the worst case.
 export const MISSION_BOX = { w: 200, h: 72 }
+export const ENTITY_BOX = { w: 200, h: 72 }
 export const CHILD_BOX = { w: 112, h: 34 }
 export const CHILD_GAP = 130
 const MIN_RING = 170
@@ -59,13 +65,48 @@ function parse(detail: string): Record<string, unknown> | null {
 
 const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null)
 
-export function buildTerritoryGraph(missions: Mission[], actions: OpenAction[], events: (MissionEventLite & { id?: string })[], evidence: EvidenceLite[], maxColumns = 3) {
+export function buildTerritoryGraph(
+  missions: Mission[],
+  actions: OpenAction[],
+  events: (MissionEventLite & { id?: string })[],
+  evidence: EvidenceLite[],
+  maxColumns = 3,
+  entities: TerritoryEntity[] = [],
+) {
   const ordered = [...missions].sort((a, b) =>
     GROUP_ORDER.indexOf(GROUP_OF_STATE[a.state]) - GROUP_ORDER.indexOf(GROUP_OF_STATE[b.state]) || a.title.localeCompare(b.title) || a.id.localeCompare(b.id))
   const columns = Math.max(1, Math.min(maxColumns, Math.ceil(Math.sqrt(ordered.length))))
   const retired = new Set(events.filter(e => e.type === 'delta_lesson_retired').map(e => text(parse(e.detail)?.lessonId)).filter(Boolean))
   const nodes: GraphNode[] = []
   const edges: GraphEdge[] = []
+  const PAD = 24
+  const ENTITY_GAP = 24
+  const ENTITY_SECTION_GAP = 36
+  const ENTITY_COL_W = ENTITY_BOX.w + PAD * 2
+  const entityList = sortTerritoryEntities(entities)
+
+  // First-class non-mission entities sit above the mission rows. They have no
+  // edges yet; Path 2 adds saved links, not inferred ones.
+  const entityCols = Math.max(1, Math.min(maxColumns, Math.ceil(Math.sqrt(entityList.length))))
+  entityList.forEach((entity, index) => {
+    const row = Math.floor(index / entityCols)
+    const col = index % entityCols
+    nodes.push({
+      id: `${entity.kind}:${entity.id}`,
+      kind: entity.kind,
+      missionId: '',
+      entityId: entity.id,
+      label: entity.label,
+      x: PAD + ENTITY_BOX.w / 2 + col * ENTITY_COL_W,
+      y: PAD + ENTITY_BOX.h / 2 + row * (ENTITY_BOX.h + ENTITY_GAP),
+      signal: entity.signal,
+      cluster: entity.cluster,
+    })
+  })
+  const entityRows = Math.ceil(entityList.length / entityCols)
+  const entityHeight = entityList.length
+    ? PAD + entityRows * (ENTITY_BOX.h + ENTITY_GAP) - ENTITY_GAP + ENTITY_SECTION_GAP
+    : 0
 
   const placed = ordered.map(mission => {
     const own = events.filter(e => e.mission_id === mission.id)
@@ -100,9 +141,10 @@ export function buildTerritoryGraph(missions: Mission[], actions: OpenAction[], 
     const bottom = Math.max(MISSION_BOX.h / 2, ...offsets.map(o => o.y + CHILD_BOX.h / 2))
     return { mission, children, offsets, halfW, top, bottom }
   })
-  const PAD = 24
-  const colW = 2 * Math.max(...laid.map(l => l.halfW), MISSION_BOX.w / 2) + PAD
-  let rowTop = PAD
+  const colW = laid.length
+    ? 2 * Math.max(...laid.map(l => l.halfW), MISSION_BOX.w / 2) + PAD
+    : MISSION_BOX.w + PAD * 2
+  let rowTop = PAD + entityHeight
   for (let start = 0; start < laid.length; start += columns) {
     const row = laid.slice(start, start + columns)
     const above = Math.max(...row.map(l => -l.top))
@@ -119,5 +161,12 @@ export function buildTerritoryGraph(missions: Mission[], actions: OpenAction[], 
     rowTop += above + below + PAD
   }
 
-  return { nodes, edges, width: Math.min(columns, Math.max(1, laid.length)) * colW, height: Math.max(rowTop, MISSION_BOX.h + 2 * PAD) }
+  const missionWidth = Math.min(columns, Math.max(1, laid.length)) * colW
+  const entityWidth = entityList.length ? entityCols * ENTITY_COL_W : 0
+  return {
+    nodes,
+    edges,
+    width: Math.max(missionWidth, entityWidth, MISSION_BOX.w + PAD * 2),
+    height: Math.max(rowTop, entityHeight, MISSION_BOX.h + PAD * 2),
+  }
 }
