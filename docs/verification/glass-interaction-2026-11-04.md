@@ -1,5 +1,7 @@
 # Clear Liquid Glass + interaction repair — 2026-11-04
 
+**Release:** PR #176 merged at `4fed699`; canonical `dpl_5JnWSEPyuvGc8Xo5onqzcFy71PQz` is Ready.
+
 ## Scope
 
 This pass repaired the existing Home, Mission conversation, account access,
@@ -62,6 +64,25 @@ Computed browser checks:
   opaque/reduced-transparency/contrast/motion media checks.
 - Mobile emulation is Chrome, not iPhone Safari. Actual owner GPT-Live audio and
   a real model response were not exercised in this local anonymous session.
+
+## Production runtime (canonical)
+
+Checked against `https://legacy-codex.vercel.app` at the canonical deployment:
+
+- **390 × 664:** greeting 355–411, Missions/History 144–188, dock starts 436;
+  scroll width 390 = client width 390.
+- **390 × 844:** greeting 455–511, links 144–188, dock starts 560.
+- **430 × 739:** greeting 363–419, links 116–160, dock starts 511.
+- The account gate resolved to **View only · sign in for AI**; Send/live voice
+  were not presented as owner-ready.
+- **Direct sign-in:** clicking the sign-in action opened Controls in the
+  existing-account email flow; the production draft survived the trip back.
+- **Controls:** no readiness number, sample label, June 2026 date, account ID,
+  or visible Supabase/RLS terminology; Opaque surfaces is present.
+- **Mission:** conversation hidden; workflow panel starts at y=126 with
+  “Continue conversation with Codex”.
+- **Live voice** and a real owner model response were not exercised because the
+  runtime browser account is not the owner. No production records were created.
 
 ## Boundaries
 
