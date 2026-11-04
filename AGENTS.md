@@ -75,6 +75,13 @@ Read this file first, then `STATE.md` for the latest project status, then `TODOS
 3. **Record only durable lessons.** Append to `STATE.md` Repo-local notes only when a repository-specific improvement is worth preserving.
 4. **Smallest sufficient solution.** Make the changes needed to fully satisfy the outcome; do not let a preference for a tiny patch cause under-delivery or add unrelated scope.
 
+### Browser automation security
+
+- Before browser automation, inspect the actual executable/channel, running browser version, launch flags, and isolation boundary. A Playwright package version or an updated desktop browser alone does not establish which browser an agent uses.
+- Use an up-to-date stable Chrome installation with `channel: 'chrome'` and `chromiumSandbox: true` for Chromium checks. Never silently fall back to bundled Chromium or add `--no-sandbox` when launch fails; report the missing browser or sandbox support.
+- Keep local artifact checks local by blocking external requests. Browsing untrusted content requires a separate disposable environment without personal profiles, credentials, or broad host mounts; a default root Docker image does not establish browser sandboxing.
+- Record the actual version and the checks performed. Configuration or syntax checks do not prove a sandboxed browser launched successfully, and repository inspection does not audit Eddie's Mac or external agent/MCP configurations.
+
 ## Commands
 
 ```bash

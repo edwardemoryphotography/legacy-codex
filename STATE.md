@@ -8,6 +8,8 @@ This file records project truth and durable lessons; it is not a hidden authoriz
 
 ## Repo-local notes
 
+- **2026-11-03 — Browser automation hardening candidate:** The origin visualization verifier selects installed stable Chrome with Chromium sandboxing enabled, blocks external requests, and closes its local server even if launch fails. AGENTS records executable/version/isolation checks and forbids silently disabling sandboxing. Root package.json has no direct Playwright dependency; code search found one Chromium launch, in this local QA script. This is not a complete audit of external agent tools. Eddie's Mac was offline; the current cloud runtime has playwright-core 1.62.1 (manifest Chromium 151.0.7922.34) but no Chrome executable on PATH. Successful sandboxed execution and the Mac's browser/MCP configuration remain unverified. Do not label the device safe from a repository patch.
+
 - **2026-11-03 — NextAction is finished; do not reduce Legacy Codex to it.** The
   replacement/history write is one security-invoker transaction
   (`replace_saved_action_atomic`), verified against the canonical database and
