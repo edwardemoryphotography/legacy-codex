@@ -42,6 +42,26 @@ function ConversationPresence({ status, busy, loadError, pending, voice, live, r
   return null
 }
 
+function AccessGate({ state, onSignIn }: { state: ReturnType<typeof useHomeAccess>['state']; onSignIn: () => void }) {
+  if (state === 'checking') {
+    return <div className={styles.accessGate} role="status"><p className={styles.eyebrow}>Account</p><h2>Checking account access…</h2><p>Holding the composer until this browser account is identified.</p></div>
+  }
+  if (state === 'unconfigured') {
+    return <div className={styles.accessGate} role="status"><p className={styles.eyebrow}>Account</p><h2>AI is not configured on this deployment.</h2><p>Your saved missions are still available in Mission.</p></div>
+  }
+  if (state === 'error') {
+    return <div className={styles.accessGate} role="alert"><p className={styles.eyebrow}>Account</p><h2>Could not check AI access.</h2><p>Your draft is still here. Try again, or open your saved work.</p><button type="button" className="glass-chip glass" onClick={() => window.location.reload()}>Check again</button></div>
+  }
+  return (
+    <div className={styles.accessGate}>
+      <p className={styles.eyebrow}>Account</p>
+      <h2>This browser account cannot use AI yet.</h2>
+      <p>Sign in to the account that owns these missions. Your saved work stays private to that account.</p>
+      <button type="button" className={`glass-chip glass ${styles.accessPrimary}`} onClick={onSignIn}>Sign in to your existing account</button>
+    </div>
+  )
+}
+
 export default function HomeTab({ onNavigate, session, onSessionChange, variant = 'home', projectRevision = 0, onProjectChange, onSignIn }: { projectRevision?: number; onProjectChange?: () => void; variant?: 'home' | 'mission'; onNavigate: (id: TabId) => void; session?: HomeSession; onSessionChange?: Dispatch<SetStateAction<HomeSession>>; onSignIn?: () => void }) {
   const missionView = variant === 'mission'
   const { missions, loadError, actions, actionsRead, events, eventsRead } = useMissionTerritory({ withEvents: true, refreshKey: projectRevision })
@@ -339,12 +359,13 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       data-live-voice-active={liveActive ? 'true' : undefined}
       data-immersive={immersive ? 'true' : undefined}
       data-reply={hasReply ? 'true' : undefined}
+      data-access-gate={access.state !== 'owner' ? 'true' : undefined}
       data-composer-expanded={composerExpanded ? 'true' : undefined}
       data-next-action-state={homeNextAction.state}
       data-next-action-read={homeNextAction.readState}
       aria-label={missionView ? 'Project conversation' : 'Home'}
     >
-      {(!missionView || busy || voice.active || liveActive) && <ConversationPresence status={brief.status} busy={busy} loadError={loadError} pending={!loadError && !busy && !voice.active && !liveActive ? missions === null ? 'Reading saved missions' : actionsRead === 'pending' ? 'Reading saved actions' : null : null} voice={voice} live={livePhase} reply={Boolean(current.reply)} />}
+      {access.state === 'owner' && (!missionView || busy || voice.active || liveActive) && <ConversationPresence status={brief.status} busy={busy} loadError={loadError} pending={!loadError && !busy && !voice.active && !liveActive ? missions === null ? 'Reading saved missions' : actionsRead === 'pending' ? 'Reading saved actions' : null : null} voice={voice} live={livePhase} reply={Boolean(current.reply)} />}
       <div className={styles.context}>
         <span>{primaryMission ? `Working on: ${primaryMission.title}` : 'Your conversation with Codex'}</span>
         <button type="button" className="glass-chip glass" onClick={() => onNavigate(missionView ? 'home' : 'mission')}>{missionView ? 'Back to Home' : 'Open project workspace'}</button>
@@ -354,9 +375,10 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
           <button type="button" className="glass-chip glass" aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setHistoryOpen(true); setFocusOpen(false); setResponseOpen(false) }}>History{history.length ? ` · ${history.length}` : ''}</button>
         </div>
       <div className="glass-hero">
+        {access.state !== 'owner' ? <AccessGate state={access.state} onSignIn={requestSignIn} /> : <>
         {!missionView && <div className="glass-orb-wrap">
           <OrbSlot />
-          <span className="glass-orb-state" aria-hidden="true">{access.state === 'checking' ? 'Checking access' : access.state !== 'owner' ? 'View only · sign in for AI' : presentation.state === 'idle' ? 'Ready when you are' : presentation.state === 'ready' ? 'Response ready' : presentation.label}</span>
+          <span className="glass-orb-state" aria-hidden="true">{presentation.state === 'idle' ? 'Ready when you are' : presentation.state === 'ready' ? 'Response ready' : presentation.label}</span>
         </div>}
         <div className={styles.takeaway} hidden={immersive}>
           {reply ? <>
@@ -418,6 +440,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
             {note && <p className="glass-note glass-home-note">{note}</p>}
           </>}
         </div>
+      </>}
       </div>
       <dialog ref={panel} id="home-detail-panel" className={styles.panel} aria-labelledby="home-panel-title" onCancel={closePanel} onClose={closePanel} onClick={event => { if (event.target === event.currentTarget) closePanel() }}>
       <header className={styles.panelHeader}>
@@ -487,7 +510,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       <button type="button" className="glass-chip glass" onClick={() => { closePanel(); input.current?.focus() }}>Continue conversation</button>
       </dialog>
 
-      <div className="glass-dock">
+      <div className="glass-dock" hidden={access.state !== 'owner'}>
         <CodexLiveVoice
           missions={missions ?? []}
           primaryMissionId={primaryMission?.id ?? null}
