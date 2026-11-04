@@ -1,7 +1,9 @@
 # Legacy Codex Canonical Source Graph
 
 **Status:** Canonical navigation map
-**Last verified:** 2026-08-31
+**Last source reconciliation:** 2026-11-04
+
+Runtime observations are dated separately in PROJECT_STATUS.md.
 
 This graph tells a fresh human or AI which source answers which question. A newer implementation does not silently supersede doctrine, and an old version label does not outrank current evidence.
 
@@ -33,9 +35,22 @@ flowchart TD
 
 ## Doctrine in the application
 
-`src/lib/cognitiveDoctrine.ts` is a reviewed runtime distillation of the canonical Cookbook, with a pinned source revision. Both existing model calls (`/api/analyze` and `/api/delta-operation`) receive it as system instructions. Codex → Root → North Star makes the doctrine and original source readable in the product. These are projections, not new doctrine owners.
+The reviewed runtime projection is src/lib/cognitiveDoctrine.ts, with a pinned Cookbook revision. Analysis, Brief, bounded operation assistance and Project Review use it with distinct route contracts. Codex → Root → North Star exposes its source. Runtime prompts do not own doctrine.
 
-The analyzer reconstructs only from supplied artifacts and the directive; it does not automatically retrieve repository history or other missions, and it does not persist lessons. The bounded operation route retains its one-sentence-or-NONE contract and existing deterministic gates. Passing source/build checks establishes wiring, not model reasoning quality or live deployment.
+| Capability | Context and implementation | Persistence boundary |
+| --- | --- | --- |
+| Artifact analysis | /api/analyze; supplied files/directive and scoped confirmed lessons | Display-only answer; no arbitrary history crawl or automatic lesson save |
+| Project reconstruction | /api/delta-review; caller-scoped missions, actions, notes, corrections, evidence projections, bounded related-project records, explicitly linked public GitHub text | Explicit draft/critique; cache/history in transitional mission_events |
+| Confirmed lessons | /api/delta-lessons; conditions, scope, provenance, human confirmation and retirement | Append-only Mission guidance; not canonical evidence |
+| Later retrieval | learnedContext.ts and project-review context assembly | Caller JWT/RLS; bounded reads, explicit missing context |
+| Legacy Relay | /api/lesson-relay; recipient explicitly adopts shared rule/conditions | No private source records or widened model access; real recipient benefit needs separate acceptance |
+| Conversation / voice | Home/Mission; /api/brief and /api/live-voice | Existing context/routes; commitments require explicit save |
+| Territory | Real missions and owner-scoped territory_nodes, Map/List | Stored relationships only; no invented edges |
+| Action continuity | Shared NextAction projection and atomic replacement | actions owns commitments; proposal acceptance differs from saving |
+
+A read, model proposal, confirmed lesson, saved commitment and verified outcome are different states. The analyzer and Project Review have different retrieval scope; diagnose missing context against the actual route.
+
+[November acceptance](../verification/november-acceptance-2026-11-04.md) records the real owner, later lesson and recipient sequence. [Accountability contract](../verification/model-accountability-transparency-2026-11-02.md) owns requirements; consult current PR/release state for #160's guard and #163's broader specification. Requirements alone are not enforcement.
 
 ## Surface classification
 
@@ -58,3 +73,9 @@ The analyzer reconstructs only from supplied artifacts and the directive; it doe
 3. The deleted in-app Consolidation checklist is superseded by this source graph and `PROJECT_STATUS.md`; repository cleanup is not a user workflow.
 4. A code merge may update implementation truth but cannot claim `Deployed`, `Runtime Verified`, or `Live` without those separate checks.
 5. When sources conflict, record the contradiction and resolve it in the source that owns that question. Do not create a new cross-cutting master document.
+
+## Discoverable supersession
+
+The August plan called #58 pending after a later August record documented completion. By November this graph and PROJECT_STATUS also described older implementation. The shared failure is preserved records without discoverable current truth.
+
+When a release changes a capability or acceptance result, update its owning section here or in PROJECT_STATUS and link the dated evidence. Preserve previous observations as historical records. Record source-review and runtime-observation dates separately; do not leave incompatible baselines in a current-state table.
