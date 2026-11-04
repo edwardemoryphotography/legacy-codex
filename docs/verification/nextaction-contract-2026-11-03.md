@@ -67,12 +67,16 @@ the transaction, rollback, concurrency, and failure-path checks below passed.
   evidence above.
 - **Merged:** [PR #159](https://github.com/edwardemoryphotography/legacy-codex/pull/159),
   merge commit `201f5376e50bf84a5b25b60c12f24ac66b144495`.
-- **Deployed:** `dpl_BPvWieQ5gDz8eKqvKptaNY9xQGiA`, canonical
-  `https://legacy-codex.vercel.app`, status Ready.
+- **Deployed:** initial NextAction deployment
+  `dpl_BPvWieQ5gDz8eKqvKptaNY9xQGiA`; current canonical `0623a56`
+  (`dpl_GSQcQJLWj1fTpoC94PVNr8QpGWfr`) carries the same atomic replacement
+  code and is Ready at `https://legacy-codex.vercel.app`.
 - **Runtime Verified:** non-writing production Mission load showed the real
   saved action “Provide one source six evidence records” and no read/error
   state. An actual replacement against Eddie's account was not performed.
-- **Live:** canonical production served the merged bundle.
+- **Live:** canonical production serves the merged NextAction code; later
+  Territory, voice and documentation releases did not alter the atomic
+  replacement path.
 
 ## Governing context corrections
 
