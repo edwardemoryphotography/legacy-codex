@@ -97,24 +97,25 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     }
   }, [brief.status, brief.output, brief.outputLabel, brief.providerLabel, update])
 
-  // Follow the visual viewport when Safari's keyboard or browser chrome moves.
-  // The composer participates in layout rather than covering a scrolling page.
+  // Follow viewport size changes for the iOS keyboard, not Safari toolbar scroll.
+  // visualViewport.offsetTop can change during browser-chrome scrolling while
+  // the user is not typing. Applying it to the fixed Home shell made the orb
+  // and composer slide up and down with a finger swipe.
   useEffect(() => {
     const viewport = window.visualViewport
     const root = document.documentElement
     const resize = () => {
+      const keyboardOpen = Boolean(viewport && viewport.height + 80 < window.innerHeight)
       root.style.setProperty('--codex-viewport-height', `${viewport?.height ?? window.innerHeight}px`)
-      root.style.setProperty('--codex-viewport-top', `${viewport?.offsetTop ?? 0}px`)
-      if (viewport && viewport.height + 80 < window.innerHeight) root.dataset.homeKeyboard = 'true'
+      root.style.setProperty('--codex-viewport-top', keyboardOpen ? `${viewport?.offsetTop ?? 0}px` : '0px')
+      if (keyboardOpen) root.dataset.homeKeyboard = 'true'
       else delete root.dataset.homeKeyboard
     }
     resize()
     viewport?.addEventListener('resize', resize)
-    viewport?.addEventListener('scroll', resize)
     window.addEventListener('resize', resize)
     return () => {
       viewport?.removeEventListener('resize', resize)
-      viewport?.removeEventListener('scroll', resize)
       window.removeEventListener('resize', resize)
       root.style.removeProperty('--codex-viewport-height')
       root.style.removeProperty('--codex-viewport-top')
@@ -467,7 +468,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
           missions={missions ?? []}
           primaryMissionId={primaryMission?.id ?? null}
           tier={current.tier === 'deep' ? 'deep' : 'routine'}
-          disabled={busy || voice.active || missions === null || Boolean(loadError) || !brief.configured || brief.visitor}
+          disabled={busy || voice.active || missions === null || Boolean(loadError) || !brief.configured}
           onPhaseChange={setLivePhase}
           onAnswer={answer => {
             update(previous => ({
