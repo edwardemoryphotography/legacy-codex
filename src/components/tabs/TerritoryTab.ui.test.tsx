@@ -2,6 +2,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TerritoryTab, { EVENTS_READ_FAILED_COPY, GRAPH_PARTIAL_COPY } from './TerritoryTab'
+import { TERRITORY_NODES_READ_FAILED_COPY } from '@/hooks/useTerritoryNodes'
 
 vi.mock('@/lib/supabase/missionSession', () => ({
   connectMissionSession: async () => ({ id: 'owner-1' }),
@@ -14,18 +15,28 @@ const db = vi.hoisted(() => ({
   actions: { data: [] as Record<string, unknown>[], error: null as unknown },
   events: { data: [] as Record<string, unknown>[], error: null as unknown },
   evidence: { data: [] as Record<string, unknown>[], error: null as unknown },
+  entities: { data: [] as Record<string, unknown>[], error: null as unknown },
 }))
 
 vi.mock('@/lib/supabase/client', () => ({
   supabase: {
     auth: { getSession: async () => ({ data: { session: { access_token: 'token' } }, error: null }) },
-    from: (table: string) => table === 'actions'
-      ? { select: () => ({ not: () => ({ neq: async () => db.actions }) }) }
-      : table === 'evidence_snapshots'
-        ? { select: () => ({ not: () => ({ order: async () => db.evidence }) }) }
-      : table === 'mission_events'
-        ? { select: () => ({ eq: () => ({ order: () => ({ limit: async () => db.events }), in: () => ({ order: () => ({ range: async () => db.events }) }) }) }) }
-        : { select: () => ({ eq: async () => ({ data: db.missions, error: null }) }) },
+    from: (table: string) => {
+      if (table === 'actions') return { select: () => ({ not: () => ({ neq: async () => db.actions }) }) }
+      if (table === 'evidence_snapshots') return { select: () => ({ not: () => ({ order: async () => db.evidence }) }) }
+      if (table === 'mission_events') return { select: () => ({ eq: () => ({ order: () => ({ limit: async () => db.events }), in: () => ({ order: () => ({ range: async () => db.events }) }) }) }) }
+      if (table === 'territory_nodes') return {
+        select: () => ({ eq: () => ({ order: async () => db.entities }) }),
+        insert: (row: Record<string, unknown>) => ({
+          select: () => ({ single: async () => ({ data: { ...row, id: 'e1', created_at: '2026-01-04T00:00:00Z', updated_at: '2026-01-04T00:00:00Z' }, error: db.entities.error }) }),
+        }),
+        update: (row: Record<string, unknown>) => ({
+          eq: () => ({ eq: () => ({ select: () => ({ single: async () => ({ data: { ...row, id: 'e1', created_at: '2026-01-04T00:00:00Z', updated_at: '2026-01-04T00:00:00Z' }, error: db.entities.error }) }) }) }),
+        }),
+        delete: () => ({ eq: () => ({ eq: async () => ({ error: db.entities.error }) }) }),
+      }
+      return { select: () => ({ eq: async () => ({ data: db.missions, error: null }) }) }
+    },
   },
 }))
 
@@ -48,6 +59,7 @@ describe('TerritoryTab', () => {
     db.actions = { data: [], error: null }
     db.events = { data: [], error: null }
     db.evidence = { data: [], error: null }
+    db.entities = { data: [], error: null }
     stubFetch()
   })
 
@@ -55,9 +67,9 @@ describe('TerritoryTab', () => {
     db.missions = [row({ blocker: 'waiting on lab' }), row({ id: 'm2', title: 'Other mission', state: 'paused' })]
     db.evidence = { data: [{ id: 's1', mission_id: 'm1', kind: 'merged_pr', status: 'unverified', claim: 'PR merged', observed_at: '2026-01-01T00:00:00Z' }], error: null }
     render(<TerritoryTab />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Graph' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Map' }))
     const graph = await screen.findByTestId('territory-graph')
-    expect(within(graph).getByRole('group', { name: /2 missions, 2 saved links/ })).toBeTruthy()
+    expect(within(graph).getByRole('group', { name: /2 missions, 0 territory entities, 2 saved links/ })).toBeTruthy()
     expect(screen.getByText(/\(missions\.blocker\)/)).toBeTruthy()
     expect(screen.getByText(/\(evidence_snapshots\.mission_id\)/)).toBeTruthy()
     expect(screen.getByText('No saved links yet.')).toBeTruthy()
@@ -72,7 +84,7 @@ describe('TerritoryTab', () => {
     db.missions = [row({})]
     db.evidence = { data: [], error: { message: 'network' } }
     render(<TerritoryTab />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Graph' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Map' }))
     expect(await screen.findByText(GRAPH_PARTIAL_COPY)).toBeTruthy()
   })
 
@@ -115,6 +127,36 @@ describe('TerritoryTab', () => {
     expect(body.missions).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: '← All missions' }))
     expect(screen.queryByText('A grounded answer.')).toBeNull()
+  })
+
+
+  it('adds, edits, focuses, filters, and deletes a first-class territory entity', async () => {
+    db.missions = [row({})]
+    render(<TerritoryTab />)
+    fireEvent.click(await screen.findByRole('button', { name: '+ Add entity' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Print studio' } })
+    fireEvent.change(screen.getByLabelText('What it is'), { target: { value: 'The print business.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add entity' }))
+    expect(await screen.findByText('Print studio')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /Projects \(1\)/ }))
+    const entityNode = await screen.findByRole('button', { name: /Project: Print studio. Open its detail/ })
+    fireEvent.click(entityNode)
+    expect(await screen.findByRole('heading', { name: 'Print studio' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit entity' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Print studio two' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(await screen.findByRole('heading', { name: 'Print studio two' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete entity' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
+    expect(await screen.findByRole('button', { name: '+ Add entity' })).toBeTruthy()
+    expect(screen.queryByText('Print studio two')).toBeNull()
+  })
+
+  it('reports a failed territory-entity read instead of showing an empty ecosystem', async () => {
+    db.missions = [row({})]
+    db.entities = { data: [], error: { message: 'network' } }
+    render(<TerritoryTab />)
+    expect(await screen.findByText(TERRITORY_NODES_READ_FAILED_COPY)).toBeTruthy()
   })
 
   it('says history and actions could not be read instead of showing them as empty', async () => {
