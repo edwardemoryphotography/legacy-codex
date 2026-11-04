@@ -1,7 +1,6 @@
 # Territory workspace — Path 1 verification
 
-**Status:** implementation and local verification complete; canonical migration
-not yet applied.
+**Status:** implementation complete; canonical migration applied and verified.
 **Spec:** `docs/superpowers/specs/2026-11-03-territory-workspace-design.md`
 
 ## Implemented
@@ -21,7 +20,7 @@ not yet applied.
 ## Automated checks
 
 - `npx vitest run`: 621 tests passed, including new graph and Territory UI
-  tests for entitity layout, create/edit/delete, lens filtering, and failed
+  tests for entity layout, create/edit/delete, lens filtering, and failed
   reads.
 - `npx tsc --noEmit`: passed.
 - `npm run lint`: 0 errors (warnings only).
@@ -43,10 +42,18 @@ local database with `auth.uid()` and `authenticated`/`anon` roles.
 No production missions, actions, lessons, or territory nodes were created as
 proof.
 
+## Canonical database verification
+
+- Applied `20261104000000_territory_nodes.sql` to the canonical Supabase project
+  through the SQL editor.
+- `information_schema.tables` confirms `public.territory_nodes` exists.
+- `pg_policies` confirms owner SELECT, INSERT, UPDATE and DELETE policies.
+- The table had 0 rows immediately after migration; no production records were
+  fabricated.
+
 ## Release sequence
 
-1. Apply `20261104000000_territory_nodes.sql` to the canonical Supabase
-   project.
+1. ~~Apply the migration.~~ Done.
 2. Merge the client PR through normal protections.
 3. Deploy and verify the canonical Territory tab with a real session.
 4. Exercise create/edit/delete on the canonical account only after the table is
