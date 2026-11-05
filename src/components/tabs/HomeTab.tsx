@@ -57,7 +57,7 @@ function AccessGate({ state, onSignIn }: { state: ReturnType<typeof useHomeAcces
       <p className={styles.eyebrow}>Account</p>
       <h2>This browser account cannot use AI yet.</h2>
       <p>Sign in to the account that owns these missions. Your saved work stays private to that account.</p>
-      <button type="button" className={`glass-chip glass ${styles.accessPrimary}`} onClick={onSignIn}>Sign in to your existing account</button>
+      <button type="button" className={`glass-chip glass ${styles.accessPrimary} home-access-primary`} onClick={onSignIn}>Sign in to your existing account</button>
     </div>
   )
 }
