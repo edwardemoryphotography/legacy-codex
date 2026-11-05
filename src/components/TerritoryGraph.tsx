@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } fr
 import { buildTerritoryGraph, CHILD_BOX, ENTITY_BOX, MISSION_BOX, PER_KIND_LIMIT, type EvidenceLite, type GraphNode, type GraphNodeKind } from '@/lib/territoryGraph'
 import { GROUP_OF_STATE, type MissionEventLite, type OpenAction } from '@/lib/territory'
 import { TERRITORY_SIGNAL_LABELS, type TerritoryEntity } from '@/lib/territoryEntities'
+import type { TerritoryLink } from '@/lib/territoryWorkspace'
 import type { Mission } from '@/types'
 
 const KIND_LABELS: Record<GraphNodeKind, string> = {
@@ -31,12 +32,13 @@ function twoLines(text: string, perLine: number): [string, string] {
 // one column on a phone, more on wider screens. Dragging a node moves it for
 // this view only — positions are not saved. Nodes allow vertical page scroll
 // on touch, so the graph never traps a scrolling finger.
-export default function TerritoryGraph({ missions, actions, links, evidence, entities = [], onOpen, onOpenEntity }: {
+export default function TerritoryGraph({ missions, actions, links, evidence, entities = [], territoryLinks = [], onOpen, onOpenEntity }: {
   missions: Mission[]
   actions: OpenAction[]
   links: (MissionEventLite & { id?: string })[]
   evidence: EvidenceLite[]
   entities?: TerritoryEntity[]
+  territoryLinks?: TerritoryLink[]
   onOpen: (missionId: string) => void
   onOpenEntity?: (entityId: string) => void
 }) {
@@ -57,7 +59,7 @@ export default function TerritoryGraph({ missions, actions, links, evidence, ent
     return () => observer.disconnect()
   }, [])
 
-  const { nodes, edges, width, height } = buildTerritoryGraph(missions, actions, links, evidence, maxColumns, entities)
+  const { nodes, edges, width, height } = buildTerritoryGraph(missions, actions, links, evidence, maxColumns, entities, territoryLinks)
   const byId = new Map(nodes.map(n => [n.id, n]))
   const pos = (n: GraphNode) => ({ x: n.x + (offsets[n.id]?.dx ?? 0), y: n.y + (offsets[n.id]?.dy ?? 0) })
   const missionCount = nodes.filter(n => n.kind === 'mission').length
@@ -148,8 +150,8 @@ export default function TerritoryGraph({ missions, actions, links, evidence, ent
             const color = KIND_COLORS[b.kind]
             const labelWidth = Math.max(56, edge.label.length * 6.2 + 14)
             return (
-              <g key={`${edge.from}->${edge.to}`}>
-                <path d={`M ${p.x} ${p.y} Q ${bend.x} ${bend.y} ${q.x} ${q.y}`} fill="none" stroke={color} strokeOpacity={0.55} strokeWidth={1.6} />
+              <g key={`${edge.from}->${edge.to}->${edge.label}`}>
+                <path d={`M ${p.x} ${p.y} Q ${bend.x} ${bend.y} ${q.x} ${q.y}`} fill="none" stroke={color} strokeOpacity={edge.kind === 'relation' ? 0.8 : 0.55} strokeWidth={edge.kind === 'relation' ? 1.4 : 1.6} strokeDasharray={edge.kind === 'relation' ? '5 4' : undefined} />
                 <g transform={`translate(${(p.x + 2 * bend.x + q.x) / 4}, ${(p.y + 2 * bend.y + q.y) / 4})`}>
                   <title>{`${edge.label} — saved in ${edge.provenance}`}</title>
                   <rect x={-labelWidth / 2} y={-9} width={labelWidth} height={18} rx={9} fill="rgba(6,10,22,0.92)" stroke={color} strokeOpacity={0.4} />
@@ -256,7 +258,7 @@ export default function TerritoryGraph({ missions, actions, links, evidence, ent
           })}
         </ul>
         <p className="text-sm" style={{ color: 'var(--text-dim)' }}>
-          Shows up to {PER_KIND_LIMIT} recent lessons, corrections and evidence items per mission. Missions are not linked to each other: nothing saved records such a link yet.
+          Shows up to {PER_KIND_LIMIT} recent lessons, corrections and evidence items per mission. Saved connections appear as dashed lines with the relationship you recorded.
         </p>
       </details>
     </div>

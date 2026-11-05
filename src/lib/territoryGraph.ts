@@ -4,6 +4,7 @@
 // there is no stored, human-confirmed mission-to-mission link yet.
 import { GROUP_OF_STATE, type MissionEventLite, type OpenAction, type TerritoryGroup } from './territory'
 import { sortTerritoryEntities, type TerritoryEntity, type TerritorySignal } from './territoryEntities'
+import { endpointNodeId, type TerritoryLink } from './territoryWorkspace'
 import type { Mission, MissionState } from '@/types'
 
 export interface EvidenceLite {
@@ -38,6 +39,7 @@ export interface GraphEdge {
   to: string
   label: string
   provenance: string
+  kind?: 'saved' | 'relation'
 }
 
 export const PER_KIND_LIMIT = 3
@@ -72,6 +74,7 @@ export function buildTerritoryGraph(
   evidence: EvidenceLite[],
   maxColumns = 3,
   entities: TerritoryEntity[] = [],
+  territoryLinks: TerritoryLink[] = [],
 ) {
   const ordered = [...missions].sort((a, b) =>
     GROUP_ORDER.indexOf(GROUP_OF_STATE[a.state]) - GROUP_ORDER.indexOf(GROUP_OF_STATE[b.state]) || a.title.localeCompare(b.title) || a.id.localeCompare(b.id))
@@ -92,7 +95,7 @@ export function buildTerritoryGraph(
     const row = Math.floor(index / entityCols)
     const col = index % entityCols
     nodes.push({
-      id: `${entity.kind}:${entity.id}`,
+      id: endpointNodeId('territory_node', entity.id),
       kind: entity.kind,
       missionId: '',
       entityId: entity.id,
@@ -155,10 +158,18 @@ export function buildTerritoryGraph(
       nodes.push({ id: `mission:${mission.id}`, kind: 'mission', missionId: mission.id, label: mission.title || 'Untitled mission', x: cx, y: cy, state: mission.state, detail: mission.finishLine })
       children.forEach((child, i) => {
         nodes.push({ id: child.id, kind: child.kind, missionId: mission.id, label: child.label, x: cx + offsets[i].x, y: cy + offsets[i].y })
-        edges.push({ from: `mission:${mission.id}`, to: child.id, label: child.edge, provenance: child.provenance })
+        edges.push({ from: `mission:${mission.id}`, to: child.id, label: child.edge, provenance: child.provenance, kind: 'saved' })
       })
     })
     rowTop += above + below + PAD
+  }
+
+  const nodeIds = new Set(nodes.map(node => node.id))
+  for (const link of territoryLinks) {
+    const from = endpointNodeId(link.fromKind, link.fromId)
+    const to = endpointNodeId(link.toKind, link.toId)
+    if (!nodeIds.has(from) || !nodeIds.has(to)) continue
+    edges.push({ from, to, label: link.relation, provenance: `territory_links · ${link.provenance}`, kind: 'relation' })
   }
 
   const missionWidth = Math.min(columns, Math.max(1, laid.length)) * colW

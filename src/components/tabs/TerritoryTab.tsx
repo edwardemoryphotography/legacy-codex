@@ -7,6 +7,8 @@ import TerritoryGraph from '@/components/TerritoryGraph'
 import { useBriefRunner } from '@/hooks/useBriefRunner'
 import { useMissionTerritory, type ReadState } from '@/hooks/useMissionTerritory'
 import { TERRITORY_NODES_READ_FAILED_COPY, useTerritoryNodes } from '@/hooks/useTerritoryNodes'
+import { useTerritoryWorkspace } from '@/hooks/useTerritoryWorkspace'
+import TerritoryWorkspacePanel from '@/components/TerritoryWorkspacePanel'
 import MissionBriefPanel, { BriefOutput, BRIEF_VISITOR_COPY } from '@/components/MissionBriefPanel'
 import { missionsToBriefContext } from '@/lib/dailyBrief'
 import {
@@ -50,6 +52,7 @@ const EMPTY_INPUT: TerritoryEntityInput = { kind: 'project', label: '', descript
 export default function TerritoryTab() {
   const { missions, loadError, actions, actionsRead, events, eventsRead, evidence, evidenceRead, links, linksRead, linksTruncated } = useMissionTerritory({ withEvents: true })
   const territory = useTerritoryNodes()
+  const workspace = useTerritoryWorkspace()
   const [view, setView] = useState<View>('map')
   const [lens, setLens] = useState<Lens>('all')
   const [openId, setOpenId] = useState<string | null>(null)
@@ -113,7 +116,7 @@ export default function TerritoryTab() {
       <SectionTitle>Territory</SectionTitle>
       <SectionSubtitle>
         Your saved missions and the projects, doctrine and constraints they live inside. Only what is saved is shown.
-        Missions can be opened; entities are named, not inferred.
+        Missions can be opened; entities are named, not inferred. Cross-entity connections appear only after you save them.
       </SectionSubtitle>
 
       {loadError && <HelperLine variant="error">{loadError}</HelperLine>}
@@ -167,6 +170,7 @@ export default function TerritoryTab() {
             )}
 
             {missions.length > 0 && <ActiveStateCard actionsRead={actionsRead} eventsRead={eventsRead} state={activeState(missions, actions, events)} />}
+            <TerritoryWorkspacePanel missions={missions} entities={entities} workspace={workspace} brief={brief} />
             {eventsRead === 'failed' && <HelperLine variant="error">{EVENTS_READ_FAILED_COPY}</HelperLine>}
 
             <div className="flex flex-wrap gap-2 mb-2">
@@ -203,7 +207,7 @@ export default function TerritoryTab() {
                 {linksTruncated && <HelperLine>{GRAPH_TRUNCATED_COPY}</HelperLine>}
                 {filteredMissions.length === 0 && filteredEntities.length === 0
                   ? <HelperLine>Nothing saved in this lens yet.</HelperLine>
-                  : <TerritoryGraph missions={filteredMissions} actions={actions} links={links} evidence={evidence} entities={filteredEntities} onOpen={selectMission} onOpenEntity={selectEntity} />}
+                  : <TerritoryGraph missions={filteredMissions} actions={actions} links={links} evidence={evidence} entities={filteredEntities} territoryLinks={workspace.links} onOpen={selectMission} onOpenEntity={selectEntity} />}
               </>
             )}
             {view === 'list' && (

@@ -70,13 +70,21 @@ describe('buildTerritoryGraph', () => {
     expect(g.nodes.filter(n => n.kind === 'project' || n.kind === 'doctrine' || n.kind === 'constraint')).toHaveLength(3)
     expect(g.nodes.filter(n => n.entityId).map(n => n.label)).toEqual(['Print studio', 'Preserve the lesson', 'Trader Joe\'s'])
     expect(g.edges).toEqual([])
-    expect(g.nodes.find(n => n.id === 'project:p1')?.y).toBeLessThan(g.nodes.find(n => n.id === 'mission:m1')!.y)
+    expect(g.nodes.find(n => n.id === 'node:p1')?.y).toBeLessThan(g.nodes.find(n => n.id === 'mission:m1')!.y)
     for (const a of g.nodes) for (const b of g.nodes) {
       if (a === b) continue
       const box = (n: (typeof g.nodes)[number]) => n.kind === 'mission' ? MISSION_BOX : n.entityId ? ENTITY_BOX : CHILD_BOX
       const overlap = Math.abs(a.x - b.x) < (box(a).w + box(b).w) / 2 && Math.abs(a.y - b.y) < (box(a).h + box(b).h) / 2
       expect(overlap, `${a.id} overlaps ${b.id}`).toBe(false)
     }
+  })
+
+  it('draws only saved cross-entity links as relation edges', () => {
+    const entities = [entity({ id: 'p1', label: 'Launch', kind: 'project' })]
+    const g = buildTerritoryGraph([mission()], [], [], [], 3, entities, [{
+      id: 'l1', fromKind: 'mission', fromId: 'm1', toKind: 'territory_node', toId: 'p1', relation: 'serves', provenance: 'person', createdAt: '2026-11-04T00:00:00Z',
+    }])
+    expect(g.edges).toEqual([{ from: 'mission:m1', to: 'node:p1', label: 'serves', provenance: 'territory_links · person', kind: 'relation' }])
   })
 
   it('can draw an entity-only territory without requiring a mission', () => {
