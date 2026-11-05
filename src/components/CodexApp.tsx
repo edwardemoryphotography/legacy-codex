@@ -26,26 +26,56 @@ interface Tab {
   label: string
 }
 
-const PRIMARY_TABS: Tab[] = [
-  { id: 'home',      label: 'Home' },
-  { id: 'mission',   label: 'Mission' },
-  { id: 'codex',     label: 'Codex' },
-  { id: 'territory', label: 'Territory' },
-  { id: 'controls',  label: 'Controls' },
+interface MenuSection {
+  title: string
+  ariaLabel: string
+  secondary?: boolean
+  tabs: Tab[]
+}
+
+const MENU_SECTIONS: MenuSection[] = [
+  {
+    title: 'Now',
+    ariaLabel: 'Primary loop',
+    tabs: [
+      { id: 'home',      label: 'Home' },
+      { id: 'mission',   label: 'Mission' },
+      { id: 'brief',     label: 'Brief' },
+    ],
+  },
+  {
+    title: 'Work',
+    ariaLabel: 'Projects and territory',
+    tabs: [
+      { id: 'codex',     label: 'Codex' },
+      { id: 'territory', label: 'Territory' },
+      { id: 'origin',    label: 'Origin Atlas' },
+    ],
+  },
+  {
+    title: 'History & Guides',
+    ariaLabel: 'Execution history and guides',
+    secondary: true,
+    tabs: [
+      { id: 'sprint-linker',        label: 'Sprint Linker' },
+      { id: 'resumption-log',       label: 'Resumption Log' },
+      { id: 'overview',             label: 'Overview' },
+      { id: 'protocols',            label: 'Protocols' },
+    ],
+  },
+  {
+    title: 'System & Controls',
+    ariaLabel: 'Controls and diagnostics',
+    secondary: true,
+    tabs: [
+      { id: 'controls',             label: 'Controls' },
+      { id: 'biometrics',           label: 'Biometrics' },
+      { id: 'constraint-validator', label: 'Constraint Validator' },
+    ],
+  },
 ]
 
-const SECONDARY_TABS: Tab[] = [
-  { id: 'brief',                label: 'Brief' },
-  { id: 'overview',             label: 'Overview' },
-  { id: 'protocols',            label: 'Protocols' },
-  { id: 'sprint-linker',        label: 'Sprint Linker' },
-  { id: 'resumption-log',       label: 'Resumption Log' },
-  { id: 'biometrics',           label: 'Biometrics' },
-  { id: 'constraint-validator', label: 'Constraint Validator' },
-  { id: 'origin',               label: 'Origin Atlas' },
-]
-
-const TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS]
+const TABS: Tab[] = MENU_SECTIONS.flatMap(section => section.tabs)
 
 // One menu, opened from the top-left button, holds every screen; Home is the
 // Codex Glass screen and the default (Eddie, 2026-10-30). Nothing else sits in
@@ -178,36 +208,23 @@ export default function CodexApp() {
           >
             <ThemeReview />
             <nav aria-label="Legacy Codex">
-              <div className="glass-menu-group" role="group" aria-label="Primary workspace">
-                <p className="glass-menu-heading">Workspace</p>
-                {PRIMARY_TABS.map(tab => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    data-menu-item
-                    aria-current={activeTab === tab.id ? 'page' : undefined}
-                    onClick={() => selectTab(tab.id)}
-                    className="glass-menu-item"
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-              <div className="glass-menu-group" role="group" aria-label="Reference and diagnostics">
-                <p className="glass-menu-heading">Reference &amp; diagnostics</p>
-                {SECONDARY_TABS.map(tab => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    data-menu-item
-                    aria-current={activeTab === tab.id ? 'page' : undefined}
-                    onClick={() => selectTab(tab.id)}
-                    className="glass-menu-item glass-menu-item-secondary"
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
+              {MENU_SECTIONS.map(section => (
+                <div key={section.title} className="glass-menu-group" role="group" aria-label={section.ariaLabel}>
+                  <p className="glass-menu-heading">{section.title}</p>
+                  {section.tabs.map(tab => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      data-menu-item
+                      aria-current={activeTab === tab.id ? 'page' : undefined}
+                      onClick={() => selectTab(tab.id)}
+                      className={`glass-menu-item ${section.secondary ? 'glass-menu-item-secondary' : ''}`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              ))}
             </nav>
           </div>
         </div>
