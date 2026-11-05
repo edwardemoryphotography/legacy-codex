@@ -1121,7 +1121,13 @@ export default function StrategicDelta({
                           : 'Save as my next action'}
                     </ActionBtn>
                   )}
-                  <ActionBtn disabled={recording || savingNextAction} onClick={() => void accept()}>Accept this move</ActionBtn>
+                  <ActionBtn
+                    variant={committableMission && !resumeActionId && onSaveNextAction && !matchingSavedAction && !isSavedActionInProgress ? 'secondary' : 'primary'}
+                    disabled={recording || savingNextAction}
+                    onClick={() => void accept()}
+                  >
+                    Accept this move
+                  </ActionBtn>
                   {savingNextAction && committableMission && (
                     <span className="sd-inline-progress" role="status">
                       Saving commitment to {committableMission.title}…
