@@ -187,3 +187,18 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), 0 12px 28px rgba(0, 0, 0, .3) !important;
 }
 .glass-chip.glass.home-access-primary::before { display: none; }
+
+/* The access primary stays a light, legible control under every fallback. */
+:root[data-glass-opaque="true"] .glass-chip.glass.home-access-primary,
+:root[data-high-contrast="true"] .glass-chip.glass.home-access-primary {
+  background: var(--g-mist) !important;
+  color: var(--g-ink) !important;
+  border-color: rgba(255, 255, 255, .92) !important;
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .glass-chip.glass.home-access-primary {
+    background: var(--g-mist) !important;
+    color: var(--g-ink) !important;
+    border-color: rgba(255, 255, 255, .92) !important;
+  }
+}
