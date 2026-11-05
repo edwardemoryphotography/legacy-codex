@@ -177,3 +177,13 @@
 
 .mission-conversation-bar { display: flex; justify-content: flex-end; padding: 0 0 10px; }
 .mission-conversation-bar .glass-chip { min-height: 44px; }
+
+
+/* The access gate's one primary action must stay legible over the clear glass. */
+.glass-chip.glass.home-access-primary {
+  background: var(--g-mist) !important;
+  color: var(--g-ink) !important;
+  border-color: rgba(255, 255, 255, .88) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), 0 12px 28px rgba(0, 0, 0, .3) !important;
+}
+.glass-chip.glass.home-access-primary::before { display: none; }
