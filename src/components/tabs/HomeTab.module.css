@@ -164,7 +164,22 @@
 .home :global(.glass-hero) { scrollbar-width: none; }
 .home :global(.glass-hero)::-webkit-scrollbar { display: none; }
 
-@media (max-width: 700px) { .home:global(.glass-home[data-reply="true"]) :global(.glass-orb-wrap) { display: none; } }
+@media (max-width: 700px) {
+  .home:global(.glass-home[data-reply="true"]) :global(.glass-orb-wrap) {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 -4px;
+  }
+  .home:global(.glass-home[data-reply="true"]) :global(.glass-orb-wrap .sd-field-slot) {
+    width: 32px;
+    height: 32px;
+  }
+  .home:global(.glass-home[data-reply="true"]) :global(.glass-orb-state) {
+    display: none;
+  }
+}
 
 /* First-use and capability gate: one primary action, no disabled chat shell. */
 .accessGate {
