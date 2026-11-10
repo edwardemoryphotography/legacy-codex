@@ -839,6 +839,33 @@ function linkSource(source: BoomerangEvidence): string {
   return source.url ? `[${source.label}](${source.url})` : `${source.label} (not republished)`
 }
 
+// A single case becomes one navigable, searchable existing Codex child entry.
+export function renderBoomerangRecord(record: BoomerangCase): string {
+  return [
+    `# ${record.id} — ${record.title}`,
+    '',
+    `**Era:** ${record.era}`,
+    `**Documentary status:** ${record.recordStatus}`,
+    '**Independent future lesson transfer:** not demonstrated',
+    '',
+    `**Source:** ${record.sourceDomain}`,
+    '',
+    `**Target:** ${record.targetDomain}`,
+    '',
+    `**Shared structure:** ${record.sharedStructure}`,
+    '',
+    `**Reasoning bridge:** ${record.reasoningBridge}`,
+    '',
+    `**Practical consequence:** ${record.practicalConsequence}`,
+    '',
+    `**Evidence still required:** ${record.evidenceRequired}`,
+    '',
+    `**Sources:** ${record.sources.map(linkSource).join(' · ')}`,
+    '',
+    'A historical record is not a human-confirmed account lesson. Apply the existing Project Review workflow before treating this as transferable operating guidance.',
+  ].join('\\n')
+}
+
 // Searchable existing Codex → Root entry, never an invented learning-record write.
 export function renderBoomerangCasebook(): string {
   return [
