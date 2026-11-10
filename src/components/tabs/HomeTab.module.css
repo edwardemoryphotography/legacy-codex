@@ -226,3 +226,7 @@
 }
 :root[data-glass-opaque="true"] .accessGate { background: var(--g-ink); backdrop-filter: none; -webkit-backdrop-filter: none; }
 @media (prefers-reduced-transparency: reduce) { .accessGate { background: var(--g-ink); backdrop-filter: none; -webkit-backdrop-filter: none; } }
+
+
+/* Keep the focused textbox at the bottom of the visible phone viewport. */
+:global(:root[data-home-composing="true"]) .home .context { display: none; }

@@ -92,3 +92,28 @@
 :root[data-home-keyboard="true"] .glass-home .glass-home-links { display: none; }
 
 .codex-shell[data-screen="home"] .glass-menu { left: 12px; }
+
+
+/* Home is an app-sized fixed shell. Prevent iOS Safari/PWA body scrolling
+   the shell away from its composer while the system keyboard is visible. */
+:root[data-home-viewport="true"],
+:root[data-home-viewport="true"] body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* Compact before the keyboard animation begins. CodexLiveVoice is the first
+   child in the dock and stays mounted; the focused textarea is the interaction
+   that needs screen space. The Send and microphone buttons remain reachable. */
+:root[data-home-composing="true"] .glass-home .glass-hero,
+:root[data-home-composing="true"] .glass-home .glass-home-links,
+:root[data-home-composing="true"] .glass-home .glass-dock > :first-child,
+:root[data-home-composing="true"] .glass-home .glass-dock > .home-runtime-note,
+:root[data-home-composing="true"] .glass-home .glass-dock > fieldset {
+  display: none !important;
+}
+:root[data-home-composing="true"] .glass-home .glass-dock {
+  margin-top: auto;
+  padding-bottom: 8px;
+}
