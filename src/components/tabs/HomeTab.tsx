@@ -83,7 +83,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const sending = useRef<symbol | null>(null)
   const question = useRef('')
   const input = useRef<HTMLTextAreaElement>(null)
-  const toolSheet = useRef<HTMLDivElement>(null)
+  const toolSheet = useRef<HTMLDialogElement>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [focusOpen, setFocusOpen] = useState(false)
   const [responseOpen, setResponseOpen] = useState(false)
@@ -166,41 +166,13 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const busy = brief.status === 'running'
 
 
+  // Native modal dialogs are promoted to the browser's top layer, outside the
+  // fixed Home shell and all of its overflow/transform clipping ancestors.
   useEffect(() => {
-    if (!sheetOpen) return
-    const sheet = toolSheet.current
-    const viewport = window.visualViewport
-    if (!sheet) return
-    const boundSheet = () => {
-      const dockTop = sheet.parentElement?.getBoundingClientRect().top ?? window.innerHeight
-      const visibleTop = viewport?.offsetTop ?? 0
-      // An embedded iOS browser can have considerably less room above the
-      // composer than its layout viewport reports. Keep the FIRST tool visible
-      // and scroll the rest inside the sheet rather than clipping it under chrome.
-      const available = Math.max(128, Math.min(
-        380,
-        (viewport?.height ?? window.innerHeight) - 100,
-        dockTop - visibleTop - 12,
-      ))
-      sheet.style.maxHeight = String(available) + 'px'
-    }
-    boundSheet()
-    sheet.scrollTop = 0
-    viewport?.addEventListener('resize', boundSheet)
-    viewport?.addEventListener('scroll', boundSheet)
-    window.addEventListener('resize', boundSheet)
-    return () => {
-      viewport?.removeEventListener('resize', boundSheet)
-      viewport?.removeEventListener('scroll', boundSheet)
-      window.removeEventListener('resize', boundSheet)
-    }
-  }, [sheetOpen])
-
-  useEffect(() => {
-    if (!sheetOpen) return
-    const onKey = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') setSheetOpen(false) }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    const dialog = toolSheet.current
+    if (!dialog) return
+    if (sheetOpen && !dialog.open) dialog.showModal()
+    else if (!sheetOpen && dialog.open) dialog.close()
   }, [sheetOpen])
 
   const missionCount = missions?.length ?? 0
@@ -243,9 +215,15 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   // explains its reason beside the input instead of silently consuming Enter.
   const ready = access.state === 'owner' && access.configured && !busy && !voice.active && !over && (noTextNeeded || text.trim() !== '')
 
+  const closeTools = () => {
+    setSheetOpen(false)
+    if (toolSheet.current?.open) toolSheet.current.close()
+  }
+
   const pick = (next: Tool) => {
     setTool(next)
-    setSheetOpen(false)
+    // Close the native modal before focusing its inert background textarea.
+    closeTools()
     input.current?.focus()
   }
 
@@ -603,7 +581,19 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
             {brief.visitor && <button type="button" className="glass-chip glass" style={{ minHeight: 44, marginTop: 8 }} onClick={() => onNavigate('controls')}>Sign in to your existing account</button>}
           </div>
         )}
-        <div ref={toolSheet} className="glass-sheet glass" style={{ bottom: 'calc(100% + 8px)' }} id="glass-tools" role="menu" aria-label="Tools" data-open={sheetOpen ? 'true' : undefined} hidden={!sheetOpen}>
+        <dialog
+          ref={toolSheet}
+          className={styles.toolsDialog}
+          aria-label="Codex tools"
+          onCancel={() => setSheetOpen(false)}
+          onClose={() => setSheetOpen(false)}
+          onClick={event => { if (event.target === event.currentTarget) closeTools() }}
+        >
+          <div className={styles.toolsHeader}>
+            <span>Codex tools</span>
+            <button type="button" aria-label="Close tools" onClick={closeTools}>✕</button>
+          </div>
+          <div className={styles.toolsList} id="glass-tools" role="menu" aria-label="Tools">
           <button type="button" role="menuitem" onClick={() => pick('ask')}>Ask Codex</button>
           <button type="button" role="menuitem" onClick={() => pick('brief')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4" /></svg>Daily Brief
@@ -611,13 +601,14 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
           <button type="button" role="menuitem" onClick={() => pick('triage')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" /></svg>Triage
           </button>
-          <button type="button" role="menuitem" onClick={() => { setSheetOpen(false); onNavigate('mission') }}>
+          <button type="button" role="menuitem" onClick={() => { closeTools(); onNavigate('mission') }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14" /></svg>Upload a file
           </button>
           <button type="button" role="menuitem" onClick={() => pick('prompt')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16l-1 4zM14 6l3 3" /></svg>Help me write a prompt
           </button>
-        </div>
+          </div>
+        </dialog>
         {tool && <p className="glass-note">{noTextNeeded ? `${TOOL_LABEL[tool]} uses saved missions. No question is needed.` : tool === 'brief' || tool === 'triage' ? 'Your typed text will be sent to Ask Codex instead.' : tool === 'prompt' ? 'Your text will be included in Prompt help.' : 'Your text will be sent to Ask Codex.'}</p>}
         {tool && (
           <button type="button" className="glass-tool-tag" style={{ marginBottom: 8 }} aria-label={`Remove ${TOOL_LABEL[tool]}`} onClick={() => { setTool(null); setSubmitNotice(''); input.current?.focus() }}>

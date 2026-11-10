@@ -163,6 +163,35 @@ describe('HomeTab never cuts a question silently', () => {
   })
 })
 
+it('opens all five Codex tools in a native top-layer dialog and closes cleanly', () => {
+  render(<HomeTab onNavigate={() => {}} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Open tools' }))
+  const dialog = screen.getByRole('dialog', { name: 'Codex tools' })
+  expect(dialog.tagName).toBe('DIALOG')
+  expect(dialog).toHaveAttribute('open')
+  const menu = within(dialog).getByRole('menu', { name: 'Tools' })
+  expect(within(menu).getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual([
+    'Ask Codex',
+    'Daily Brief',
+    'Triage',
+    'Upload a file',
+    'Help me write a prompt',
+  ])
+  expect(screen.getByRole('button', { name: 'Open tools' })).toHaveAttribute('aria-expanded', 'true')
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Close tools' }))
+  expect(screen.queryByRole('dialog', { name: 'Codex tools' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Open tools' })).toHaveAttribute('aria-expanded', 'false')
+})
+
+it('closes the native tools dialog before restoring composer focus on selection', () => {
+  render(<HomeTab onNavigate={() => {}} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Open tools' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Daily Brief' }))
+  expect(screen.queryByRole('dialog', { name: 'Codex tools' })).toBeNull()
+  expect(screen.getByRole('textbox', { name: 'Ask Codex' })).toHaveFocus()
+  expect(screen.getByRole('button', { name: 'Remove Daily Brief' })).toBeInTheDocument()
+})
+
 describe('HomeTab send arrow', () => {
   it('sends a question with Enter even when there are no saved missions', () => {
     missions = []
