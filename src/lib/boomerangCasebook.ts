@@ -863,7 +863,7 @@ export function renderBoomerangRecord(record: BoomerangCase): string {
     `**Sources:** ${record.sources.map(linkSource).join(' · ')}`,
     '',
     'A historical record is not a human-confirmed account lesson. Apply the existing Project Review workflow before treating this as transferable operating guidance.',
-  ].join('\\n')
+  ].join('\n')
 }
 
 // Searchable existing Codex → Root entry, never an invented learning-record write.
