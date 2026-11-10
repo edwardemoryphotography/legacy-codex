@@ -12,7 +12,8 @@ describe('historical Boomerang Casebook provenance contract', () => {
 
   it('requires a full structural bridge, limits and at least one traceable source', () => {
     for (const record of BOOMERANG_CASES) {
-      for (const field of ['title', 'era', 'sourceDomain', 'targetDomain', 'sharedStructure',
+      expect(record.era).toMatch(/^20\d{2}-/)
+      for (const field of ['title', 'sourceDomain', 'targetDomain', 'sharedStructure',
         'reasoningBridge', 'practicalConsequence', 'evidenceRequired'] as const) {
         expect(record[field].trim().length, `${record.id} missing ${field}`).toBeGreaterThan(8)
       }
