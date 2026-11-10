@@ -101,31 +101,50 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     }
   }, [brief.status, brief.output, brief.outputLabel, brief.providerLabel, update])
 
-  // Follow viewport size changes for the iOS keyboard, not Safari toolbar scroll.
-  // visualViewport.offsetTop can change during browser-chrome scrolling while
-  // the user is not typing. Applying it to the fixed Home shell made the orb
-  // and composer slide up and down with a finger swipe.
+  // iOS can shrink BOTH innerHeight and visualViewport when its keyboard opens.
+  // Comparing only those two misses the keyboard; bulky voice controls can
+  // then push the focused textarea out of the constrained Home shell.
+  // Compact on focus and follow visualViewport scroll as well as resize.
   useEffect(() => {
     const viewport = window.visualViewport
     const root = document.documentElement
+    const field = input.current
+    let unfocusedHeight = Math.max(window.innerHeight, viewport?.height ?? 0)
+    if (!missionView) root.dataset.homeViewport = 'true'
     const resize = () => {
-      const keyboardOpen = Boolean(viewport && viewport.height + 80 < window.innerHeight)
-      root.style.setProperty('--codex-viewport-height', `${viewport?.height ?? window.innerHeight}px`)
-      root.style.setProperty('--codex-viewport-top', keyboardOpen ? `${viewport?.offsetTop ?? 0}px` : '0px')
+      const visibleHeight = viewport?.height ?? window.innerHeight
+      const composing = document.activeElement === field
+      if (!composing) unfocusedHeight = Math.max(window.innerHeight, visibleHeight)
+      const keyboardOpen = composing &&
+        (unfocusedHeight - visibleHeight > 80 || window.innerHeight - visibleHeight > 80)
+      root.style.setProperty('--codex-viewport-height', String(visibleHeight) + 'px')
+      root.style.setProperty('--codex-viewport-top', composing ? String(viewport?.offsetTop ?? 0) + 'px' : '0px')
+      if (composing) root.dataset.homeComposing = 'true'
+      else delete root.dataset.homeComposing
       if (keyboardOpen) root.dataset.homeKeyboard = 'true'
       else delete root.dataset.homeKeyboard
     }
     resize()
+    field?.addEventListener('focus', resize)
+    field?.addEventListener('blur', resize)
     viewport?.addEventListener('resize', resize)
+    viewport?.addEventListener('scroll', resize)
     window.addEventListener('resize', resize)
+    window.addEventListener('orientationchange', resize)
     return () => {
+      field?.removeEventListener('focus', resize)
+      field?.removeEventListener('blur', resize)
       viewport?.removeEventListener('resize', resize)
+      viewport?.removeEventListener('scroll', resize)
       window.removeEventListener('resize', resize)
+      window.removeEventListener('orientationchange', resize)
       root.style.removeProperty('--codex-viewport-height')
       root.style.removeProperty('--codex-viewport-top')
+      delete root.dataset.homeViewport
+      delete root.dataset.homeComposing
       delete root.dataset.homeKeyboard
     }
-  }, [])
+  }, [missionView])
 
   useEffect(() => {
     const field = input.current
@@ -592,6 +611,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
             value={text}
             onChange={event => { const value = event.target.value; setText(value); setComposerExpanded(value.includes('\n') || value.length > 80); setSubmitNotice('') }}
             onKeyDown={onKeyDown}
+            onFocus={() => setSheetOpen(false)}
             placeholder={noTextNeeded ? `${TOOL_LABEL[tool!]} · or type a question` : "Ask Codex"}
             aria-label="Ask Codex"
             aria-describedby={sendStatus || voice.status ? 'home-submit-status home-voice-status' : undefined}

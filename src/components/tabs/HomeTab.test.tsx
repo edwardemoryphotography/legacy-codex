@@ -376,8 +376,12 @@ it('tracks a small iPhone visual viewport and keyboard resizing without moving t
   const { unmount, container } = render(<HomeTab onNavigate={() => {}} />)
   try {
     expect(document.documentElement.style.getPropertyValue('--codex-viewport-height')).toBe('664px')
+    const field = screen.getByRole('textbox', { name: 'Ask Codex' })
+    act(() => field.focus())
+    expect(document.documentElement.dataset.homeComposing).toBe('true')
     viewport.height = 340; viewport.offsetTop = 18
     act(() => viewport.dispatchEvent(new Event('resize')))
+    expect(document.documentElement.dataset.homeKeyboard).toBe('true')
     expect(document.documentElement.style.getPropertyValue('--codex-viewport-height')).toBe('340px')
     expect(document.documentElement.style.getPropertyValue('--codex-viewport-top')).toBe('18px')
     expect(container.querySelector('.glass-dock')?.closest('.glass-results')).toBeNull()
@@ -386,6 +390,44 @@ it('tracks a small iPhone visual viewport and keyboard resizing without moving t
   } finally {
     if (previous) Object.defineProperty(window, 'visualViewport', previous)
     else Reflect.deleteProperty(window, 'visualViewport')
+  }
+})
+
+it('keeps the composer attached when iOS shrinks both innerHeight and visualViewport', () => {
+  const previous = Object.getOwnPropertyDescriptor(window, 'visualViewport')
+  const previousInnerHeight = Object.getOwnPropertyDescriptor(window, 'innerHeight')
+  const viewport = Object.assign(new EventTarget(), { height: 740, offsetTop: 0 })
+  Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport })
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: 740 })
+  const { unmount } = render(<HomeTab onNavigate={() => {}} />)
+  try {
+    const field = screen.getByRole('textbox', { name: 'Ask Codex' })
+    fireEvent.click(screen.getByRole('button', { name: 'Open tools' }))
+    expect(screen.getByRole('menu', { name: 'Tools' })).toBeInTheDocument()
+    act(() => field.focus())
+    expect(document.documentElement.dataset.homeComposing).toBe('true')
+    expect(screen.queryByRole('menu', { name: 'Tools' })).toBeNull()
+    viewport.height = 362
+    viewport.offsetTop = 46
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 362 })
+    act(() => viewport.dispatchEvent(new Event('resize')))
+    expect(document.documentElement.dataset.homeKeyboard).toBe('true')
+    expect(document.documentElement.style.getPropertyValue('--codex-viewport-height')).toBe('362px')
+    expect(document.documentElement.style.getPropertyValue('--codex-viewport-top')).toBe('46px')
+    viewport.offsetTop = 54
+    act(() => viewport.dispatchEvent(new Event('scroll')))
+    expect(document.documentElement.style.getPropertyValue('--codex-viewport-top')).toBe('54px')
+    expect(field).toBeInTheDocument()
+    act(() => field.blur())
+    expect(document.documentElement.dataset.homeComposing).toBeUndefined()
+    expect(document.documentElement.dataset.homeKeyboard).toBeUndefined()
+    unmount()
+    expect(document.documentElement.dataset.homeViewport).toBeUndefined()
+  } finally {
+    if (previous) Object.defineProperty(window, 'visualViewport', previous)
+    else Reflect.deleteProperty(window, 'visualViewport')
+    if (previousInnerHeight) Object.defineProperty(window, 'innerHeight', previousInnerHeight)
+    else Reflect.deleteProperty(window, 'innerHeight')
   }
 })
 
