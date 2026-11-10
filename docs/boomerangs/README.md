@@ -43,7 +43,7 @@ The **October 30 retrospective mentioned a catalog of 18 repository boomerangs**
 
 ## Real incidents as candidates (added November 10)
 
-A real incident with public sources can now be proposed without a model review: add a record to `src/lib/incidentCandidates.ts` (attempts with dated source links, contradictions, competing explanations, exceptions, six evidence layers). The owner sees it in Mission under “Lessons from real incidents” and can edit, confirm for one project or the account, reject, or later retire it. Confirmation goes through `/api/delta-lessons` into the same account-scoped ledger; sources and mechanism come from the repository record, never the client. Nothing is confirmed by adding a record. Coverage and disputed readings are in [COVERAGE.md](./COVERAGE.md).
+A real incident with public sources can now be proposed without a model review, but only by hand: a developer adds a record to `src/lib/incidentCandidates.ts` (attempts with dated source links, contradictions, competing explanations, exceptions, six evidence layers). The owner sees it in Mission under “Lessons from real incidents” and can edit, confirm for one project or the account, reject, or later retire it. Confirmation goes through `/api/delta-lessons` into the same account-scoped ledger; sources and mechanism come from the repository record, never the client. Nothing is confirmed by adding a record. Coverage and disputed readings are in [COVERAGE.md](./COVERAGE.md).
 
 ## Boundaries and follow-up
 

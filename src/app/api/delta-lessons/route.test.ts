@@ -1,7 +1,10 @@
 /** @vitest-environment node */
-// Contract checks for the incident-candidate gate. The in-memory ledger below
-// stands in for the database protocol only; it is not account history and
-// proves nothing about a real owner confirmation.
+// TEST-ONLY SIMULATION. Nothing in this file is evidence of learning, of an
+// owner confirmation, or of production behaviour. The mission id is made up,
+// sign-in is stubbed, and the "ledger" is an array that imitates one database
+// rule (unique user + idempotency key). It checks only that the route's own
+// branching is self-consistent. Evidence from real sources lives in
+// src/lib/incidentSources.real.test.ts and docs/boomerangs/COVERAGE.md.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { INCIDENT_CANDIDATES } from '@/lib/incidentCandidates'
@@ -39,14 +42,15 @@ vi.mock('@/lib/projectReviewStore', () => ({ cachedProjectReview: vi.fn(), proje
 
 import { GET, POST } from './route'
 
-const MISSION = '22222222-2222-4222-8222-222222222222'
+const MISSION = '22222222-2222-4222-8222-222222222222' // made up; no such mission exists anywhere
+const OTHER = '33333333-3333-4333-8333-333333333333' // made up
 const candidate = INCIDENT_CANDIDATES[0]
 const words = { rule: candidate.proposedRule, whenToApply: candidate.whenToApply, exceptions: candidate.exceptions, scope: 'account' }
 const post = (body: object) => POST(new NextRequest('https://legacy-codex.vercel.app/api/delta-lessons', {
   method: 'POST', headers: { Authorization: 'Bearer token', 'Content-Type': 'application/json' }, body: JSON.stringify(body) }))
 const state = async () => (await (await GET(new NextRequest('https://legacy-codex.vercel.app/api/delta-lessons', { headers: { Authorization: 'Bearer token' } }))).json()).candidates[0]
 
-describe('/api/delta-lessons incident candidates', () => {
+describe('SIMULATION (not evidence): /api/delta-lessons incident branching', () => {
   beforeEach(() => {
     ledger.missions = [{ id: MISSION, user_id: 'owner' }]
     ledger.mission_events = []
@@ -86,13 +90,36 @@ describe('/api/delta-lessons incident candidates', () => {
     expect(await state()).toMatchObject({ state: 'confirmed' })
   })
 
-  it('keeps history when a rule is retired or a candidate is rejected', async () => {
+  it('keeps history, and lets a retired rule be confirmed again in the same words', async () => {
     await post({ action: 'confirm_incident', candidateId: 'IC-001', missionId: MISSION, ...words })
     const lessonId = (await state()).lessonId
+    expect((await post({ action: 'reject_incident', candidateId: 'IC-001', missionId: MISSION })).status).toBe(409)
     expect((await post({ action: 'retire', lessonId })).status).toBe(200)
-    expect(await state()).toMatchObject({ state: 'retired', lessonId: null })
+    expect(await state()).toMatchObject({ state: 'retired', lessonId: null, generation: 1 })
     expect((await post({ action: 'reject_incident', candidateId: 'IC-001', missionId: MISSION, reason: 'Two attempts is too few.' })).status).toBe(200)
     expect(await state()).toMatchObject({ state: 'rejected' })
-    expect(ledger.mission_events.map(row => row.type)).toEqual(['delta_lesson_confirmed', 'delta_lesson_retired', 'delta_lesson_candidate_rejected'])
+    expect((await post({ action: 'confirm_incident', candidateId: 'IC-001', missionId: MISSION, ...words })).status).toBe(200)
+    expect(await state()).toMatchObject({ state: 'confirmed', generation: 2 })
+    expect(ledger.mission_events.map(row => row.type)).toEqual(['delta_lesson_confirmed', 'delta_lesson_retired', 'delta_lesson_candidate_rejected', 'delta_lesson_confirmed'])
+    const [first, , , second] = ledger.mission_events.map(row => JSON.parse(row.detail as string))
+    expect(second.rule).toBe(first.rule)
+  })
+
+  it('lets only one of two simultaneous confirmations with different words or missions stand', async () => {
+    ledger.missions.push({ id: OTHER, user_id: 'owner' })
+    const results = await Promise.all([
+      post({ action: 'confirm_incident', candidateId: 'IC-001', missionId: MISSION, ...words }),
+      post({ action: 'confirm_incident', candidateId: 'IC-001', missionId: MISSION, ...words, rule: 'Different words.' }),
+      post({ action: 'confirm_incident', candidateId: 'IC-001', missionId: OTHER, ...words }),
+    ])
+    expect(results.map(result => result.status).sort()).toEqual([200, 409, 409])
+    expect(ledger.mission_events.filter(row => row.type === 'delta_lesson_confirmed')).toHaveLength(1)
+  })
+
+  it('keeps one account’s confirmation out of another account’s state', async () => {
+    await post({ action: 'confirm_incident', candidateId: 'IC-001', missionId: MISSION, ...words })
+    vi.stubEnv('DELTA_OPERATION_ALLOWED_USER_ID', 'second')
+    mocks.verifyAuth.mockResolvedValue({ data: { userClaims: { id: 'second' } }, error: null })
+    expect(await state()).toMatchObject({ state: 'proposed', generation: 0 })
   })
 })

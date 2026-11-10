@@ -13,26 +13,31 @@ type Client = ReturnType<typeof projectUserClient>
 
 // Derived from the append-only ledger on every read. A candidate that was
 // never answered stays "proposed"; nothing is stored to make it look decided.
+// `generation` is how many times this account has confirmed the candidate. It
+// names the single slot the next confirmation or rejection may occupy.
 async function candidateState(client: Client, userId: string, candidate: IncidentCandidate): Promise<CandidateState> {
   const confirmed = await client.from('mission_events').select('id,created_at').eq('user_id', userId)
     .eq('type', 'delta_lesson_confirmed').like('idempotency_key', `lesson:incident:${candidate.id}:%`)
     .order('created_at', { ascending: false }).limit(50)
   if (confirmed.error) throw new Error('Could not read candidate confirmations.')
   const rows = confirmed.data ?? []
+  // Never guess a slot from a clipped read.
+  if (rows.length >= 50) throw new Error('Too many confirmations to derive a slot.')
+  const generation = rows.length
   if (rows.length) {
     const retired = await client.from('mission_events').select('idempotency_key').eq('user_id', userId)
       .eq('type', 'delta_lesson_retired').in('idempotency_key', rows.map(row => `lesson:retire:${row.id}`))
     if (retired.error) throw new Error('Could not read candidate retirements.')
     const inactive = new Set((retired.data ?? []).map(row => row.idempotency_key))
     const active = rows.find(row => !inactive.has(`lesson:retire:${row.id}`))
-    if (active) return { id: candidate.id, state: 'confirmed', lessonId: active.id, at: active.created_at }
+    if (active) return { id: candidate.id, state: 'confirmed', lessonId: active.id, at: active.created_at, generation }
   }
   const rejected = await client.from('mission_events').select('created_at').eq('user_id', userId)
-    .eq('type', 'delta_lesson_candidate_rejected').eq('idempotency_key', `lesson:incident-reject:${candidate.id}`).maybeSingle()
+    .eq('type', 'delta_lesson_candidate_rejected').eq('idempotency_key', `lesson:incident-reject:${candidate.id}:g${generation}`).maybeSingle()
   if (rejected.error) throw new Error('Could not read candidate rejections.')
-  if (rejected.data) return { id: candidate.id, state: 'rejected', lessonId: null, at: rejected.data.created_at }
-  return rows.length ? { id: candidate.id, state: 'retired', lessonId: null, at: rows[0].created_at }
-    : { id: candidate.id, state: 'proposed', lessonId: null, at: null }
+  if (rejected.data) return { id: candidate.id, state: 'rejected', lessonId: null, at: rejected.data.created_at, generation }
+  return rows.length ? { id: candidate.id, state: 'retired', lessonId: null, at: rows[0].created_at, generation }
+    : { id: candidate.id, state: 'proposed', lessonId: null, at: null, generation }
 }
 
 // Owner-only read of where each real incident candidate stands. No model call.
@@ -78,10 +83,12 @@ export async function POST(req: NextRequest) {
       const mission = await client.from('missions').select('id').eq('id', body.missionId).eq('user_id', owner.userId).maybeSingle()
       if (mission.error) throw new Error('Could not confirm mission ownership.')
       if (!mission.data) return NextResponse.json({ error: 'Choose one of your saved missions.' }, { status: 404 })
+      const state = await candidateState(client, owner.userId, candidate)
       if (body.action === 'reject_incident') {
         if (body.reason !== undefined && (typeof body.reason !== 'string' || body.reason.length > 500)) return NextResponse.json({ error: 'Keep the reason under 500 characters.' }, { status: 400 })
+        if (state.state === 'confirmed') return NextResponse.json({ error: 'This incident has an active rule. Stop using it before rejecting the candidate.' }, { status: 409 })
         const saved = await client.from('mission_events').insert({ user_id: owner.userId, mission_id: body.missionId, type: 'delta_lesson_candidate_rejected',
-          detail: JSON.stringify({ candidateId: candidate.id, reason: typeof body.reason === 'string' ? body.reason.trim() : '' }), idempotency_key: `lesson:incident-reject:${candidate.id}` })
+          detail: JSON.stringify({ candidateId: candidate.id, reason: typeof body.reason === 'string' ? body.reason.trim() : '' }), idempotency_key: `lesson:incident-reject:${candidate.id}:g${state.generation}` })
         if (saved.error && saved.error.code !== '23505') throw new Error('Candidate rejection failed.')
         return NextResponse.json({ rejected: true })
       }
@@ -91,23 +98,33 @@ export async function POST(req: NextRequest) {
           !['mission', 'account'].includes(body.scope as string)) {
         return NextResponse.json({ error: 'Name the rule, when it applies, when it does not, and its scope.' }, { status: 400 })
       }
-      const words = { rule: body.rule.trim(), whenToApply: body.whenToApply.trim(), exceptions: body.exceptions.trim(), scope: body.scope }
-      const key = `lesson:incident:${candidate.id}:${createHash('sha256').update(JSON.stringify({ missionId: body.missionId, ...words })).digest('hex')}`
-      const state = await candidateState(client, owner.userId, candidate)
+      const words = { rule: body.rule.trim(), whenToApply: body.whenToApply.trim(), exceptions: body.exceptions.trim(), scope: body.scope as string }
+      // A retried identical request is acknowledged; anything else must not stack.
+      const sameAs = async (column: 'id' | 'idempotency_key', value: string) => {
+        const row = await client.from('mission_events').select('mission_id,detail').eq('user_id', owner.userId)
+          .eq('type', 'delta_lesson_confirmed').eq(column, value).maybeSingle()
+        if (row.error || !row.data) throw new Error('Could not read the active confirmation.')
+        let saved: Record<string, unknown> = {}
+        try { saved = JSON.parse(row.data.detail ?? '{}') } catch { /* unreadable detail never matches */ }
+        return row.data.mission_id === body.missionId && (['rule', 'whenToApply', 'exceptions', 'scope'] as const).every(field => saved[field] === words[field])
+      }
       if (state.state === 'confirmed') {
-        const same = await client.from('mission_events').select('id').eq('user_id', owner.userId).eq('idempotency_key', key).maybeSingle()
-        if (same.error) throw new Error('Could not check lesson confirmation.')
-        // One active rule per incident: a second wording must replace, not stack.
-        return same.data?.id === state.lessonId ? NextResponse.json({ confirmed: true })
+        return await sameAs('id', state.lessonId!) ? NextResponse.json({ confirmed: true })
           : NextResponse.json({ error: 'This incident already has an active rule. Stop using it before confirming different words.' }, { status: 409 })
       }
+      // One slot per confirmation generation, whatever the wording. The ledger's
+      // unique (user_id, idempotency_key) index then lets exactly one concurrent
+      // confirmation win, and a retired rule can be confirmed again unchanged.
+      const key = `lesson:incident:${candidate.id}:g${state.generation}`
       const sourceRefs = candidate.sources.map(source => ({ id: `incident:${candidate.id}:${source.id}`, label: source.label, status: source.status, url: source.url }))
       const saved = await client.from('mission_events').insert({ user_id: owner.userId, mission_id: body.missionId, type: 'delta_lesson_confirmed', idempotency_key: key,
         detail: JSON.stringify({ ...words, origin: 'incident', candidateId: candidate.id, mechanism: candidate.mechanism,
           ownerEdited: words.rule !== candidate.proposedRule || words.whenToApply !== candidate.whenToApply || words.exceptions !== candidate.exceptions,
           reviewedAt: new Date().toISOString(), sourceIds: sourceRefs.map(ref => ref.id), sourceRefs }) })
-      // A retired identical wording keeps its old row; re-confirming it needs new words.
-      if (saved.error?.code === '23505') return NextResponse.json({ error: 'These exact words were confirmed and retired before. Change the wording to confirm again.' }, { status: 409 })
+      if (saved.error?.code === '23505') {
+        return await sameAs('idempotency_key', key) ? NextResponse.json({ confirmed: true })
+          : NextResponse.json({ error: 'Another confirmation of this incident was recorded first. Reload to see the active rule.' }, { status: 409 })
+      }
       if (saved.error) throw new Error('Incident lesson confirmation failed.')
       return NextResponse.json({ confirmed: true })
     }

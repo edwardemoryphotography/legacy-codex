@@ -39,7 +39,7 @@ export default function IncidentLessons({ missions, ready, onLessonWrite }: { mi
       <p>Each one is reconstructed from linked sources. It changes nothing until you confirm it, and you can correct the words first.</p>
     </div>
     {INCIDENT_CANDIDATES.map(candidate => <Candidate key={candidate.id} candidate={candidate} missions={missions}
-      state={states.find(item => item.id === candidate.id) ?? { id: candidate.id, state: 'proposed', lessonId: null, at: null }}
+      state={states.find(item => item.id === candidate.id) ?? { id: candidate.id, state: 'proposed', lessonId: null, at: null, generation: 0 }}
       onWrite={() => { onLessonWrite(); setRevision(value => value + 1) }} />)}
   </section>
 }
@@ -49,8 +49,8 @@ function Candidate({ candidate, state, missions, onWrite }: { candidate: Inciden
   const [condition, setCondition] = useState(candidate.whenToApply)
   const [exceptions, setExceptions] = useState(candidate.exceptions)
   const [chosen, setMissionId] = useState('')
-  // Missions can arrive after first render; never submit a stale or foreign id.
-  const missionId = missions.some(mission => mission.id === chosen) ? chosen : missions.find(mission => mission.state === 'primary')?.id ?? missions[0]?.id ?? ''
+  // The owner picks the mission. Nothing is preselected, and a stale id is never sent.
+  const missionId = missions.some(mission => mission.id === chosen) ? chosen : ''
   const [acrossProjects, setAcrossProjects] = useState(false)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
@@ -77,6 +77,7 @@ function Candidate({ candidate, state, missions, onWrite }: { candidate: Inciden
     <summary>{candidate.id} · {candidate.title} — {state.state === 'confirmed' ? `confirmed by you ${when}` : state.state === 'rejected' ? `rejected by you ${when}` : state.state === 'retired' ? 'retired by you' : 'proposed, not confirmed'}</summary>
     <h3>1 · What was observed</h3>
     <p>{candidate.problem}</p>
+    <p><strong>How this record was made:</strong> {candidate.authorship}</p>
     <ol>{candidate.attempts.map(attempt => {
       const source = candidate.sources.find(item => item.id === attempt.sourceId)
       return <li key={attempt.sourceId}><a href={source?.url} target="_blank" rel="noreferrer">{source?.label}</a> · {new Date(attempt.observedAt).toLocaleDateString()} — {attempt.approach} <em>Outcome: {attempt.observedOutcome}</em></li>
@@ -98,8 +99,10 @@ function Candidate({ candidate, state, missions, onWrite }: { candidate: Inciden
       <label htmlFor={`${prefix}-except`}>When it does not apply, or might be wrong</label>
       <textarea id={`${prefix}-except`} value={exceptions} maxLength={800} rows={3} onChange={event => setExceptions(event.target.value)} />
       {missions.length === 0 ? <p>Save a mission first. A confirmed lesson is recorded against one of your missions.</p> : <>
+        <p>This incident happened in the Legacy Codex repository, not inside one of your missions. The record still has to be kept under a mission. Choose the one it belongs with; none is chosen for you.</p>
         <label htmlFor={`${prefix}-mission`}>Record it against</label>
         <select id={`${prefix}-mission`} value={missionId} onChange={event => setMissionId(event.target.value)}>
+          <option value="">Choose a mission…</option>
           {missions.map(mission => <option key={mission.id} value={mission.id}>{mission.title}</option>)}
         </select>
         <label><input type="checkbox" checked={acrossProjects} onChange={event => setAcrossProjects(event.target.checked)} /> Use this lesson across my projects under these conditions</label>

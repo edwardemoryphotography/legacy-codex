@@ -59,6 +59,8 @@ export interface IncidentCandidate {
   casebookId: string
   title: string
   reconstructedAt: string
+  // How this record came to exist. Shown to the owner, never implied to be Codex's own proposal.
+  authorship: string
   problem: string
   attempts: readonly IncidentAttempt[]
   outcome: string
@@ -83,6 +85,7 @@ export const INCIDENT_CANDIDATES: readonly IncidentCandidate[] = [
     casebookId: 'BR-034',
     title: 'iPhone tools menu: two offset patches, then a structural replacement',
     reconstructedAt: '2026-11-10',
+    authorship: 'Written by hand by a developer session from the three linked PRs. Legacy Codex did not notice this incident or propose this lesson itself.',
     problem: 'On the owner’s iPhone the Home tools menu was clipped and the Ask Codex composer was displaced when the keyboard opened, differently in the home-screen app and in ChatGPT’s embedded browser.',
     attempts: [
       { sourceId: 'pr:185', observedAt: '2026-11-10T04:06:40Z',
@@ -131,7 +134,7 @@ export const INCIDENT_CANDIDATES: readonly IncidentCandidate[] = [
 ] as const
 
 // Where the owner's own ledger says a candidate stands. Derived, never stored.
-export type CandidateState = { id: string; state: 'proposed' | 'confirmed' | 'retired' | 'rejected'; lessonId: string | null; at: string | null }
+export type CandidateState = { id: string; state: 'proposed' | 'confirmed' | 'retired' | 'rejected'; lessonId: string | null; at: string | null; generation: number }
 
 export function findIncidentCandidate(id: unknown): IncidentCandidate | null {
   return typeof id === 'string' ? INCIDENT_CANDIDATES.find(candidate => candidate.id === id) ?? null : null
@@ -143,6 +146,8 @@ export function renderIncidentCandidate(candidate: IncidentCandidate): string {
     `### Incident candidate ${candidate.id} — ${candidate.title}`,
     '',
     '**Status:** proposed lesson, not confirmed. Open Mission → “Lessons from real incidents” to correct, reject or confirm it.',
+    '',
+    `**How this record was made:** ${candidate.authorship}`,
     '',
     `**Original problem:** ${candidate.problem}`,
     '',
@@ -176,13 +181,24 @@ export function renderIncidentCandidate(candidate: IncidentCandidate): string {
 // Counts come from the target project's own saved rows, read under RLS.
 export interface StructuralSignals { corrections: number; suppliedSteps: number; hasBlocker: boolean }
 
-// Vocabulary-independent check of a mechanism's precondition. A match is a
-// reason to investigate the rule, never proof that it applies.
-export function mechanismPrecondition(mechanism: LessonMechanism, signals: StructuralSignals): { observed: boolean; basis: string } {
-  if (mechanism !== 'repeated-local-fix-failure') return { observed: false, basis: 'Unknown mechanism; precondition not evaluated.' }
-  const observed = signals.corrections >= 2 || (signals.hasBlocker && signals.corrections + signals.suppliedSteps >= 3)
+// What a repeated-failure claim needs, kept as four separate questions. Saved
+// row counts answer none of them; only the sources can.
+export const REPEATED_FAILURE_QUESTIONS = [
+  'Were there at least two distinct attempted approaches, each actually tried?',
+  'Did the same symptom recur after each, rather than different problems?',
+  'Is there a named relationship that explains why each attempt left the symptom in place?',
+  'Is any of this shown by evidence independent of the builder’s own account?',
+] as const
+
+// Row counts are a prompt to look, never a finding. Two corrections can be
+// about unrelated things, so the strongest status here is "possible". A project
+// with no such rows is Unknown: missing history is not evidence of absence.
+export function mechanismPrecondition(mechanism: LessonMechanism, signals: StructuralSignals): { status: 'possible' | 'unknown'; basis: string } {
+  if (mechanism !== 'repeated-local-fix-failure') return { status: 'unknown', basis: 'Unknown mechanism; precondition not evaluated.' }
+  const possible = signals.corrections >= 2 || (signals.hasBlocker && signals.corrections + signals.suppliedSteps >= 3)
   const counted = `${signals.corrections} saved correction${signals.corrections === 1 ? '' : 's'}, ${signals.suppliedSteps} supplied step${signals.suppliedSteps === 1 ? '' : 's'}, blocker ${signals.hasBlocker ? 'present' : 'absent'}`
-  return { observed, basis: observed
-    ? `Structural precondition observed in this project’s saved history (${counted}). Investigate whether the rule applies; this is not proof.`
-    : `Structural precondition not observed in this project’s saved history (${counted}). Apply only if the supplied sources show repeated failed attempts.` }
+  const questions = `Establish from the supplied sources, separately: ${REPEATED_FAILURE_QUESTIONS.join(' ')}`
+  return possible
+    ? { status: 'possible', basis: `Precondition possible, not established (${counted}). The counts do not show that these concern the same symptom or share a cause. ${questions}` }
+    : { status: 'unknown', basis: `Precondition Unknown (${counted}). Saved history records little here; that is not evidence that no repeated failure happened. ${questions}` }
 }

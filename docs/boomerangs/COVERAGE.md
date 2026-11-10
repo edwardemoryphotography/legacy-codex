@@ -10,7 +10,7 @@ Scope: the 34 records in [`src/lib/boomerangCasebook.ts`](../../src/lib/boomeran
 | Substantive support read in full | BR-034 only (PRs #185, #186, #187, #188 bodies) | The other 33 records were read as written; their sources were not re-read against each claim |
 | Restricted origin sources | 16 citations point at owner-only Notion archives (Nov 2–3 2025, Aug 9 2026, Oct 7 2026) | **Not opened in this pass.** Nothing from them is in the repository |
 | Production learning ledger | Read-only aggregate, all accounts: 0 `delta_reviewed`, 0 `delta_lesson_confirmed`, 0 `delta_lesson_retired`, 2 `delta_corrected` (latest 2026-09-02) | Counts only; no row contents were read or written |
-| Real projects showing repeated failed attempts | 0 of 43 missions have two or more corrections; 0 have a saved blocker | So no real later task currently meets the first incident rule’s precondition |
+| Real projects showing repeated failed attempts | **Unknown.** Row counts only: 0 of 43 missions have two or more saved corrections; 0 have a saved blocker | Counts cannot show whether attempts concerned the same symptom or shared a cause, and most real work is never saved as corrections. An empty history is not evidence that no applicable task exists |
 
 ## Disputed interpretation found
 
@@ -43,3 +43,24 @@ Every record in Codex → Root → Boomerang Casebook now shows six separate sta
 ## Lexical retrieval on the real incident text (one pair each, not a benchmark of scale)
 
 Using the unchanged `relatedProjectSignal` and the IC-001 text: a real sentence with the same mechanism in different words (AGENTS.md, “Repeated Supabase/Vercel configuration rediscovery is a system failure”) scores **1**, below the selection threshold of 2 — missed. A real sentence with shared iPhone words and an unrelated mechanism (STATE.md, Home Screen icons note) scores **4** — selected. The new structural precondition counts saved corrections, supplied steps and a blocker instead of words; on current production data it matches nothing, so its usefulness is unmeasured.
+
+## Corrections after independent review of PR #189 (November 10)
+
+**IC-001 is manually authored.** A developer session read PRs #185–#187 and wrote the record by hand. Legacy Codex did not notice the incident, reconstruct it, or propose the lesson. Every future candidate currently needs the same manual edit and a deploy. The record says so in its `authorship` field, which the owner sees.
+
+**Next smallest step toward Codex proposing candidates itself (not built).** Project review already drafts a `lesson` from a mission’s real saved rows and caches it in `delta_reviewed`. Extend that one existing proposal to the incident shape (dated attempts quoted from saved rows, contradictions, exceptions, `mechanism`), and have `GET /api/delta-lessons` list those cached proposals beside the repository records. The owner gate, ledger, lifecycle and consumers stay as they are; no new table or event store. That covers experiences saved in missions. Incidents that live only in pull requests would still need a way in, and none is proposed here.
+
+**Structural recognition is a prompt, not a finding.** `mechanismPrecondition` now returns only `possible` or `unknown`. Two saved corrections may be about unrelated things, so counts never establish the precondition; the note sends the reviewer to the sources with four separate questions (distinct attempts, same symptom, a named causal relationship, independent evidence).
+
+**What is simulation and what is evidence.**
+
+| Kind | Where | What it shows | What it does not show |
+| --- | --- | --- | --- |
+| Test-only simulation | `src/app/api/delta-lessons/route.test.ts` (made-up mission ids, stubbed sign-in, an array imitating the ledger) | The route’s branching is self-consistent | Anything about production, a real owner, or learning |
+| Real public sources | `npm run verify:incidents` (live GitHub API) | PRs #185–#187 exist, are merged at the recorded times in order, and their texts contain the cited approaches. Passed November 10 | The owner’s iPhone acceptance; any later use of the rule |
+| Real database, read-only | Production index `mission_events_idempotency`: unique `(user_id, idempotency_key)` where the key is not null | The constraint the one-slot-per-confirmation rule depends on exists | That the deployed route has ever exercised it; no confirmation row exists |
+| Real behaviour | None | — | No owner confirmation, no later task, no changed decision |
+
+**Lifecycle.** Each confirmation of a candidate takes one slot per account, `lesson:incident:<id>:g<n>`, where `n` is the number of earlier confirmations. Simultaneous confirmations with different words or missions collide on the real unique index and one stands. A retired rule can be confirmed again in identical words (next slot); earlier rows are never changed. Rejection is refused while a rule is active. Known gap: a rejection and a confirmation sent at the same instant can both be stored; the confirmation is the one shown.
+
+**Mission attribution.** The ledger requires a mission for every row. The owner must now pick it; nothing is preselected. Known limit: cross-project transfer measurement treats the chosen mission as the lesson’s origin, which is not where a repository incident happened.

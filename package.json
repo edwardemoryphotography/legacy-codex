@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "test": "vitest",
     "check:immersive": "node --experimental-strip-types --test scripts/check-immersive.mjs",
-    "check:builder": "node scripts/check-builder-continuity.mjs"
+    "check:builder": "node scripts/check-builder-continuity.mjs",
+    "verify:incidents": "VERIFY_REAL_SOURCES=1 vitest run src/lib/incidentSources.real.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",

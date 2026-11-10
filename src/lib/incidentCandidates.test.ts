@@ -3,7 +3,7 @@
 // accounts or confirmations are created here.
 import { describe, expect, it } from 'vitest'
 import { BOOMERANG_CASES, renderBoomerangRecord } from './boomerangCasebook'
-import { EVIDENCE_LAYER_LABELS, INCIDENT_CANDIDATES, casebookEvidenceLayers, mechanismPrecondition } from './incidentCandidates'
+import { EVIDENCE_LAYER_LABELS, INCIDENT_CANDIDATES, casebookEvidenceLayers, mechanismPrecondition, REPEATED_FAILURE_QUESTIONS } from './incidentCandidates'
 import { formatLearnedContext } from './learnedContext'
 import { relatedProjectSignal } from './projectReview'
 
@@ -39,15 +39,22 @@ describe('real incident candidates', () => {
 })
 
 describe('structural precondition for repeated-local-fix-failure', () => {
-  it('needs repeated attempts, not a single failure or a blocker alone', () => {
+  it('never reports more than "possible", and treats missing history as Unknown', () => {
     const check = (corrections: number, suppliedSteps: number, hasBlocker: boolean) =>
-      mechanismPrecondition('repeated-local-fix-failure', { corrections, suppliedSteps, hasBlocker }).observed
-    expect(check(0, 0, false)).toBe(false)
-    expect(check(1, 0, false)).toBe(false)
-    expect(check(0, 5, false)).toBe(false) // steps without a blocker are ordinary progress
-    expect(check(0, 0, true)).toBe(false)  // a blocker with no attempts is not repetition
-    expect(check(2, 0, false)).toBe(true)
-    expect(check(1, 2, true)).toBe(true)
+      mechanismPrecondition('repeated-local-fix-failure', { corrections, suppliedSteps, hasBlocker })
+    for (const args of [[0, 0, false], [1, 0, false], [0, 5, false], [0, 0, true]] as const) {
+      const result = check(args[0], args[1], args[2])
+      expect(result.status).toBe('unknown')
+      expect(result.basis).toContain('not evidence that no repeated failure happened')
+    }
+    for (const args of [[2, 0, false], [1, 2, true]] as const) {
+      const result = check(args[0], args[1], args[2])
+      expect(result.status).toBe('possible')
+      expect(result.basis).toContain('do not show that these concern the same symptom')
+    }
+    // Counts never answer the four questions; the note always sends the reader to sources.
+    for (const question of REPEATED_FAILURE_QUESTIONS) expect(check(9, 9, true).basis).toContain(question)
+    expect(JSON.stringify(check(9, 9, true))).not.toMatch(/observed|applies|proof/i)
   })
 
   it('shows why word overlap is the wrong test, on the real incident text', () => {
