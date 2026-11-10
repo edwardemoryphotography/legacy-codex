@@ -118,7 +118,13 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       const keyboardOpen = composing &&
         (unfocusedHeight - visibleHeight > 80 || window.innerHeight - visibleHeight > 80)
       root.style.setProperty('--codex-viewport-height', String(visibleHeight) + 'px')
-      root.style.setProperty('--codex-viewport-top', composing ? String(viewport?.offsetTop ?? 0) + 'px' : '0px')
+      // WKWebView can apply visualViewport.offsetTop to the fixed app shell
+      // *again* after WebKit has scrolled the focused field into view. Keep the
+      // shell at the layout origin; position the focused dock independently.
+      root.style.setProperty('--codex-viewport-top', '0px')
+      const visibleBottom = visibleHeight + (viewport?.offsetTop ?? 0)
+      const keyboardInset = composing ? Math.max(0, window.innerHeight - visibleBottom) : 0
+      root.style.setProperty('--codex-composer-bottom', String(keyboardInset) + 'px')
       if (composing) root.dataset.homeComposing = 'true'
       else delete root.dataset.homeComposing
       if (keyboardOpen) root.dataset.homeKeyboard = 'true'
@@ -140,6 +146,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       window.removeEventListener('orientationchange', resize)
       root.style.removeProperty('--codex-viewport-height')
       root.style.removeProperty('--codex-viewport-top')
+      root.style.removeProperty('--codex-composer-bottom')
       delete root.dataset.homeViewport
       delete root.dataset.homeComposing
       delete root.dataset.homeKeyboard
