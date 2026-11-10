@@ -53,6 +53,12 @@ Core rules even if the canonical file is temporarily unavailable:
 
 Runtime models do not automatically inherit this file. `src/lib/cognitiveDoctrine.ts` is the reviewed Cookbook projection consumed by `/api/analyze`, `/api/delta-operation`, and `/api/delta-review`; Codex → Root → North Star is its readable source-linked counterpart. Preserve this connection when changing model calls. Review projections against the canonical source rather than promoting a local prompt into a new doctrine owner. Verify reasoning quality with real supplied artifacts; prompt wiring alone does not establish it.
 
+## Recovered boomerangs: historical evidence is not learned behavior
+
+The public-safe **Boomerang Casebook** is `src/lib/boomerangCasebook.ts` and is surfaced at **Codex → Root → Boomerang Casebook**. Read `docs/boomerangs/README.md` for its source-coverage and privacy boundary; the full next-build requirements are in `docs/boomerangs/BUILD_PROMPT.md`. This historical source index does not supersede the canonical Goose Cookbook.
+
+**Do not** treat recovered cases as confirmed user-specific lesson events, auto-inject all cases into prompts, infer independent transfer from retrieval, or publish private owner transcripts. For a meaningful candidate connection, inspect actual sources and produce source → target → shared structure → reasoning bridge → practical consequence → contrary evidence / verification. Then use the existing owner-approved Project Review learning workflow to confirm scope and conditions. A future independent behavior difference must be observed before calling the lesson inherited.
+
 ## Deployment / environment sanity gate
 
 Repeated Supabase/Vercel configuration rediscovery is a system failure. Before changing deployment code or secrets:
