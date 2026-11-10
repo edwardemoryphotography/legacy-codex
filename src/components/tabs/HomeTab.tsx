@@ -83,6 +83,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const sending = useRef<symbol | null>(null)
   const question = useRef('')
   const input = useRef<HTMLTextAreaElement>(null)
+  const toolSheet = useRef<HTMLDivElement>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [focusOpen, setFocusOpen] = useState(false)
   const [responseOpen, setResponseOpen] = useState(false)
@@ -118,7 +119,13 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       const keyboardOpen = composing &&
         (unfocusedHeight - visibleHeight > 80 || window.innerHeight - visibleHeight > 80)
       root.style.setProperty('--codex-viewport-height', String(visibleHeight) + 'px')
-      root.style.setProperty('--codex-viewport-top', composing ? String(viewport?.offsetTop ?? 0) + 'px' : '0px')
+      // WKWebView can apply visualViewport.offsetTop to the fixed app shell
+      // *again* after WebKit has scrolled the focused field into view. Keep the
+      // shell at the layout origin; position the focused dock independently.
+      root.style.setProperty('--codex-viewport-top', '0px')
+      const visibleBottom = visibleHeight + (viewport?.offsetTop ?? 0)
+      const keyboardInset = composing ? Math.max(0, window.innerHeight - visibleBottom) : 0
+      root.style.setProperty('--codex-composer-bottom', String(keyboardInset) + 'px')
       if (composing) root.dataset.homeComposing = 'true'
       else delete root.dataset.homeComposing
       if (keyboardOpen) root.dataset.homeKeyboard = 'true'
@@ -140,6 +147,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       window.removeEventListener('orientationchange', resize)
       root.style.removeProperty('--codex-viewport-height')
       root.style.removeProperty('--codex-viewport-top')
+      root.style.removeProperty('--codex-composer-bottom')
       delete root.dataset.homeViewport
       delete root.dataset.homeComposing
       delete root.dataset.homeKeyboard
@@ -157,6 +165,36 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
 
   const busy = brief.status === 'running'
 
+
+  useEffect(() => {
+    if (!sheetOpen) return
+    const sheet = toolSheet.current
+    const viewport = window.visualViewport
+    if (!sheet) return
+    const boundSheet = () => {
+      const dockTop = sheet.parentElement?.getBoundingClientRect().top ?? window.innerHeight
+      const visibleTop = viewport?.offsetTop ?? 0
+      // An embedded iOS browser can have considerably less room above the
+      // composer than its layout viewport reports. Keep the FIRST tool visible
+      // and scroll the rest inside the sheet rather than clipping it under chrome.
+      const available = Math.max(128, Math.min(
+        380,
+        (viewport?.height ?? window.innerHeight) - 100,
+        dockTop - visibleTop - 12,
+      ))
+      sheet.style.maxHeight = String(available) + 'px'
+    }
+    boundSheet()
+    sheet.scrollTop = 0
+    viewport?.addEventListener('resize', boundSheet)
+    viewport?.addEventListener('scroll', boundSheet)
+    window.addEventListener('resize', boundSheet)
+    return () => {
+      viewport?.removeEventListener('resize', boundSheet)
+      viewport?.removeEventListener('scroll', boundSheet)
+      window.removeEventListener('resize', boundSheet)
+    }
+  }, [sheetOpen])
 
   useEffect(() => {
     if (!sheetOpen) return
@@ -565,7 +603,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
             {brief.visitor && <button type="button" className="glass-chip glass" style={{ minHeight: 44, marginTop: 8 }} onClick={() => onNavigate('controls')}>Sign in to your existing account</button>}
           </div>
         )}
-        <div className="glass-sheet glass" style={{ bottom: 'calc(100% + 8px)' }} id="glass-tools" role="menu" aria-label="Tools" data-open={sheetOpen ? 'true' : undefined} hidden={!sheetOpen}>
+        <div ref={toolSheet} className="glass-sheet glass" style={{ bottom: 'calc(100% + 8px)' }} id="glass-tools" role="menu" aria-label="Tools" data-open={sheetOpen ? 'true' : undefined} hidden={!sheetOpen}>
           <button type="button" role="menuitem" onClick={() => pick('ask')}>Ask Codex</button>
           <button type="button" role="menuitem" onClick={() => pick('brief')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4" /></svg>Daily Brief

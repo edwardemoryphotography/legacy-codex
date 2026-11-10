@@ -117,3 +117,41 @@
   margin-top: auto;
   padding-bottom: 8px;
 }
+
+
+/* iOS webviews can move a fixed/transformed shell when a textarea focuses.
+   The visualViewport offset must NOT also become the shell's top coordinate.
+   Revert the horizontal transform so fixed descendants have the browser's
+   layout viewport as their containing block, not the offscreen shell. */
+:root[data-home-composing="true"] .codex-shell[data-screen="home"] {
+  top: 0 !important;
+  left: 0;
+  right: 0;
+  transform: none;
+  width: 100%;
+  max-width: none;
+  overflow: visible;
+}
+:root[data-home-composing="true"] .codex-shell[data-screen="home"] .glass-home,
+:root[data-home-composing="true"] .codex-shell[data-screen="home"] #panel-home {
+  overflow: visible;
+}
+
+/* Keyboard dock: its bottom is the uncovered visual-viewport edge. Unlike
+   the ordinary in-flow dock this cannot be pushed away by app-shell scrolling
+   or the iOS browser's address/toolbar transitions. */
+:root[data-home-composing="true"] .codex-shell[data-screen="home"] .glass-home .glass-dock {
+  position: fixed;
+  left: max(14px, env(safe-area-inset-left));
+  right: max(14px, env(safe-area-inset-right));
+  bottom: var(--codex-composer-bottom, 0px);
+  width: auto;
+  max-width: none;
+  margin: 0;
+  padding: 4px 0 8px;
+  transform: none;
+  z-index: 100;
+}
+:root[data-home-composing="true"] .codex-shell[data-screen="home"] .glass-top {
+  display: none;
+}
