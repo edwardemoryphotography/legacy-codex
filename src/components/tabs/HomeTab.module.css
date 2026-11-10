@@ -230,3 +230,92 @@
 
 /* Keep the focused textbox at the bottom of the visible phone viewport. */
 :global(:root[data-home-composing="true"]) .home .context { display: none; }
+
+
+/* The tools live in the browser top layer, not in the scrollable/fixed dock.
+   A native <dialog> escapes Home's overflow clipping in mobile WebKit. */
+.toolsDialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(440px, calc(100vw - 28px));
+  max-width: calc(100vw - 28px);
+  max-height: min(460px, calc(100dvh - 28px));
+  padding: 12px;
+  color: var(--g-mist);
+  background: rgb(14, 16, 36);
+  border: 1px solid rgba(220, 225, 255, .48);
+  border-radius: 26px;
+  box-shadow: 0 20px 70px rgba(0, 0, 0, .65);
+  font: 500 16px/1.35 var(--g-body);
+  overflow: hidden;
+}
+.toolsDialog:not([open]) { display: none; }
+.toolsDialog[open] { display: flex; flex-direction: column; gap: 8px; }
+.toolsDialog::backdrop {
+  background: rgba(4, 6, 20, .78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.toolsHeader {
+  display: flex;
+  flex: none;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 46px;
+  padding: 2px 6px 6px 14px;
+  color: var(--g-mist);
+  font: 650 16px var(--g-body);
+}
+.toolsHeader button {
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--g-glass-edge);
+  border-radius: 50%;
+  color: var(--g-mist);
+  background: rgba(255,255,255,.08);
+  font: inherit;
+  cursor: pointer;
+}
+.toolsList {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.toolsList button {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 56px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 16px;
+  color: var(--g-mist);
+  background: transparent;
+  text-align: left;
+  font: 500 16px/1.3 var(--g-body);
+  cursor: pointer;
+}
+.toolsList button:hover,
+.toolsList button:focus-visible {
+  background: rgba(255,255,255,.12);
+}
+.toolsList svg {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: var(--g-teal);
+}
+@media (max-height: 520px) {
+  .toolsDialog {
+    max-height: calc(100dvh - 16px);
+    padding: 8px;
+  }
+  .toolsHeader { min-height: 44px; }
+  .toolsList button { min-height: 48px; }
+}
