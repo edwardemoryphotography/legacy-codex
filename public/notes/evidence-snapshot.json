@@ -1,7 +1,29 @@
 {
-  "generatedAt": "2026-11-09T18:24:19.262Z",
+  "generatedAt": "2026-11-10T02:34:08.687Z",
   "unavailableSources": [],
   "records": [
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-174",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#174",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #174 \"Bound iPhone Live Voice startup so connecting never hangs indefinitely\" merged. 2 check run(s), 2 passing.",
+      "observedAt": "2026-11-09T20:31:55Z",
+      "fetchedAt": "2026-11-10T02:34:02.997Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-167",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#167",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #167 \"Add GPT-Live voice conversation mode to existing Legacy Codex Home\" merged. 2 check run(s), 2 passing.",
+      "observedAt": "2026-11-09T20:31:43Z",
+      "fetchedAt": "2026-11-10T02:34:03.286Z",
+      "prReadSucceeded": true
+    },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-184",
       "missionId": null,
@@ -10,7 +32,7 @@
       "status": "verified",
       "claim": "PR #184 \"feat(ux): give Save as my next action primary dominance over accept\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T04:19:26Z",
-      "fetchedAt": "2026-11-09T18:24:11.754Z",
+      "fetchedAt": "2026-11-10T02:34:03.678Z",
       "prReadSucceeded": true
     },
     {
@@ -21,7 +43,7 @@
       "status": "verified",
       "claim": "PR #183 \"feat(ux): group navigation into four core loops and scale mobile reply orb\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T03:33:26Z",
-      "fetchedAt": "2026-11-09T18:24:12.107Z",
+      "fetchedAt": "2026-11-10T02:34:03.963Z",
       "prReadSucceeded": true
     },
     {
@@ -32,7 +54,7 @@
       "status": "verified",
       "claim": "PR #182 \"Territory Path 2: saved connections, state and log\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T02:25:47Z",
-      "fetchedAt": "2026-11-09T18:24:12.485Z",
+      "fetchedAt": "2026-11-10T02:34:04.260Z",
       "prReadSucceeded": true
     },
     {
@@ -43,7 +65,7 @@
       "status": "verified",
       "claim": "PR #181 \"Keep access sign-in legible in opaque and contrast modes\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T00:18:58Z",
-      "fetchedAt": "2026-11-09T18:24:12.835Z",
+      "fetchedAt": "2026-11-10T02:34:04.589Z",
       "prReadSucceeded": true
     },
     {
@@ -54,7 +76,7 @@
       "status": "verified",
       "claim": "PR #180 \"Fix first-use sign-in button contrast\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T00:10:54Z",
-      "fetchedAt": "2026-11-09T18:24:13.231Z",
+      "fetchedAt": "2026-11-10T02:34:04.859Z",
       "prReadSucceeded": true
     },
     {
@@ -65,7 +87,7 @@
       "status": "verified",
       "claim": "PR #179 \"Prepare Legacy Codex for the first-time cousin demo\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T23:58:07Z",
-      "fetchedAt": "2026-11-09T18:24:13.618Z",
+      "fetchedAt": "2026-11-10T02:34:05.146Z",
       "prReadSucceeded": true
     },
     {
@@ -76,7 +98,7 @@
       "status": "verified",
       "claim": "PR #178 \"Fix Mission/Home reply overlap on iPhone\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T23:44:44Z",
-      "fetchedAt": "2026-11-09T18:24:14.022Z",
+      "fetchedAt": "2026-11-10T02:34:05.456Z",
       "prReadSucceeded": true
     },
     {
@@ -87,7 +109,7 @@
       "status": "verified",
       "claim": "PR #177 \"Record canonical glass runtime evidence\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T23:10:34Z",
-      "fetchedAt": "2026-11-09T18:24:14.827Z",
+      "fetchedAt": "2026-11-10T02:34:05.711Z",
       "prReadSucceeded": true
     },
     {
@@ -98,7 +120,7 @@
       "status": "verified",
       "claim": "PR #176 \"Clear Liquid Glass and interaction repair\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T23:01:29Z",
-      "fetchedAt": "2026-11-09T18:24:15.179Z",
+      "fetchedAt": "2026-11-10T02:34:05.991Z",
       "prReadSucceeded": true
     },
     {
@@ -109,7 +131,7 @@
       "status": "verified",
       "claim": "PR #175 \"Reconcile November canon and preserve real-use acceptance gaps\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T21:47:04Z",
-      "fetchedAt": "2026-11-09T18:24:15.469Z",
+      "fetchedAt": "2026-11-10T02:34:06.239Z",
       "prReadSucceeded": true
     },
     {
@@ -120,7 +142,7 @@
       "status": "verified",
       "claim": "PR #163 \"Specify AI anti-gaslighting, narrative integrity, and evidence-based accountability\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T21:44:51Z",
-      "fetchedAt": "2026-11-09T18:24:15.890Z",
+      "fetchedAt": "2026-11-10T02:34:06.539Z",
       "prReadSucceeded": true
     },
     {
@@ -131,18 +153,7 @@
       "status": "verified",
       "claim": "PR #160 \"feat: block unsupported verified-outcome claims in project reviews\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T21:34:29Z",
-      "fetchedAt": "2026-11-09T18:24:16.263Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-174",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#174",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #174 \"Bound iPhone Live Voice startup so connecting never hangs indefinitely\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-04T09:15:40Z",
-      "fetchedAt": "2026-11-09T18:24:16.709Z",
+      "fetchedAt": "2026-11-10T02:34:06.803Z",
       "prReadSucceeded": true
     },
     {
@@ -153,7 +164,7 @@
       "status": "verified",
       "claim": "PR #173 \"Fix iPhone Home vertical jumping and restore voice access diagnostics\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T08:43:00Z",
-      "fetchedAt": "2026-11-09T18:24:17.043Z",
+      "fetchedAt": "2026-11-10T02:34:07.119Z",
       "prReadSucceeded": true
     },
     {
@@ -164,7 +175,7 @@
       "status": "verified",
       "claim": "PR #172 \"Refresh NextAction canonical deployment handoff\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T08:22:30Z",
-      "fetchedAt": "2026-11-09T18:24:17.401Z",
+      "fetchedAt": "2026-11-10T02:34:07.383Z",
       "prReadSucceeded": true
     },
     {
@@ -175,7 +186,7 @@
       "status": "verified",
       "claim": "PR #170 \"Fix live voice login confusion: authorize before microphone\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T07:38:03Z",
-      "fetchedAt": "2026-11-09T18:24:17.739Z",
+      "fetchedAt": "2026-11-10T02:34:07.671Z",
       "prReadSucceeded": true
     },
     {
@@ -186,7 +197,7 @@
       "status": "verified",
       "claim": "PR #171 \"Record Territory workspace release evidence\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T07:34:40Z",
-      "fetchedAt": "2026-11-09T18:24:18.070Z",
+      "fetchedAt": "2026-11-10T02:34:07.971Z",
       "prReadSucceeded": true
     },
     {
@@ -197,7 +208,7 @@
       "status": "verified",
       "claim": "PR #169 \"Fix Territory empty state: add the first entity before a mission\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T07:26:19Z",
-      "fetchedAt": "2026-11-09T18:24:18.362Z",
+      "fetchedAt": "2026-11-10T02:34:08.339Z",
       "prReadSucceeded": true
     },
     {
@@ -208,18 +219,7 @@
       "status": "verified",
       "claim": "PR #168 \"Build the Territory map workspace with first-class entities\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T07:16:18Z",
-      "fetchedAt": "2026-11-09T18:24:18.645Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-167",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#167",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #167 \"Add GPT-Live voice conversation mode to existing Legacy Codex Home\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-04T07:07:55Z",
-      "fetchedAt": "2026-11-09T18:24:19.262Z",
+      "fetchedAt": "2026-11-10T02:34:08.687Z",
       "prReadSucceeded": true
     }
   ]
