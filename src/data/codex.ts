@@ -1,5 +1,6 @@
 import type { CodexEntry, CodexSection, SectionKey } from '@/types'
 import { GOOSE_COOKBOOK_SOURCE, LEGACY_CODEX_NORTH_STAR } from '@/lib/cognitiveDoctrine'
+import { renderBoomerangCasebook } from '@/lib/boomerangCasebook'
 
 // ─────────────────────────────────────────────
 // ROOT — Core identity and operating principles
@@ -21,6 +22,7 @@ This section contains the core identity, values, mission, and operating principl
 ## What Lives Here
 
 - **North Star** — The Goose Cookbook and the method Legacy Codex exists to carry forward
+- **Boomerang Casebook** — Sourced historical catches and the evidence still needed for inherited behavior
 - **Identity** — Who Edward Emory is, at the level of craft and character
 - **Mission** — The singular directive that all systems serve
 - **Values** — The non-negotiables that filter every decision
@@ -78,6 +80,15 @@ These instructions and confirmed rules are not proof of model quality. An analys
 
 This entry is a readable projection of that source. The Cookbook remains the doctrine owner.
 `,
+      },
+      {
+        id: 'root.boomerang-casebook',
+        title: 'Boomerang Casebook — recovered history',
+        path: 'root.boomerang-casebook',
+        section: 'root',
+        category: 'Historical reasoning evidence',
+        tags: ['boomerang', 'goose', 'history', 'lesson', 'transfer', 'provenance', 'casebook'],
+        content: renderBoomerangCasebook(),
       },
       {
         id: 'root.identity',
