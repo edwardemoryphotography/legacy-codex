@@ -1,6 +1,6 @@
 import type { CodexEntry, CodexSection, SectionKey } from '@/types'
 import { GOOSE_COOKBOOK_SOURCE, LEGACY_CODEX_NORTH_STAR } from '@/lib/cognitiveDoctrine'
-import { renderBoomerangCasebook } from '@/lib/boomerangCasebook'
+import { BOOMERANG_CASES, renderBoomerangRecord } from '@/lib/boomerangCasebook'
 
 // ─────────────────────────────────────────────
 // ROOT — Core identity and operating principles
@@ -88,7 +88,23 @@ This entry is a readable projection of that source. The Cookbook remains the doc
         section: 'root',
         category: 'Historical reasoning evidence',
         tags: ['boomerang', 'goose', 'history', 'lesson', 'transfer', 'provenance', 'casebook'],
-        content: renderBoomerangCasebook(),
+        content: `# Boomerang Casebook — Recovered History
+
+Explore **34 source-backed historical catches** from the recoverable November 2025–November 2026 corpus. Choose a case to inspect its source-to-target structural bridge, practical consequence, evidence required, and sources.
+
+**This is a documentary index, not 34 automatically learned rules.** Human-confirmed scoped lessons remain in the existing Project Review workflow. Independent cross-project transfer has not been demonstrated.
+
+Original 2015–2017 handwritten sources and the earlier complete 18-item retrospective have not been recovered. [Governing Goose Cookbook](${GOOSE_COOKBOOK_SOURCE.url}).
+`,
+        children: BOOMERANG_CASES.map(record => ({
+          id: `root.boomerang-casebook.${record.id}`,
+          title: `${record.id} — ${record.title}`,
+          path: `root.boomerang-casebook.${record.id}`,
+          section: 'root',
+          category: 'Sourced historical reasoning',
+          tags: ['boomerang', 'goose', 'lesson', record.id, record.recordStatus],
+          content: renderBoomerangRecord(record),
+        })),
       },
       {
         id: 'root.identity',
