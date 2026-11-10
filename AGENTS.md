@@ -59,6 +59,8 @@ The public-safe **Boomerang Casebook** is `src/lib/boomerangCasebook.ts` and is 
 
 **Do not** treat recovered cases as confirmed user-specific lesson events, auto-inject all cases into prompts, infer independent transfer from retrieval, or publish private owner transcripts. For a meaningful candidate connection, inspect actual sources and produce source → target → shared structure → reasoning bridge → practical consequence → contrary evidence / verification. Then use the existing owner-approved Project Review learning workflow to confirm scope and conditions. A future independent behavior difference must be observed before calling the lesson inherited.
 
+**Incident candidates.** `src/lib/incidentCandidates.ts` holds lesson candidates reconstructed from real incidents with public sources (first: `IC-001`, PRs #185–#187). They appear in Mission → “Lessons from real incidents” for the owner only. `/api/delta-lessons` `confirm_incident` / `reject_incident` write the owner's decision to the existing ledger (`delta_lesson_confirmed` with `origin: 'incident'`, or `delta_lesson_candidate_rejected`); `GET` derives each candidate's state. A candidate is never model context until confirmed. Confirmed incident rules carry `exceptions` and a `mechanism`; project review attaches a vocabulary-independent precondition note counted from the target's saved rows. Add a candidate only from a real incident you have read, with its contradictions. See `docs/boomerangs/COVERAGE.md`.
+
 ## Deployment / environment sanity gate
 
 Repeated Supabase/Vercel configuration rediscovery is a system failure. Before changing deployment code or secrets:

@@ -14,7 +14,7 @@ _(nothing logged yet — new items land here first; triage by moving to Now/Next
 
 ## Next
 
-- Confirm a genuine source-grounded lesson through the owner workflow, then observe use on a different real task without restating the correction.
+- Owner: open Mission → “Lessons from real incidents”, correct and confirm (or reject) `IC-001`. Then, on a different real project with repeated failed attempts, run Review project without restating the rule and record the before/after decision and the independent outcome. No such project exists in production today (0 of 43).
 - Test Legacy Relay with a consenting different person; do not message contacts or widen model access without specific authorization.
 - Implement remaining #163 requirements against actual incident sources and canonical evidence_items/events: receipts, protected chronology, narrative differences and independently inspectable investigation. The merged #160 lexical review guard is only the first bounded safeguard.
 

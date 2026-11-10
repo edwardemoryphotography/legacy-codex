@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { boundSourceText, githubFileReference, relatedProjectSignal, sourceLinks, type ProjectSource } from './projectReview'
 import { selectInvestigationProjects } from './structuralTransfer'
 import { loadConfirmedLessons } from './projectLessonsServer'
+import { LESSON_MECHANISMS, mechanismPrecondition, type LessonMechanism } from './incidentCandidates'
 
 // Keep the exact title within the proposal bound. Never truncate a commitment
 // into different work just to make it eligible for a Resume recommendation.
@@ -92,8 +93,12 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
     candidates.push(...(origins.data ?? []))
   }
   const related = selectInvestigationProjects(candidates.map(mission => ({ mission, ...relatedProjectSignal(targetText, mission) })), lessonOrigins, correctedOrigins)
+  // Structure, not vocabulary: counted from this project's own saved rows.
+  const signals = { corrections: (corrections.data ?? []).length, hasBlocker: Boolean(target.data.blocker?.trim()),
+    suppliedSteps: (events.data ?? []).filter(event => event.type === 'delta_step_supplied').length }
   for (const lesson of lessons) sources.push({ id: `lesson:${lesson.id}`, label: lesson.rule, kind: 'lesson', missionId: lesson.missionId, recordedAt: lesson.confirmedAt, lesson: { scope: lesson.scope, confirmedAt: lesson.confirmedAt },
-    status: `Human-confirmed operating rule (${lesson.scope === 'account' ? 'across this account' : `only project ${lesson.missionId}`}); apply only under its stated conditions, not verified evidence`,
+    status: `Human-confirmed operating rule (${lesson.scope === 'account' ? 'across this account' : `only project ${lesson.missionId}`}); apply only under its stated conditions, not verified evidence${
+      (LESSON_MECHANISMS as readonly string[]).includes(lesson.mechanism ?? '') ? `. ${mechanismPrecondition(lesson.mechanism as LessonMechanism, signals).basis}` : ''}`,
     text: JSON.stringify(lesson), truncated: false })
   const packets = await Promise.all(related.map(async ({ mission, reason }) => {
     const rows = await Promise.all([
@@ -148,7 +153,7 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
       : boundSourceText(source.text, allowance)
     remaining -= cut.text.length
     headroom[source.kind] -= cut.text.length
-    return { ...source, label: source.label.slice(0, 160), status: source.status.slice(0, 300), ...cut, truncated: Boolean(source.truncated || cut.truncated) }
+    return { ...source, label: source.label.slice(0, 160), status: source.status.slice(0, source.kind === 'lesson' ? 600 : 300), ...cut, truncated: Boolean(source.truncated || cut.truncated) }
   }).filter(source => source.text.length)
   if (bounded.length !== sources.length) warnings.push(`${sources.length - bounded.length} sources were omitted by the total context limit.`)
   if (bounded.some(source => source.truncated)) warnings.push('Some sources are excerpts. Limits reserve room for evidence and commitments alongside lessons, notes and corrections; inspect originals when a cut could change the interpretation.')

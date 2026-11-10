@@ -3,10 +3,50 @@ import { NextRequest, NextResponse } from 'next/server'
 import { deltaOwner } from '@/lib/supabase/deltaAuth'
 import { loadProjectContext, projectUserClient } from '@/lib/projectReviewServer'
 import { cachedProjectReview, projectIsReviewable } from '@/lib/projectReviewStore'
+import { INCIDENT_CANDIDATES, findIncidentCandidate, type CandidateState, type IncidentCandidate } from '@/lib/incidentCandidates'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i
+
+type Client = ReturnType<typeof projectUserClient>
+
+// Derived from the append-only ledger on every read. A candidate that was
+// never answered stays "proposed"; nothing is stored to make it look decided.
+async function candidateState(client: Client, userId: string, candidate: IncidentCandidate): Promise<CandidateState> {
+  const confirmed = await client.from('mission_events').select('id,created_at').eq('user_id', userId)
+    .eq('type', 'delta_lesson_confirmed').like('idempotency_key', `lesson:incident:${candidate.id}:%`)
+    .order('created_at', { ascending: false }).limit(50)
+  if (confirmed.error) throw new Error('Could not read candidate confirmations.')
+  const rows = confirmed.data ?? []
+  if (rows.length) {
+    const retired = await client.from('mission_events').select('idempotency_key').eq('user_id', userId)
+      .eq('type', 'delta_lesson_retired').in('idempotency_key', rows.map(row => `lesson:retire:${row.id}`))
+    if (retired.error) throw new Error('Could not read candidate retirements.')
+    const inactive = new Set((retired.data ?? []).map(row => row.idempotency_key))
+    const active = rows.find(row => !inactive.has(`lesson:retire:${row.id}`))
+    if (active) return { id: candidate.id, state: 'confirmed', lessonId: active.id, at: active.created_at }
+  }
+  const rejected = await client.from('mission_events').select('created_at').eq('user_id', userId)
+    .eq('type', 'delta_lesson_candidate_rejected').eq('idempotency_key', `lesson:incident-reject:${candidate.id}`).maybeSingle()
+  if (rejected.error) throw new Error('Could not read candidate rejections.')
+  if (rejected.data) return { id: candidate.id, state: 'rejected', lessonId: null, at: rejected.data.created_at }
+  return rows.length ? { id: candidate.id, state: 'retired', lessonId: null, at: rows[0].created_at }
+    : { id: candidate.id, state: 'proposed', lessonId: null, at: null }
+}
+
+// Owner-only read of where each real incident candidate stands. No model call.
+export async function GET(req: NextRequest) {
+  const owner = await deltaOwner(req)
+  if ('response' in owner) return owner.response
+  try {
+    const client = projectUserClient(owner.url, req.headers.get('Authorization') ?? '')
+    const candidates = await Promise.all(INCIDENT_CANDIDATES.map(candidate => candidateState(client, owner.userId, candidate)))
+    return NextResponse.json({ candidates }, { headers: { 'Cache-Control': 'no-store' } })
+  } catch {
+    return NextResponse.json({ error: 'Incident candidates could not be read. Your saved work is unchanged.' }, { status: 503 })
+  }
+}
 
 // No model call or elevated database client. Each rule is an explicit human
 // confirmation; retirement appends a tombstone and preserves provenance.
@@ -29,6 +69,47 @@ export async function POST(req: NextRequest) {
       const saved = await client.from('mission_events').insert({ user_id: owner.userId, mission_id: lesson.data.mission_id, type: 'delta_lesson_retired', detail: JSON.stringify({ lessonId: body.lessonId }), idempotency_key: `lesson:retire:${body.lessonId}` })
       if (saved.error && saved.error.code !== '23505') throw new Error('Lesson retirement failed.')
       return NextResponse.json({ retired: true })
+    }
+    if (body.action === 'confirm_incident' || body.action === 'reject_incident') {
+      // The candidate, its mechanism and its sources come from the reviewed
+      // repository record. The client supplies only the owner's own words.
+      const candidate = findIncidentCandidate(body.candidateId)
+      if (!candidate || typeof body.missionId !== 'string' || !UUID.test(body.missionId)) return NextResponse.json({ error: 'Choose a real incident candidate and one of your missions.' }, { status: 400 })
+      const mission = await client.from('missions').select('id').eq('id', body.missionId).eq('user_id', owner.userId).maybeSingle()
+      if (mission.error) throw new Error('Could not confirm mission ownership.')
+      if (!mission.data) return NextResponse.json({ error: 'Choose one of your saved missions.' }, { status: 404 })
+      if (body.action === 'reject_incident') {
+        if (body.reason !== undefined && (typeof body.reason !== 'string' || body.reason.length > 500)) return NextResponse.json({ error: 'Keep the reason under 500 characters.' }, { status: 400 })
+        const saved = await client.from('mission_events').insert({ user_id: owner.userId, mission_id: body.missionId, type: 'delta_lesson_candidate_rejected',
+          detail: JSON.stringify({ candidateId: candidate.id, reason: typeof body.reason === 'string' ? body.reason.trim() : '' }), idempotency_key: `lesson:incident-reject:${candidate.id}` })
+        if (saved.error && saved.error.code !== '23505') throw new Error('Candidate rejection failed.')
+        return NextResponse.json({ rejected: true })
+      }
+      if (typeof body.rule !== 'string' || !body.rule.trim() || body.rule.length > 1_000 ||
+          typeof body.whenToApply !== 'string' || !body.whenToApply.trim() || body.whenToApply.length > 500 ||
+          typeof body.exceptions !== 'string' || !body.exceptions.trim() || body.exceptions.length > 800 ||
+          !['mission', 'account'].includes(body.scope as string)) {
+        return NextResponse.json({ error: 'Name the rule, when it applies, when it does not, and its scope.' }, { status: 400 })
+      }
+      const words = { rule: body.rule.trim(), whenToApply: body.whenToApply.trim(), exceptions: body.exceptions.trim(), scope: body.scope }
+      const key = `lesson:incident:${candidate.id}:${createHash('sha256').update(JSON.stringify({ missionId: body.missionId, ...words })).digest('hex')}`
+      const state = await candidateState(client, owner.userId, candidate)
+      if (state.state === 'confirmed') {
+        const same = await client.from('mission_events').select('id').eq('user_id', owner.userId).eq('idempotency_key', key).maybeSingle()
+        if (same.error) throw new Error('Could not check lesson confirmation.')
+        // One active rule per incident: a second wording must replace, not stack.
+        return same.data?.id === state.lessonId ? NextResponse.json({ confirmed: true })
+          : NextResponse.json({ error: 'This incident already has an active rule. Stop using it before confirming different words.' }, { status: 409 })
+      }
+      const sourceRefs = candidate.sources.map(source => ({ id: `incident:${candidate.id}:${source.id}`, label: source.label, status: source.status, url: source.url }))
+      const saved = await client.from('mission_events').insert({ user_id: owner.userId, mission_id: body.missionId, type: 'delta_lesson_confirmed', idempotency_key: key,
+        detail: JSON.stringify({ ...words, origin: 'incident', candidateId: candidate.id, mechanism: candidate.mechanism,
+          ownerEdited: words.rule !== candidate.proposedRule || words.whenToApply !== candidate.whenToApply || words.exceptions !== candidate.exceptions,
+          reviewedAt: new Date().toISOString(), sourceIds: sourceRefs.map(ref => ref.id), sourceRefs }) })
+      // A retired identical wording keeps its old row; re-confirming it needs new words.
+      if (saved.error?.code === '23505') return NextResponse.json({ error: 'These exact words were confirmed and retired before. Change the wording to confirm again.' }, { status: 409 })
+      if (saved.error) throw new Error('Incident lesson confirmation failed.')
+      return NextResponse.json({ confirmed: true })
     }
     if (body.action !== 'confirm' || typeof body.missionId !== 'string' || !UUID.test(body.missionId) ||
         typeof body.contextKey !== 'string' || !/^[a-f0-9]{64}$/.test(body.contextKey) ||

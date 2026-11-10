@@ -35,7 +35,11 @@ export async function loadConfirmedLessons(client: Client, userId: string, missi
       const proposal = parseLessonProposal(saved, saved.sourceRefs)
       if (!proposal) throw new Error('A confirmed lesson has invalid provenance.')
       if (saved.scope === 'account' || missionIds.includes(row.mission_id)) {
-        lessons.push({ ...proposal, id: row.id, missionId: row.mission_id, scope: saved.scope,
+        // Exceptions travel with the rule; dropping them would widen it.
+        const incident = saved.origin === 'incident' && typeof saved.candidateId === 'string' &&
+          typeof saved.mechanism === 'string' && typeof saved.exceptions === 'string'
+          ? { origin: 'incident' as const, candidateId: saved.candidateId, mechanism: saved.mechanism, exceptions: saved.exceptions } : {}
+        lessons.push({ ...proposal, ...incident, id: row.id, missionId: row.mission_id, scope: saved.scope,
           reviewedAt: saved.reviewedAt, confirmedAt: row.created_at, sourceRefs: saved.sourceRefs })
         if (lessons.length === 16) return lessons
       }

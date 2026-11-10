@@ -124,7 +124,9 @@ function LessonRecord({ lesson, onRetire }: { lesson: ConfirmedLesson; onRetire?
     <summary>{lesson.rule}</summary>
     <p>Applies: {lesson.whenToApply}</p>
     <p>Scope: {lesson.scope === 'account' ? 'Across your projects' : 'Its original project only'} · Confirmed {new Date(lesson.confirmedAt).toLocaleDateString()}</p>
-    <ul>{lesson.sourceRefs.map(source => <li key={source.id}>{source.label} — {source.status}</li>)}</ul>
+    {lesson.exceptions && <p>Does not apply: {lesson.exceptions}</p>}
+    {lesson.origin === 'incident' && <p>From real incident {lesson.candidateId}. Later use on a different problem: not yet observed.</p>}
+    <ul>{lesson.sourceRefs.map(source => <li key={source.id}>{source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.label}</a> : source.label} — {source.status}</li>)}</ul>
     <p>Pass on this rule and when it applies. Private sources, mission IDs, and account details stay here. Check the rule for anything personal before sharing.</p>
     <button type="button" onClick={() => void share()}>Pass this lesson forward</button>
     {shareLink && <label className="legacy-relay-share-link">Shareable link
