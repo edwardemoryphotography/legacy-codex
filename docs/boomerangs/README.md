@@ -41,6 +41,10 @@ The **October 30 retrospective mentioned a catalog of 18 repository boomerangs**
 7. If a repeated rule merits becoming code, propose a reviewed change to tests, retrieval, validation, architecture or policy. Use GitHub, existing CI, correct Vercel frontend project, and physical device checks when applicable.
 8. Only after appropriate acceptance is a changed *future behavior* demonstrated. An unobserved behavior remains unproven regardless of how many records exist.
 
+## Real incidents as candidates (added November 10)
+
+A real incident with public sources can now be proposed without a model review, but only by hand: a developer adds a record to `src/lib/incidentCandidates.ts` (attempts with dated source links, contradictions, competing explanations, exceptions, six evidence layers). The owner sees it in Mission under “Lessons from real incidents” and can edit, confirm for one project or the account, reject, or later retire it. Confirmation goes through `/api/delta-lessons` into the same account-scoped ledger; sources and mechanism come from the repository record, never the client. Nothing is confirmed by adding a record. Coverage and disputed readings are in [COVERAGE.md](./COVERAGE.md).
+
 ## Boundaries and follow-up
 
 Do not add another app/front door, duplicate Goose doctrine owner, create unreviewed agent autonomy, duplicate Mission/Action/Evidence authorities, or deploy new database stores unless the existing ledger cannot meet a concrete verified requirement.

@@ -35,6 +35,11 @@ export interface ConfirmedLesson extends LessonProposal {
   confirmedAt: string
   reviewedAt: string
   sourceRefs: Pick<ProjectSource, 'id' | 'label' | 'status' | 'url'>[]
+  // Present only on rules the owner confirmed from a real incident candidate.
+  origin?: 'incident'
+  candidateId?: string
+  mechanism?: string
+  exceptions?: string
 }
 
 export interface LessonConfirmation {

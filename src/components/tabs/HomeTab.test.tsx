@@ -386,7 +386,8 @@ it('allows a new submission after cancelling a still-pending client run', async 
 
 it('keeps complete long source text in the response region without truncation', () => {
   // Existing canonical reference text is a layout input, not an invented AI answer.
-  const source = getAllEntries().reduce((longest, entry) => entry.content.length > longest.content.length ? entry : longest)
+  // Pinned to the North Star entry: "longest entry" changed when a casebook record grew.
+  const source = getAllEntries().find(entry => entry.content.includes('The Cookbook remains the doctrine owner.'))!
   expect(source.content.length).toBeGreaterThan(1000)
   const home = { ...emptyHomeSession(), reply: { question: '', text: source.content, label: source.title, provider: '' } }
   render(<HomeTab onNavigate={() => {}} session={home} />)

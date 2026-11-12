@@ -1,3 +1,5 @@
+import { INCIDENT_CANDIDATES, casebookEvidenceLayers, renderEvidenceLayers, renderIncidentCandidate } from './incidentCandidates'
+
 // Public-safe historical evidence index. Not a persisted, human-confirmed
 // lesson store, and not a model instruction stream. Private origin content is
 // deliberately NOT copied into this public repository.
@@ -862,6 +864,10 @@ export function renderBoomerangRecord(record: BoomerangCase): string {
     '',
     `**Sources:** ${record.sources.map(linkSource).join(' · ')}`,
     '',
+    '**Evidence, layer by layer (never one confidence score):**',
+    renderEvidenceLayers(casebookEvidenceLayers(record)),
+    '',
+    ...INCIDENT_CANDIDATES.filter(candidate => candidate.casebookId === record.id).flatMap(candidate => [renderIncidentCandidate(candidate), '']),
     'A historical record is not a human-confirmed account lesson. Apply the existing Project Review workflow before treating this as transferable operating guidance.',
   ].join('\n')
 }

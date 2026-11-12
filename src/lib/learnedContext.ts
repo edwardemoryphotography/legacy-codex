@@ -7,7 +7,8 @@ export function formatLearnedContext(lessons: ConfirmedLesson[], missionIds: str
   let remaining = 12_000
   const packed = scoped.flatMap(lesson => {
     const record = { id: `lesson:${lesson.id}`, missionId: lesson.missionId, scope: lesson.scope,
-      rule: lesson.rule, whenToApply: lesson.whenToApply, confirmedAt: lesson.confirmedAt,
+      rule: lesson.rule, whenToApply: lesson.whenToApply,
+      ...(lesson.exceptions ? { exceptions: lesson.exceptions, mechanism: lesson.mechanism } : {}), confirmedAt: lesson.confirmedAt,
       reviewedAt: lesson.reviewedAt, sourceIds: lesson.sourceIds, sourceRefs: lesson.sourceRefs }
     const size = JSON.stringify(record).length
     if (size > remaining) return []

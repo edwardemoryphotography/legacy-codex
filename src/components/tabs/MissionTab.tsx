@@ -55,6 +55,7 @@ import type { ConfirmedLesson, LessonConfirmation, ProjectReview, ProjectReviewR
 import { buildDeterministicAssistance, deriveObservableAcceptanceChecks, draftStartingPoint, extractDeadline } from '@/lib/missionAssistance'
 import MissionFiles from '@/components/MissionFiles'
 import LessonRelayReceive from '@/components/LessonRelayReceive'
+import IncidentLessons from '@/components/IncidentLessons'
 
 // ─── Supabase row <-> domain mapping ────────────────────────────────────
 // missionLoop.ts operates on the camelCase Mission/MissionEvent domain
@@ -2051,6 +2052,7 @@ export default function MissionTab({ onMissionChange, externalRevision = 0 }: { 
       )}
 
       {lessonNotice && <p role="status" className="mission-status">{lessonNotice}</p>}
+      {sessionReady && projectAccess === 'owner' && <IncidentLessons missions={missionList} ready={sessionReady} onLessonWrite={invalidateLessonReview} />}
       {sessionReady && <LessonRelayReceive missions={missionList} ready={sessionReady} onLessonWrite={invalidateLessonReview} />}
       {previousReview && <details className="sd-project-review">
         <summary>Last saved project review</summary>
