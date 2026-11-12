@@ -13,31 +13,27 @@ type Client = ReturnType<typeof projectUserClient>
 
 // Derived from the append-only ledger on every read. A candidate that was
 // never answered stays "proposed"; nothing is stored to make it look decided.
-// `generation` is how many times this account has confirmed the candidate. It
-// names the single slot the next confirmation or rejection may occupy.
+// Every decision on a candidate, confirmation or rejection, takes the next
+// numbered slot `lesson:incident:<id>:g<n>`. `generation` is the next free slot.
+const DECISIONS = ['delta_lesson_confirmed', 'delta_lesson_candidate_rejected']
 async function candidateState(client: Client, userId: string, candidate: IncidentCandidate): Promise<CandidateState> {
-  const confirmed = await client.from('mission_events').select('id,created_at').eq('user_id', userId)
-    .eq('type', 'delta_lesson_confirmed').like('idempotency_key', `lesson:incident:${candidate.id}:%`)
-    .order('created_at', { ascending: false }).limit(50)
-  if (confirmed.error) throw new Error('Could not read candidate confirmations.')
-  const rows = confirmed.data ?? []
+  const decided = await client.from('mission_events').select('id,created_at,type,idempotency_key').eq('user_id', userId)
+    .in('type', DECISIONS).like('idempotency_key', `lesson:incident:${candidate.id}:g%`).limit(50)
+  if (decided.error) throw new Error('Could not read candidate decisions.')
+  const rows = decided.data ?? []
   // Never guess a slot from a clipped read.
-  if (rows.length >= 50) throw new Error('Too many confirmations to derive a slot.')
+  if (rows.length >= 50) throw new Error('Too many decisions to derive a slot.')
   const generation = rows.length
-  if (rows.length) {
-    const retired = await client.from('mission_events').select('idempotency_key').eq('user_id', userId)
-      .eq('type', 'delta_lesson_retired').in('idempotency_key', rows.map(row => `lesson:retire:${row.id}`))
-    if (retired.error) throw new Error('Could not read candidate retirements.')
-    const inactive = new Set((retired.data ?? []).map(row => row.idempotency_key))
-    const active = rows.find(row => !inactive.has(`lesson:retire:${row.id}`))
-    if (active) return { id: candidate.id, state: 'confirmed', lessonId: active.id, at: active.created_at, generation }
-  }
-  const rejected = await client.from('mission_events').select('created_at').eq('user_id', userId)
-    .eq('type', 'delta_lesson_candidate_rejected').eq('idempotency_key', `lesson:incident-reject:${candidate.id}:g${generation}`).maybeSingle()
-  if (rejected.error) throw new Error('Could not read candidate rejections.')
-  if (rejected.data) return { id: candidate.id, state: 'rejected', lessonId: null, at: rejected.data.created_at, generation }
-  return rows.length ? { id: candidate.id, state: 'retired', lessonId: null, at: rows[0].created_at, generation }
-    : { id: candidate.id, state: 'proposed', lessonId: null, at: null, generation }
+  const base = { id: candidate.id, lessonId: null, generation }
+  if (!generation) return { ...base, state: 'proposed', at: null }
+  const latest = rows.find(row => row.idempotency_key === `lesson:incident:${candidate.id}:g${generation - 1}`)
+  if (!latest) throw new Error('Decision slots are not contiguous.')
+  if (latest.type !== 'delta_lesson_confirmed') return { ...base, state: 'rejected', at: latest.created_at }
+  const retired = await client.from('mission_events').select('id').eq('user_id', userId)
+    .eq('type', 'delta_lesson_retired').eq('idempotency_key', `lesson:retire:${latest.id}`).maybeSingle()
+  if (retired.error) throw new Error('Could not read candidate retirements.')
+  return retired.data ? { ...base, state: 'retired', at: latest.created_at }
+    : { ...base, state: 'confirmed', lessonId: latest.id, at: latest.created_at }
 }
 
 // Owner-only read of where each real incident candidate stands. No model call.
@@ -87,9 +83,15 @@ export async function POST(req: NextRequest) {
       if (body.action === 'reject_incident') {
         if (body.reason !== undefined && (typeof body.reason !== 'string' || body.reason.length > 500)) return NextResponse.json({ error: 'Keep the reason under 500 characters.' }, { status: 400 })
         if (state.state === 'confirmed') return NextResponse.json({ error: 'This incident has an active rule. Stop using it before rejecting the candidate.' }, { status: 409 })
+        if (state.state === 'rejected') return NextResponse.json({ rejected: true })
+        // Same slot a confirmation would take, so the two can never both be stored.
         const saved = await client.from('mission_events').insert({ user_id: owner.userId, mission_id: body.missionId, type: 'delta_lesson_candidate_rejected',
-          detail: JSON.stringify({ candidateId: candidate.id, reason: typeof body.reason === 'string' ? body.reason.trim() : '' }), idempotency_key: `lesson:incident-reject:${candidate.id}:g${state.generation}` })
-        if (saved.error && saved.error.code !== '23505') throw new Error('Candidate rejection failed.')
+          detail: JSON.stringify({ candidateId: candidate.id, reason: typeof body.reason === 'string' ? body.reason.trim() : '' }), idempotency_key: `lesson:incident:${candidate.id}:g${state.generation}` })
+        if (saved.error?.code === '23505') {
+          return (await candidateState(client, owner.userId, candidate)).state === 'rejected' ? NextResponse.json({ rejected: true })
+            : NextResponse.json({ error: 'Another decision on this incident was recorded first. Reload to see it.' }, { status: 409 })
+        }
+        if (saved.error) throw new Error('Candidate rejection failed.')
         return NextResponse.json({ rejected: true })
       }
       if (typeof body.rule !== 'string' || !body.rule.trim() || body.rule.length > 1_000 ||
@@ -103,7 +105,8 @@ export async function POST(req: NextRequest) {
       const sameAs = async (column: 'id' | 'idempotency_key', value: string) => {
         const row = await client.from('mission_events').select('mission_id,detail').eq('user_id', owner.userId)
           .eq('type', 'delta_lesson_confirmed').eq(column, value).maybeSingle()
-        if (row.error || !row.data) throw new Error('Could not read the active confirmation.')
+        if (row.error) throw new Error('Could not read the active confirmation.')
+        if (!row.data) return false // the slot was taken by a rejection
         let saved: Record<string, unknown> = {}
         try { saved = JSON.parse(row.data.detail ?? '{}') } catch { /* unreadable detail never matches */ }
         return row.data.mission_id === body.missionId && (['rule', 'whenToApply', 'exceptions', 'scope'] as const).every(field => saved[field] === words[field])
@@ -112,7 +115,7 @@ export async function POST(req: NextRequest) {
         return await sameAs('id', state.lessonId!) ? NextResponse.json({ confirmed: true })
           : NextResponse.json({ error: 'This incident already has an active rule. Stop using it before confirming different words.' }, { status: 409 })
       }
-      // One slot per confirmation generation, whatever the wording. The ledger's
+      // One slot per decision, whatever the wording or kind. The ledger's
       // unique (user_id, idempotency_key) index then lets exactly one concurrent
       // confirmation win, and a retired rule can be confirmed again unchanged.
       const key = `lesson:incident:${candidate.id}:g${state.generation}`
@@ -123,7 +126,7 @@ export async function POST(req: NextRequest) {
           reviewedAt: new Date().toISOString(), sourceIds: sourceRefs.map(ref => ref.id), sourceRefs }) })
       if (saved.error?.code === '23505') {
         return await sameAs('idempotency_key', key) ? NextResponse.json({ confirmed: true })
-          : NextResponse.json({ error: 'Another confirmation of this incident was recorded first. Reload to see the active rule.' }, { status: 409 })
+          : NextResponse.json({ error: 'Another decision on this incident was recorded first. Reload to see it.' }, { status: 409 })
       }
       if (saved.error) throw new Error('Incident lesson confirmation failed.')
       return NextResponse.json({ confirmed: true })

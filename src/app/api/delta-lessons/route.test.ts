@@ -99,7 +99,7 @@ describe('SIMULATION (not evidence): /api/delta-lessons incident branching', () 
     expect((await post({ action: 'reject_incident', candidateId: 'IC-001', missionId: MISSION, reason: 'Two attempts is too few.' })).status).toBe(200)
     expect(await state()).toMatchObject({ state: 'rejected' })
     expect((await post({ action: 'confirm_incident', candidateId: 'IC-001', missionId: MISSION, ...words })).status).toBe(200)
-    expect(await state()).toMatchObject({ state: 'confirmed', generation: 2 })
+    expect(await state()).toMatchObject({ state: 'confirmed', generation: 3 })
     expect(ledger.mission_events.map(row => row.type)).toEqual(['delta_lesson_confirmed', 'delta_lesson_retired', 'delta_lesson_candidate_rejected', 'delta_lesson_confirmed'])
     const [first, , , second] = ledger.mission_events.map(row => JSON.parse(row.detail as string))
     expect(second.rule).toBe(first.rule)
@@ -114,6 +114,18 @@ describe('SIMULATION (not evidence): /api/delta-lessons incident branching', () 
     ])
     expect(results.map(result => result.status).sort()).toEqual([200, 409, 409])
     expect(ledger.mission_events.filter(row => row.type === 'delta_lesson_confirmed')).toHaveLength(1)
+  })
+
+  it('never stores both a rejection and a confirmation for the same slot', async () => {
+    const results = await Promise.all([
+      post({ action: 'reject_incident', candidateId: 'IC-001', missionId: MISSION }),
+      post({ action: 'confirm_incident', candidateId: 'IC-001', missionId: MISSION, ...words }),
+    ])
+    expect(results.map(result => result.status).sort()).toEqual([200, 409])
+    expect(ledger.mission_events).toHaveLength(1)
+    expect((await state()).state).toBe(ledger.mission_events[0].type === 'delta_lesson_confirmed' ? 'confirmed' : 'rejected')
+    expect((await post({ action: 'reject_incident', candidateId: 'IC-001', missionId: MISSION })).status).toBe(ledger.mission_events[0].type === 'delta_lesson_confirmed' ? 409 : 200)
+    expect(ledger.mission_events).toHaveLength(1)
   })
 
   it('keeps one account’s confirmation out of another account’s state', async () => {
