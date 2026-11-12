@@ -96,20 +96,21 @@ function LessonRecord({ lesson, onRetire }: { lesson: ConfirmedLesson; onRetire?
   const [shareMessage, setShareMessage] = useState('')
   async function share() {
     setShareMessage('')
-    const relay = encodeLessonRelay({ rule: lesson.rule, whenToApply: lesson.whenToApply })
-    const link = new URL('/', window.location.origin)
-    link.searchParams.set('relay', relay)
-    setShareLink(link.toString())
+    setShareLink('')
     try {
+      const relay = encodeLessonRelay({ rule: lesson.rule, whenToApply: lesson.whenToApply, exceptions: lesson.exceptions })
+      const link = new URL('/', window.location.origin)
+      link.searchParams.set('relay', relay)
+      setShareLink(link.toString())
       if (navigator.share) {
         await navigator.share({ title: 'A lesson to carry forward', url: link.toString() })
-        setShareMessage('Shared. Only the lesson and its conditions were included.')
+        setShareMessage('Shared. Only the lesson, its conditions, and any exceptions were included.')
       } else {
         await navigator.clipboard.writeText(link.toString())
-        setShareMessage('Share link copied. Only the lesson and its conditions were included.')
+        setShareMessage('Share link copied. Only the lesson, its conditions, and any exceptions were included.')
       }
     } catch {
-      setShareMessage('Select and copy the link below if you still want to share it.')
+      setShareMessage('Sharing did not complete. If a link appears below, you can copy it; otherwise the lesson’s full limits could not be prepared.')
     }
   }
   async function retire() {
@@ -127,7 +128,7 @@ function LessonRecord({ lesson, onRetire }: { lesson: ConfirmedLesson; onRetire?
     {lesson.exceptions && <p>Does not apply: {lesson.exceptions}</p>}
     {lesson.origin === 'incident' && <p>From real incident {lesson.candidateId}. Later use on a different problem: not yet observed.</p>}
     <ul>{lesson.sourceRefs.map(source => <li key={source.id}>{source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.label}</a> : source.label} — {source.status}</li>)}</ul>
-    <p>Pass on this rule and when it applies. Private sources, mission IDs, and account details stay here. Check the rule for anything personal before sharing.</p>
+    <p>Pass on this rule, when it applies, and any exceptions. Private sources, mission IDs, and account details stay here. Check all shared wording for anything personal before sharing.</p>
     <button type="button" onClick={() => void share()}>Pass this lesson forward</button>
     {shareLink && <label className="legacy-relay-share-link">Shareable link
       <textarea readOnly rows={3} value={shareLink} onFocus={event => event.currentTarget.select()} />

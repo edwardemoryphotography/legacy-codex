@@ -9,6 +9,7 @@ interface ReceivedLesson {
   id: string
   rule: string
   whenToApply: string
+  exceptions?: string
   confirmedAt: string
 }
 
@@ -100,6 +101,7 @@ export default function LessonRelayReceive({ missions, ready, onLessonWrite }: {
         {relay && <div className="legacy-relay-preview" aria-label="Review the lesson before receiving">
           <strong>{relay.rule}</strong>
           <p>Only when: {relay.whenToApply}</p>
+          {relay.exceptions && <p>Does not apply: {relay.exceptions}</p>}
           <p>These are shared words, not independently verified evidence. Decide whether they fit your circumstances.</p>
         </div>}
         <label htmlFor="legacy-relay-mission">Carry into your mission</label>
@@ -129,6 +131,7 @@ export default function LessonRelayReceive({ missions, ready, onLessonWrite }: {
       {received.map(lesson => <div className="legacy-relay-record" key={lesson.id}>
         <strong>{lesson.rule}</strong>
         <p>When it applies: {lesson.whenToApply}</p>
+        {lesson.exceptions && <p>Does not apply: {lesson.exceptions}</p>}
         <small>Received {new Date(lesson.confirmedAt).toLocaleDateString()} · original source not independently verified</small>
         <button type="button" disabled={busy} onClick={() => void request({ action: 'retire', lessonId: lesson.id })}>Stop using this lesson</button>
       </div>)}

@@ -13,6 +13,10 @@ Preserve human intent so another intelligence can reconstruct, execute, verify a
 
 Legacy Codex is the single normal front door. Foundry is internal builder/operations; Control Panel is a transitional routing reference/service; codex-system-architecture owns governance and the Goose Cookbook. Artful Intelligence retains its separate photography purpose.
 
+## Repair candidate — November 12
+
+Relay exception preservation repairs PR #189’s [reviewed loss of rule limits](https://github.com/edwardemoryphotography/legacy-codex/pull/189#discussion_r4546173463): exception-bearing share links use v2, recipient preview/save/reload retains limits, and confirmed-lesson retrieval carries them into later contexts. v1 remains readable; already-incomplete links cannot recover missing words. See [scope and verification boundary](docs/verification/legacy-relay-2026-11-01.md#november-12-exception-preservation-repair). Source checks and passing tests are not a real two-person transfer. Merge, deployment and genuine recipient acceptance are not established by this candidate entry.
+
 ## Release observation — November 4, before this reconciliation
 
 | Stage | Observation / limit |

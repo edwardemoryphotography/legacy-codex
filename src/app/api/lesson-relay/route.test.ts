@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
-import { encodeLessonRelay } from '@/lib/lessonRelay'
+import { encodeLessonRelay, MAX_RELAY_INPUT_LENGTH } from '@/lib/lessonRelay'
 
 const mocks = vi.hoisted(() => ({ insert: vi.fn(async () => ({ error: null })) }))
 vi.mock('@/lib/supabase/deltaAuth', () => ({ deltaUser: async () => ({ userId: 'test-user', url: 'https://example.test' }) }))
@@ -25,7 +25,7 @@ describe('lesson relay request bounds', () => {
   })
 
   it('rejects an oversized request', async () => {
-    const response = await POST(new NextRequest('https://legacy-codex.vercel.app/api/lesson-relay', { method: 'POST', body: 'x'.repeat(20_000) }))
+    const response = await POST(new NextRequest('https://legacy-codex.vercel.app/api/lesson-relay', { method: 'POST', body: 'x'.repeat(MAX_RELAY_INPUT_LENGTH + 1_025) }))
     expect(response.status).toBe(413)
   })
 })
