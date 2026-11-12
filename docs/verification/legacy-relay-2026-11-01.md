@@ -8,12 +8,12 @@
 
 ## First implemented slice
 
-1. A person with a **confirmed lesson** in Project Review explicitly taps **Pass this lesson forward**. The link encodes **only the rule and the condition**. It carries no mission IDs, source records, other project artifacts, credentials or user identities. Sharing does not silently publish a record.
+1. A person with a **confirmed lesson** in Project Review explicitly taps **Pass this lesson forward**. The link encodes **only the rule, the condition, and any exceptions**. It carries no mission IDs, source records, other project artifacts, credentials or user identities. Sharing does not silently publish a record.
 2. A recipient opens the same Legacy Codex app via the link; Mission opens its **Receive a shared lesson** panel. The exact words and limits are shown before anything is saved.
 3. The recipient chooses **their own saved mission** and explicit **mission-only** or **across-my-missions** scope. The existing signed-in-user RLS checks bind the event to their own mission. A stable idempotency key prevents duplicate saves from retrying the same choice.
 4. The append-only `mission_events` ledger holds the recipient-confirmed lesson, with `origin: 'relay'` and an explicit *unverified original source* status. Existing confirmed-lesson retrieval can then supply applicable lessons to eligible future project reviews. The recipient can retire a received lesson without deleting history. All reads and writes stay scoped to the signed-in account.
 
-No new user-facing app, database table, service role, public listing, cross-account read access, or open AI endpoint is created. No source mission content is shared beyond what its owner chooses to put in the lesson wording. Anyone with the link can read its two shared fields; this is voluntary text sharing, not secure document access, a signed credential, or verified attribution.
+No new user-facing app, database table, service role, public listing, cross-account read access, or open AI endpoint is created. No source mission content is shared beyond what its owner chooses to put in the lesson wording. Anyone with the link can read its shared rule, conditions, and exceptions; this is voluntary text sharing, not secure document access, a signed credential, or verified attribution.
 
 ## Separate acceptance tests that cannot be inferred from code
 
@@ -26,3 +26,13 @@ No new user-facing app, database table, service role, public listing, cross-acco
 **Limits:** The first relay requires explicit human sharing and acceptance. It does not autonomously choose who should inherit a lesson, verify that a shared rule is true, enable owner-only AI access for other accounts, or prove that another user's real-world outcomes improved. Do not conflate receiving a rule with successful application.
 
 **Canonical sources:** `src/lib/lessonRelay.ts`, `src/app/api/lesson-relay/route.ts`, `src/components/LessonRelayReceive.tsx`, `src/components/ProjectLearning.tsx`. Original Goose Cookbook remains the doctrine owner.
+
+## November 12 exception-preservation repair
+
+The review on [PR #189](https://github.com/edwardemoryphotography/legacy-codex/pull/189#discussion_r4546173463) found that incident exceptions were absent from Relay. The sharing UI omitted them, the old v1 format could not carry them, the receive route omitted them from persistence and reload, and the confirmed-lesson loader retained exceptions only for incident-origin records. That widened a rule during translation.
+
+The repair uses `LC-RELAY-2` only for exception-bearing lessons; v1 links and their retry identity remain supported. v2 requires nonempty bounded exceptions and rejects a mismatched prefix or unknown fields. Request/code bounds cover the additional 800 characters without truncation. Preview, explicit recipient save, reload, subsequent learned context and resharing retain the exceptions. Invalid saved exceptions fail reconstruction instead of producing a broader rule. Nothing supplies a missing exception to an old v1 link retroactively; regenerate a share link from the complete originating lesson.
+
+New regression checks use the actual public IC-001 candidate wording, not a fabricated confirmed lesson or recipient. They establish transport/serialization/limit-preservation contracts only. IC-001 remains a proposal until the owner confirms it. No new account, confirmation, recipient, outcome, production database record, schema, provider access, or synthetic evidence is created by this repair. A genuine two-person receive → reload → later appropriate application remains unverified.
+
+Local gates on November 12: 663 tests passed, two live-source tests remained opt-in/skipped; TypeScript passed; lint had zero errors and 22 existing warnings; production build and builder/immersive/Economy checks passed. The new real-wording codec check failed on the original implementation before passing with v2. The initial full run exposed an obsolete 20 KB oversized-request assertion; it now follows the expanded bounded request limit. These results do not establish live receipt, database persistence under a real recipient identity, or later benefit.

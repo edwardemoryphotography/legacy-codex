@@ -1,3 +1,4 @@
+import { lessonExceptionFields } from '@/lib/lessonLimits'
 import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { deltaUser } from '@/lib/supabase/deltaAuth'
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
       user_id: signedIn.userId, mission_id: body.missionId, type: 'delta_lesson_confirmed',
       idempotency_key: `lesson:relay:${digest}`,
       detail: JSON.stringify({
-        rule: relay.rule, whenToApply: relay.whenToApply, scope: body.scope,
+        rule: relay.rule, whenToApply: relay.whenToApply, ...lessonExceptionFields(relay), scope: body.scope,
         origin: 'relay', reviewedAt: now, sourceIds: [ref],
         sourceRefs: [{ id: ref, label: 'Lesson shared with you', status: 'Received text; original source not independently verified' }],
       }),
@@ -87,11 +88,10 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false }).limit(50)
     if (error) throw new Error('Lesson history read failed.')
     const received = (data ?? []).flatMap(row => {
-      try {
-        const detail = JSON.parse(row.detail) as Record<string, unknown>
-        if (detail.origin !== 'relay' || typeof detail.rule !== 'string' || typeof detail.whenToApply !== 'string') return []
-        return [{ id: row.id, rule: detail.rule, whenToApply: detail.whenToApply, confirmedAt: row.created_at }]
-      } catch { return [] }
+      let detail: Record<string, unknown>
+      try { detail = JSON.parse(row.detail) } catch { return [] }
+      if (!detail || detail.origin !== 'relay' || typeof detail.rule !== 'string' || typeof detail.whenToApply !== 'string') return []
+      return [{ id: row.id, rule: detail.rule, whenToApply: detail.whenToApply, ...lessonExceptionFields(detail), confirmedAt: row.created_at }]
     })
     if (!received.length) return NextResponse.json({ received: [] })
     const retirements = await client.from('mission_events').select('idempotency_key')
