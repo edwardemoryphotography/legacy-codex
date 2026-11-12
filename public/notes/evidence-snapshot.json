@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-12T05:59:38.197Z",
+  "generatedAt": "2026-11-12T16:37:08.402Z",
   "unavailableSources": [],
   "records": [
     {
@@ -10,7 +10,7 @@
       "status": "verified",
       "claim": "PR #189 \"Let real incidents enter the lesson loop as owner-confirmed candidates\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-12T04:09:10Z",
-      "fetchedAt": "2026-11-12T05:59:33.029Z",
+      "fetchedAt": "2026-11-12T16:36:59.987Z",
       "prReadSucceeded": true
     },
     {
@@ -21,7 +21,7 @@
       "status": "verified",
       "claim": "PR #188 \"Preserve 34 sourced boomerangs in Legacy Codex Root and define inheritance build\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-10T08:34:58Z",
-      "fetchedAt": "2026-11-12T05:59:33.340Z",
+      "fetchedAt": "2026-11-12T16:37:00.494Z",
       "prReadSucceeded": true
     },
     {
@@ -32,7 +32,7 @@
       "status": "verified",
       "claim": "PR #187 \"Replace clipped Codex tools flyout with native modal on iPhone\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-10T06:53:59Z",
-      "fetchedAt": "2026-11-12T05:59:33.625Z",
+      "fetchedAt": "2026-11-12T16:37:01.000Z",
       "prReadSucceeded": true
     },
     {
@@ -43,7 +43,7 @@
       "status": "verified",
       "claim": "PR #186 \"Keep Ask Codex visible in iOS embedded browser when keyboard opens\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-10T06:38:18Z",
-      "fetchedAt": "2026-11-12T05:59:33.909Z",
+      "fetchedAt": "2026-11-12T16:37:01.387Z",
       "prReadSucceeded": true
     },
     {
@@ -54,7 +54,7 @@
       "status": "verified",
       "claim": "PR #185 \"Fix iPhone keyboard overlay and keep Ask Codex composer visible\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-10T04:07:05Z",
-      "fetchedAt": "2026-11-12T05:59:34.181Z",
+      "fetchedAt": "2026-11-12T16:37:01.746Z",
       "prReadSucceeded": true
     },
     {
@@ -65,7 +65,7 @@
       "status": "verified",
       "claim": "PR #174 \"Bound iPhone Live Voice startup so connecting never hangs indefinitely\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-09T20:31:55Z",
-      "fetchedAt": "2026-11-12T05:59:34.440Z",
+      "fetchedAt": "2026-11-12T16:37:02.142Z",
       "prReadSucceeded": true
     },
     {
@@ -76,7 +76,7 @@
       "status": "verified",
       "claim": "PR #167 \"Add GPT-Live voice conversation mode to existing Legacy Codex Home\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-09T20:31:43Z",
-      "fetchedAt": "2026-11-12T05:59:34.742Z",
+      "fetchedAt": "2026-11-12T16:37:02.526Z",
       "prReadSucceeded": true
     },
     {
@@ -87,7 +87,7 @@
       "status": "verified",
       "claim": "PR #184 \"feat(ux): give Save as my next action primary dominance over accept\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T04:19:26Z",
-      "fetchedAt": "2026-11-12T05:59:35.028Z",
+      "fetchedAt": "2026-11-12T16:37:02.960Z",
       "prReadSucceeded": true
     },
     {
@@ -98,7 +98,7 @@
       "status": "verified",
       "claim": "PR #183 \"feat(ux): group navigation into four core loops and scale mobile reply orb\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T03:33:26Z",
-      "fetchedAt": "2026-11-12T05:59:35.247Z",
+      "fetchedAt": "2026-11-12T16:37:03.440Z",
       "prReadSucceeded": true
     },
     {
@@ -109,7 +109,7 @@
       "status": "verified",
       "claim": "PR #182 \"Territory Path 2: saved connections, state and log\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T02:25:47Z",
-      "fetchedAt": "2026-11-12T05:59:35.489Z",
+      "fetchedAt": "2026-11-12T16:37:03.811Z",
       "prReadSucceeded": true
     },
     {
@@ -120,7 +120,7 @@
       "status": "verified",
       "claim": "PR #181 \"Keep access sign-in legible in opaque and contrast modes\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T00:18:58Z",
-      "fetchedAt": "2026-11-12T05:59:35.781Z",
+      "fetchedAt": "2026-11-12T16:37:04.394Z",
       "prReadSucceeded": true
     },
     {
@@ -131,7 +131,7 @@
       "status": "verified",
       "claim": "PR #180 \"Fix first-use sign-in button contrast\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T00:10:54Z",
-      "fetchedAt": "2026-11-12T05:59:36.036Z",
+      "fetchedAt": "2026-11-12T16:37:04.886Z",
       "prReadSucceeded": true
     },
     {
@@ -142,7 +142,7 @@
       "status": "verified",
       "claim": "PR #179 \"Prepare Legacy Codex for the first-time cousin demo\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T23:58:07Z",
-      "fetchedAt": "2026-11-12T05:59:36.308Z",
+      "fetchedAt": "2026-11-12T16:37:05.289Z",
       "prReadSucceeded": true
     },
     {
@@ -153,7 +153,7 @@
       "status": "verified",
       "claim": "PR #178 \"Fix Mission/Home reply overlap on iPhone\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T23:44:44Z",
-      "fetchedAt": "2026-11-12T05:59:36.596Z",
+      "fetchedAt": "2026-11-12T16:37:05.635Z",
       "prReadSucceeded": true
     },
     {
@@ -164,7 +164,7 @@
       "status": "verified",
       "claim": "PR #177 \"Record canonical glass runtime evidence\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T23:10:34Z",
-      "fetchedAt": "2026-11-12T05:59:36.941Z",
+      "fetchedAt": "2026-11-12T16:37:06.044Z",
       "prReadSucceeded": true
     },
     {
@@ -175,7 +175,7 @@
       "status": "verified",
       "claim": "PR #176 \"Clear Liquid Glass and interaction repair\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T23:01:29Z",
-      "fetchedAt": "2026-11-12T05:59:37.182Z",
+      "fetchedAt": "2026-11-12T16:37:06.562Z",
       "prReadSucceeded": true
     },
     {
@@ -186,7 +186,7 @@
       "status": "verified",
       "claim": "PR #175 \"Reconcile November canon and preserve real-use acceptance gaps\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T21:47:04Z",
-      "fetchedAt": "2026-11-12T05:59:37.422Z",
+      "fetchedAt": "2026-11-12T16:37:07.058Z",
       "prReadSucceeded": true
     },
     {
@@ -197,7 +197,7 @@
       "status": "verified",
       "claim": "PR #163 \"Specify AI anti-gaslighting, narrative integrity, and evidence-based accountability\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T21:44:51Z",
-      "fetchedAt": "2026-11-12T05:59:37.662Z",
+      "fetchedAt": "2026-11-12T16:37:07.645Z",
       "prReadSucceeded": true
     },
     {
@@ -208,7 +208,7 @@
       "status": "verified",
       "claim": "PR #160 \"feat: block unsupported verified-outcome claims in project reviews\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T21:34:29Z",
-      "fetchedAt": "2026-11-12T05:59:37.937Z",
+      "fetchedAt": "2026-11-12T16:37:08.028Z",
       "prReadSucceeded": true
     },
     {
@@ -219,7 +219,7 @@
       "status": "verified",
       "claim": "PR #173 \"Fix iPhone Home vertical jumping and restore voice access diagnostics\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-04T08:43:00Z",
-      "fetchedAt": "2026-11-12T05:59:38.196Z",
+      "fetchedAt": "2026-11-12T16:37:08.401Z",
       "prReadSucceeded": true
     }
   ]
