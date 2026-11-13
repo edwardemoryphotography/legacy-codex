@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { EVIDENCE_LAYER_LABELS, INCIDENT_CANDIDATES, type CandidateState, type EvidenceLayer, type IncidentCandidate } from '@/lib/incidentCandidates'
 import type { Mission } from '@/types'
+import { HISTORICAL_LESSON_CANDIDATES } from '@/lib/historicalLessonCandidates'
+import HistoricalLessonReview from './HistoricalLessonReview'
 
 // Real incidents proposed as lessons. Nothing here is a rule until the owner
 // confirms it; the candidate text comes from the reviewed repository record.
@@ -11,6 +13,7 @@ export default function IncidentLessons({ missions, ready, onLessonWrite }: { mi
   const [states, setStates] = useState<CandidateState[] | null>(null)
   const [readFailed, setReadFailed] = useState(false)
   const [revision, setRevision] = useState(0)
+  const [selectedHistorical, setSelectedHistorical] = useState('')
 
   useEffect(() => {
     if (!ready) return
@@ -30,6 +33,8 @@ export default function IncidentLessons({ missions, ready, onLessonWrite }: { mi
     return () => { cancelled = true }
   }, [ready, revision])
 
+  const historical = HISTORICAL_LESSON_CANDIDATES.find(candidate => candidate.id === selectedHistorical)
+
   if (readFailed) return <p role="alert" className="mission-status">Lessons from real incidents could not be loaded. Nothing was changed.</p>
   if (!states) return null
   return <section className="legacy-relay" data-active="true" aria-label="Lessons from real incidents">
@@ -41,6 +46,19 @@ export default function IncidentLessons({ missions, ready, onLessonWrite }: { mi
     {INCIDENT_CANDIDATES.map(candidate => <Candidate key={candidate.id} candidate={candidate} missions={missions}
       state={states.find(item => item.id === candidate.id) ?? { id: candidate.id, state: 'proposed', lessonId: null, at: null, generation: 0 }}
       onWrite={() => { onLessonWrite(); setRevision(value => value + 1) }} />)}
+    <section aria-label="Historical boomerangs and lessons" className="legacy-relay-receive">
+      <h3>Other boomerangs — review the source and decide</h3>
+      <p>The original casebook contains {HISTORICAL_LESSON_CANDIDATES.length + INCIDENT_CANDIDATES.length} historical records. BR-034 is already represented by IC-001 above, so the remaining {HISTORICAL_LESSON_CANDIDATES.length} entries are listed once. None is automatically a confirmed lesson. Choose one to inspect its bridge, limitations and potential operating rule.</p>
+      <label htmlFor="historical-boomerang-selector">Select a historical boomerang</label>
+      <select id="historical-boomerang-selector" value={selectedHistorical} onChange={event => setSelectedHistorical(event.target.value)}>
+        <option value="">Choose a historical boomerang…</option>
+        {HISTORICAL_LESSON_CANDIDATES.map(candidate => <option key={candidate.id} value={candidate.id}>
+          {candidate.id} · {candidate.title}
+        </option>)}
+      </select>
+      {historical && <HistoricalLessonReview key={historical.id} candidate={historical} missions={missions}
+        onLessonWrite={() => { onLessonWrite(); setRevision(value => value + 1) }} />}
+    </section>
   </section>
 }
 

@@ -45,11 +45,21 @@ The **October 30 retrospective mentioned a catalog of 18 repository boomerangs**
 
 A real incident with public sources can now be proposed without a model review, but only by hand: a developer adds a record to `src/lib/incidentCandidates.ts` (attempts with dated source links, contradictions, competing explanations, exceptions, six evidence layers). The owner sees it in Mission under “Lessons from real incidents” and can edit, confirm for one project or the account, reject, or later retire it. Confirmation goes through `/api/delta-lessons` into the same account-scoped ledger; sources and mechanism come from the repository record, never the client. Nothing is confirmed by adding a record. Coverage and disputed readings are in [COVERAGE.md](./COVERAGE.md).
 
+## Owner review of recovered historical boomerangs (November 12, 2026)
+
+The existing Mission → **Lessons from real incidents** surface now includes a separate **Historical boomerangs** selector. It draws its remaining records directly from the existing 34-entry casebook, excluding BR-034 because IC-001 already represents that source incident. No historical account events are seeded by opening this picker.
+
+Each selected historical record displays its source-to-target bridge, coverage labels (including restricted sources without published URLs), evidence still needed, and an *editable proposal* for rule, conditions and exceptions. The conditions and exceptions are new review language derived from the existing casebook, not witnessed history. A server-side owner gate requires mission selection, precise candidate ID, and explicit review of the source limitations before confirmation. Rejection and retirement use the existing append-only ledger and idempotency constraints, with no new database schema or service role. The historical candidate's source IDs come from the server-side casebook, not client-provided claims.
+
+Confirming a record makes it an owner-scoped operating rule, not an independently verified future transfer. Unconfirmed records stay out of model context. Later use remains subject to relevance, conditions, exclusions, context budget, and independent verification. Because old insights predate some current missions, a required mission association is a *ledger anchor*, not evidence of where the insight originated. The human selects it explicitly.
+
+All 34 entries can now be browsed across IC-001 and the historical selector, but this does not recover unavailable 2015–2017 originals or other unexamined boomerangs. **No automated boomerang discovery or cross-domain transfer proof is added by this work.**
+
 ## Boundaries and follow-up
 
 Do not add another app/front door, duplicate Goose doctrine owner, create unreviewed agent autonomy, duplicate Mission/Action/Evidence authorities, or deploy new database stores unless the existing ledger cannot meet a concrete verified requirement.
 
-The current catalog is **readable in Codex Root**, not a live autonomous learning stream. Further work is defined in [the builder handoff](./BUILD_PROMPT.md). A future implementation must preserve owner auth, account isolation, opt-in source ingestion, query provenance and independent outcome verification.
+The catalog remains **readable in Codex Root** and, when this feature is deployed, the owner may review its historical candidates in Mission. It is not a live autonomous learning stream. Further work is defined in [the builder handoff](./BUILD_PROMPT.md). A future implementation must preserve owner auth, account isolation, opt-in source ingestion, query provenance and independent outcome verification.
 
 ## Recovery gaps for later research
 
