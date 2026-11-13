@@ -36,7 +36,7 @@ export interface ConfirmedLesson extends LessonProposal {
   reviewedAt: string
   sourceRefs: Pick<ProjectSource, 'id' | 'label' | 'status' | 'url'>[]
   // Present only on rules the owner confirmed from a real incident candidate.
-  origin?: 'incident'
+  origin?: 'incident' | 'casebook'
   candidateId?: string
   mechanism?: string
   exceptions?: string

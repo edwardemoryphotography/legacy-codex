@@ -38,10 +38,11 @@ export async function loadConfirmedLessons(client: Client, userId: string, missi
       if (saved.scope === 'account' || missionIds.includes(row.mission_id)) {
         // Exceptions travel with the rule; dropping them would widen it.
         const limits = lessonExceptionFields(saved)
-        const incident = saved.origin === 'incident' && typeof saved.candidateId === 'string' &&
-          typeof saved.mechanism === 'string' && typeof saved.exceptions === 'string'
-          ? { origin: 'incident' as const, candidateId: saved.candidateId, mechanism: saved.mechanism } : {}
-        lessons.push({ ...proposal, ...incident, ...limits, id: row.id, missionId: row.mission_id, scope: saved.scope,
+        const sourceCandidate = (saved.origin === 'incident' || saved.origin === 'casebook') &&
+          typeof saved.candidateId === 'string' && typeof saved.mechanism === 'string' &&
+          typeof saved.exceptions === 'string'
+          ? { origin: saved.origin, candidateId: saved.candidateId, mechanism: saved.mechanism } : {}
+        lessons.push({ ...proposal, ...sourceCandidate, ...limits, id: row.id, missionId: row.mission_id, scope: saved.scope,
           reviewedAt: saved.reviewedAt, confirmedAt: row.created_at, sourceRefs: saved.sourceRefs })
         if (lessons.length === 16) return lessons
       }

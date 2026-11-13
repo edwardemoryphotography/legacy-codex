@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { deltaOwner } from '@/lib/supabase/deltaAuth'
 import { loadProjectContext, projectUserClient } from '@/lib/projectReviewServer'
 import { cachedProjectReview, projectIsReviewable } from '@/lib/projectReviewStore'
-import { INCIDENT_CANDIDATES, findIncidentCandidate, type CandidateState, type IncidentCandidate } from '@/lib/incidentCandidates'
+import { INCIDENT_CANDIDATES, type CandidateState } from '@/lib/incidentCandidates'
+import { findReviewableLessonCandidate, reviewCandidateSources, type ReviewableLessonCandidate } from '@/lib/historicalLessonCandidates'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -16,9 +17,12 @@ type Client = ReturnType<typeof projectUserClient>
 // Every decision on a candidate, confirmation or rejection, takes the next
 // numbered slot `lesson:incident:<id>:g<n>`. `generation` is the next free slot.
 const DECISIONS = ['delta_lesson_confirmed', 'delta_lesson_candidate_rejected']
-async function candidateState(client: Client, userId: string, candidate: IncidentCandidate): Promise<CandidateState> {
+const candidateKey = (candidate: ReviewableLessonCandidate) =>
+  `${'record' in candidate ? 'lesson:casebook' : 'lesson:incident'}:${candidate.id}`
+
+async function candidateState(client: Client, userId: string, candidate: ReviewableLessonCandidate): Promise<CandidateState> {
   const decided = await client.from('mission_events').select('id,created_at,type,idempotency_key').eq('user_id', userId)
-    .in('type', DECISIONS).like('idempotency_key', `lesson:incident:${candidate.id}:g%`).limit(50)
+    .in('type', DECISIONS).like('idempotency_key', `${candidateKey(candidate)}:g%`).limit(50)
   if (decided.error) throw new Error('Could not read candidate decisions.')
   const rows = decided.data ?? []
   // Never guess a slot from a clipped read.
@@ -26,7 +30,7 @@ async function candidateState(client: Client, userId: string, candidate: Inciden
   const generation = rows.length
   const base = { id: candidate.id, lessonId: null, generation }
   if (!generation) return { ...base, state: 'proposed', at: null }
-  const latest = rows.find(row => row.idempotency_key === `lesson:incident:${candidate.id}:g${generation - 1}`)
+  const latest = rows.find(row => row.idempotency_key === `${candidateKey(candidate)}:g${generation - 1}`)
   if (!latest) throw new Error('Decision slots are not contiguous.')
   if (latest.type !== 'delta_lesson_confirmed') return { ...base, state: 'rejected', at: latest.created_at }
   const retired = await client.from('mission_events').select('id').eq('user_id', userId)
@@ -42,7 +46,12 @@ export async function GET(req: NextRequest) {
   if ('response' in owner) return owner.response
   try {
     const client = projectUserClient(owner.url, req.headers.get('Authorization') ?? '')
-    const candidates = await Promise.all(INCIDENT_CANDIDATES.map(candidate => candidateState(client, owner.userId, candidate)))
+    // Fetch the selected historical record on demand instead of doing 33
+    // unnecessary ledger reads on every Mission view.
+    const requestedId = req.nextUrl.searchParams.get('candidateId')
+    const selected = requestedId ? findReviewableLessonCandidate(requestedId) : null
+    if (requestedId && !selected) return NextResponse.json({ error: 'Unknown lesson candidate.' }, { status: 400 })
+    const candidates = await Promise.all((selected ? [selected] : INCIDENT_CANDIDATES).map(candidate => candidateState(client, owner.userId, candidate)))
     return NextResponse.json({ candidates }, { headers: { 'Cache-Control': 'no-store' } })
   } catch {
     return NextResponse.json({ error: 'Incident candidates could not be read. Your saved work is unchanged.' }, { status: 503 })
@@ -71,22 +80,26 @@ export async function POST(req: NextRequest) {
       if (saved.error && saved.error.code !== '23505') throw new Error('Lesson retirement failed.')
       return NextResponse.json({ retired: true })
     }
-    if (body.action === 'confirm_incident' || body.action === 'reject_incident') {
+    if (['confirm_incident', 'reject_incident', 'confirm_casebook', 'reject_casebook'].includes(body.action as string)) {
       // The candidate, its mechanism and its sources come from the reviewed
       // repository record. The client supplies only the owner's own words.
-      const candidate = findIncidentCandidate(body.candidateId)
+      const candidate = findReviewableLessonCandidate(body.candidateId)
+      const historical = candidate !== null && 'record' in candidate
+      if (candidate && historical !== (body.action === 'confirm_casebook' || body.action === 'reject_casebook')) {
+        return NextResponse.json({ error: 'The candidate type does not match the requested action.' }, { status: 400 })
+      }
       if (!candidate || typeof body.missionId !== 'string' || !UUID.test(body.missionId)) return NextResponse.json({ error: 'Choose a real incident candidate and one of your missions.' }, { status: 400 })
       const mission = await client.from('missions').select('id').eq('id', body.missionId).eq('user_id', owner.userId).maybeSingle()
       if (mission.error) throw new Error('Could not confirm mission ownership.')
       if (!mission.data) return NextResponse.json({ error: 'Choose one of your saved missions.' }, { status: 404 })
       const state = await candidateState(client, owner.userId, candidate)
-      if (body.action === 'reject_incident') {
+      if (body.action === 'reject_incident' || body.action === 'reject_casebook') {
         if (body.reason !== undefined && (typeof body.reason !== 'string' || body.reason.length > 500)) return NextResponse.json({ error: 'Keep the reason under 500 characters.' }, { status: 400 })
-        if (state.state === 'confirmed') return NextResponse.json({ error: 'This incident has an active rule. Stop using it before rejecting the candidate.' }, { status: 409 })
+        if (state.state === 'confirmed') return NextResponse.json({ error: 'This candidate has an active rule. Retire it before rejecting the candidate.' }, { status: 409 })
         if (state.state === 'rejected') return NextResponse.json({ rejected: true })
         // Same slot a confirmation would take, so the two can never both be stored.
         const saved = await client.from('mission_events').insert({ user_id: owner.userId, mission_id: body.missionId, type: 'delta_lesson_candidate_rejected',
-          detail: JSON.stringify({ candidateId: candidate.id, reason: typeof body.reason === 'string' ? body.reason.trim() : '' }), idempotency_key: `lesson:incident:${candidate.id}:g${state.generation}` })
+          detail: JSON.stringify({ candidateId: candidate.id, origin: historical ? 'casebook' : 'incident', reason: typeof body.reason === 'string' ? body.reason.trim() : '' }), idempotency_key: `${candidateKey(candidate)}:g${state.generation}` })
         if (saved.error?.code === '23505') {
           return (await candidateState(client, owner.userId, candidate)).state === 'rejected' ? NextResponse.json({ rejected: true })
             : NextResponse.json({ error: 'Another decision on this incident was recorded first. Reload to see it.' }, { status: 409 })
@@ -99,6 +112,11 @@ export async function POST(req: NextRequest) {
           typeof body.exceptions !== 'string' || !body.exceptions.trim() || body.exceptions.length > 800 ||
           !['mission', 'account'].includes(body.scope as string)) {
         return NextResponse.json({ error: 'Name the rule, when it applies, when it does not, and its scope.' }, { status: 400 })
+      }
+      // A historical entry never becomes authoritative by merely appearing
+      // in the app. The owner must explicitly acknowledge its source limits.
+      if (historical && body.historicalReviewed !== true) {
+        return NextResponse.json({ error: 'Review the references and acknowledge source limitations before confirming.' }, { status: 400 })
       }
       const words = { rule: body.rule.trim(), whenToApply: body.whenToApply.trim(), exceptions: body.exceptions.trim(), scope: body.scope as string }
       // A retried identical request is acknowledged; anything else must not stack.
@@ -118,10 +136,15 @@ export async function POST(req: NextRequest) {
       // One slot per decision, whatever the wording or kind. The ledger's
       // unique (user_id, idempotency_key) index then lets exactly one concurrent
       // confirmation win, and a retired rule can be confirmed again unchanged.
-      const key = `lesson:incident:${candidate.id}:g${state.generation}`
-      const sourceRefs = candidate.sources.map(source => ({ id: `incident:${candidate.id}:${source.id}`, label: source.label, status: source.status, url: source.url }))
+      const key = `${candidateKey(candidate)}:g${state.generation}`
+      const sourceRefs = reviewCandidateSources(candidate)
       const saved = await client.from('mission_events').insert({ user_id: owner.userId, mission_id: body.missionId, type: 'delta_lesson_confirmed', idempotency_key: key,
-        detail: JSON.stringify({ ...words, origin: 'incident', candidateId: candidate.id, mechanism: candidate.mechanism,
+        detail: JSON.stringify({ ...words, origin: historical ? 'casebook' : 'incident', candidateId: candidate.id,
+          casebookId: candidate.casebookId,
+          mechanism: historical ? candidate.record.sharedStructure : candidate.mechanism,
+          documentaryStatus: historical ? candidate.record.recordStatus : 'user-verified-fix',
+          sourceCoverage: historical ? candidate.record.sources.map(source => source.access) : ['public'],
+          ownerAcknowledgedSourceLimits: historical,
           ownerEdited: words.rule !== candidate.proposedRule || words.whenToApply !== candidate.whenToApply || words.exceptions !== candidate.exceptions,
           reviewedAt: new Date().toISOString(), sourceIds: sourceRefs.map(ref => ref.id), sourceRefs }) })
       if (saved.error?.code === '23505') {
