@@ -49,6 +49,7 @@ export default function IncidentLessons({ missions, ready, onLessonWrite }: { mi
     <section aria-label="Historical boomerangs and lessons" className="legacy-relay-receive">
       <h3>Other boomerangs — review the source and decide</h3>
       <p>The original casebook contains {HISTORICAL_LESSON_CANDIDATES.length + INCIDENT_CANDIDATES.length} historical records. BR-034 is already represented by IC-001 above, so the remaining {HISTORICAL_LESSON_CANDIDATES.length} entries are listed once. None is automatically a confirmed lesson. Choose one to inspect its bridge, limitations and potential operating rule.</p>
+      <p>Codex currently retrieves at most 16 complete, applicable confirmed lessons per model request, also subject to a context budget. Confirming many historical records does not guarantee that every rule will be consulted on later work. Structural relevance selection and future transfer verification remain separate work.</p>
       <label htmlFor="historical-boomerang-selector">Select a historical boomerang</label>
       <select id="historical-boomerang-selector" value={selectedHistorical} onChange={event => setSelectedHistorical(event.target.value)}>
         <option value="">Choose a historical boomerang…</option>
