@@ -243,7 +243,7 @@
   max-height: min(460px, calc(100dvh - 28px));
   padding: 12px;
   color: var(--g-mist);
-  background: rgb(14, 16, 36);
+  background: var(--g-ink);
   border: 1px solid rgba(220, 225, 255, .48);
   border-radius: 26px;
   box-shadow: 0 20px 70px rgba(0, 0, 0, .65);
@@ -304,6 +304,10 @@
 .toolsList button:hover,
 .toolsList button:focus-visible {
   background: rgba(255,255,255,.12);
+}
+:global(:root[data-theme="light"]) .toolsList button:hover,
+:global(:root[data-theme="light"]) .toolsList button:focus-visible {
+  background: rgba(40,48,78,.09);
 }
 .toolsList svg {
   flex: none;
