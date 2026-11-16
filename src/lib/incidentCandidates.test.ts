@@ -75,7 +75,7 @@ describe('structural precondition for repeated-local-fix-failure', () => {
 describe('learned context keeps exceptions with the rule', () => {
   it('supplies an incident rule with its exceptions and omits them for other rules', () => {
     const incident = INCIDENT_CANDIDATES[0]
-    const base = { id: 'a', missionId: 'm', scope: 'account' as const, confirmedAt: '2026-11-10T00:00:00Z', reviewedAt: '2026-11-10T00:00:00Z',
+    const base = { id: 'a', missionId: 'm', originMissionId: null, scope: 'account' as const, confirmedAt: '2026-11-10T00:00:00Z', reviewedAt: '2026-11-10T00:00:00Z',
       rule: incident.proposedRule, whenToApply: incident.whenToApply, sourceIds: ['s'], sourceRefs: [{ id: 's', label: 'PR', status: 'Merged' }] }
     const withExceptions = formatLearnedContext([{ ...base, origin: 'incident', candidateId: incident.id, mechanism: incident.mechanism, exceptions: incident.exceptions }], [])
     expect(withExceptions).toContain(JSON.stringify(incident.exceptions).slice(1, -1))
