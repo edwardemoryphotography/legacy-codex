@@ -22,3 +22,9 @@ Scope: Finish PR #192 provenance repair on current main after PR #194; preserve 
 Status: locally verified; PR/hosted review and deployment evidence pending.
 Evidence: docs/verification/historical-lesson-provenance-2026-11-16.md
 Gaps: production has zero stored confirmations/reviews; no real-use transfer claimed.
+
+### [2026-11-16 13:09 Pacific] AGENT: Codex — RELEASE
+Scope: historical provenance repair, PR #195; no schema or production-data write.
+Status: merged at 374a15da49bcb04792a3f4639c95204d535ce5b1 and READY canonical frontend deployment dpl_CgwggdWrWFnCenxciHrmxqW7sVHz.
+Evidence: docs/verification/historical-lesson-provenance-2026-11-16.md; PR and merged-main CI passed; canonical hostname/alias match; HTTP 200 root and unsigned API 401s.
+Gaps: no saved historical confirmation/review exists for a real-record replay; useful later transfer remains unverified. SHIP WITH FLAGS.
