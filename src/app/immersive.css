@@ -14,6 +14,13 @@
 }
 .codex-shell[data-screen="home"] .glass-top { flex: none; padding-bottom: 8px; position: relative; z-index: 42; }
 .codex-shell[data-screen="home"] .codex-main, #panel-home { flex: 1; min-height: 0; display: flex; width: 100%; }
+/* The conversation wrapper is the only child of that row. Without this it
+   shrinks to its content and Home sits left of centre on wide screens. */
+.codex-shell[data-screen="home"] #home-conversation { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; }
+/* Mission gives its phone orb a 124px floor. On Home the orb follows its slot,
+   which can be smaller; the floor drew the orb over the content beneath it. */
+.codex-shell[data-screen="home"] .sd-orb-host[data-orb="hero"],
+.codex-shell[data-screen="home"] .sd-orb-host[data-orb="hero"] .sd-field { min-height: 0; }
 #panel-home { animation: none; }
 .glass-home { min-height: 0; height: 100%; width: 100%; overflow: hidden; }
 .glass-home [hidden] { display: none !important; }

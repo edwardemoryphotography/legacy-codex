@@ -118,14 +118,17 @@ export default function CodexLiveVoice({
   }, [])
 
   useEffect(() => {
-    const onHidden = () => { if (document.hidden) stop('Voice ended when the app went to the background.') }
-    const onPageHide = () => stop('Voice session closed.')
+    // Only a session that was actually open can end. Without this guard,
+    // switching apps printed "Voice ended…" for a conversation never started.
+    const open = () => Boolean(sessionId.current || peer.current || microphone.current || sessionController.current || taskController.current || startupTimer.current)
+    const onHidden = () => { if (document.hidden && open()) stop('Voice ended when the app went to the background.') }
+    const onPageHide = () => { if (open()) stop('Voice session closed.') }
     document.addEventListener('visibilitychange', onHidden)
     window.addEventListener('pagehide', onPageHide)
     return () => {
       document.removeEventListener('visibilitychange', onHidden)
       window.removeEventListener('pagehide', onPageHide)
-      stop()
+      if (open()) stop()
     }
   }, [stop])
 
