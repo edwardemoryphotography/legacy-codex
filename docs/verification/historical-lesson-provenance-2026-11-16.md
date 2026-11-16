@@ -75,9 +75,32 @@ suite does not turn them into real-use evidence.
 
 ## Release evidence
 
-Local/hosted checks, review outcome, merged commit and canonical production
-deployment are recorded below when observed. Until those observations exist,
-this source document makes no merge, deployment or real-use completion claim.
+### Observed release — November 16, 2026, 13:09 Pacific
+
+- [PR #195](https://github.com/edwardemoryphotography/legacy-codex/pull/195)
+  merged at `374a15da49bcb04792a3f4639c95204d535ce5b1` after
+  [hosted CI](https://github.com/edwardemoryphotography/legacy-codex/actions/runs/43955738017)
+  passed every required repository gate and the automated review reported
+  [no findings](https://github.com/edwardemoryphotography/legacy-codex/pull/195#issuecomment-6929210228).
+  Merged-main [CI](https://github.com/edwardemoryphotography/legacy-codex/actions/runs/43956444514)
+  also passed.
+- Reviewed head `05042b362ca69172b25c58ec3bef117bfae551d8` and merged commit
+  have identical Git trees: `369a2abdad24d3914d4c90ae763cf147c16c31ab`.
+  The final diff was reviewed; the change touches only the provenance path,
+  its regression file and release records. PR #193's CSS is unchanged.
+- Canonical frontend [deployment](https://vercel.com/edwardemoryphotographys-projects/frontend/CgwggdWrWFnCenxciHrmxqW7sVHz)
+  `dpl_CgwggdWrWFnCenxciHrmxqW7sVHz` is READY Production at the exact
+  merged SHA. Both canonical-hostname deployment lookup and alias lookup
+  mapped `legacy-codex.vercel.app` to it; aliasError was null.
+- After that mapping, non-writing HTTP checks at 21:09 UTC returned root 200,
+  unsigned `/api/delta-lessons` GET 401 and unsigned
+  `/api/delta-review?capabilities=1` GET 401. The deployment-scoped
+  error/fatal query over the preceding ten minutes returned no groups.
+  These are deployment/boundary observations, not an authenticated rule retrieval.
+- Verdict: **SHIP WITH FLAGS**. Source/algorithm contracts and deployed commit
+  identity are verified; historical confirmation, owner review and beneficial
+  later transfer remain unverified. Documentation follow-through does not
+  introduce additional application behavior.
 
 ### Observed local checks and production-data availability
 

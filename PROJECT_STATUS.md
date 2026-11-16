@@ -1,6 +1,6 @@
 # Legacy Codex — Current Project Status
 
-**Last reconciled:** 2026-11-04  
+**Last reconciled:** 2026-11-16
 **Canonical repository:** edwardemoryphotography/legacy-codex  
 **Canonical production:** https://legacy-codex.vercel.app  
 **Vercel project:** frontend (prj_irrXhfz1elCLhO1Pdgd0ffM4wfz2)
@@ -15,18 +15,32 @@ Legacy Codex is the single normal front door. Foundry is internal builder/operat
 
 ## Historical lesson provenance — November 16
 
-[PR #194](https://github.com/edwardemoryphotography/legacy-codex/pull/194) merged
-at `c59bf59131565f5b960ffba118fb6e63b56e4c69`. Its historical-anchor separation
-is present in canonical frontend Production deployment
-[dpl_Gw6qgQoqaQnWktZ5qQySojQAoXao](https://vercel.com/edwardemoryphotographys-projects/frontend/Gw6qgQoqaQnWktZ5qQySojQAoXao),
-READY at that exact SHA with the canonical alias (observed November 16).
-This establishes deployment identity, not owner behavior.
+The repair is merged in [PR #195](https://github.com/edwardemoryphotography/legacy-codex/pull/195)
+at `374a15da49bcb04792a3f4639c95204d535ce5b1`, following #194's initial
+anchor separation. Reload now requires the actual Project Review workflow-key
+contract before identifying a known origin; absent/unrecognized provenance stays
+unknown. Casebook anchors do not receive origin priority or labels. Confirmed
+rules retain scope, conditions, exceptions and original source references.
+Legacy records are classified on read; no backfill, schema or production-data
+change was made. PR #193's light-mode contrast is preserved.
 
-The bounded follow-up closes the missing-provenance default, explicitly marks new
-Project Review confirmations, preserves legacy review keys and invalidates older
-cached packets. See the [trace, regression evidence and release boundary](docs/verification/historical-lesson-provenance-2026-11-16.md).
-No production records or schemas are changed. Actual owner confirmation and
-useful later transfer remain unverified.
+**Deployed:** canonical frontend [deployment](https://vercel.com/edwardemoryphotographys-projects/frontend/CgwggdWrWFnCenxciHrmxqW7sVHz)
+is READY Production at that exact SHA. Canonical hostname and alias lookup
+confirmed it serves https://legacy-codex.vercel.app (November 16, 13:09 Pacific).
+The reviewed and merged Git trees match. [PR CI](https://github.com/edwardemoryphotography/legacy-codex/actions/runs/43955738017)
+and [merged-main CI](https://github.com/edwardemoryphotography/legacy-codex/actions/runs/43956444514)
+passed: builder/immersive/Economy checks, lint (zero errors, 22 existing warnings),
+TypeScript, 672 tests (two opt-in source checks skipped) and production build.
+Automated review reported no findings.
+
+**Runtime boundary / remaining:** post-deployment root returned 200 and unsigned
+lesson/review GETs returned 401; the ten-minute deployment error/fatal log query
+returned no groups. A read-only aggregate on pkydkbuodikttfeawqsw found zero
+confirmed lessons, retirements and saved reviews. No actual-record replay or
+useful later transfer is claimed. A genuine owner confirmation and later task
+are still needed. **SHIP WITH FLAGS**. See the
+[owning trace and exact evidence](docs/verification/historical-lesson-provenance-2026-11-16.md).
+Later documentation-only commits do not change this dated deployment observation.
 
 ## Relay exception repair — November 12
 
