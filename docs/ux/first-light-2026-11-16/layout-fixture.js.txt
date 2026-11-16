@@ -1,0 +1,73 @@
+// LAYOUT SIMULATION ONLY. Intercepts the browser's own network reads on a LOCAL
+// dev server and answers them with rows that are labelled as fixtures, so the
+// Continue card can be measured at phone and desktop sizes. Nothing is written
+// to any database and nothing here is evidence of real owner data or behaviour.
+// Usage: node layout-fixture.js <localBaseUrl> <outDir>
+const { chromium } = require('playwright')
+const [base, out] = process.argv.slice(2)
+if (!/^http:\/\/localhost/.test(base)) throw new Error('Local dev server only.')
+
+const SIZES = [[375, 667], [390, 664], [390, 844], [430, 739], [1440, 900]]
+const now = '2026-11-16T20:00:00Z'
+const mission = (extra = {}) => ({
+  id: 'fixture-mission', user_id: 'fixture', title: 'LAYOUT FIXTURE (not a real mission): a long title that has to wrap on a small phone',
+  why: 'Fixture text standing in for the reason a person saved.', finish_line: 'Fixture finish line: one observable result that ends this.',
+  evidence_requirement: null, state: 'primary', blocker: null, capacity_mismatch: false, created_at: now, updated_at: now, ...extra,
+})
+const action = (extra = {}) => ({
+  id: 'fixture-action', mission_id: 'fixture-mission', action_title: 'LAYOUT FIXTURE step: a saved next step long enough to wrap across two lines',
+  status: 'TODO', resume_note: 'Fixture return note. '.repeat(30), updated_at: now, ...extra,
+})
+const links = [
+  { id: 'l1', mission_id: 'fixture-mission', type: 'delta_corrected', detail: '{}', created_at: now },
+  { id: 'l2', mission_id: 'fixture-mission', type: 'delta_lesson_confirmed', detail: '{}', created_at: now },
+  { id: 'l3', mission_id: 'fixture-mission', type: 'delta_lesson_confirmed', detail: '{}', created_at: now },
+]
+const SCENES = {
+  'owner-saved': { owner: true, missions: [mission()], actions: [action()] },
+  'owner-inprogress-blocked-why': { owner: true, openWhy: true, missions: [mission({ blocker: 'Fixture blocker text the person saved.' })], actions: [action({ status: 'IN_PROGRESS' })] },
+  'owner-no-step': { owner: true, missions: [mission()], actions: [] },
+  'guest-saved': { owner: false, missions: [mission()], actions: [action()] },
+}
+
+;(async () => {
+  const browser = await chromium.launch({ proxy: { server: process.env.HTTPS_PROXY, bypass: 'localhost,127.0.0.1' } })
+  for (const [name, scene] of Object.entries(SCENES)) {
+    for (const [w, h] of SIZES) {
+      for (const light of name === 'owner-saved' && w === 390 && h === 844 ? [false, true] : [false]) {
+        const ctx = await browser.newContext({ viewport: { width: w, height: h } })
+        const page = await ctx.newPage()
+        if (light) await page.addInitScript(() => localStorage.setItem('codex_appearance_v1', JSON.stringify({ palette: 'aurora', mode: 'light' })))
+        const json = body => ({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+        await page.route('**/rest/v1/missions*', r => r.fulfill(json(scene.missions)))
+        await page.route('**/rest/v1/actions*', r => r.fulfill(json(scene.actions)))
+        await page.route('**/rest/v1/mission_events*', r => r.fulfill(json(r.request().url().includes('type=in') ? links : [])))
+        await page.route('**/rest/v1/evidence_snapshots*', r => r.fulfill(json([])))
+        if (scene.owner) {
+          await page.route('**/api/delta-review?capabilities=1', r => r.fulfill(json({ configured: true, tester: false })))
+          await page.route('**/api/brief', r => r.request().method() === 'GET' ? r.fulfill(json({ configured: true })) : r.abort())
+        }
+        await page.goto(base, { waitUntil: 'networkidle' }); await page.waitForTimeout(3000)
+        if (scene.openWhy) { await page.locator('summary', { hasText: 'Why this?' }).click(); await page.waitForTimeout(300) }
+        const m = await page.evaluate(() => {
+          const box = sel => { const el = document.querySelector(sel); if (!el) return null; const r = el.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.bottom), Math.round(r.left), Math.round(r.right)] }
+          const hero = document.querySelector('.glass-hero')
+          const cta = [...document.querySelectorAll('section[aria-label="What matters now"] button')][0]
+          const c = cta?.getBoundingClientRect()
+          return {
+            overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            card: box('section[aria-label="What matters now"]'), hero: box('.glass-hero'), dock: box('.glass-dock'),
+            heroScrolls: hero ? hero.scrollHeight - hero.clientHeight : null,
+            ctaVisible: c ? c.top >= 0 && c.bottom <= innerHeight && c.bottom <= (hero?.getBoundingClientRect().bottom ?? 1e9) + 1 : null,
+            ctaHeight: c ? Math.round(c.height) : null,
+            status: document.querySelector('.glass-home')?.dataset.continue,
+          }
+        })
+        console.log(JSON.stringify({ scene: name, size: `${w}x${h}`, light, ...m }))
+        await page.screenshot({ path: `${out}/fixture-${name}-${w}x${h}${light ? '-light' : ''}.png` })
+        await ctx.close()
+      }
+    }
+  }
+  await browser.close()
+})()

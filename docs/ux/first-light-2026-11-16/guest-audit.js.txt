@@ -1,0 +1,56 @@
+// Real-browser audit of a Legacy Codex deployment as a first-time (guest) visitor.
+// Usage: node audit.js <baseUrl> <outDir> [prefix]
+const { chromium } = require('playwright')
+
+const [base, out, prefix = 'prod'] = process.argv.slice(2)
+const SIZES = [[375, 667], [390, 664], [390, 844], [430, 739], [1440, 900]]
+
+;(async () => {
+  const browser = await chromium.launch({ proxy: process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: 'localhost,127.0.0.1' } : undefined })
+  for (const [w, h] of SIZES) {
+    const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 })
+    const page = await ctx.newPage()
+    const errors = []
+    page.on('console', m => { if (m.type() === 'error') errors.push(m.text().slice(0, 160)) })
+    await page.goto(base, { waitUntil: 'networkidle', timeout: 60000 }).catch(e => errors.push('goto: ' + e.message.slice(0, 120)))
+    await page.waitForTimeout(3500)
+    await page.screenshot({ path: `${out}/${prefix}-home-${w}x${h}.png` })
+    const info = await page.evaluate(() => ({
+      overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      text: document.querySelector('main')?.innerText.replace(/\s+/g, ' ').slice(0, 700),
+      home: Object.assign({}, document.querySelector('.glass-home')?.dataset),
+    }))
+    console.log(JSON.stringify({ size: `${w}x${h}`, ...info, errors: errors.slice(0, 4) }))
+    if (w === 390 && h === 844 || w === 1440) {
+      // Menu
+      await page.getByRole('button', { name: 'Menu' }).click()
+      await page.waitForTimeout(500)
+      await page.screenshot({ path: `${out}/${prefix}-menu-${w}x${h}.png` })
+      // Mission as a guest
+      await page.getByRole('button', { name: 'Mission', exact: true }).click()
+      await page.waitForTimeout(3500)
+      await page.screenshot({ path: `${out}/${prefix}-mission-${w}x${h}.png`, fullPage: true })
+      const mission = await page.evaluate(() => document.querySelector('main')?.innerText.replace(/\s+/g, ' ').slice(0, 1500))
+      console.log(JSON.stringify({ size: `${w}x${h}`, missionText: mission }))
+      // Home "Missions" detail panel
+      await page.getByRole('button', { name: 'Menu' }).click()
+      await page.getByRole('button', { name: 'Home', exact: true }).click()
+      await page.waitForTimeout(1500)
+      const chip = page.locator('summary', { hasText: 'Why this?' })
+      if (await chip.count()) {
+        await chip.click(); await page.waitForTimeout(600)
+        await page.screenshot({ path: `${out}/${prefix}-home-missions-panel-${w}x${h}.png` })
+      }
+    }
+    await ctx.close()
+  }
+  // Light mode, 390x844
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'light' })
+  const page = await ctx.newPage()
+  await page.addInitScript(() => localStorage.setItem('codex_appearance_v1', JSON.stringify({ palette: 'aurora', mode: 'light' })))
+  await page.goto(base, { waitUntil: 'networkidle', timeout: 60000 }).catch(() => {})
+  await page.waitForTimeout(3500)
+  await page.screenshot({ path: `${out}/${prefix}-home-light-390x844.png` })
+  console.log(JSON.stringify({ light: await page.evaluate(() => Object.assign({}, document.documentElement.dataset)) }))
+  await browser.close()
+})()

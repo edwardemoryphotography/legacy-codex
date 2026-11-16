@@ -419,8 +419,9 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       {access.state === 'owner' && (!missionView || busy || voice.active || liveActive) && <ConversationPresence status={brief.status} busy={busy} loadError={loadError} pending={!loadError && !busy && !voice.active && !liveActive ? missions === null ? 'Reading saved missions' : actionsRead === 'pending' ? 'Reading saved actions' : null : null} voice={voice} live={livePhase} reply={Boolean(current.reply)} />}
       <div className={styles.context}>
         {(missionView || hasReply) && <span>{primaryMission ? `Working on: ${primaryMission.title}` : 'Your conversation with Codex'}</span>}
-        {/* A first visit has one obvious action: the card. Its button already opens Mission. */}
-        {(missionView || hasReply || continueView.status !== 'no_missions') && <button type="button" className="glass-chip glass" onClick={() => onNavigate(missionView ? 'home' : 'mission')}>{missionView ? 'Back to Home' : 'Open Mission'}</button>}
+        {/* The card's own button opens Mission, so a second control to the same
+            place appears only when the card is not offering one. */}
+        {(missionView || hasReply || continueView.status === 'loading') && <button type="button" className="glass-chip glass" onClick={() => onNavigate(missionView ? 'home' : 'mission')}>{missionView ? 'Back to Home' : 'Open Mission'}</button>}
         <button type="button" className="glass-chip glass" hidden={immersive || (access.state !== 'owner' && history.length === 0 && !hasReply)} aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setHistoryOpen(true); setResponseOpen(false) }}>History{history.length ? ` · ${history.length}` : ''}</button>
       </div>
       <div className="glass-hero">
