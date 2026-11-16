@@ -11,7 +11,9 @@ export interface ProjectSource {
   truncated?: boolean
   missionId?: string
   recordedAt?: string
-  lesson?: { scope: 'mission' | 'account'; confirmedAt: string }
+  // originMissionId is the project a rule was learned in, when that is known.
+  // Absent or null means unknown; it is never the ledger mission by default.
+  lesson?: { scope: 'mission' | 'account'; confirmedAt: string; originMissionId?: string | null }
   // Set from an authenticated canonical action row, never from model text.
   commitment?: { id: string; missionId: string; status: string; actionTitle?: string }
 }
@@ -30,7 +32,15 @@ export interface LessonProposal {
 
 export interface ConfirmedLesson extends LessonProposal {
   id: string
+  // Ledger association only: the mission whose mission_events row holds this
+  // confirmation. It decides ownership, mission scope and retirement. It is
+  // NOT where the rule was learned.
   missionId: string
+  // The project this rule was learned in, or null when that is unknown.
+  // Set only for a Project Review confirmation (stored with no `origin`).
+  // Casebook, incident, Relay and unrecognised records are null. Never derive
+  // this from missionId.
+  originMissionId: string | null
   scope: 'mission' | 'account'
   confirmedAt: string
   reviewedAt: string

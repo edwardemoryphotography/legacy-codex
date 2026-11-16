@@ -42,7 +42,13 @@ export async function loadConfirmedLessons(client: Client, userId: string, missi
           typeof saved.candidateId === 'string' && typeof saved.mechanism === 'string' &&
           typeof saved.exceptions === 'string'
           ? { origin: saved.origin, candidateId: saved.candidateId, mechanism: saved.mechanism } : {}
-        lessons.push({ ...proposal, ...sourceCandidate, ...limits, id: row.id, missionId: row.mission_id, scope: saved.scope,
+        // Decided at read time from what is already stored, so existing rows
+        // are covered. Only a Project Review confirmation, which stores no
+        // `origin`, was learned in the mission it is recorded under. Any stored
+        // value (casebook, incident, relay, or one this code does not know)
+        // means the mission is only a ledger anchor and the origin is unknown.
+        const originMissionId = (saved as { origin?: unknown }).origin === undefined ? row.mission_id as string : null
+        lessons.push({ ...proposal, ...sourceCandidate, ...limits, id: row.id, missionId: row.mission_id, originMissionId, scope: saved.scope,
           reviewedAt: saved.reviewedAt, confirmedAt: row.created_at, sourceRefs: saved.sourceRefs })
         if (lessons.length === 16) return lessons
       }

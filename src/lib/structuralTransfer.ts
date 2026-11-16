@@ -2,6 +2,8 @@ import type { ConfirmedLesson, ProjectSource, ReviewProposal } from './projectRe
 
 // Candidates are authenticated rows, never generated projects. Provenance can
 // earn a deeper read without a keyword match; it cannot establish an analogy.
+// lessonOrigins must hold known origin projects only (ConfirmedLesson
+// .originMissionId), never the mission a lesson happens to be recorded under.
 export function selectInvestigationProjects<T extends { id: string; updated_at: string }>(
   candidates: { mission: T; score: number; reason: string }[], lessonOrigins: string[], correctionOrigins: string[],
 ): { mission: T; score: number; reason: string }[] {
@@ -49,7 +51,10 @@ export function parseStructuralBridge(value: unknown, sources: ProjectSource[], 
   if (row.lessonSourceId !== null) {
     const lesson = sources.find(source => source.kind === 'lesson' && source.id === row.lessonSourceId)
     // Mission-scoped rules cannot authorize transfer to a different project.
-    if (!lesson?.lesson || lesson.lesson.scope !== 'account' || lesson.missionId !== prior.missionId) return null
+    // A ledger anchor is not an origin: only a known origin project can
+    // support "this rule came from the prior project".
+    if (!lesson?.lesson || lesson.lesson.scope !== 'account' || typeof lesson.lesson.originMissionId !== 'string' ||
+        lesson.lesson.originMissionId !== prior.missionId) return null
   }
   return { priorSourceId: prior.id, currentSourceId: current.id, priorQuote: row.priorQuote as string,
     currentQuote: row.currentQuote as string, sharedStructure: row.sharedStructure as string,
@@ -75,7 +80,9 @@ export function measureTransfer(input: {
   const next = decisionSnapshot(after)
   const changedFields = before && next ? DECISION_FIELDS.filter(key => before[key] !== next[key]) : []
   const bridge = after?.structuralBridge
-  const applied = suppliedLessons.find(lesson => bridge?.lessonSourceId === `lesson:${lesson.id}` && lesson.scope === 'account' && lesson.missionId !== missionId && Date.parse(lesson.confirmedAt) < Date.parse(reviewedAt))
+  const applied = suppliedLessons.find(lesson => bridge?.lessonSourceId === `lesson:${lesson.id}` && lesson.scope === 'account' &&
+    // Unknown origin cannot be counted as a grounded cross-project application.
+    typeof lesson.originMissionId === 'string' && lesson.originMissionId !== missionId && Date.parse(lesson.confirmedAt) < Date.parse(reviewedAt))
   // This count is queried independently of model-context limits. Never infer
   // absence of intervention from a clipped or paginated source packet.
   const intervention = input.interventionEvidence

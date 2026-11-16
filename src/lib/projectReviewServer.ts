@@ -11,6 +11,9 @@ function resumableTitle(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() && value.trim().length <= 240 ? value.trim() : undefined
 }
 
+// Said to the model wherever a rule's origin project is not recorded.
+const LESSON_ORIGIN_UNKNOWN = 'Origin project unknown: the mission this rule is recorded under is a ledger anchor chosen for ownership, not where the rule was learned. Do not treat any project as its origin or cite it as a bridge lessonSourceId'
+
 export function projectUserClient(url: string, authorization: string) {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY
   if (!key || !authorization.startsWith('Bearer ')) throw new Error('Project context authentication is unavailable.')
@@ -73,7 +76,7 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
   for (const row of actions.data ?? []) sources.push({ id: `action:${row.id}`, label: row.action_title, kind: 'commitment', missionId, recordedAt: row.updated_at, status: 'human-reported commitment and progress; not verified completion', commitment: { id: row.id, missionId, status: row.status, actionTitle: resumableTitle(row.action_title) }, ...boundSourceText(JSON.stringify(row), 2_000) })
   for (const row of events.data ?? []) sources.push({ id: `event:${row.id}`, label: row.type === 'delta_draft_context' ? 'Previous working draft' : 'Your project context', kind: row.type === 'delta_draft_context' ? 'model_draft' : 'human_note', missionId, recordedAt: row.created_at, status: row.type === 'delta_draft_context' ? 'Earlier model-generated draft; unverified, supplied only for revision' : 'human-reported', ...boundSourceText(row.detail, 6_000) })
   for (const row of corrections.data ?? []) sources.push({ id: `event:${row.id}`, label: 'Your correction', kind: 'correction', missionId, recordedAt: row.created_at, status: 'human correction; authoritative for this recommendation', ...boundSourceText(JSON.stringify(row), 2_000) })
-  const warnings = ['Up to 4 projects are read deeply: confirmed lesson origins, prior correction origins, then shared vocabulary. Provenance candidates can be fetched outside the 50 recent-project window (up to 20). None is a proven structural match. Eight additional summaries remain available; omitted projects and semantic links may be missed.',
+  const warnings = ['Up to 4 projects are read deeply: projects where a confirmed lesson is known to have been learned, prior correction origins, then shared vocabulary. A mission a casebook, incident or received lesson is merely recorded under is a ledger anchor, not an origin, and earns no deeper read. Provenance candidates can be fetched outside the 50 recent-project window (up to 20). None is a proven structural match. Eight additional summaries remain available; omitted projects and semantic links may be missed.',
     'Target context is bounded to 12 evidence rows, 8 commitments, 24 notes/events and 100 corrections. Each related project contributes up to 6 evidence rows, 4 commitments, 8 notes and 20 corrections. Lesson history is paged until at most 16 active scoped rules are found; retired and unrelated rules do not consume the selection window. Older or omitted material may change the interpretation.',
     'Evidence here is the Mission evidence_snapshots read model. evidence_items owns canonical evidence truth; those workspace records are not read without a verified account/workspace link. A snapshot status or a human DONE report does not verify the outcome.']
   const notes = (events.data ?? []).filter(e => e.type === 'delta_context_added').map(e => e.detail).join('\n')
@@ -83,7 +86,11 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
     .filter(item => item.score >= 2).sort((a, b) => b.score - a.score || b.mission.updated_at.localeCompare(a.mission.updated_at)).slice(0, 4)
   const targetSourceIds = new Set(sources.map(source => source.id))
   const lessons = await loadConfirmedLessons(client, userId, [missionId, ...lexical.map(item => item.mission.id)])
-  const lessonOrigins = [...new Set(lessons.filter(lesson => lesson.scope === 'account' && lesson.missionId !== missionId).map(lesson => lesson.missionId))]
+  // Known origins only. A casebook, incident or Relay confirmation is recorded
+  // under a mission the owner chose for ledger ownership; that anchor must not
+  // be fetched, prioritised or labelled as where the rule was learned.
+  const lessonOrigins = [...new Set(lessons.flatMap(lesson => lesson.scope === 'account' &&
+    typeof lesson.originMissionId === 'string' && lesson.originMissionId !== missionId ? [lesson.originMissionId] : []))]
   const correctedOrigins = [...new Set((correctionOrigins.data ?? []).map(row => row.mission_id))] as string[]
   const candidates = [...(missions.data ?? [])]
   const missingIds = [...new Set([...lessonOrigins, ...correctedOrigins])].filter(id => !candidates.some(mission => mission.id === id)).slice(0, 20)
@@ -96,10 +103,20 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
   // Row counts only prompt a closer look; they never establish the precondition.
   const signals = { corrections: (corrections.data ?? []).length, hasBlocker: Boolean(target.data.blocker?.trim()),
     suppliedSteps: (events.data ?? []).filter(event => event.type === 'delta_step_supplied').length }
-  for (const lesson of lessons) sources.push({ id: `lesson:${lesson.id}`, label: lesson.rule, kind: 'lesson', missionId: lesson.missionId, recordedAt: lesson.confirmedAt, lesson: { scope: lesson.scope, confirmedAt: lesson.confirmedAt },
-    status: `Human-confirmed operating rule (${lesson.scope === 'account' ? 'across this account' : `only project ${lesson.missionId}`}); apply only under its stated conditions, not verified evidence${
-      (LESSON_MECHANISMS as readonly string[]).includes(lesson.mechanism ?? '') ? `. ${mechanismPrecondition(lesson.mechanism as LessonMechanism, signals).basis}` : ''}`,
-    text: JSON.stringify(lesson), truncated: false })
+  for (const lesson of lessons) {
+    // The ledger mission is shown to the model only as a mission rule's scope,
+    // never as provenance. Rule, conditions, exceptions, mechanism, scope and
+    // source references all stay in the record.
+    const { missionId: ledgerMissionId, originMissionId, ...words } = lesson
+    const originKnown = typeof originMissionId === 'string'
+    sources.push({ id: `lesson:${lesson.id}`, label: lesson.rule, kind: 'lesson', ...(originKnown ? { missionId: originMissionId } : {}), recordedAt: lesson.confirmedAt,
+      lesson: { scope: lesson.scope, confirmedAt: lesson.confirmedAt, originMissionId: originKnown ? originMissionId : null },
+      status: `Human-confirmed operating rule (${lesson.scope === 'account' ? 'across this account' : `only project ${ledgerMissionId}`}); apply only under its stated conditions, not verified evidence. ${
+        originKnown ? `Confirmed from a review of project ${originMissionId}` : LESSON_ORIGIN_UNKNOWN}${
+        (LESSON_MECHANISMS as readonly string[]).includes(lesson.mechanism ?? '') ? `. ${mechanismPrecondition(lesson.mechanism as LessonMechanism, signals).basis}` : ''}`,
+      text: JSON.stringify({ ...words, originMissionId: originKnown ? originMissionId : null,
+        ...(lesson.scope === 'mission' ? { appliesOnlyToMissionId: ledgerMissionId } : {}) }), truncated: false })
+  }
   const packets = await Promise.all(related.map(async ({ mission, reason }) => {
     const rows = await Promise.all([
       client.from('evidence_snapshots').select('id,source,status,claim,observed_at,fetched_at').eq('mission_id', mission.id).order('fetched_at', { ascending: false }).limit(6),
@@ -172,6 +189,6 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
     interventionEvidence = { since, eventCount: intervened.count,
       objectiveUpdated: !Number.isFinite(Date.parse(target.data.updated_at)) || Date.parse(target.data.updated_at) >= earliest }
   }
-  const contextKey = createHash('sha256').update(JSON.stringify({ version: 8, target: target.data, sources: bounded, warnings, hasEvidenceConflict, interventionEvidence })).digest('hex')
+  const contextKey = createHash('sha256').update(JSON.stringify({ version: 9, target: target.data, sources: bounded, warnings, hasEvidenceConflict, interventionEvidence })).digest('hex')
   return { mission: target.data, sources: bounded, warnings, contextKey, hasEvidenceConflict, lessons, interventionEvidence }
 }
