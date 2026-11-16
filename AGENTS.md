@@ -200,8 +200,16 @@ that control rather than failing at runtime.
 for an actionable saved project, including single-clause finish lines. The
 server reads that authenticated account's mission, related missions, evidence
 read model, canonical commitments and notes/corrections through RLS; no admin
-key is used. Confirmed account-lesson and prior-correction origins take precedence over
-shared terms when selecting up to four projects for deeper reads. Missing
+key is used. Known confirmed account-lesson origins and prior-correction origins take
+precedence over shared terms when selecting up to four projects for deeper
+reads. A lesson's origin is `ConfirmedLesson.originMissionId`, derived at read
+time: only a Project Review confirmation (stored with no `origin`) has its
+mission as origin. Casebook, incident, Relay and unrecognised records have an
+unknown origin (`null`); the mission they are recorded under (`missionId`) is a
+ledger anchor for ownership, scope and retirement, and is never prioritised,
+labelled or measured as an origin. Never infer origin from a mission ID; any new
+writer of `delta_lesson_confirmed` must store an `origin` unless the mission
+really is the source. Missing
 origins can be fetched beyond the latest fifty-project window (up to twenty);
 all queries stay account-scoped. Selection is an investigation candidate, not
 a structural match. Up to eight additional summaries allow discovery without lexical
