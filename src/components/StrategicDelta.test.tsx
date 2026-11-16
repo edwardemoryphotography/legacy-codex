@@ -828,6 +828,34 @@ describe('StrategicDelta — action follow-through and Mission clarity', () => {
     await waitFor(() => expect(onSaveNextAction).toHaveBeenCalledWith(expect.anything(), null, { confirmReplace: true }))
   })
 
+  it('lets a saved action lead and folds the alternative behind one control', async () => {
+    renderDelta([BLOCKED], {
+      savedOpenAction: { id: 'act-old', missionId: 'm1', title: 'The unstarted action', status: 'TODO', resumeNote: null },
+      onSaveNextAction: vi.fn(),
+    })
+    expect(await screen.findByText(/Current saved action/)).toBeTruthy()
+    const marker = document.querySelector('[data-also-consider]')!
+    // The stylesheet hides every sibling after a collapsed marker; jsdom does not load it.
+    expect(marker.getAttribute('data-collapsed')).toBe('true')
+    const toggle = screen.getByRole('button', { name: 'See other options' })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(marker.textContent).toMatch(/Your saved action stays as it is/)
+
+    fireEvent.click(toggle)
+    expect(marker.hasAttribute('data-collapsed')).toBe(false)
+    expect(marker.textContent).toBe('Also consider — does not replace your saved action:')
+    expect(screen.queryByRole('button', { name: 'See other options' })).toBeNull()
+  })
+
+  it('keeps the alternative open once the person has accepted it', async () => {
+    renderDelta([BLOCKED], {
+      savedOpenAction: { id: 'act-old', missionId: 'm1', title: 'The unstarted action', status: 'TODO', resumeNote: null },
+      acceptedMoves: { m1: BLOCKED_MOVE },
+    })
+    expect(await screen.findByText(/Current saved action/)).toBeTruthy()
+    expect(document.querySelector('[data-also-consider]')!.hasAttribute('data-collapsed')).toBe(false)
+  })
+
   it('preserves draft and context on failed save and allows a safe retry', async () => {
     let attempt = 0
     const onSaveNextAction = vi.fn(async () => {

@@ -190,6 +190,8 @@ Three rules that are load-bearing, not stylistic:
 - **Insufficient context is a first-class path, not a fallback.** With no mission
   state the Delta names the one missing input. It never guesses.
 
+When a saved action differs from the current suggestion, the saved action leads and the alternative, project review and corrections fold behind `See other options` (2026-11-16). The fold is one boolean (`altCollapsed`) and one CSS rule on the siblings after the `data-also-consider` marker; it never hides anything the person has already engaged with, and it changes no prediction, acceptance, save or replace behaviour.
+
 Corrections ("Not right") persist as `delta_corrected` rows in `mission_events`
 — that table's `type` column has no CHECK constraint, so new event types need no
 migration — and feed back in as an inhibition input. The corrected move stops

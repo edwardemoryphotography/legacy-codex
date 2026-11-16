@@ -78,6 +78,12 @@ Mission data never depended on AI access, so the card now shows for every accoun
 - “Open project workspace” is now “Open Mission”, shown only when the card is not already offering a button to Mission (while loading, or when a reply has replaced the card).
 - “History” is hidden for an account that has no AI and no history.
 
+### Mission: a saved action leads (added in a second pass, same day)
+
+With a saved action that differs from the current suggestion, Mission used to stack both: the saved action, then the alternative with its form and about ten controls, then the saved-action panel far below. Now the saved action and “Start this action now” lead, and the alternative, project review and corrections sit behind one control, “See other options”. Nothing was removed and no state or handler changed: `StrategicDelta.tsx` adds one boolean and one button, and one CSS rule hides the siblings that follow the existing “Also consider” marker. It stays open on its own whenever the person has already engaged with the alternative (an acceptance, a draft, a project review, a pending replace, an open panel).
+
+Measured at 390px wide [SIMULATED layout]: the page went from 4,209px to 2,987px tall and the saved-action panel moved from 2,126px to 904px from the top. Expanding restores the full 4,209px. `layout-fixture-mission-collapsed-full-390.png`.
+
 ### Defects fixed along the way (all found in the browser)
 
 | Defect | Cause | Fix |
@@ -91,7 +97,7 @@ Mission data never depended on AI access, so the card now shows for every accoun
 
 - **No API route, auth rule, owner gate, schema, migration or environment variable changed.**
 - **No lesson, provenance, review or Relay logic changed.** `lessonProvenance.ts`, `projectReview*`, `/api/delta-lessons` and `/api/delta-review` are untouched.
-- **`MissionTab.tsx` and `StrategicDelta.tsx` are untouched.** Mission is long and dense (see Remaining work) but it is the area most exposed to concurrent work.
+- **`MissionTab.tsx` is untouched.** `StrategicDelta.tsx` gained only the fold described above; its prediction, acceptance, save, replace, correction and review logic are unchanged.
 - **`OrbHost.tsx`, the orb renderer and its state mapping are untouched.** The orb still reflects real state only; on Home it is smaller at rest when the card is present.
 - **The reply view, the composer, voice, tiers and the tools sheet are unchanged**, apart from the false “ended” status.
 - **The menu is unchanged.**
@@ -108,11 +114,12 @@ Mission data never depended on AI access, so the card now shows for every accoun
 | `src/components/tabs/HomeTab.test.tsx` | Four tests ported from the dialog to the card; seven new card tests. |
 | `src/app/immersive.css` | Desktop centring; Home orb floor. |
 | `src/components/CodexLiveVoice.tsx` | Open-session guard on lifecycle handlers. |
+| `src/components/StrategicDelta.tsx`, `.test.tsx`, `src/app/mission-assistance.css` | Fold the alternative behind “See other options” when a saved action leads; two tests. |
 | `AGENTS.md`, `STATE.md` | Home section and repo-local note. |
 
 ## 5. Verification
 
-Run on the branch after the last source change, 2026-11-16 ~14:30 Pacific:
+Run on the branch after the last source change, 2026-11-16 ~16:00 Pacific:
 
 | Command | Result |
 | --- | --- |
@@ -121,7 +128,7 @@ Run on the branch after the last source change, 2026-11-16 ~14:30 Pacific:
 | `node --experimental-strip-types --test scripts/check-economy.mjs` | 3 pass, 0 fail |
 | `npm run lint` | 0 errors, 22 warnings (same 22 as `main`) |
 | `npx tsc --noEmit` | clean |
-| `npm test -- --run` | 73 files: 72 passed, 1 skipped; 691 tests passed, 2 skipped (`main`: 672) |
+| `npm test -- --run` | 73 files: 72 passed, 1 skipped; 693 tests passed, 2 skipped (`main`: 672) |
 | `npm run build` | success |
 
 Browser, real, no fixtures [OBSERVED]:
@@ -155,7 +162,7 @@ Browser, simulated layout only [SIMULATED]:
 ## 7. Next recommendations, in order
 
 1. **Owner check on the real device (15 minutes).** Open the PR's Vercel preview signed in: is the mission right, is the step right, does one tap reach “Start this action now”? Everything else waits on this.
-2. **Mission density.** With a saved action, Mission rendered 4,209px tall at 390px wide with about 20 controls visible: Replace, Accept, Route, Why, Correct, Something changed, Review project, then the commitment panel, Relay, files and five disclosures [SIMULATED layout, `layout-fixture-mission-landing-390x844.png` shows the top]. When a saved action exists, the alternative recommendation and its controls could collapse behind one “See another suggestion” disclosure. This is the largest remaining comprehension cost. It touches `StrategicDelta.tsx`; coordinate with whoever is working on lessons.
+2. **Mission density, remaining part.** The alternative suggestion now folds away when a saved action leads (above). Still long: the saved action appears twice (the lead box and the “The action you can return to” panel), followed by Relay, files and five disclosures. Merging the lead box and the panel into one would remove the duplication; it touches `MissionTab.tsx` and `SavedActions.tsx`. Also, Project Review now sits behind “See other options” in that state; if reviews matter more than that placement suggests, lift the Review control next to the saved action.
 3. **Plain words in Mission.** “Recommendation / A prediction, not a commitment” → “Suggestion”. “Route this move” → “Hand this to another tool”. Keep the underlying states.
 4. **Show a real lesson at work, once one exists.** When `/api/brief` or a review actually receives a confirmed lesson, return which lesson ids were supplied and list them under the answer as “Context supplied: …”. That is the honest version of “it remembered”. It needs a route change and a real confirmed lesson; do not build it against fixtures.
 5. **Full answer on Home.** Consider showing the whole answer inline on wide screens, where there is room, and keeping the excerpt on phones.
