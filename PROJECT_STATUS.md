@@ -13,6 +13,21 @@ Preserve human intent so another intelligence can reconstruct, execute, verify a
 
 Legacy Codex is the single normal front door. Foundry is internal builder/operations; Control Panel is a transitional routing reference/service; codex-system-architecture owns governance and the Goose Cookbook. Artful Intelligence retains its separate photography purpose.
 
+## Historical lesson provenance — November 16
+
+[PR #194](https://github.com/edwardemoryphotography/legacy-codex/pull/194) merged
+at `c59bf59131565f5b960ffba118fb6e63b56e4c69`. Its historical-anchor separation
+is present in canonical frontend Production deployment
+[dpl_Gw6qgQoqaQnWktZ5qQySojQAoXao](https://vercel.com/edwardemoryphotographys-projects/frontend/Gw6qgQoqaQnWktZ5qQySojQAoXao),
+READY at that exact SHA with the canonical alias (observed November 16).
+This establishes deployment identity, not owner behavior.
+
+The bounded follow-up closes the missing-provenance default, explicitly marks new
+Project Review confirmations, preserves legacy review keys and invalidates older
+cached packets. See the [trace, regression evidence and release boundary](docs/verification/historical-lesson-provenance-2026-11-16.md).
+No production records or schemas are changed. Actual owner confirmation and
+useful later transfer remain unverified.
+
 ## Relay exception repair — November 12
 
 Relay exception preservation repairs PR #189’s [reviewed loss of rule limits](https://github.com/edwardemoryphotography/legacy-codex/pull/189#discussion_r4546173463): exception-bearing share links use v2, recipient preview/save/reload retains limits, and confirmed-lesson retrieval carries them into later contexts. v1 remains readable; already-incomplete links cannot recover missing words. See [scope and verification boundary](docs/verification/legacy-relay-2026-11-01.md#november-12-exception-preservation-repair). Source checks and passing tests are not a real two-person transfer. The repair merged in [PR #190](https://github.com/edwardemoryphotography/legacy-codex/pull/190) at `595df31c05590bee3d4c9170b2cc16ba4c8b6fed` after [hosted CI](https://github.com/edwardemoryphotography/legacy-codex/actions/runs/43317267488) and automated code review with no findings. The reviewed source tree equals the merged source tree. Genuine recipient acceptance remains unverified; this record does not claim useful transfer.

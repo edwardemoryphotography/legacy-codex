@@ -1,4 +1,5 @@
 import { lessonExceptionFields } from './lessonLimits'
+import { hasProjectReviewOrigin } from './lessonProvenance'
 import type { projectUserClient } from './projectReviewServer'
 import { parseLessonProposal, type ConfirmedLesson } from './projectReview'
 
@@ -14,7 +15,7 @@ export async function loadConfirmedLessons(client: Client, userId: string, missi
   const through = new Date().toISOString()
   const signal = AbortSignal.timeout(8_000)
   for (let offset = 0; ; offset += PAGE_SIZE) {
-    const confirmed = await client.from('mission_events').select('id,mission_id,detail,created_at')
+    const confirmed = await client.from('mission_events').select('id,mission_id,detail,created_at,idempotency_key')
       .eq('user_id', userId).eq('type', 'delta_lesson_confirmed').lte('created_at', through)
       .order('created_at', { ascending: false }).order('id', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1).abortSignal(signal)
@@ -42,12 +43,10 @@ export async function loadConfirmedLessons(client: Client, userId: string, missi
           typeof saved.candidateId === 'string' && typeof saved.mechanism === 'string' &&
           typeof saved.exceptions === 'string'
           ? { origin: saved.origin, candidateId: saved.candidateId, mechanism: saved.mechanism } : {}
-        // Decided at read time from what is already stored, so existing rows
-        // are covered. Only a Project Review confirmation, which stores no
-        // `origin`, was learned in the mission it is recorded under. Any stored
-        // value (casebook, incident, relay, or one this code does not know)
-        // means the mission is only a ledger anchor and the origin is unknown.
-        const originMissionId = (saved as { origin?: unknown }).origin === undefined ? row.mission_id as string : null
+        // The stored workflow key proves a Project Review confirmation,
+        // including legacy rows without an origin field. Absence alone does
+        // not. Historical/incident/Relay anchors never become project origins.
+        const originMissionId = hasProjectReviewOrigin(saved.origin, row.idempotency_key) ? row.mission_id as string : null
         lessons.push({ ...proposal, ...sourceCandidate, ...limits, id: row.id, missionId: row.mission_id, originMissionId, scope: saved.scope,
           reviewedAt: saved.reviewedAt, confirmedAt: row.created_at, sourceRefs: saved.sourceRefs })
         if (lessons.length === 16) return lessons

@@ -37,16 +37,16 @@ export interface ConfirmedLesson extends LessonProposal {
   // NOT where the rule was learned.
   missionId: string
   // The project this rule was learned in, or null when that is unknown.
-  // Set only for a Project Review confirmation (stored with no `origin`).
-  // Casebook, incident, Relay and unrecognised records are null. Never derive
+  // Set only for a proven Project Review confirmation (workflow key).
+  // Casebook, incident, Relay and records without that provenance are null. Never derive
   // this from missionId.
   originMissionId: string | null
   scope: 'mission' | 'account'
   confirmedAt: string
   reviewedAt: string
   sourceRefs: Pick<ProjectSource, 'id' | 'label' | 'status' | 'url'>[]
-  // Present only on rules the owner confirmed from a real incident candidate.
-  origin?: 'incident' | 'casebook'
+  // Workflow marker when available; historical sources remain in sourceRefs.
+  origin?: 'incident' | 'casebook' | 'project_review'
   candidateId?: string
   mechanism?: string
   exceptions?: string

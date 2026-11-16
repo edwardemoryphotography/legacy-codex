@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
     if (!review || review.contextKey !== body.contextKey) return NextResponse.json({ error: 'The project changed or the review expired. Review it again before confirming a lesson.' }, { status: 409 })
     const sourceIds = review.lesson?.sourceIds ?? review.sourceIds
     const sourceRefs = context.sources.filter(source => sourceIds.includes(source.id)).map(({ id, label, status, url }) => ({ id, label, status, url }))
-    const lesson = { rule: body.rule.trim(), whenToApply: body.whenToApply.trim(), scope: body.scope,
+    const lesson = { origin: 'project_review', rule: body.rule.trim(), whenToApply: body.whenToApply.trim(), scope: body.scope,
       reviewedAt: review.reviewedAt, sourceIds, sourceRefs }
     const current = await loadProjectContext(client, owner.userId, body.missionId)
     if (current.contextKey !== context.contextKey) return NextResponse.json({ error: 'Your project changed while confirming. Review the updated context first.' }, { status: 409 })
