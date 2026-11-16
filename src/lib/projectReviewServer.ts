@@ -189,6 +189,6 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
     interventionEvidence = { since, eventCount: intervened.count,
       objectiveUpdated: !Number.isFinite(Date.parse(target.data.updated_at)) || Date.parse(target.data.updated_at) >= earliest }
   }
-  const contextKey = createHash('sha256').update(JSON.stringify({ version: 9, target: target.data, sources: bounded, warnings, hasEvidenceConflict, interventionEvidence })).digest('hex')
+  const contextKey = createHash('sha256').update(JSON.stringify({ version: 10, target: target.data, sources: bounded, warnings, hasEvidenceConflict, interventionEvidence })).digest('hex')
   return { mission: target.data, sources: bounded, warnings, contextKey, hasEvidenceConflict, lessons, interventionEvidence }
 }
