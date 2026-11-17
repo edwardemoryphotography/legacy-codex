@@ -1,7 +1,51 @@
 {
-  "generatedAt": "2026-11-16T17:59:32.189Z",
+  "generatedAt": "2026-11-17T02:47:52.449Z",
   "unavailableSources": [],
   "records": [
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-197",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#197",
+      "kind": "custom",
+      "status": "unverified",
+      "claim": "PR #197 \"feat(home): lead with what matters, the next step, and why (Operation First Light)\" open, not yet merged.",
+      "observedAt": "2026-11-16T23:57:32Z",
+      "fetchedAt": "2026-11-17T02:47:46.197Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-196",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#196",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #196 \"docs: record historical provenance release evidence\" merged. 2 check run(s), 2 passing.",
+      "observedAt": "2026-11-16T21:14:46Z",
+      "fetchedAt": "2026-11-17T02:47:46.605Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-195",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#195",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #195 \"fix: finish historical lesson provenance repair\" merged. 2 check run(s), 2 passing.",
+      "observedAt": "2026-11-16T21:11:42Z",
+      "fetchedAt": "2026-11-17T02:47:46.966Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-194",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#194",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #194 \"fix: keep a lesson's ledger mission separate from its origin\" merged. 2 check run(s), 2 passing.",
+      "observedAt": "2026-11-16T18:22:05Z",
+      "fetchedAt": "2026-11-17T02:47:47.311Z",
+      "prReadSucceeded": true
+    },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-193",
       "missionId": null,
@@ -10,7 +54,7 @@
       "status": "verified",
       "claim": "PR #193 \"Fix Codex tools dialog contrast in Light mode\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-15T17:51:54Z",
-      "fetchedAt": "2026-11-16T17:59:25.443Z",
+      "fetchedAt": "2026-11-17T02:47:47.642Z",
       "prReadSucceeded": true
     },
     {
@@ -21,7 +65,7 @@
       "status": "verified",
       "claim": "PR #192 \"Add the other 33 real boomerangs to Codex Mission learning review\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-13T04:00:34Z",
-      "fetchedAt": "2026-11-16T17:59:25.921Z",
+      "fetchedAt": "2026-11-17T02:47:48.003Z",
       "prReadSucceeded": true
     },
     {
@@ -32,7 +76,7 @@
       "status": "verified",
       "claim": "PR #191 \"Record Relay repair release evidence and remaining acceptance\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-12T22:21:01Z",
-      "fetchedAt": "2026-11-16T17:59:26.330Z",
+      "fetchedAt": "2026-11-17T02:47:48.312Z",
       "prReadSucceeded": true
     },
     {
@@ -43,7 +87,7 @@
       "status": "verified",
       "claim": "PR #190 \"Preserve approved lesson exceptions through Relay\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-12T22:12:14Z",
-      "fetchedAt": "2026-11-16T17:59:26.705Z",
+      "fetchedAt": "2026-11-17T02:47:48.650Z",
       "prReadSucceeded": true
     },
     {
@@ -54,7 +98,7 @@
       "status": "verified",
       "claim": "PR #189 \"Let real incidents enter the lesson loop as owner-confirmed candidates\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-12T04:09:10Z",
-      "fetchedAt": "2026-11-16T17:59:27.019Z",
+      "fetchedAt": "2026-11-17T02:47:48.921Z",
       "prReadSucceeded": true
     },
     {
@@ -65,7 +109,7 @@
       "status": "verified",
       "claim": "PR #188 \"Preserve 34 sourced boomerangs in Legacy Codex Root and define inheritance build\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-10T08:34:58Z",
-      "fetchedAt": "2026-11-16T17:59:27.315Z",
+      "fetchedAt": "2026-11-17T02:47:49.228Z",
       "prReadSucceeded": true
     },
     {
@@ -76,7 +120,7 @@
       "status": "verified",
       "claim": "PR #187 \"Replace clipped Codex tools flyout with native modal on iPhone\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-10T06:53:59Z",
-      "fetchedAt": "2026-11-16T17:59:27.639Z",
+      "fetchedAt": "2026-11-17T02:47:49.580Z",
       "prReadSucceeded": true
     },
     {
@@ -87,7 +131,7 @@
       "status": "verified",
       "claim": "PR #186 \"Keep Ask Codex visible in iOS embedded browser when keyboard opens\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-10T06:38:18Z",
-      "fetchedAt": "2026-11-16T17:59:27.963Z",
+      "fetchedAt": "2026-11-17T02:47:49.961Z",
       "prReadSucceeded": true
     },
     {
@@ -98,7 +142,7 @@
       "status": "verified",
       "claim": "PR #185 \"Fix iPhone keyboard overlay and keep Ask Codex composer visible\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-10T04:07:05Z",
-      "fetchedAt": "2026-11-16T17:59:28.359Z",
+      "fetchedAt": "2026-11-17T02:47:50.231Z",
       "prReadSucceeded": true
     },
     {
@@ -109,7 +153,7 @@
       "status": "verified",
       "claim": "PR #174 \"Bound iPhone Live Voice startup so connecting never hangs indefinitely\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-09T20:31:55Z",
-      "fetchedAt": "2026-11-16T17:59:28.739Z",
+      "fetchedAt": "2026-11-17T02:47:50.521Z",
       "prReadSucceeded": true
     },
     {
@@ -120,7 +164,7 @@
       "status": "verified",
       "claim": "PR #167 \"Add GPT-Live voice conversation mode to existing Legacy Codex Home\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-09T20:31:43Z",
-      "fetchedAt": "2026-11-16T17:59:29.092Z",
+      "fetchedAt": "2026-11-17T02:47:50.804Z",
       "prReadSucceeded": true
     },
     {
@@ -131,7 +175,7 @@
       "status": "verified",
       "claim": "PR #184 \"feat(ux): give Save as my next action primary dominance over accept\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T04:19:26Z",
-      "fetchedAt": "2026-11-16T17:59:29.411Z",
+      "fetchedAt": "2026-11-17T02:47:51.215Z",
       "prReadSucceeded": true
     },
     {
@@ -142,7 +186,7 @@
       "status": "verified",
       "claim": "PR #183 \"feat(ux): group navigation into four core loops and scale mobile reply orb\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T03:33:26Z",
-      "fetchedAt": "2026-11-16T17:59:29.811Z",
+      "fetchedAt": "2026-11-17T02:47:51.504Z",
       "prReadSucceeded": true
     },
     {
@@ -153,7 +197,7 @@
       "status": "verified",
       "claim": "PR #182 \"Territory Path 2: saved connections, state and log\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T02:25:47Z",
-      "fetchedAt": "2026-11-16T17:59:30.156Z",
+      "fetchedAt": "2026-11-17T02:47:51.831Z",
       "prReadSucceeded": true
     },
     {
@@ -164,7 +208,7 @@
       "status": "verified",
       "claim": "PR #181 \"Keep access sign-in legible in opaque and contrast modes\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T00:18:58Z",
-      "fetchedAt": "2026-11-16T17:59:30.535Z",
+      "fetchedAt": "2026-11-17T02:47:52.126Z",
       "prReadSucceeded": true
     },
     {
@@ -175,51 +219,7 @@
       "status": "verified",
       "claim": "PR #180 \"Fix first-use sign-in button contrast\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T00:10:54Z",
-      "fetchedAt": "2026-11-16T17:59:30.885Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-179",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#179",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #179 \"Prepare Legacy Codex for the first-time cousin demo\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-04T23:58:07Z",
-      "fetchedAt": "2026-11-16T17:59:31.174Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-178",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#178",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #178 \"Fix Mission/Home reply overlap on iPhone\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-04T23:44:44Z",
-      "fetchedAt": "2026-11-16T17:59:31.512Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-177",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#177",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #177 \"Record canonical glass runtime evidence\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-04T23:10:34Z",
-      "fetchedAt": "2026-11-16T17:59:31.808Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-176",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#176",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #176 \"Clear Liquid Glass and interaction repair\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-04T23:01:29Z",
-      "fetchedAt": "2026-11-16T17:59:32.189Z",
+      "fetchedAt": "2026-11-17T02:47:52.448Z",
       "prReadSucceeded": true
     }
   ]
