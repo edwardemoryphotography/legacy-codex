@@ -231,3 +231,19 @@ Eddie opened the preview for `ef5aedd` on his iPhone, signed in with his email a
 | The Mission card rendered white with dark text while the page around it stayed dark | **Not established.** The white card and dark-green status word are the app's Light appearance tokens; the dark surround is not what Light appearance renders in Chromium. One reading that fits every sampled colour is that the app was in Light appearance and something outside the page was darkening it. That is a guess. | Not changed. Question put to the owner: is Appearance set to Light on that site, and is a dark-mode browser extension active? |
 
 **Still not verified:** the fixes in this section on the device; Mission's fold with a saved action that differs from the suggestion (the owner's saved step matched the suggestion, so the fold did not appear); any AI path, which is off on Preview.
+
+## 12. Second owner check (iPhone, preview at `775204d`, 2026-11-16 23:34 Pacific)
+
+Eddie reloaded the preview, sent three screenshots and a 13-second recording. His captures are not committed.
+
+**Confirmed on the device [OBSERVED by the owner]**
+
+- “Resume this step” is now legible: light label on the teal button.
+- Tapping it lands on the saved step's own card: the mission line with “In progress”, the step, “Same words as the recommendation you accepted”, the Starting point note, and “Save note” / “Save & pause”. The recording shows Mission appear and then settle on that card without a manual scroll.
+- The notice reads “AI is not turned on for this account on this site. You are signed in and your saved work is here…”, with no sign-in button.
+
+**Still open**
+
+- **The owner's Home with AI on has never been seen on a real device.** Preview refuses the owner AI, so the device showed the no-AI layout: no orb in the stage, no composer, no voice or tier controls. Production adds all of those around the card. That layout was measured only in Chromium from layout fixtures. This is the one gate left before merging. It can be cleared either by giving the Preview environment the owner allowlist value and re-checking there, or by merging and checking production at once with a rollback ready. Both are the owner's decisions.
+- **The Mission card still renders white** on his phone while the saved-action panel below it and the page around it are dark. The white card is exactly this app's Light-appearance rule for `.sd` (`globals.css`, a four-layer gradient ending in `#ffffff`), which this PR does not touch; the PR's only CSS changes under `src/app` are 7 lines in `immersive.css` and 13 in `mission-assistance.css`. A page that is partly Light and partly dark is not something the app's own styles produce in Chromium. Safari's address bar shows the extension badge in his screenshots, so an extension recolouring the page is the leading guess. Not established. The quickest test is to open Mission on production: if the card is white there too, it predates this PR.
+- Mission's fold with a saved action that differs from the suggestion: not seen on real data.
