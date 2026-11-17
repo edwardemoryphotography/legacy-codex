@@ -128,7 +128,7 @@ Run on the branch after the last source change (the review fixes in section 10):
 | `node --experimental-strip-types --test scripts/check-economy.mjs` | 3 pass, 0 fail |
 | `npm run lint` | 0 errors, 22 warnings (same 22 as `main`) |
 | `npx tsc --noEmit` | clean |
-| `npm test -- --run` | 73 files: 72 passed, 1 skipped; 699 tests passed, 2 skipped (`main`: 672) |
+| `npm test -- --run` | 73 files: 72 passed, 1 skipped; 701 tests passed, 2 skipped (`main`: 672) |
 | `npm run build` | success |
 
 Browser, real, no fixtures [OBSERVED]:
@@ -210,3 +210,24 @@ An independent review of PR #197 recommended **HOLD** until the owner's real Hom
 | Layout fixtures are not real data | Correct, and already labelled as such | No further fixture runs were made for these fixes; they are covered by unit tests only. The fixture screenshots and script remain in `first-light-2026-11-16/`, named `layout-fixture-*`. Remove them if the repository should hold no simulated captures at all. |
 
 Not re-verified in a browser after these fixes: the Mission toggle and the new card states. They need a saved action, which exists only in the owner's account.
+
+## 11. First real owner check (iPhone, preview, 2026-11-16 22:37–22:38 Pacific)
+
+Eddie opened the preview for `ef5aedd` on his iPhone, signed in with his email account, and sent two screenshots and a 15-second screen recording. They are his own captures and are not committed here.
+
+**Confirmed with real data [OBSERVED by the owner]**
+
+- Home showed his real Primary mission under “What matters now”, the status “In progress”, his real saved step, and “Resume this step”.
+- Controls showed “Signed in as … — works in any browser”, so the session was the real account.
+- Mission, after the tap, showed the same mission and the same step (“Intending this next”), with the “Saved action” stage marked.
+
+**Problems the real device exposed, and what was done**
+
+| Observed | Cause | Outcome |
+| --- | --- | --- |
+| Tapping “Resume this step” landed at the top of Mission. The saved step's own controls were at least a screen further down, behind the orb and a large headline | The button only switched screens | Fixed. The button now also scrolls to and focuses the saved-action card (`#saved-action-<id>`), looking for it briefly because it loads after navigation. Unit-tested; **not yet re-checked on the device.** |
+| Home said “This browser account cannot use AI yet … Already have an account? Sign in to it” to an account that was already signed in | The notice could not tell a signed-in account from an anonymous guest; both get the same refusal. On this Preview deployment the owner allowlist is absent (recorded for #173), so the owner is refused there | Fixed. The access check now reports whether the session is a confirmed email account. A signed-in account sees “AI is not turned on for this account on this site” with no sign-in button. Production's allowlist is unchanged and was not touched. |
+| “Resume this step” was hard to read: sampled from the screenshot, label about rgb(89,99,168) on rgb(65,79,82) | **Not established.** Chromium renders the label rgb(233,234,247) under every combination of light/dark system mode, opaque surfaces and reduced transparency that was tried. | Mitigated, not explained. The card's button now uses the existing `.glass-continuity-button` style that already shipped for the saved focus, instead of a new style built on `color-mix()`. Needs a second look on the device. |
+| The Mission card rendered white with dark text while the page around it stayed dark | **Not established.** The white card and dark-green status word are the app's Light appearance tokens; the dark surround is not what Light appearance renders in Chromium. One reading that fits every sampled colour is that the app was in Light appearance and something outside the page was darkening it. That is a guess. | Not changed. Question put to the owner: is Appearance set to Light on that site, and is a dark-mode browser extension active? |
+
+**Still not verified:** the fixes in this section on the device; Mission's fold with a saved action that differs from the suggestion (the owner's saved step matched the suggestion, so the fold did not appear); any AI path, which is off on Preview.

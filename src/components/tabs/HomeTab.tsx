@@ -44,7 +44,7 @@ function ConversationPresence({ status, busy, loadError, pending, voice, live, r
   return null
 }
 
-function AccessGate({ state, onSignIn, compact = false }: { state: ReturnType<typeof useHomeAccess>['state']; onSignIn: () => void; compact?: boolean }) {
+function AccessGate({ state, onSignIn, compact = false, signedIn = false }: { state: ReturnType<typeof useHomeAccess>['state']; onSignIn: () => void; compact?: boolean; signedIn?: boolean }) {
   const gate = compact ? `${styles.accessGate} ${styles.accessCompact}` : styles.accessGate
   if (state === 'checking') {
     return <div className={gate} role="status"><p className={styles.eyebrow}>Account</p><h2>Checking account access…</h2><p>Holding the composer until this browser account is identified.</p></div>
@@ -54,6 +54,17 @@ function AccessGate({ state, onSignIn, compact = false }: { state: ReturnType<ty
   }
   if (state === 'error') {
     return <div className={gate} role="alert"><p className={styles.eyebrow}>Account</p><h2>Could not check AI access.</h2><p>Your draft is still here. Try again, or open your saved work.</p><button type="button" className="glass-chip glass" onClick={() => window.location.reload()}>Check again</button></div>
+  }
+  if (signedIn) {
+    // Already signed in: asking this person to sign in would be wrong. AI is
+    // gated per deployment, so say that and leave their saved work in view.
+    return (
+      <div className={gate} role="status">
+        <p className={styles.eyebrow}>Account</p>
+        <h2>AI is not turned on for this account on this site.</h2>
+        <p>You are signed in and your saved work is here. Asking Codex, voice and reviews are unavailable on this site.</p>
+      </div>
+    )
   }
   return (
     <div className={gate}>
@@ -89,6 +100,8 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const question = useRef('')
   const input = useRef<HTMLTextAreaElement>(null)
   const toolSheet = useRef<HTMLDialogElement>(null)
+  const seekTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (seekTimer.current) clearTimeout(seekTimer.current) }, [])
   const [historyOpen, setHistoryOpen] = useState(false)
   const [responseOpen, setResponseOpen] = useState(false)
   const [savingReplyAction, setSavingReplyAction] = useState(false)
@@ -237,6 +250,27 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     correctionCount: linksKnown && primaryMission ? links.filter(row => row.type === 'delta_corrected' && row.mission_id === primaryMission.id).length : null,
     activeLessonCount: linksKnown ? activeLessonCount(links) : null,
   })
+  // The card's button goes to the saved step itself, not just the top of
+  // Mission, where the step can be a screen or more down. The saved-action
+  // card loads after navigation, so look for it briefly and then stop.
+  const openMission = () => {
+    onNavigate('mission')
+    const id = savedAction?.id
+    if (!id) return
+    if (seekTimer.current) clearTimeout(seekTimer.current)
+    let tries = 0
+    const seek = () => {
+      const target = document.getElementById(`saved-action-${id}`)
+      if (target) {
+        target.scrollIntoView({ block: 'start' })
+        target.focus({ preventScroll: true })
+        return
+      }
+      tries += 1
+      if (tries < 40) seekTimer.current = setTimeout(seek, 150)
+    }
+    seekTimer.current = setTimeout(seek, 0)
+  }
   const noTextNeeded = (tool === 'brief' || tool === 'triage') && !text.trim()
   // Prompt help spends part of the question limit on its instruction.
   const limit = tool === 'prompt' ? PROMPT_LIMIT : QUESTION_LIMIT
@@ -439,8 +473,8 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       </div>
       <div className="glass-hero">
         {access.state !== 'owner' ? (missionView ? <AccessGate state={access.state} onSignIn={requestSignIn} /> : <>
-          <HomeContinue view={continueView} missionCount={missionCount} onOpenMission={() => onNavigate('mission')} />
-          <AccessGate state={access.state} onSignIn={requestSignIn} compact />
+          <HomeContinue view={continueView} missionCount={missionCount} onOpenMission={openMission} />
+          <AccessGate state={access.state} onSignIn={requestSignIn} compact signedIn={access.signedIn} />
         </>) : <>
         {!missionView && <div className="glass-orb-wrap">
           <OrbSlot />
@@ -504,7 +538,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
           </> : missionView ? (
             <h2 className="glass-greeting">Continue our conversation<span>What would you like to work through?</span></h2>
           ) : (
-            <HomeContinue view={continueView} name={name} missionCount={missionCount} onOpenMission={() => onNavigate('mission')} />
+            <HomeContinue view={continueView} name={name} missionCount={missionCount} onOpenMission={openMission} />
           )}
         </div>
       </>}

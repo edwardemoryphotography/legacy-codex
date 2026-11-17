@@ -32,13 +32,14 @@
 .card[data-step="no_step"] .stepTitle, .card[data-step="step_unknown"] .stepTitle { font-weight: 400; color: var(--g-mist-dim); }
 .blocker { margin: 4px 0 0; font: 400 14px/1.45 var(--g-body); overflow-wrap: anywhere; }
 .blocker span { font-weight: 700; color: var(--amber, #f5b84b); }
-.primary, .secondary {
-  min-height: 48px; padding: 10px 18px; border-radius: 999px; cursor: pointer;
-  font: 600 15px var(--g-body); color: var(--g-mist);
+/* The main button is the existing .glass-continuity-button; this only sizes it
+   for the card. Its colours are the ones already shipped for the saved focus. */
+.primary { min-height: 48px; margin-top: 0; justify-self: stretch; font-size: 15px; -webkit-text-fill-color: currentColor; }
+.secondary {
+  min-height: 48px; padding: 10px 18px; border-radius: 999px; cursor: pointer; align-self: flex-start;
+  font: 600 15px var(--g-body); color: var(--g-mist); -webkit-text-fill-color: currentColor;
+  border: 1px solid var(--g-glass-edge); background: transparent;
 }
-.primary { border: 1px solid var(--g-teal); background: color-mix(in srgb, var(--g-teal) 20%, transparent); }
-.primary:hover { background: color-mix(in srgb, var(--g-teal) 30%, transparent); }
-.secondary { align-self: flex-start; border: 1px solid var(--g-glass-edge); background: transparent; }
 .primary:focus-visible, .secondary:focus-visible, .why summary:focus-visible { outline: 2px solid var(--g-teal); outline-offset: 2px; }
 .why summary {
   display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; cursor: pointer;

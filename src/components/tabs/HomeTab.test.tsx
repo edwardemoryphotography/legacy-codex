@@ -18,6 +18,7 @@ let voiceStatus = ''
 let visitor = false
 let accessState: 'checking' | 'owner' | 'signed-out' | 'no-access' | 'unconfigured' | 'error' = 'owner'
 let accessName = 'Eddie'
+let accessSignedIn = false
 let briefStatus = 'idle'
 let briefOutput = ''
 let orbState = 'idle'
@@ -71,7 +72,7 @@ vi.mock('@/lib/supabase/client', () => ({
 vi.mock('@/lib/supabase/missionSession', () => ({ connectMissionSession: async () => ({ id: 'user-1' }) }))
 vi.mock('@/hooks/useMissionTerritory', () => ({ useMissionTerritory: () => ({ missions, loadError, actions: actionRows, actionsRead: 'ok', ...territoryExtra }) }))
 vi.mock('@/hooks/useBriefRunner', () => ({ useBriefRunner: () => ({ configured: true, visitor, status: briefStatus, activeMode: null, output: briefOutput, outputLabel: '', providerLabel: '', run, reset }) }))
-vi.mock('@/hooks/useHomeAccess', () => ({ useHomeAccess: () => ({ state: accessState, configured: accessState === 'owner', name: accessName }) }))
+vi.mock('@/hooks/useHomeAccess', () => ({ useHomeAccess: () => ({ state: accessState, configured: accessState === 'owner', name: accessName, signedIn: accessSignedIn }) }))
 vi.mock('@/hooks/useTaskVoice', () => ({
   useTaskVoice: (_value: string, onChange: (value: string) => void) => {
     voiceWrite = onChange
@@ -85,7 +86,7 @@ vi.mock('@/components/OrbHost', () => ({
   useOrbPresentation: () => ({ state: orbState, label: orbState === 'thinking' ? 'Thinking' : '' }),
 }))
 
-afterEach(() => { cleanup(); territoryExtra = {}; briefStatus = 'idle'; briefOutput = ''; orbState = 'idle'; actionInsertError = null; actionRows.length = 0; reset.mockClear(); run.mockReset(); run.mockResolvedValue(true); voiceActive = false; voiceStatus = ''; visitor = false; loadError = null; accessState = 'owner'; accessName = 'Eddie'; missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }] })
+afterEach(() => { cleanup(); territoryExtra = {}; briefStatus = 'idle'; briefOutput = ''; orbState = 'idle'; actionInsertError = null; actionRows.length = 0; reset.mockClear(); run.mockReset(); run.mockResolvedValue(true); voiceActive = false; voiceStatus = ''; visitor = false; loadError = null; accessState = 'owner'; accessName = 'Eddie'; accessSignedIn = false; missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }] })
 
 describe('promptHelpQuestion', () => {
   it('stays within the shared question limit /api/brief enforces', () => {
@@ -397,6 +398,37 @@ describe('Home continue card', () => {
     expect(within(card()).getByRole('heading', { name: 'Real mission' })).toBeInTheDocument()
     expect(within(card()).getByRole('button', { name: 'Start this step' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /This browser account cannot use AI yet/ })).toBeInTheDocument()
+  })
+
+  it('does not tell a signed-in account to sign in when AI is off on this site', () => {
+    accessState = 'no-access'
+    accessName = ''
+    accessSignedIn = true
+    actionRows.push({ id: 'a1', mission_id: 'm1', action_title: 'Upload three prints', status: 'IN_PROGRESS' })
+    render(<HomeTab onNavigate={() => {}} />)
+    expect(within(card()).getByRole('button', { name: 'Resume this step' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'AI is not turned on for this account on this site.' })).toBeInTheDocument()
+    expect(screen.getByText(/You are signed in and your saved work is here/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Sign in/ })).toBeNull()
+    expect(screen.queryByText(/Already have an account/)).toBeNull()
+  })
+
+  it('takes the button to the saved step itself, not just the top of Mission', async () => {
+    actionRows.push({ id: 'a1', mission_id: 'm1', action_title: 'Upload three prints', status: 'IN_PROGRESS' })
+    const navigate = vi.fn()
+    render(<HomeTab onNavigate={navigate} />)
+    fireEvent.click(within(card()).getByRole('button', { name: 'Resume this step' }))
+    expect(navigate).toHaveBeenCalledWith('mission')
+    // Mission renders the saved-action card a moment later.
+    const target = document.createElement('article')
+    target.id = 'saved-action-a1'
+    target.tabIndex = -1
+    target.scrollIntoView = vi.fn()
+    document.body.append(target)
+    try {
+      await vi.waitFor(() => expect(target.scrollIntoView).toHaveBeenCalledWith({ block: 'start' }))
+      expect(document.activeElement).toBe(target)
+    } finally { target.remove() }
   })
 
   it('steps aside for a reply, where the saved step keeps precedence', () => {

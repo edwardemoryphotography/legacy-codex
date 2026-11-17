@@ -34,7 +34,7 @@ export default function HomeContinue({ view, name, missionCount, onOpenMission }
             ? 'Codex keeps your finish line and your next step, so you can come back and continue without rebuilding the context.'
             : `You have ${missionCount === 1 ? 'one saved mission' : `${missionCount} saved missions`}. Choose the one to focus on.`}
         </p>
-        <button type="button" className={styles.primary} onClick={onOpenMission}>{view.cta}</button>
+        <button type="button" className={`glass-continuity-button ${styles.primary}`} onClick={onOpenMission}>{view.cta}</button>
       </section>
     )
   }
@@ -50,7 +50,7 @@ export default function HomeContinue({ view, name, missionCount, onOpenMission }
           : 'No next step is saved for this mission yet.')}</p>
         {view.blocker && <p className={styles.blocker}><span>Blocked by</span> {view.blocker}</p>}
       </div>
-      <button type="button" className={styles.primary} onClick={onOpenMission}>{view.cta}</button>
+      <button type="button" className={`glass-continuity-button ${styles.primary}`} onClick={onOpenMission}>{view.cta}</button>
       {view.reasons.length > 0 && (
         <details className={styles.why}>
           <summary>What Codex has from you</summary>
