@@ -48,7 +48,7 @@ const SCENES = {
           await page.route('**/api/brief', r => r.request().method() === 'GET' ? r.fulfill(json({ configured: true })) : r.abort())
         }
         await page.goto(base, { waitUntil: 'networkidle' }); await page.waitForTimeout(3000)
-        if (scene.openWhy) { await page.locator('summary', { hasText: 'Why this?' }).click(); await page.waitForTimeout(300) }
+        if (scene.openWhy) { await page.locator('summary', { hasText: 'What Codex has from you' }).click(); await page.waitForTimeout(300) }
         const m = await page.evaluate(() => {
           const box = sel => { const el = document.querySelector(sel); if (!el) return null; const r = el.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.bottom), Math.round(r.left), Math.round(r.right)] }
           const hero = document.querySelector('.glass-hero')

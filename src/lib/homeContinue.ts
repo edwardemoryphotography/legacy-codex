@@ -19,6 +19,8 @@ export type ContinueStatus =
   | 'saved'
   | 'accepted'
   | 'no_step'
+  /** The mission and its actions loaded, but accepted suggestions could not be read. */
+  | 'step_unknown'
 
 export interface ContinueReason {
   label: string
@@ -47,6 +49,8 @@ export interface HomeContinueInput {
   /** Unknown (null) when that read failed or is pending: never shown as zero. */
   correctionCount: number | null
   activeLessonCount: number | null
+  /** False when the accepted-suggestion read failed. A saved step is still known. */
+  acceptanceKnown?: boolean
 }
 
 const clean = (value: string | null | undefined) => value?.trim() || null
@@ -87,12 +91,14 @@ export function deriveHomeContinue(input: HomeContinueInput): HomeContinueView {
   if (why) reasons.push({ label: 'Why it matters', text: why })
   if (resumeNote) reasons.push({ label: 'Your return note', text: clip(resumeNote) })
 
-  const step = nextAction.state === 'in_progress' || nextAction.state === 'saved' || nextAction.state === 'accepted'
+  const found = nextAction.state === 'in_progress' || nextAction.state === 'saved' || nextAction.state === 'accepted'
     ? nextAction.state
     : 'no_step'
+  // "No step" is only a fact when the accepted-suggestion read succeeded.
+  const step = found === 'no_step' && input.acceptanceKnown === false ? 'step_unknown' : found
   if (step === 'accepted') {
     reasons.push({ label: 'Where this step came from', text: 'A suggestion you accepted. It is not saved as a commitment until you save it in Mission.' })
-  } else if (step !== 'no_step') {
+  } else if (step === 'saved' || step === 'in_progress') {
     reasons.push({ label: 'Where this step came from', text: 'You saved it. Codex has not checked whether it is done.' })
   }
   if (input.correctionCount) {
@@ -105,7 +111,7 @@ export function deriveHomeContinue(input: HomeContinueInput): HomeContinueView {
     reasons.push({
       label: 'Lessons carried forward',
       text: input.activeLessonCount === 0
-        ? 'None yet. A lesson appears here after you confirm one in a Project Review.'
+        ? 'None yet. A lesson appears here after you confirm one in Mission.'
         : `${input.activeLessonCount === 1 ? 'One lesson you confirmed is' : `${input.activeLessonCount} lessons you confirmed are`} available to Codex as context when you ask or review, within the scope you set. That is context supplied, not proof it changed an answer.`,
     })
   }
@@ -117,11 +123,12 @@ export function deriveHomeContinue(input: HomeContinueInput): HomeContinueView {
       : step === 'saved' ? 'Saved next step · not started'
       : step === 'accepted' ? 'Suggestion you accepted · not saved yet'
       : null,
-    stepTitle: step === 'no_step' ? null : nextAction.title,
+    stepTitle: step === 'no_step' || step === 'step_unknown' ? null : nextAction.title,
     blocker,
     cta: step === 'in_progress' ? 'Resume this step'
       : step === 'saved' ? 'Start this step'
       : step === 'accepted' ? 'Review and save this step'
+      : step === 'step_unknown' ? 'Open Mission'
       : blocker ? 'Work on the blocker'
       : 'Choose a next step',
     reasons,

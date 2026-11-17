@@ -47,6 +47,16 @@ describe('deriveHomeContinue', () => {
     expect(view({ mission: { ...mission, blocker: 'Waiting on the lab' } })).toMatchObject({ status: 'no_step', blocker: 'Waiting on the lab', cta: 'Work on the blocker' })
   })
 
+  it('does not call a step absent when accepted suggestions could not be read', () => {
+    expect(view({ acceptanceKnown: false })).toMatchObject({ status: 'step_unknown', stepTitle: null, cta: 'Open Mission' })
+    // A saved step is known regardless of that read.
+    expect(view({ acceptanceKnown: false, savedStatus: 'TODO' }).status).toBe('saved')
+  })
+
+  it('points to Mission for confirming a lesson, whatever its origin', () => {
+    expect(view({ activeLessonCount: 0 }).reasons.at(-1)?.text).toBe('None yet. A lesson appears here after you confirm one in Mission.')
+  })
+
   it('never reports a step as complete or verified', () => {
     const text = JSON.stringify(view({ savedStatus: 'IN_PROGRESS' }))
     expect(text).not.toMatch(/\b(completed|verified|finished)\b/i)

@@ -841,10 +841,28 @@ describe('StrategicDelta — action follow-through and Mission clarity', () => {
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     expect(marker.textContent).toMatch(/Your saved action stays as it is/)
 
+    // The same button stays mounted, so keyboard focus is not dropped on expand.
+    toggle.focus()
     fireEvent.click(toggle)
     expect(marker.hasAttribute('data-collapsed')).toBe(false)
-    expect(marker.textContent).toBe('Also consider — does not replace your saved action:')
-    expect(screen.queryByRole('button', { name: 'See other options' })).toBeNull()
+    expect(marker.textContent).toMatch(/Also consider — does not replace your saved action:/)
+    expect(toggle.isConnected).toBe(true)
+    expect(document.activeElement).toBe(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(toggle.textContent).toBe('Hide other options')
+
+    fireEvent.click(toggle)
+    expect(marker.getAttribute('data-collapsed')).toBe('true')
+  })
+
+  it('never folds a save or correction error out of sight', async () => {
+    renderDelta([BLOCKED], {
+      savedOpenAction: { id: 'act-old', missionId: 'm1', title: 'The unstarted action', status: 'TODO', resumeNote: null },
+      persistError: 'Could not record that. Nothing was changed.',
+    })
+    expect(await screen.findByText('Could not record that. Nothing was changed.')).toBeTruthy()
+    expect(document.querySelector('[data-also-consider]')!.hasAttribute('data-collapsed')).toBe(false)
+    expect(screen.queryByRole('button', { name: /other options/ })).toBeNull()
   })
 
   it('keeps the alternative open once the person has accepted it', async () => {

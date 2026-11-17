@@ -332,6 +332,32 @@ describe('Home continue card', () => {
     expect(within(card()).queryByRole('button', { name: 'Choose a next step' })).toBeNull()
   })
 
+  it('still shows a loaded mission and saved step when the history read fails', () => {
+    actionRows.push({ id: 'a1', mission_id: 'm1', action_title: 'Upload three prints', status: 'TODO' })
+    territoryExtra = { eventsRead: 'failed' }
+    render(<HomeTab onNavigate={() => {}} />)
+    expect(within(card()).getByRole('heading', { name: 'Real mission' })).toBeInTheDocument()
+    expect(within(card()).getByText('Upload three prints')).toBeInTheDocument()
+    expect(within(card()).getByRole('button', { name: 'Start this step' })).toBeInTheDocument()
+    expect(within(card()).queryByText(/could not be read/)).toBeNull()
+  })
+
+  it('does not wait on the history read once a saved step is known', () => {
+    actionRows.push({ id: 'a1', mission_id: 'm1', action_title: 'Upload three prints', status: 'IN_PROGRESS' })
+    territoryExtra = { eventsRead: 'pending' }
+    render(<HomeTab onNavigate={() => {}} />)
+    expect(within(card()).getByRole('button', { name: 'Resume this step' })).toBeInTheDocument()
+  })
+
+  it('says what is unknown when the history read fails and no step is saved', () => {
+    territoryExtra = { eventsRead: 'failed' }
+    render(<HomeTab onNavigate={() => {}} />)
+    expect(within(card()).getByRole('heading', { name: 'Real mission' })).toBeInTheDocument()
+    expect(within(card()).getByText('No saved step was found. Whether you accepted a suggestion could not be checked.')).toBeInTheDocument()
+    expect(within(card()).queryByText(/No next step is saved/)).toBeNull()
+    expect(within(card()).queryByRole('button', { name: 'Choose a next step' })).toBeNull()
+  })
+
   it('counts lessons across the account and never names a filing mission as their source', () => {
     missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }, { id: 'm2', title: 'Ledger anchor mission', state: 'parked' }]
     territoryExtra = {

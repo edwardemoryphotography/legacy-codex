@@ -36,7 +36,7 @@ const SIZES = [[375, 667], [390, 664], [390, 844], [430, 739], [1440, 900]]
       await page.getByRole('button', { name: 'Menu' }).click()
       await page.getByRole('button', { name: 'Home', exact: true }).click()
       await page.waitForTimeout(1500)
-      const chip = page.locator('summary', { hasText: 'Why this?' })
+      const chip = page.locator('summary', { hasText: 'What Codex has from you' })
       if (await chip.count()) {
         await chip.click(); await page.waitForTimeout(600)
         await page.screenshot({ path: `${out}/${prefix}-home-missions-panel-${w}x${h}.png` })

@@ -59,14 +59,14 @@ A projection over rows Home already read (`useMissionTerritory`, `deriveNextActi
   - No step: “No next step is saved for this mission yet.”
   - A saved blocker is shown in the person's own words.
 - **One button** into Mission, where the saved action already sits at the top with “Start this action now”.
-- **Why this?** A native `<details>` listing only values that exist: finish line, why it matters, return note (clipped at 280 characters), where the step came from, corrections made on this mission, and confirmed lessons.
+- **What Codex has from you** (first labelled “Why this?”; renamed after review, see section 10). A native `<details>` listing only values that exist: finish line, why it matters, return note (clipped at 280 characters), where the step came from, corrections made on this mission, and confirmed lessons.
 
 Reasoning behind the wording rules, which are tested in `src/lib/homeContinue.test.ts`:
 
 1. *A suggestion is not a commitment; a commitment is not finished work.* The card never says completed, verified or finished. A saved step's provenance line ends “Codex has not checked whether it is done.”
-2. *A failed read is unknown, not empty.* If missions, actions or events fail to load, the card says the saved work could not be read. It never falls back to “no next step” or a first-run invitation.
+2. *A failed read is unknown, not empty.* If missions or actions fail to load, the card says the saved work could not be read. It never falls back to “no next step” or a first-run invitation. A failed history read does not hide a mission and saved step that loaded; without a saved step the card says the accepted-suggestion check failed.
 3. *A lesson's filing mission is not its source* (the PR #192–#195 repair). Lessons are counted across the account only. No mission title is ever attached to a lesson on Home. Corrections *are* tied to their mission, because a correction is made on a mission.
-4. *Context supplied is not transfer demonstrated.* The lesson line reads “available to Codex as context when you ask or review, within the scope you set. That is context supplied, not proof it changed an answer.” With zero lessons it says “None yet. A lesson appears here after you confirm one in a Project Review.”
+4. *Context supplied is not transfer demonstrated.* The lesson line reads “available to Codex as context when you ask or review, within the scope you set. That is context supplied, not proof it changed an answer.” With zero lessons it says “None yet. A lesson appears here after you confirm one in Mission.”
 
 ### First visit and accounts without AI
 
@@ -119,7 +119,7 @@ Measured at 390px wide [SIMULATED layout]: the page went from 4,209px to 2,987px
 
 ## 5. Verification
 
-Run on the branch after the last source change, 2026-11-16 ~16:00 Pacific:
+Run on the branch after the last source change (the review fixes in section 10):
 
 | Command | Result |
 | --- | --- |
@@ -128,7 +128,7 @@ Run on the branch after the last source change, 2026-11-16 ~16:00 Pacific:
 | `node --experimental-strip-types --test scripts/check-economy.mjs` | 3 pass, 0 fail |
 | `npm run lint` | 0 errors, 22 warnings (same 22 as `main`) |
 | `npx tsc --noEmit` | clean |
-| `npm test -- --run` | 73 files: 72 passed, 1 skipped; 693 tests passed, 2 skipped (`main`: 672) |
+| `npm test -- --run` | 73 files: 72 passed, 1 skipped; 699 tests passed, 2 skipped (`main`: 672) |
 | `npm run build` | success |
 
 Browser, real, no fixtures [OBSERVED]:
@@ -194,3 +194,19 @@ npm run lint && npx tsc --noEmit && npm test -- --run && npm run build
 On production today: **no** [OBSERVED]. They would see an account wall.
 
 On this branch: they are told in one sentence what it keeps for them and given one button, which opens a working form [OBSERVED, local build, real guest session]. Whether that is *understood* by a person has not been tested. A returning owner should see their mission and saved step first and reach it in two taps [SIMULATED layout, tested wording]; that needs Eddie's eyes on the real thing before anyone calls it done.
+
+## 10. Independent review, and what changed because of it
+
+An independent review of PR #197 recommended **HOLD** until the owner's real Home and Mission are checked. That recommendation stands. Its findings, each checked against the code:
+
+| Finding | Verdict | Outcome |
+| --- | --- | --- |
+| The real owner experience is untested | Correct | Unchanged. Only the owner can do this. |
+| A history-read failure hid a mission and saved step that had loaded | Correct. The card took its read state from all three reads, though the history only adds an accepted suggestion, which a saved step outranks | Fixed. The card now depends on the mission and action reads. With a saved step it shows at once, even while the history is pending or failed. Without one, a failed history read says “No saved step was found. Whether you accepted a suggestion could not be checked.” |
+| “Why this?” is not an explanation of a recommendation | Correct. It lists saved context; it does not say what caused a suggestion | Renamed to “What Codex has from you”, the label Mission already uses for the same kind of list. The causal account stays in Mission's “Why this?”. Bringing it to Home would mean running the suggestion engine there; not done. |
+| Lesson copy named only Project Review | Correct. Incident, historical and Relay confirmations also exist, all on Mission | Copy now says “after you confirm one in Mission”. Relay-saved lessons use the same record type, so the count already included them. |
+| The Mission fold hides several controls with one CSS rule | Partly. Two real gaps: the toggle unmounted on click, dropping keyboard focus; and a persist error rendered inside the folded region | Fixed. One toggle stays mounted (“See other options” / “Hide other options”, `aria-expanded`), and any persist error forces the region open. Folded controls are `display: none`, so they leave the tab order and the accessibility tree together. |
+| Home loses its focus after a response | Not changed. In the reply state Home still shows “Working on: <mission>” and the saved-first line with a link to Mission, both tested. Keeping the full card beside an answer does not fit a phone screen | Open for the owner's judgement after using it. |
+| Layout fixtures are not real data | Correct, and already labelled as such | No further fixture runs were made for these fixes; they are covered by unit tests only. The fixture screenshots and script remain in `first-light-2026-11-16/`, named `layout-fixture-*`. Remove them if the repository should hold no simulated captures at all. |
+
+Not re-verified in a browser after these fixes: the Mission toggle and the new card states. They need a saved action, which exists only in the owner's account.

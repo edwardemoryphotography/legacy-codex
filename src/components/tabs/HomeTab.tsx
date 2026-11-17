@@ -195,31 +195,44 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
         : !primaryMission
           ? 'empty'
           : 'loaded'
+  const homeNextActionSaved = savedAction
+    ? {
+        id: savedAction.id,
+        missionId: savedAction.mission_id,
+        title: savedAction.action_title,
+        status: savedAction.status === 'IN_PROGRESS' ? 'IN_PROGRESS' as const : 'TODO' as const,
+        resumeNote: savedAction.resume_note,
+        updatedAt: savedAction.updated_at,
+      }
+    : null
   const homeNextAction = deriveNextAction({
     readState: homeReadState,
     mission: primaryMission,
     delta: null,
     acceptance,
-    savedAction: savedAction
-      ? {
-          id: savedAction.id,
-          missionId: savedAction.mission_id,
-          title: savedAction.action_title,
-          status: savedAction.status === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'TODO',
-          resumeNote: savedAction.resume_note,
-          updatedAt: savedAction.updated_at,
-        }
-      : null,
+    savedAction: homeNextActionSaved,
   })
   // Home's first answer, before anything is typed. Corrections belong to the
   // mission they were made on. Lessons are counted across the account only: a
   // lesson row's mission is where it is filed, never its historical source.
   const linksKnown = linksRead === 'ok' && Array.isArray(links)
+  // The card needs the mission and its actions. The event history only adds an
+  // accepted suggestion, which a saved step outranks, so a failed or pending
+  // history read must not hide a mission and saved step that did load.
+  const coreReadState: NextActionReadState =
+    loadError || actionsRead === 'failed' ? 'error'
+      : missions === null || actionsRead === 'pending' ? 'loading'
+        : !primaryMission ? 'empty'
+          : !savedAction && eventsRead === 'pending' ? 'loading'
+            : 'loaded'
   const continueView = deriveHomeContinue({
-    readState: homeReadState,
+    readState: coreReadState,
     missionCount: missions?.length ?? 0,
     mission: primaryMission,
-    nextAction: homeNextAction,
+    nextAction: coreReadState === 'loaded' && homeNextAction.readState !== 'loaded'
+      ? deriveNextAction({ readState: 'loaded', mission: primaryMission, delta: null, acceptance: null, savedAction: homeNextActionSaved })
+      : homeNextAction,
+    acceptanceKnown: eventsRead !== 'failed',
     resumeNote: savedAction?.resume_note,
     correctionCount: linksKnown && primaryMission ? links.filter(row => row.type === 'delta_corrected' && row.mission_id === primaryMission.id).length : null,
     activeLessonCount: linksKnown ? activeLessonCount(links) : null,

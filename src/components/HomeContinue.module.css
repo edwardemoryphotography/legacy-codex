@@ -29,7 +29,7 @@
   margin: 0; font: 600 16px/1.4 var(--g-body); overflow-wrap: anywhere;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden;
 }
-.card[data-step="no_step"] .stepTitle { font-weight: 400; color: var(--g-mist-dim); }
+.card[data-step="no_step"] .stepTitle, .card[data-step="step_unknown"] .stepTitle { font-weight: 400; color: var(--g-mist-dim); }
 .blocker { margin: 4px 0 0; font: 400 14px/1.45 var(--g-body); overflow-wrap: anywhere; }
 .blocker span { font-weight: 700; color: var(--amber, #f5b84b); }
 .primary, .secondary {

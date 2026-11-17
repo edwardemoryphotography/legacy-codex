@@ -45,13 +45,15 @@ export default function HomeContinue({ view, name, missionCount, onOpenMission }
       <h2 className={styles.title}>{view.missionTitle}</h2>
       <div className={styles.step}>
         <p className={styles.stepLabel} data-step={view.status}>{view.stepLabel ?? 'Next step'}</p>
-        <p className={styles.stepTitle}>{view.stepTitle ?? 'No next step is saved for this mission yet.'}</p>
+        <p className={styles.stepTitle}>{view.stepTitle ?? (view.status === 'step_unknown'
+          ? 'No saved step was found. Whether you accepted a suggestion could not be checked.'
+          : 'No next step is saved for this mission yet.')}</p>
         {view.blocker && <p className={styles.blocker}><span>Blocked by</span> {view.blocker}</p>}
       </div>
       <button type="button" className={styles.primary} onClick={onOpenMission}>{view.cta}</button>
       {view.reasons.length > 0 && (
         <details className={styles.why}>
-          <summary>Why this?</summary>
+          <summary>What Codex has from you</summary>
           <dl>
             {view.reasons.map(reason => (
               <div key={reason.label}><dt>{reason.label}</dt><dd>{reason.text}</dd></div>
