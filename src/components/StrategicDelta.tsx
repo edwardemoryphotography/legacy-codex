@@ -242,6 +242,7 @@ export default function StrategicDelta({
   const [now, setNow] = useState<string | null>(null)
   const [showPhaseText, setShowPhaseText] = useState(false)
   const [open, setOpen] = useState<OpenPanel>(null)
+  const [altOpen, setAltOpen] = useState(false)
   const [correctionReason, setCorrectionReason] = useState('')
   const [changedNote, setChangedNote] = useState('')
   const [correcting, setCorrecting] = useState(false)
@@ -638,6 +639,12 @@ export default function StrategicDelta({
     currentSavedAction.title !== delta.move &&
     saveActionResult?.title !== delta.move,
   )
+  // With a saved action already chosen, the saved action leads and the
+  // alternative waits behind one control. Anything the person has already
+  // engaged with (an acceptance, a draft, a review, a pending replace) stays open.
+  const altForcedOpen = Boolean(accepted || activeWorkDraft || confirmingReplace || projectReview
+    || projectReviewBusy || open !== null || persistError)
+  const altCollapsed = hasDifferentSavedAction && !altOpen && !altForcedOpen
   const isSavedActionInProgress = Boolean(currentSavedAction?.status === 'IN_PROGRESS')
   const activeMissionForNextAction = committableMission ?? aimedMission ?? primaryMission
   const activeContextKey = activeMissionForNextAction
@@ -864,7 +871,7 @@ export default function StrategicDelta({
                 {': '}“{currentSavedAction.title}”
                 {currentSavedAction.status === 'IN_PROGRESS'
                   ? ' — in progress now. A new prediction will not overwrite or reset it.'
-                  : ' — saved for this mission. The prediction below is an optional alternative.'}
+                  : altCollapsed ? ' — saved for this mission.' : ' — saved for this mission. The prediction below is an optional alternative.'}
               </p>
               {currentSavedAction.resumeNote && (
                 <p className="sd-hint">Where you left off: {currentSavedAction.resumeNote}</p>
@@ -883,8 +890,16 @@ export default function StrategicDelta({
             </div>
           )}
           {hasDifferentSavedAction && (
-            <p className="sd-hint" data-also-consider="true">
-              Also consider — does not replace your saved action:
+            <p className="sd-hint sd-alt" data-also-consider="true" data-collapsed={altCollapsed ? 'true' : undefined}>
+              {/* One toggle that stays mounted, so keyboard focus is never dropped. */}
+              {!altForcedOpen && (
+                <button type="button" className="sd-alt-toggle" aria-expanded={!altCollapsed} onClick={() => setAltOpen(value => !value)}>
+                  {altCollapsed ? 'See other options' : 'Hide other options'}
+                </button>
+              )}
+              <span>{altCollapsed
+                ? 'Another suggestion, project review and corrections. Your saved action stays as it is.'
+                : 'Also consider — does not replace your saved action:'}</span>
             </p>
           )}
           {!evidenceLoop && <p className="sd-move" key={hasRecommendation ? delta.move : title} aria-label={selectedReview ? resumeActionId ? 'Continue your saved action' : 'Do this' : undefined} aria-live={hasRecommendation ? 'polite' : undefined}>{title}</p>}

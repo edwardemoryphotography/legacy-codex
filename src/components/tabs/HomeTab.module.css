@@ -323,3 +323,28 @@
   .toolsHeader { min-height: 44px; }
   .toolsList button { min-height: 48px; }
 }
+
+/* Continue card on Home: the saved focus leads and the orb yields room to it.
+   The orb stays the same live presence; only its idle size changes. */
+.home[data-continue]:global(.glass-home) :global(.glass-hero) {
+  --home-orb-size: min(112px, calc(100vw - 64px), max(56px, calc((var(--codex-viewport-height, 100dvh) - 600px) * .7)));
+  justify-content: safe center; gap: 10px; overflow-y: auto; overscroll-behavior: contain;
+}
+/* With the orb present, keep it pinned to the top of the stage. Centring would
+   move its slot whenever saved rows arrive or "Why this?" opens, and the
+   persistent orb only re-measures when something resizes. */
+.home[data-continue]:not([data-access-gate]):global(.glass-home) :global(.glass-hero) { justify-content: flex-start; }
+.home[data-continue] .takeaway { flex: 0 0 auto; overflow: visible; min-height: 0; }
+.home[data-continue][data-immersive="true"]:global(.glass-home) :global(.glass-hero) { overflow: hidden; }
+/* On Home the account notice sits under the card instead of replacing the screen. */
+.accessGate.accessCompact {
+  flex: none; gap: 6px; padding: 4px 12px 12px; border: 0; background: none; box-shadow: none;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.accessGate.accessCompact h2 { font: 600 15px/1.3 var(--g-body); letter-spacing: 0; }
+.accessGate.accessCompact p:not(:global(.eyebrow)) { font-size: 13px; }
+.accessGate.accessCompact > p:first-child { display: none; }
+@media (max-height: 760px) {
+  /* The idle caption says nothing the card does not; a working state still shows. */
+  .home[data-continue][data-state="idle"] :global(.glass-orb-state) { display: none; }
+}

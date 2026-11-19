@@ -10,6 +10,8 @@ export interface HomeAccess {
   state: HomeAccessState
   configured: boolean
   name: string
+  /** True for a confirmed email account; false or absent for an anonymous guest. */
+  signedIn?: boolean
 }
 
 /** Resolve the existing owner gate before the UI presents AI as ready. */
@@ -34,6 +36,7 @@ export function useHomeAccess(): HomeAccess {
           setAccess({ state: 'signed-out', configured: false, name: '' })
           return
         }
+        const signedIn = session.user?.is_anonymous === false && Boolean(session.user?.email)
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), 8000)
         let response: Response
@@ -50,7 +53,7 @@ export function useHomeAccess(): HomeAccess {
           return
         }
         if (response.status === 403) {
-          setAccess({ state: 'no-access', configured: false, name: '' })
+          setAccess({ state: 'no-access', configured: false, name: '', signedIn })
           return
         }
         if (!response.ok) {

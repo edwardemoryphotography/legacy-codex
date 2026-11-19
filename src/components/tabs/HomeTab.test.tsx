@@ -10,12 +10,15 @@ import { QUESTION_LIMIT } from '@/lib/homeRequest'
 const run = vi.fn(async () => true)
 let voiceWrite: (value: string) => void = () => {}
 let voiceActive = false
-let missions: { id: string; title: string; state: string }[] | null = [{ id: 'm1', title: 'Real mission', state: 'primary' }]
+let missions: { id: string; title: string; state: string; finishLine?: string | null; blocker?: string | null }[] | null = [{ id: 'm1', title: 'Real mission', state: 'primary' }]
+// Extra read results for the Continue card: events, lessons, corrections, read states.
+let territoryExtra: Record<string, unknown> = {}
 let loadError: string | null = null
 let voiceStatus = ''
 let visitor = false
 let accessState: 'checking' | 'owner' | 'signed-out' | 'no-access' | 'unconfigured' | 'error' = 'owner'
 let accessName = 'Eddie'
+let accessSignedIn = false
 let briefStatus = 'idle'
 let briefOutput = ''
 let orbState = 'idle'
@@ -67,9 +70,9 @@ vi.mock('@/lib/supabase/client', () => ({
   },
 }))
 vi.mock('@/lib/supabase/missionSession', () => ({ connectMissionSession: async () => ({ id: 'user-1' }) }))
-vi.mock('@/hooks/useMissionTerritory', () => ({ useMissionTerritory: () => ({ missions, loadError, actions: actionRows, actionsRead: 'ok' }) }))
+vi.mock('@/hooks/useMissionTerritory', () => ({ useMissionTerritory: () => ({ missions, loadError, actions: actionRows, actionsRead: 'ok', ...territoryExtra }) }))
 vi.mock('@/hooks/useBriefRunner', () => ({ useBriefRunner: () => ({ configured: true, visitor, status: briefStatus, activeMode: null, output: briefOutput, outputLabel: '', providerLabel: '', run, reset }) }))
-vi.mock('@/hooks/useHomeAccess', () => ({ useHomeAccess: () => ({ state: accessState, configured: accessState === 'owner', name: accessName }) }))
+vi.mock('@/hooks/useHomeAccess', () => ({ useHomeAccess: () => ({ state: accessState, configured: accessState === 'owner', name: accessName, signedIn: accessSignedIn }) }))
 vi.mock('@/hooks/useTaskVoice', () => ({
   useTaskVoice: (_value: string, onChange: (value: string) => void) => {
     voiceWrite = onChange
@@ -83,7 +86,7 @@ vi.mock('@/components/OrbHost', () => ({
   useOrbPresentation: () => ({ state: orbState, label: orbState === 'thinking' ? 'Thinking' : '' }),
 }))
 
-afterEach(() => { cleanup(); briefStatus = 'idle'; briefOutput = ''; orbState = 'idle'; actionInsertError = null; actionRows.length = 0; reset.mockClear(); run.mockReset(); run.mockResolvedValue(true); voiceActive = false; voiceStatus = ''; visitor = false; loadError = null; accessState = 'owner'; accessName = 'Eddie'; missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }] })
+afterEach(() => { cleanup(); territoryExtra = {}; briefStatus = 'idle'; briefOutput = ''; orbState = 'idle'; actionInsertError = null; actionRows.length = 0; reset.mockClear(); run.mockReset(); run.mockResolvedValue(true); voiceActive = false; voiceStatus = ''; visitor = false; loadError = null; accessState = 'owner'; accessName = 'Eddie'; accessSignedIn = false; missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }] })
 
 describe('promptHelpQuestion', () => {
   it('stays within the shared question limit /api/brief enforces', () => {
@@ -260,8 +263,7 @@ describe('Home mission entry', () => {
     missions = []
     const navigate = vi.fn()
     render(<HomeTab onNavigate={navigate} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Missions' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Start a mission' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Name what matters' }))
     expect(navigate).toHaveBeenCalledWith('mission')
     expect(run).not.toHaveBeenCalled()
   })
@@ -269,8 +271,7 @@ describe('Home mission entry', () => {
   it('offers the same route back to saved missions', () => {
     const navigate = vi.fn()
     render(<HomeTab onNavigate={navigate} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Missions' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Open this mission' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Choose a next step' }))
     expect(navigate).toHaveBeenCalledWith('mission')
   })
 
@@ -278,22 +279,165 @@ describe('Home mission entry', () => {
     missions = state === 'loading' ? null : []
     loadError = state === 'failed' ? 'Missions could not be read.' : null
     render(<HomeTab onNavigate={() => {}} />)
-    expect(screen.queryByRole('button', { name: 'Start a mission' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Open your missions' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Name what matters' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Choose what matters now' })).not.toBeInTheDocument()
     expect(screen.getByText(loadError ?? 'Loading your missions…')).toBeInTheDocument()
   })
 
-  it.each(['loading', 'failed'])('explains a %s read inside the Missions sheet and keeps navigation available', state => {
+  it.each(['loading', 'failed'])('explains a %s read on the card and keeps navigation available', state => {
     missions = state === 'loading' ? null : []
     loadError = state === 'failed' ? 'Missions could not be read.' : null
     const navigate = vi.fn()
     render(<HomeTab onNavigate={navigate} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Missions' }))
-    const sheet = screen.getByRole('dialog', { name: 'Your missions' })
-    expect(within(sheet).getByText(loadError ?? 'Loading your missions…')).toBeInTheDocument()
-    expect(within(sheet).queryByText('Start a mission')).not.toBeInTheDocument()
-    fireEvent.click(within(sheet).getByRole('button', { name: 'Open Mission' }))
+    const card = screen.getByRole('region', { name: 'What matters now' })
+    expect(within(card).getByText(state === 'loading' ? 'Reading your saved work…' : 'Your saved work could not be read. Nothing has been changed.')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Open Mission' })[0])
     expect(navigate).toHaveBeenCalledWith('mission')
+  })
+})
+
+// The Continue card. Fixtures stand in for saved rows to pin wording and
+// precedence; they are a labelled simulation, not evidence about a real account.
+describe('Home continue card', () => {
+  const card = () => screen.getByRole('region', { name: 'What matters now' })
+
+  it('answers what matters and what is next from saved rows, one tap from resuming', () => {
+    missions = [{ id: 'm1', title: 'Real mission', state: 'primary', finishLine: 'A stranger buys one print' }]
+    actionRows.push({ id: 'a1', mission_id: 'm1', action_title: 'Upload three prints', status: 'TODO', resume_note: 'Files are exported.' })
+    const navigate = vi.fn()
+    render(<HomeTab onNavigate={navigate} />)
+    expect(within(card()).getByRole('heading', { name: 'Real mission' })).toBeInTheDocument()
+    expect(within(card()).getByText('Saved next step · not started')).toBeInTheDocument()
+    expect(within(card()).getByText('Upload three prints')).toBeInTheDocument()
+    expect(within(card()).getByText('A stranger buys one print')).toBeInTheDocument()
+    expect(within(card()).getByText('Files are exported.')).toBeInTheDocument()
+    fireEvent.click(within(card()).getByRole('button', { name: 'Start this step' }))
+    expect(navigate).toHaveBeenCalledWith('mission')
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it('shows a step in progress and the saved blocker in the person’s own words', () => {
+    missions = [{ id: 'm1', title: 'Real mission', state: 'primary', blocker: 'Waiting on the lab' }]
+    actionRows.push({ id: 'a1', mission_id: 'm1', action_title: 'Upload three prints', status: 'IN_PROGRESS' })
+    render(<HomeTab onNavigate={() => {}} />)
+    expect(within(card()).getByText('In progress')).toBeInTheDocument()
+    expect(within(card()).getByText('Waiting on the lab')).toBeInTheDocument()
+    expect(within(card()).getByRole('button', { name: 'Resume this step' })).toBeInTheDocument()
+  })
+
+  it('does not present a failed action read as “no next step”', () => {
+    territoryExtra = { actionsRead: 'failed' }
+    render(<HomeTab onNavigate={() => {}} />)
+    expect(within(card()).getByText('Your saved work could not be read. Nothing has been changed.')).toBeInTheDocument()
+    expect(within(card()).queryByText(/No next step is saved/)).toBeNull()
+    expect(within(card()).queryByRole('button', { name: 'Choose a next step' })).toBeNull()
+  })
+
+  it('still shows a loaded mission and saved step when the history read fails', () => {
+    actionRows.push({ id: 'a1', mission_id: 'm1', action_title: 'Upload three prints', status: 'TODO' })
+    territoryExtra = { eventsRead: 'failed' }
+    render(<HomeTab onNavigate={() => {}} />)
+    expect(within(card()).getByRole('heading', { name: 'Real mission' })).toBeInTheDocument()
+    expect(within(card()).getByText('Upload three prints')).toBeInTheDocument()
+    expect(within(card()).getByRole('button', { name: 'Start this step' })).toBeInTheDocument()
+    expect(within(card()).queryByText(/could not be read/)).toBeNull()
+  })
+
+  it('does not wait on the history read once a saved step is known', () => {
+    actionRows.push({ id: 'a1', mission_id: 'm1', action_title: 'Upload three prints', status: 'IN_PROGRESS' })
+    territoryExtra = { eventsRead: 'pending' }
+    render(<HomeTab onNavigate={() => {}} />)
+    expect(within(card()).getByRole('button', { name: 'Resume this step' })).toBeInTheDocument()
+  })
+
+  it('says what is unknown when the history read fails and no step is saved', () => {
+    territoryExtra = { eventsRead: 'failed' }
+    render(<HomeTab onNavigate={() => {}} />)
+    expect(within(card()).getByRole('heading', { name: 'Real mission' })).toBeInTheDocument()
+    expect(within(card()).getByText('No saved step was found. Whether you accepted a suggestion could not be checked.')).toBeInTheDocument()
+    expect(within(card()).queryByText(/No next step is saved/)).toBeNull()
+    expect(within(card()).queryByRole('button', { name: 'Choose a next step' })).toBeNull()
+  })
+
+  it('counts lessons across the account and never names a filing mission as their source', () => {
+    missions = [{ id: 'm1', title: 'Real mission', state: 'primary' }, { id: 'm2', title: 'Ledger anchor mission', state: 'parked' }]
+    territoryExtra = {
+      linksRead: 'ok',
+      links: [
+        { id: 'l1', mission_id: 'm2', type: 'delta_lesson_confirmed', detail: '{}' },
+        { id: 'l2', mission_id: 'm1', type: 'delta_lesson_confirmed', detail: '{}' },
+        { id: 'r1', mission_id: 'm1', type: 'delta_lesson_retired', detail: JSON.stringify({ lessonId: 'l2' }) },
+        { id: 'c1', mission_id: 'm2', type: 'delta_corrected', detail: '{}' },
+      ],
+    }
+    render(<HomeTab onNavigate={() => {}} />)
+    expect(within(card()).getByText(/One lesson you confirmed is available to Codex as context.*not proof it changed an answer/)).toBeInTheDocument()
+    expect(card().textContent).not.toMatch(/Ledger anchor mission/)
+    // The correction was made on another mission, so it is not claimed here.
+    expect(within(card()).queryByText(/not right/)).toBeNull()
+  })
+
+  it('gives a first-time visitor a starting point instead of an account wall', () => {
+    accessState = 'no-access'
+    accessName = ''
+    missions = []
+    const navigate = vi.fn()
+    render(<HomeTab onNavigate={navigate} />)
+    expect(within(card()).getByText('Legacy Codex · start here')).toBeInTheDocument()
+    expect(screen.getByText(/You can still name what matters and save your own missions privately/)).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Ask Codex' })).toBeNull()
+    fireEvent.click(within(card()).getByRole('button', { name: 'Name what matters' }))
+    expect(navigate).toHaveBeenCalledWith('mission')
+  })
+
+  it('lets an account without AI still see and continue its own saved work', () => {
+    accessState = 'no-access'
+    accessName = ''
+    actionRows.push({ id: 'a1', mission_id: 'm1', action_title: 'Upload three prints', status: 'TODO' })
+    render(<HomeTab onNavigate={() => {}} />)
+    expect(within(card()).getByRole('heading', { name: 'Real mission' })).toBeInTheDocument()
+    expect(within(card()).getByRole('button', { name: 'Start this step' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /This browser account cannot use AI yet/ })).toBeInTheDocument()
+  })
+
+  it('does not tell a signed-in account to sign in when AI is off on this site', () => {
+    accessState = 'no-access'
+    accessName = ''
+    accessSignedIn = true
+    actionRows.push({ id: 'a1', mission_id: 'm1', action_title: 'Upload three prints', status: 'IN_PROGRESS' })
+    render(<HomeTab onNavigate={() => {}} />)
+    expect(within(card()).getByRole('button', { name: 'Resume this step' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'AI is not turned on for this account on this site.' })).toBeInTheDocument()
+    expect(screen.getByText(/You are signed in and your saved work is here/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Sign in/ })).toBeNull()
+    expect(screen.queryByText(/Already have an account/)).toBeNull()
+  })
+
+  it('takes the button to the saved step itself, not just the top of Mission', async () => {
+    actionRows.push({ id: 'a1', mission_id: 'm1', action_title: 'Upload three prints', status: 'IN_PROGRESS' })
+    const navigate = vi.fn()
+    render(<HomeTab onNavigate={navigate} />)
+    fireEvent.click(within(card()).getByRole('button', { name: 'Resume this step' }))
+    expect(navigate).toHaveBeenCalledWith('mission')
+    // Mission renders the saved-action card a moment later.
+    const target = document.createElement('article')
+    target.id = 'saved-action-a1'
+    target.tabIndex = -1
+    target.scrollIntoView = vi.fn()
+    document.body.append(target)
+    try {
+      await vi.waitFor(() => expect(target.scrollIntoView).toHaveBeenCalledWith({ block: 'start' }))
+      expect(document.activeElement).toBe(target)
+    } finally { target.remove() }
+  })
+
+  it('steps aside for a reply, where the saved step keeps precedence', () => {
+    actionRows.push({ id: 'a1', mission_id: 'm1', action_title: 'Upload three prints', status: 'TODO' })
+    const session: HomeSession = { ...emptyHomeSession(), reply: { question: 'What next?', text: 'Try the store page.', label: 'Ask Codex', provider: 'test' } }
+    render(<HomeTab onNavigate={() => {}} session={session} onSessionChange={() => {}} />)
+    expect(screen.queryByRole('region', { name: 'What matters now' })).toBeNull()
+    expect(screen.getByText(/Current saved action/)).toBeInTheDocument()
+    expect(screen.getByText('Working on: Real mission')).toBeInTheDocument()
   })
 })
 
@@ -504,7 +648,7 @@ it('continues the same draft and exchange from Home into Mission', async () => {
   }
   render(<SharedConversation />)
   fireEvent.change(screen.getByRole('textbox', { name: 'Ask Codex' }), { target: { value: 'Can we continue here?' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Open project workspace' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Open Mission' }))
   expect(screen.getByRole('region', { name: 'Project conversation' })).toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: 'Ask Codex' })).toHaveValue('Can we continue here?')
   fireEvent.click(screen.getByRole('button', { name: /^History/ }))

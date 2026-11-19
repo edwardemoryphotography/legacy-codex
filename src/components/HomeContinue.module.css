@@ -1,0 +1,58 @@
+/* Home's Continue card. Uses the Codex Glass tokens, so light mode and the
+   palettes follow without separate rules. */
+.card {
+  flex: none;
+  width: min(480px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  text-align: left;
+  border: 1px solid var(--g-glass-edge);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--g-mist) 5%, transparent);
+  color: var(--g-mist);
+  font-family: var(--g-body);
+}
+.kicker { margin: 0; font: 700 11px/1.4 var(--g-body); letter-spacing: .09em; text-transform: uppercase; color: var(--g-mist-dim); }
+.title {
+  margin: 0; font: 600 clamp(20px, 5.4vw, 26px)/1.18 var(--g-display); letter-spacing: -.015em; text-wrap: balance; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+}
+.quiet { margin: 0; font: 400 14px/1.5 var(--g-body); color: var(--g-mist-dim); }
+.step { display: grid; gap: 4px; padding-top: 10px; border-top: 1px solid var(--g-glass-edge); }
+.stepLabel { margin: 0; font: 700 11px/1.4 var(--g-body); letter-spacing: .07em; text-transform: uppercase; color: var(--g-mist-dim); }
+/* Only a step the person saved carries the accent. A suggestion stays neutral
+   so it is never read as a commitment. */
+.stepLabel[data-step="saved"], .stepLabel[data-step="in_progress"] { color: var(--g-teal); }
+.stepTitle {
+  margin: 0; font: 600 16px/1.4 var(--g-body); overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden;
+}
+.card[data-step="no_step"] .stepTitle, .card[data-step="step_unknown"] .stepTitle { font-weight: 400; color: var(--g-mist-dim); }
+.blocker { margin: 4px 0 0; font: 400 14px/1.45 var(--g-body); overflow-wrap: anywhere; }
+.blocker span { font-weight: 700; color: var(--amber, #f5b84b); }
+/* The main button is the existing .glass-continuity-button; this only sizes it
+   for the card. Its colours are the ones already shipped for the saved focus. */
+.primary { min-height: 48px; margin-top: 0; justify-self: stretch; font-size: 15px; -webkit-text-fill-color: currentColor; }
+.secondary {
+  min-height: 48px; padding: 10px 18px; border-radius: 999px; cursor: pointer; align-self: flex-start;
+  font: 600 15px var(--g-body); color: var(--g-mist); -webkit-text-fill-color: currentColor;
+  border: 1px solid var(--g-glass-edge); background: transparent;
+}
+.primary:focus-visible, .secondary:focus-visible, .why summary:focus-visible { outline: 2px solid var(--g-teal); outline-offset: 2px; }
+.why summary {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; cursor: pointer;
+  font: 600 14px var(--g-body); color: var(--g-mist-dim); border-radius: 8px;
+}
+.why[open] summary { color: var(--g-mist); }
+.why dl { margin: 2px 0 0; display: grid; gap: 10px; }
+.why dt { font: 700 11px/1.4 var(--g-body); letter-spacing: .06em; text-transform: uppercase; color: var(--g-mist-dim); }
+.why dd { margin: 2px 0 0; font: 400 14px/1.5 var(--g-body); overflow-wrap: anywhere; white-space: pre-wrap; }
+:global(:root[data-glass-opaque="true"]) .card { background: var(--g-ink); }
+@media (prefers-reduced-transparency: reduce) { .card { background: var(--g-ink); } }
+@media (max-height: 700px) {
+  .card { gap: 8px; padding: 12px 16px; }
+  .title { font-size: 20px; -webkit-line-clamp: 2; }
+  .stepTitle { -webkit-line-clamp: 3; }
+}

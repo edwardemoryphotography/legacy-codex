@@ -20,6 +20,8 @@ import { latestAcceptance } from '@/lib/nextActionLedger'
 import styles from './HomeTab.module.css'
 import ReactMarkdown from 'react-markdown'
 import { recentConversation } from '@/lib/homeSession'
+import HomeContinue from '@/components/HomeContinue'
+import { activeLessonCount, deriveHomeContinue } from '@/lib/homeContinue'
 
 /** The Codex Glass home (Eddie's "Codex Glass Direction" board, 2026-10-30).
  *  Every control calls something real: the tools and composer run the existing
@@ -42,29 +44,43 @@ function ConversationPresence({ status, busy, loadError, pending, voice, live, r
   return null
 }
 
-function AccessGate({ state, onSignIn }: { state: ReturnType<typeof useHomeAccess>['state']; onSignIn: () => void }) {
+function AccessGate({ state, onSignIn, compact = false, signedIn = false }: { state: ReturnType<typeof useHomeAccess>['state']; onSignIn: () => void; compact?: boolean; signedIn?: boolean }) {
+  const gate = compact ? `${styles.accessGate} ${styles.accessCompact}` : styles.accessGate
   if (state === 'checking') {
-    return <div className={styles.accessGate} role="status"><p className={styles.eyebrow}>Account</p><h2>Checking account access…</h2><p>Holding the composer until this browser account is identified.</p></div>
+    return <div className={gate} role="status"><p className={styles.eyebrow}>Account</p><h2>Checking account access…</h2><p>Holding the composer until this browser account is identified.</p></div>
   }
   if (state === 'unconfigured') {
-    return <div className={styles.accessGate} role="status"><p className={styles.eyebrow}>Account</p><h2>AI is not configured on this deployment.</h2><p>Your saved missions are still available in Mission.</p></div>
+    return <div className={gate} role="status"><p className={styles.eyebrow}>Account</p><h2>AI is not configured on this deployment.</h2><p>Your saved missions are still available in Mission.</p></div>
   }
   if (state === 'error') {
-    return <div className={styles.accessGate} role="alert"><p className={styles.eyebrow}>Account</p><h2>Could not check AI access.</h2><p>Your draft is still here. Try again, or open your saved work.</p><button type="button" className="glass-chip glass" onClick={() => window.location.reload()}>Check again</button></div>
+    return <div className={gate} role="alert"><p className={styles.eyebrow}>Account</p><h2>Could not check AI access.</h2><p>Your draft is still here. Try again, or open your saved work.</p><button type="button" className="glass-chip glass" onClick={() => window.location.reload()}>Check again</button></div>
+  }
+  if (signedIn) {
+    // Already signed in: asking this person to sign in would be wrong. AI is
+    // gated per deployment, so say that and leave their saved work in view.
+    return (
+      <div className={gate} role="status">
+        <p className={styles.eyebrow}>Account</p>
+        <h2>AI is not turned on for this account on this site.</h2>
+        <p>You are signed in and your saved work is here. Asking Codex, voice and reviews are unavailable on this site.</p>
+      </div>
+    )
   }
   return (
-    <div className={styles.accessGate}>
+    <div className={gate}>
       <p className={styles.eyebrow}>Account</p>
       <h2>This browser account cannot use AI yet.</h2>
-      <p>Sign in to the account that owns these missions. Your saved work stays private to that account.</p>
-      <button type="button" className={`glass-chip glass ${styles.accessPrimary} home-access-primary`} onClick={onSignIn}>Sign in to your existing account</button>
+      <p>{compact
+        ? 'You can still name what matters and save your own missions privately. Already have an account? Sign in to it.'
+        : 'Sign in to the account that owns these missions. Your saved work stays private to that account.'}</p>
+      <button type="button" className={compact ? 'glass-chip glass' : `glass-chip glass ${styles.accessPrimary} home-access-primary`} onClick={onSignIn}>Sign in to your existing account</button>
     </div>
   )
 }
 
 export default function HomeTab({ onNavigate, session, onSessionChange, variant = 'home', projectRevision = 0, onProjectChange, onSignIn }: { projectRevision?: number; onProjectChange?: () => void; variant?: 'home' | 'mission'; onNavigate: (id: TabId) => void; session?: HomeSession; onSessionChange?: Dispatch<SetStateAction<HomeSession>>; onSignIn?: () => void }) {
   const missionView = variant === 'mission'
-  const { missions, loadError, actions, actionsRead, events, eventsRead } = useMissionTerritory({ withEvents: true, refreshKey: projectRevision })
+  const { missions, loadError, actions, actionsRead, events, eventsRead, links, linksRead } = useMissionTerritory({ withEvents: true, refreshKey: projectRevision })
   const brief = useBriefRunner()
   const access = useHomeAccess()
   const name = access.name
@@ -84,8 +100,9 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const question = useRef('')
   const input = useRef<HTMLTextAreaElement>(null)
   const toolSheet = useRef<HTMLDialogElement>(null)
+  const seekTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (seekTimer.current) clearTimeout(seekTimer.current) }, [])
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [focusOpen, setFocusOpen] = useState(false)
   const [responseOpen, setResponseOpen] = useState(false)
   const [savingReplyAction, setSavingReplyAction] = useState(false)
   const savingReplyActionRef = useRef(false)
@@ -191,22 +208,69 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
         : !primaryMission
           ? 'empty'
           : 'loaded'
+  const homeNextActionSaved = savedAction
+    ? {
+        id: savedAction.id,
+        missionId: savedAction.mission_id,
+        title: savedAction.action_title,
+        status: savedAction.status === 'IN_PROGRESS' ? 'IN_PROGRESS' as const : 'TODO' as const,
+        resumeNote: savedAction.resume_note,
+        updatedAt: savedAction.updated_at,
+      }
+    : null
   const homeNextAction = deriveNextAction({
     readState: homeReadState,
     mission: primaryMission,
     delta: null,
     acceptance,
-    savedAction: savedAction
-      ? {
-          id: savedAction.id,
-          missionId: savedAction.mission_id,
-          title: savedAction.action_title,
-          status: savedAction.status === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'TODO',
-          resumeNote: savedAction.resume_note,
-          updatedAt: savedAction.updated_at,
-        }
-      : null,
+    savedAction: homeNextActionSaved,
   })
+  // Home's first answer, before anything is typed. Corrections belong to the
+  // mission they were made on. Lessons are counted across the account only: a
+  // lesson row's mission is where it is filed, never its historical source.
+  const linksKnown = linksRead === 'ok' && Array.isArray(links)
+  // The card needs the mission and its actions. The event history only adds an
+  // accepted suggestion, which a saved step outranks, so a failed or pending
+  // history read must not hide a mission and saved step that did load.
+  const coreReadState: NextActionReadState =
+    loadError || actionsRead === 'failed' ? 'error'
+      : missions === null || actionsRead === 'pending' ? 'loading'
+        : !primaryMission ? 'empty'
+          : !savedAction && eventsRead === 'pending' ? 'loading'
+            : 'loaded'
+  const continueView = deriveHomeContinue({
+    readState: coreReadState,
+    missionCount: missions?.length ?? 0,
+    mission: primaryMission,
+    nextAction: coreReadState === 'loaded' && homeNextAction.readState !== 'loaded'
+      ? deriveNextAction({ readState: 'loaded', mission: primaryMission, delta: null, acceptance: null, savedAction: homeNextActionSaved })
+      : homeNextAction,
+    acceptanceKnown: eventsRead !== 'failed',
+    resumeNote: savedAction?.resume_note,
+    correctionCount: linksKnown && primaryMission ? links.filter(row => row.type === 'delta_corrected' && row.mission_id === primaryMission.id).length : null,
+    activeLessonCount: linksKnown ? activeLessonCount(links) : null,
+  })
+  // The card's button goes to the saved step itself, not just the top of
+  // Mission, where the step can be a screen or more down. The saved-action
+  // card loads after navigation, so look for it briefly and then stop.
+  const openMission = () => {
+    onNavigate('mission')
+    const id = savedAction?.id
+    if (!id) return
+    if (seekTimer.current) clearTimeout(seekTimer.current)
+    let tries = 0
+    const seek = () => {
+      const target = document.getElementById(`saved-action-${id}`)
+      if (target) {
+        target.scrollIntoView({ block: 'start' })
+        target.focus({ preventScroll: true })
+        return
+      }
+      tries += 1
+      if (tries < 40) seekTimer.current = setTimeout(seek, 150)
+    }
+    seekTimer.current = setTimeout(seek, 0)
+  }
   const noTextNeeded = (tool === 'brief' || tool === 'triage') && !text.trim()
   // Prompt help spends part of the question limit on its instruction.
   const limit = tool === 'prompt' ? PROMPT_LIMIT : QUESTION_LIMIT
@@ -262,7 +326,6 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     try {
       update(prev => ({ ...prev, history: prev.reply ? [...prev.history, prev.reply].slice(-6) : prev.history, reply: null }))
       setHistoryOpen(false)
-      setFocusOpen(false)
       setResponseOpen(false)
       const succeeded = await brief.run(request.mode, { ...payload, tier: current.tier ?? 'routine', ...roster, ...(request.mode === 'question' ? { conversation: recentConversation(current), ...(primaryMission ? { conversationMissionId: primaryMission.id } : {}) } : {}) }, label)
       if (succeeded) {
@@ -367,8 +430,8 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     })
   }
 
-  const panelOpen = responseOpen || historyOpen || focusOpen
-  const closePanel = () => { setResponseOpen(false); setHistoryOpen(false); setFocusOpen(false) }
+  const panelOpen = responseOpen || historyOpen
+  const closePanel = () => { setResponseOpen(false); setHistoryOpen(false) }
   useEffect(() => {
     const dialog = panel.current
     if (!dialog) return
@@ -376,7 +439,6 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       if (!dialog.open) dialog.showModal()
     } else if (dialog.open) dialog.close()
   }, [panelOpen, immersive])
-  const note = !loadError && missions !== null && missionCount === 0 ? 'Ask a question, or start a mission to save ongoing work.' : ''
   const sendStatus = submitNotice || (busy ? 'Sending…'
     : brief.visitor ? BRIEF_VISITOR_COPY
     : brief.status === 'error' ? brief.output
@@ -396,21 +458,24 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       data-reply={hasReply ? 'true' : undefined}
       data-access-gate={access.state !== 'owner' ? 'true' : undefined}
       data-composer-expanded={composerExpanded ? 'true' : undefined}
+      data-continue={!missionView && !hasReply ? continueView.status : undefined}
       data-next-action-state={homeNextAction.state}
       data-next-action-read={homeNextAction.readState}
       aria-label={missionView ? 'Project conversation' : 'Home'}
     >
       {access.state === 'owner' && (!missionView || busy || voice.active || liveActive) && <ConversationPresence status={brief.status} busy={busy} loadError={loadError} pending={!loadError && !busy && !voice.active && !liveActive ? missions === null ? 'Reading saved missions' : actionsRead === 'pending' ? 'Reading saved actions' : null : null} voice={voice} live={livePhase} reply={Boolean(current.reply)} />}
       <div className={styles.context}>
-        <span>{primaryMission ? `Working on: ${primaryMission.title}` : 'Your conversation with Codex'}</span>
-        <button type="button" className="glass-chip glass" onClick={() => onNavigate(missionView ? 'home' : 'mission')}>{missionView ? 'Back to Home' : 'Open project workspace'}</button>
+        {(missionView || hasReply) && <span>{primaryMission ? `Working on: ${primaryMission.title}` : 'Your conversation with Codex'}</span>}
+        {/* The card's own button opens Mission, so a second control to the same
+            place appears only when the card is not offering one. */}
+        {(missionView || hasReply || continueView.status === 'loading') && <button type="button" className="glass-chip glass" onClick={() => onNavigate(missionView ? 'home' : 'mission')}>{missionView ? 'Back to Home' : 'Open Mission'}</button>}
+        <button type="button" className="glass-chip glass" hidden={immersive || (access.state !== 'owner' && history.length === 0 && !hasReply)} aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setHistoryOpen(true); setResponseOpen(false) }}>History{history.length ? ` · ${history.length}` : ''}</button>
       </div>
-        <div className="glass-home-links" hidden={immersive}>
-          <button type="button" className="glass-chip glass" aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setFocusOpen(true); setHistoryOpen(false); setResponseOpen(false) }}>Missions</button>
-          <button type="button" className="glass-chip glass" aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setHistoryOpen(true); setFocusOpen(false); setResponseOpen(false) }}>History{history.length ? ` · ${history.length}` : ''}</button>
-        </div>
       <div className="glass-hero">
-        {access.state !== 'owner' ? <AccessGate state={access.state} onSignIn={requestSignIn} /> : <>
+        {access.state !== 'owner' ? (missionView ? <AccessGate state={access.state} onSignIn={requestSignIn} /> : <>
+          <HomeContinue view={continueView} missionCount={missionCount} onOpenMission={openMission} />
+          <AccessGate state={access.state} onSignIn={requestSignIn} compact signedIn={access.signedIn} />
+        </>) : <>
         {!missionView && <div className="glass-orb-wrap">
           <OrbSlot />
           <span className="glass-orb-state" aria-hidden="true">{presentation.state === 'idle' ? 'Ready when you are' : presentation.state === 'ready' ? 'Response ready' : presentation.label}</span>
@@ -420,7 +485,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
             <p className={styles.eyebrow}>{reply.label || 'Codex response'} · Excerpt</p>
             <h2 className={styles.answer}>{homeTakeaway(reply.text)}</h2>
             <div className="flex flex-wrap justify-center gap-2">
-              <button type="button" className={`glass-chip glass ${styles.readMore}`} aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setResponseOpen(true); setHistoryOpen(false); setFocusOpen(false) }}>Read full answer <span aria-hidden="true">↗</span></button>
+              <button type="button" className={`glass-chip glass ${styles.readMore}`} aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setResponseOpen(true); setHistoryOpen(false) }}>Read full answer <span aria-hidden="true">↗</span></button>
               {primaryMission && actionsRead === 'ok' && !isReplySavedAsAction && !savedAction && (
                 <button
                   type="button"
@@ -470,19 +535,20 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
                 </button>
               </div>
             )}
-          </> : <>
-            <h2 className="glass-greeting">{missionView ? 'Continue our conversation' : name ? `Hi ${name}` : 'Hi'}<span>What would you like to work through?</span></h2>
-            {note && <p className="glass-note glass-home-note">{note}</p>}
-          </>}
+          </> : missionView ? (
+            <h2 className="glass-greeting">Continue our conversation<span>What would you like to work through?</span></h2>
+          ) : (
+            <HomeContinue view={continueView} name={name} missionCount={missionCount} onOpenMission={openMission} />
+          )}
         </div>
       </>}
       </div>
       <dialog ref={panel} id="home-detail-panel" className={styles.panel} aria-labelledby="home-panel-title" onCancel={closePanel} onClose={closePanel} onClick={event => { if (event.target === event.currentTarget) closePanel() }}>
       <header className={styles.panelHeader}>
-        <div><p className={styles.eyebrow}>Legacy Codex</p><h2 id="home-panel-title">{historyOpen ? 'Session history' : focusOpen ? 'Your missions' : reply?.label || 'Full answer'}</h2></div>
+        <div><p className={styles.eyebrow}>Legacy Codex</p><h2 id="home-panel-title">{historyOpen ? 'Session history' : reply?.label || 'Full answer'}</h2></div>
         <button type="button" autoFocus className="glass-round glass" aria-label="Close details" onClick={closePanel}>✕</button>
       </header>
-      <div className={`glass-results ${styles.panelBody}`} hidden={immersive} role="region" aria-label={historyOpen ? 'Session history' : focusOpen ? 'Saved missions' : 'Codex response'} tabIndex={0}>
+      <div className={`glass-results ${styles.panelBody}`} hidden={immersive} role="region" aria-label={historyOpen ? 'Session history' : 'Codex response'} tabIndex={0}>
         {historyOpen && <section className="glass-history">
           <h3>This session</h3>
           <p className="glass-note">Recent exchanges continue between Home and Mission and survive reloads in this browser tab. Project changes still use the save controls in Mission.</p>
@@ -494,46 +560,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
           </article>)}
           <button type="button" className="glass-chip glass" onClick={() => onNavigate('resumption-log')}>Open Resumption Log</button>
         </section>}
-        {focusOpen && <div className="glass-focus">
-        {(loadError || missions === null) && <>
-          <p className="glass-note" role="status">{loadError || 'Loading your missions…'}</p>
-          <button type="button" className="glass-chip glass" onClick={() => onNavigate('mission')}>Open Mission</button>
-        </>}
-        {missions !== null && !loadError && (
-          primaryMission ? (
-            <section className="glass-continuity glass" aria-label="Your saved focus">
-              <p className="glass-continuity-kicker">YOUR SAVED FOCUS</p>
-              <h3>{primaryMission.title}</h3>
-              {actionsRead === 'pending' && <p className="glass-continuity-detail" role="status">Checking your saved actions…</p>}
-              {actionsRead === 'failed' && <p className="glass-continuity-detail" role="status">Saved actions could not be checked. Your work has not been changed.</p>}
-              {actionsRead === 'ok' && savedAction && (
-                <div className="glass-continuity-action">
-                  <p className="glass-continuity-kicker">{savedAction.status === 'IN_PROGRESS' ? 'IN PROGRESS' : 'SAVED NEXT ACTION'}</p>
-                  <p className="glass-continuity-title">{savedAction.action_title}</p>
-                  {savedAction.resume_note && <p className="glass-continuity-detail">Return note: {savedAction.resume_note}</p>}
-                </div>
-              )}
-              {actionsRead === 'ok' && !savedAction && <p className="glass-continuity-detail">No unfinished action is currently linked to this Primary mission.</p>}
-              <button type="button" className="glass-continuity-button" onClick={() => onNavigate('mission')}>
-                {savedAction ? 'Continue in Mission' : 'Open this mission'}
-              </button>
-            </section>
-          ) : (
-            <div className="glass-focus-empty">
-              {missionCount === 0 && <p className="glass-note">No saved missions are visible in this browser account.</p>}
-              {missionCount === 0 && access.state !== 'owner' && (
-                <button type="button" className="glass-chip glass" style={{ minHeight: 44, marginBottom: 8 }} onClick={requestSignIn}>
-                  Sign in to your existing account
-                </button>
-              )}
-              <button type="button" className="glass-chip glass" style={{ minHeight: 44 }} onClick={() => onNavigate('mission')}>
-                {missionCount === 0 ? 'Start a mission' : 'Open your missions'}
-              </button>
-            </div>
-          )
-        )}
-        </div>}
-        {reply && !historyOpen && !focusOpen && (
+        {reply && !historyOpen && (
           <article className="glass-output glass">
             {reply.question && <p className="glass-output-question">{reply.question}</p>}
             {reply.label && <p className="glass-output-label">{reply.label}</p>}

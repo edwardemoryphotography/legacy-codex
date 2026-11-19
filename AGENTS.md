@@ -107,6 +107,8 @@ The root app uses Next.js 16.3.0 and `next.config.mjs`. Do not create a competin
 
 `CodexApp` owns a single piece of state: `activeTab: TabId`, defaulting to `home`, the Codex Glass screen (`src/components/tabs/HomeTab.tsx`, styles in `src/app/codex-glass.css`; Eddie's board, 2026-10-30). There is no tab bar: the top-left menu button opens one sheet listing every screen, and the shell conditionally mounts the matching tab component. Home's chips and pill call the existing owner-gated `/api/brief` modes and the existing voice input; nothing on it is timed or simulated. Tabs are independent except for explicit shared hooks/components such as the capture pipeline and Mission's next-move panel. Adding a screen requires: (1) adding a `TabId` in `src/types/index.ts`, (2) adding an entry to the `TABS` array in `CodexApp.tsx` (that is the menu), and (3) creating the component and wiring it in the conditional render block.
 
+**Home's Continue card** (`src/components/HomeContinue.tsx`, `src/lib/homeContinue.ts`; 2026-11-16, [handoff](docs/ux/first-light-handoff-2026-11-16.md)). Before anything is typed, Home shows the Primary mission, its next step with a status in words, the saved blocker, one button into Mission and a `What Codex has from you` disclosure (saved context, not a causal account of a recommendation; Mission's `Why this?` holds the rationale). It is a projection over rows Home already reads; it adds no store, query, write or model call, and it shows for accounts without AI too. Its wording rules are load-bearing and tested: an accepted suggestion is never worded as saved; nothing is reported as done; a failed mission or action read is unknown, never “no next step”; a failed history read never hides a mission and saved step that did load, and without a saved step it says the accepted-suggestion check failed; confirmed lessons are counted across the account and described as context supplied, and a lesson row's mission is never shown as its source. When a reply exists the card steps aside and the existing saved-first line keeps precedence. The card's button opens Mission and, when a step is saved, scrolls to and focuses that step's card (`#saved-action-<id>`); landing at the top of Mission left the step a screen or more away on a phone. `useHomeAccess` reports `signedIn` so a confirmed email account that is refused AI (for example on a Preview deployment without the owner allowlist) is never told to sign in.
+
 ### State persistence via `useLocalStorage`
 
 `src/hooks/useLocalStorage.ts` exports `useLocalStorage<T>(key, defaultValue)` → `[value, set, mounted]`.
@@ -187,6 +189,8 @@ Three rules that are load-bearing, not stylistic:
  render as teal or as model violet.
 - **Insufficient context is a first-class path, not a fallback.** With no mission
   state the Delta names the one missing input. It never guesses.
+
+When a saved action differs from the current suggestion, the saved action leads and the alternative, project review and corrections fold behind `See other options` (2026-11-16). The fold is one boolean (`altCollapsed`) and one CSS rule on the siblings after the `data-also-consider` marker; it never hides anything the person has already engaged with or any persist error, its toggle stays mounted so keyboard focus is kept, and it changes no prediction, acceptance, save or replace behaviour.
 
 Corrections ("Not right") persist as `delta_corrected` rows in `mission_events`
 — that table's `type` column has no CHECK constraint, so new event types need no
