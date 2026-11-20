@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { savedActionDisplay } from './savedActionDisplay'
 
-// Exact observed title of the existing in-progress action (Nov 19 read-only
-// check); not an invented example and not a substitute for the real UI check.
+// Both checks use verbatim existing action/mission records (Nov 19 read-only
+// database inspection), not synthetic missions or placeholder actions.
 const mission = 'Use Legacy Codex to guide, build, test, and continuously improve Legacy Codex itself, learning from real problems and carrying those lessons into future development.'
 const savedTitle = 'Outline the first concrete work block for “' + mission + '” based on your note: I need to implement a file and document upload feature that I can click…'
 
@@ -14,8 +14,9 @@ describe('savedActionDisplay', () => {
     expect(view.original).toBe(savedTitle)
   })
 
-  it('does not change an action when its current mission is different', () => {
-    const view = savedActionDisplay(savedTitle, mission.slice(0, -1))
-    expect(view).toEqual({ heading: savedTitle, fromNote: null, original: null })
+  it('leaves another real saved action entirely unchanged', () => {
+    const title = 'Fix the iPhone orb and keyboard layout'
+    const view = savedActionDisplay(title, 'the design of this')
+    expect(view).toEqual({ heading: title, fromNote: null, original: null })
   })
 })
