@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase/client'
 import { connectMissionSession } from '@/lib/supabase/missionSession'
 import { ActionBtn, Input, Textarea } from '@/components/ui'
 import type { RoutedActionDraft } from './TaskRouter'
+import { savedActionDisplay } from '@/lib/savedActionDisplay'
 
 export interface SavedOpenActionSnapshot {
   id: string
@@ -248,9 +249,12 @@ function ActionCard({ action, onSaved, matchesRecommendation, draftNote }: { act
       setBusy(false)
     }
   }
+  const readable = savedActionDisplay(action.action_title, action.mission.title)
   return <article id={`saved-action-${action.id}`} tabIndex={-1} className="commitment-card">
     <p className="commitment-meta">{action.mission.title} · {action.status === 'IN_PROGRESS' ? 'In progress' : 'Ready to resume'}{action.mission.state !== 'primary' ? ` · Mission ${action.mission.state}` : ''}</p>
-    <h4 className="commitment-title">{action.action_title}</h4>
+    <h4 className="commitment-title">{readable.heading}</h4>
+    {readable.fromNote && <p className="commitment-lead">From your note: {readable.fromNote}</p>}
+    {readable.original && <details className="route-handoff"><summary>Original saved wording</summary><p>{readable.original}</p></details>}
     {matchesRecommendation && <p className="commitment-same">Same words as the recommendation you accepted.</p>}
     <label htmlFor={`resume-${action.id}`}>Starting point</label>
     {draftNote && !note.includes(draftNote) && <div className="space-y-2"><p>A revised draft is available for this action.</p><div className="flex flex-wrap gap-2"><ActionBtn disabled={busy} onClick={() => setNote(previous => `${previous}${previous.trim() ? '\n\n' : ''}${draftNote}`)}>Add draft to starting point</ActionBtn><ActionBtn disabled={busy} onClick={() => {

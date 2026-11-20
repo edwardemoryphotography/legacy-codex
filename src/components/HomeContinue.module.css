@@ -56,3 +56,10 @@
   .title { font-size: 20px; -webkit-line-clamp: 2; }
   .stepTitle { -webkit-line-clamp: 3; }
 }
+
+/* The original title remains in the collapsed context disclosure. */
+.stepNote {
+  margin: 0; font: 400 13px/1.45 var(--g-body); color: var(--g-mist-dim);
+  overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}

@@ -1,5 +1,6 @@
 import type { HomeContinueView } from '@/lib/homeContinue'
 import styles from './HomeContinue.module.css'
+import { savedActionDisplay } from '@/lib/savedActionDisplay'
 
 /** Home's answer to three questions before anything is typed: what matters,
  *  what is next, and why. Every line is a saved value or an explicit statement
@@ -39,15 +40,20 @@ export default function HomeContinue({ view, name, missionCount, onOpenMission }
     )
   }
 
+  const readableStep = view.stepTitle && view.missionTitle && (view.status === 'saved' || view.status === 'in_progress')
+    ? savedActionDisplay(view.stepTitle, view.missionTitle)
+    : null
+
   return (
     <section className={styles.card} aria-label="What matters now" data-step={view.status}>
       <p className={styles.kicker}>What matters now</p>
       <h2 className={styles.title}>{view.missionTitle}</h2>
       <div className={styles.step}>
         <p className={styles.stepLabel} data-step={view.status}>{view.stepLabel ?? 'Next step'}</p>
-        <p className={styles.stepTitle}>{view.stepTitle ?? (view.status === 'step_unknown'
+        <p className={styles.stepTitle}>{readableStep?.heading ?? view.stepTitle ?? (view.status === 'step_unknown'
           ? 'No saved step was found. Whether you accepted a suggestion could not be checked.'
           : 'No next step is saved for this mission yet.')}</p>
+        {readableStep?.fromNote && <p className={styles.stepNote}>From your note: {readableStep.fromNote}</p>}
         {view.blocker && <p className={styles.blocker}><span>Blocked by</span> {view.blocker}</p>}
       </div>
       <button type="button" className={`glass-continuity-button ${styles.primary}`} onClick={onOpenMission}>{view.cta}</button>
@@ -55,6 +61,7 @@ export default function HomeContinue({ view, name, missionCount, onOpenMission }
         <details className={styles.why}>
           <summary>What Codex has from you</summary>
           <dl>
+            {readableStep?.original && <div><dt>Original saved wording</dt><dd>{readableStep.original}</dd></div>}
             {view.reasons.map(reason => (
               <div key={reason.label}><dt>{reason.label}</dt><dd>{reason.text}</dd></div>
             ))}

@@ -10,6 +10,7 @@ import MissionAssistance from '@/components/MissionAssistance'
 import type { SavedOpenActionSnapshot } from '@/components/SavedActions'
 import { deriveObservableAcceptanceChecks } from '@/lib/missionAssistance'
 import { deriveNextAction, type AcceptanceSnapshot } from '@/lib/nextAction'
+import { savedActionDisplay } from '@/lib/savedActionDisplay'
 import ReactMarkdown from 'react-markdown'
 import type { ConfirmedLesson, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
 
@@ -633,6 +634,10 @@ export default function StrategicDelta({
             resumeNote: activeWorkDraft,
           }
         : null
+  const readableCurrent = currentSavedAction && committableMission
+    ? savedActionDisplay(currentSavedAction.title, committableMission.title) : null
+  const readableMatching = matchingSavedAction && committableMission
+    ? savedActionDisplay(matchingSavedAction.title, committableMission.title) : null
   const hasDifferentSavedAction = Boolean(
     currentSavedAction &&
     delta &&
@@ -868,11 +873,13 @@ export default function StrategicDelta({
                     ? 'Current move (in progress)'
                     : 'Current saved action'}
                 </strong>
-                {': '}“{currentSavedAction.title}”
+                {': '}“{readableCurrent?.heading ?? currentSavedAction.title}”
                 {currentSavedAction.status === 'IN_PROGRESS'
                   ? ' — in progress now. A new prediction will not overwrite or reset it.'
                   : altCollapsed ? ' — saved for this mission.' : ' — saved for this mission. The prediction below is an optional alternative.'}
               </p>
+              {readableCurrent?.fromNote && <p className="sd-hint">From your note: {readableCurrent.fromNote}</p>}
+              {readableCurrent?.original && <details className="sd-hint"><summary>Original saved wording</summary><p>{readableCurrent.original}</p></details>}
               {currentSavedAction.resumeNote && (
                 <p className="sd-hint">Where you left off: {currentSavedAction.resumeNote}</p>
               )}
@@ -902,7 +909,9 @@ export default function StrategicDelta({
                 : 'Also consider — does not replace your saved action:'}</span>
             </p>
           )}
-          {!evidenceLoop && <p className="sd-move" key={hasRecommendation ? delta.move : title} aria-label={selectedReview ? resumeActionId ? 'Continue your saved action' : 'Do this' : undefined} aria-live={hasRecommendation ? 'polite' : undefined}>{title}</p>}
+          {!evidenceLoop && <p className="sd-move" key={hasRecommendation ? delta.move : title} aria-label={selectedReview ? resumeActionId ? 'Continue your saved action' : 'Do this' : undefined} aria-live={hasRecommendation ? 'polite' : undefined}>{readableMatching?.heading ?? title}</p>}
+          {readableMatching?.fromNote && <p className="sd-hint">From your note: {readableMatching.fromNote}</p>}
+          {readableMatching?.original && <details className="sd-hint"><summary>Original saved wording</summary><p>{readableMatching.original}</p></details>}
           {evidenceLoop && <p className="sd-move" aria-live="polite">Let’s get something useful started.</p>}
           {activeWorkDraft && <section className="mission-work-draft" aria-label="Working draft">
             <h3>A starting point for your work</h3>
