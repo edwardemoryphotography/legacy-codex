@@ -17,8 +17,11 @@ export function homeDecision(view: HomeContinueView, mission: Mission, saved: Sa
     (c.correctedMove === view.stepTitle || operationsEquivalent(c.correctedMove, view.stepTitle)))
   const commitmentLeads = saved && !rejected && !constrained && (resume || (!reviewed && (delta.provenance !== 'supplied' || sameAction)))
   const acceptedLeads = !saved && view.status === 'accepted' && !staleAcceptance && !rejected && !constrained && !reviewed && delta.provenance !== 'supplied'
+  const finishEvidenceAlternative = commitmentLeads && !reviewed && delta.candidateId === `produce-evidence:${mission.id}`
   const reasons = [...view.reasons]
-  const specific = reviewed?.unknowns[0] || (commitmentLeads || acceptedLeads
+  const specific = reviewed?.unknowns[0] || (finishEvidenceAlternative
+    ? `If this proof is already available, check it before continuing: ${mission.evidenceRequirement}`
+    : commitmentLeads || acceptedLeads
     ? 'A blocker, conflicting evidence, or a correction to this step would change the recommendation.'
     : delta.wouldChangeIf)
   if (staleAcceptance) reasons.push({ label: 'What changed', text: staleAcceptance })
@@ -38,7 +41,9 @@ export function homeDecision(view: HomeContinueView, mission: Mission, saved: Sa
   }
   if (commitmentLeads || acceptedLeads) {
     const why = reviewed?.why ?? (acceptedLeads ? 'You accepted this suggestion. The recorded constraints give no reason to set it aside.' :
-      sameAction && saved?.status === 'IN_PROGRESS'
+      finishEvidenceAlternative
+        ? `You ${saved?.status === 'IN_PROGRESS' ? 'started' : 'saved'} this step. The alternative is to collect the mission’s finish evidence. Your action is still open, so resume here unless that proof is already available.`
+        : sameAction && saved?.status === 'IN_PROGRESS'
         ? 'The step from your project context matches the action already in progress. Resume from your saved starting point.'
         : 'You already chose this step. The available mission records give no higher-priority reason to interrupt it.')
     if (!reviewed && delta.move !== view.stepTitle) reasons.push({ label: 'Also considered', text: delta.move })

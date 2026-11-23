@@ -105,7 +105,8 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session || session.user.id !== accountId) throw new Error('Reopen Home to check your account.')
-      const res = await fetch('/api/delta-review', { method: 'POST', signal, headers: {
+      const deadline = AbortSignal.timeout(110_000)
+      const res = await fetch('/api/delta-review', { method: 'POST', signal: signal ? AbortSignal.any([signal, deadline]) : deadline, headers: {
         Authorization: 'Bearer ' + session.access_token, 'Content-Type': 'application/json',
       }, body: JSON.stringify({ missionId, finishLine }) })
       const result = await res.json()
@@ -114,7 +115,9 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
       setReview(result.review ?? null)
       setNotice(result.review ? 'Comparison ready.' : 'The current mission constraints prevent a review. Reopen Mission to check what changed.')
     } catch (err) {
-      if (!signal?.aborted) setNotice(err instanceof Error ? err.message : 'Could not compare these moves.')
+      if (!signal?.aborted) setNotice(err instanceof Error && err.name === 'TimeoutError'
+        ? 'The comparison timed out. Your saved step is still available.'
+        : err instanceof Error ? err.message : 'Could not compare these moves.')
     } finally {
       pending.current = false
       if (!signal?.aborted) setPhase('idle')
