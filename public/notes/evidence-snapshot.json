@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-22T21:39:57.965Z",
+  "generatedAt": "2026-11-23T06:03:05.882Z",
   "unavailableSources": [],
   "records": [
     {
@@ -10,7 +10,7 @@
       "status": "verified",
       "claim": "PR #198 \"fix(ux): show readable saved-action titles without rewriting history\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-20T00:11:57Z",
-      "fetchedAt": "2026-11-22T21:39:52.841Z",
+      "fetchedAt": "2026-11-23T06:02:59.304Z",
       "prReadSucceeded": true
     },
     {
@@ -21,7 +21,7 @@
       "status": "verified",
       "claim": "PR #197 \"feat(home): lead with what matters, the next step, and why (Operation First Light)\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-19T23:58:58Z",
-      "fetchedAt": "2026-11-22T21:39:53.171Z",
+      "fetchedAt": "2026-11-23T06:02:59.589Z",
       "prReadSucceeded": true
     },
     {
@@ -32,7 +32,7 @@
       "status": "verified",
       "claim": "PR #196 \"docs: record historical provenance release evidence\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-16T21:14:46Z",
-      "fetchedAt": "2026-11-22T21:39:53.473Z",
+      "fetchedAt": "2026-11-23T06:03:00.018Z",
       "prReadSucceeded": true
     },
     {
@@ -43,7 +43,7 @@
       "status": "verified",
       "claim": "PR #195 \"fix: finish historical lesson provenance repair\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-16T21:11:42Z",
-      "fetchedAt": "2026-11-22T21:39:53.754Z",
+      "fetchedAt": "2026-11-23T06:03:00.406Z",
       "prReadSucceeded": true
     },
     {
@@ -54,7 +54,7 @@
       "status": "verified",
       "claim": "PR #194 \"fix: keep a lesson's ledger mission separate from its origin\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-16T18:22:05Z",
-      "fetchedAt": "2026-11-22T21:39:54.013Z",
+      "fetchedAt": "2026-11-23T06:03:00.747Z",
       "prReadSucceeded": true
     },
     {
@@ -65,7 +65,7 @@
       "status": "verified",
       "claim": "PR #193 \"Fix Codex tools dialog contrast in Light mode\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-15T17:51:54Z",
-      "fetchedAt": "2026-11-22T21:39:54.261Z",
+      "fetchedAt": "2026-11-23T06:03:01.339Z",
       "prReadSucceeded": true
     },
     {
@@ -76,7 +76,7 @@
       "status": "verified",
       "claim": "PR #192 \"Add the other 33 real boomerangs to Codex Mission learning review\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-13T04:00:34Z",
-      "fetchedAt": "2026-11-22T21:39:54.503Z",
+      "fetchedAt": "2026-11-23T06:03:01.674Z",
       "prReadSucceeded": true
     },
     {
@@ -87,7 +87,7 @@
       "status": "verified",
       "claim": "PR #191 \"Record Relay repair release evidence and remaining acceptance\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-12T22:21:01Z",
-      "fetchedAt": "2026-11-22T21:39:54.774Z",
+      "fetchedAt": "2026-11-23T06:03:02.066Z",
       "prReadSucceeded": true
     },
     {
@@ -98,7 +98,7 @@
       "status": "verified",
       "claim": "PR #190 \"Preserve approved lesson exceptions through Relay\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-12T22:12:14Z",
-      "fetchedAt": "2026-11-22T21:39:55.032Z",
+      "fetchedAt": "2026-11-23T06:03:02.430Z",
       "prReadSucceeded": true
     },
     {
@@ -109,7 +109,7 @@
       "status": "verified",
       "claim": "PR #189 \"Let real incidents enter the lesson loop as owner-confirmed candidates\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-12T04:09:10Z",
-      "fetchedAt": "2026-11-22T21:39:55.319Z",
+      "fetchedAt": "2026-11-23T06:03:02.717Z",
       "prReadSucceeded": true
     },
     {
@@ -120,7 +120,7 @@
       "status": "verified",
       "claim": "PR #188 \"Preserve 34 sourced boomerangs in Legacy Codex Root and define inheritance build\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-10T08:34:58Z",
-      "fetchedAt": "2026-11-22T21:39:55.573Z",
+      "fetchedAt": "2026-11-23T06:03:03.065Z",
       "prReadSucceeded": true
     },
     {
@@ -131,7 +131,7 @@
       "status": "verified",
       "claim": "PR #187 \"Replace clipped Codex tools flyout with native modal on iPhone\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-10T06:53:59Z",
-      "fetchedAt": "2026-11-22T21:39:55.851Z",
+      "fetchedAt": "2026-11-23T06:03:03.397Z",
       "prReadSucceeded": true
     },
     {
@@ -142,7 +142,7 @@
       "status": "verified",
       "claim": "PR #186 \"Keep Ask Codex visible in iOS embedded browser when keyboard opens\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-10T06:38:18Z",
-      "fetchedAt": "2026-11-22T21:39:56.089Z",
+      "fetchedAt": "2026-11-23T06:03:03.709Z",
       "prReadSucceeded": true
     },
     {
@@ -153,7 +153,7 @@
       "status": "verified",
       "claim": "PR #185 \"Fix iPhone keyboard overlay and keep Ask Codex composer visible\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-10T04:07:05Z",
-      "fetchedAt": "2026-11-22T21:39:56.350Z",
+      "fetchedAt": "2026-11-23T06:03:04.025Z",
       "prReadSucceeded": true
     },
     {
@@ -164,7 +164,7 @@
       "status": "verified",
       "claim": "PR #174 \"Bound iPhone Live Voice startup so connecting never hangs indefinitely\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-09T20:31:55Z",
-      "fetchedAt": "2026-11-22T21:39:56.623Z",
+      "fetchedAt": "2026-11-23T06:03:04.387Z",
       "prReadSucceeded": true
     },
     {
@@ -175,7 +175,7 @@
       "status": "verified",
       "claim": "PR #167 \"Add GPT-Live voice conversation mode to existing Legacy Codex Home\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-09T20:31:43Z",
-      "fetchedAt": "2026-11-22T21:39:56.929Z",
+      "fetchedAt": "2026-11-23T06:03:04.707Z",
       "prReadSucceeded": true
     },
     {
@@ -186,7 +186,7 @@
       "status": "verified",
       "claim": "PR #184 \"feat(ux): give Save as my next action primary dominance over accept\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T04:19:26Z",
-      "fetchedAt": "2026-11-22T21:39:57.163Z",
+      "fetchedAt": "2026-11-23T06:03:05.026Z",
       "prReadSucceeded": true
     },
     {
@@ -197,7 +197,7 @@
       "status": "verified",
       "claim": "PR #183 \"feat(ux): group navigation into four core loops and scale mobile reply orb\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T03:33:26Z",
-      "fetchedAt": "2026-11-22T21:39:57.444Z",
+      "fetchedAt": "2026-11-23T06:03:05.292Z",
       "prReadSucceeded": true
     },
     {
@@ -208,7 +208,7 @@
       "status": "verified",
       "claim": "PR #182 \"Territory Path 2: saved connections, state and log\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T02:25:47Z",
-      "fetchedAt": "2026-11-22T21:39:57.709Z",
+      "fetchedAt": "2026-11-23T06:03:05.589Z",
       "prReadSucceeded": true
     },
     {
@@ -219,7 +219,7 @@
       "status": "verified",
       "claim": "PR #181 \"Keep access sign-in legible in opaque and contrast modes\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-05T00:18:58Z",
-      "fetchedAt": "2026-11-22T21:39:57.965Z",
+      "fetchedAt": "2026-11-23T06:03:05.882Z",
       "prReadSucceeded": true
     }
   ]
