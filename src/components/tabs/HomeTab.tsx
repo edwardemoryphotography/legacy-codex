@@ -20,6 +20,7 @@ import { latestAcceptance } from '@/lib/nextActionLedger'
 import styles from './HomeTab.module.css'
 import ReactMarkdown from 'react-markdown'
 import { recentConversation } from '@/lib/homeSession'
+import HomeStrategicDecision from '@/components/HomeStrategicDecision'
 import HomeContinue from '@/components/HomeContinue'
 import { activeLessonCount, deriveHomeContinue } from '@/lib/homeContinue'
 
@@ -44,7 +45,7 @@ function ConversationPresence({ status, busy, loadError, pending, voice, live, r
   return null
 }
 
-function AccessGate({ state, onSignIn, compact = false, signedIn = false }: { state: ReturnType<typeof useHomeAccess>['state']; onSignIn: () => void; compact?: boolean; signedIn?: boolean }) {
+function AccessGate({ state, onSignIn, compact = false, signedIn = false, tester = false }: { state: ReturnType<typeof useHomeAccess>['state']; onSignIn: () => void; compact?: boolean; signedIn?: boolean; tester?: boolean }) {
   const gate = compact ? `${styles.accessGate} ${styles.accessCompact}` : styles.accessGate
   if (state === 'checking') {
     return <div className={gate} role="status"><p className={styles.eyebrow}>Account</p><h2>Checking account access…</h2><p>Holding the composer until this browser account is identified.</p></div>
@@ -55,6 +56,7 @@ function AccessGate({ state, onSignIn, compact = false, signedIn = false }: { st
   if (state === 'error') {
     return <div className={gate} role="alert"><p className={styles.eyebrow}>Account</p><h2>Could not check AI access.</h2><p>Your draft is still here. Try again, or open your saved work.</p><button type="button" className="glass-chip glass" onClick={() => window.location.reload()}>Check again</button></div>
   }
+  if (tester) return <div className={gate} role="status"><h2>Project review access</h2><p>You can compare moves for your own mission within your invitation allowance. Conversation and voice require owner access.</p></div>
   if (signedIn) {
     // Already signed in: asking this person to sign in would be wrong. AI is
     // gated per deployment, so say that and leave their saved work in view.
@@ -80,7 +82,9 @@ function AccessGate({ state, onSignIn, compact = false, signedIn = false }: { st
 
 export default function HomeTab({ onNavigate, session, onSessionChange, variant = 'home', projectRevision = 0, onProjectChange, onSignIn }: { projectRevision?: number; onProjectChange?: () => void; variant?: 'home' | 'mission'; onNavigate: (id: TabId) => void; session?: HomeSession; onSessionChange?: Dispatch<SetStateAction<HomeSession>>; onSignIn?: () => void }) {
   const missionView = variant === 'mission'
-  const { missions, loadError, actions, actionsRead, events, eventsRead, links, linksRead } = useMissionTerritory({ withEvents: true, refreshKey: projectRevision })
+  const [decisionRevision, setDecisionRevision] = useState(0)
+  const territory = useMissionTerritory({ withEvents: true, withDecisionHistory: !missionView, refreshKey: projectRevision + decisionRevision })
+  const { missions, loadError, actions, actionsRead, events, eventsRead, links, linksRead, linksTruncated, evidenceRead } = territory
   const brief = useBriefRunner()
   const access = useHomeAccess()
   const name = access.name
@@ -199,7 +203,8 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const savedAction = actionsRead === 'ok' && primaryMission && actions
     ? actions.find(action => action.mission_id === primaryMission.id && (action.status === 'TODO' || action.status === 'IN_PROGRESS')) ?? null
     : null
-  const acceptance = primaryMission && eventsRead === 'ok' ? latestAcceptance(events, primaryMission) : null
+  const acceptanceRows = !missionView && linksRead === 'ok' && !linksTruncated ? links : events
+  const acceptance = primaryMission && eventsRead === 'ok' ? latestAcceptance(acceptanceRows, primaryMission) : null
   const homeReadState: NextActionReadState =
     loadError || actionsRead === 'failed' || eventsRead === 'failed'
       ? 'error'
@@ -228,7 +233,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   // Home's first answer, before anything is typed. Corrections belong to the
   // mission they were made on. Lessons are counted across the account only: a
   // lesson row's mission is where it is filed, never its historical source.
-  const linksKnown = linksRead === 'ok' && Array.isArray(links)
+  const linksKnown = linksRead === 'ok' && !linksTruncated && Array.isArray(links)
   // The card needs the mission and its actions. The event history only adds an
   // accepted suggestion, which a saved step outranks, so a failed or pending
   // history read must not hide a mission and saved step that did load.
@@ -253,10 +258,10 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   // The card's button goes to the saved step itself, not just the top of
   // Mission, where the step can be a screen or more down. The saved-action
   // card loads after navigation, so look for it briefly and then stop.
-  const openMission = () => {
+  const openMission = (focusSaved = true) => {
     onNavigate('mission')
     const id = savedAction?.id
-    if (!id) return
+    if (!id || !focusSaved) return
     if (seekTimer.current) clearTimeout(seekTimer.current)
     let tries = 0
     const seek = () => {
@@ -271,6 +276,17 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     }
     seekTimer.current = setTimeout(seek, 0)
   }
+  const completeDecision = !missionView && primaryMission && territory.accountId && homeReadState === 'loaded' &&
+    evidenceRead === 'ok' && linksKnown
+  const homeCard = completeDecision ? <HomeStrategicDecision
+    key={`${territory.accountId}:${primaryMission.id}:${projectRevision}:${decisionRevision}`}
+    territory={territory} mission={primaryMission} saved={homeNextActionSaved} view={continueView}
+    allowReview={access.configured && (access.state === 'owner' || access.tester === true)}
+    onOpen={openMission} onChange={() => setDecisionRevision(value => value + 1)}
+  /> : <HomeContinue view={continueView} name={access.state === 'owner' ? name : undefined} missionCount={missionCount} onOpenMission={() => openMission()}>
+    {primaryMission && (evidenceRead === 'failed' || linksRead === 'failed' || linksTruncated || eventsRead === 'failed') &&
+      <p role="status">Showing saved context. Codex could not check the full decision history and evidence.</p>}
+  </HomeContinue>
   const noTextNeeded = (tool === 'brief' || tool === 'triage') && !text.trim()
   // Prompt help spends part of the question limit on its instruction.
   const limit = tool === 'prompt' ? PROMPT_LIMIT : QUESTION_LIMIT
@@ -472,9 +488,9 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
         <button type="button" className="glass-chip glass" hidden={immersive || (access.state !== 'owner' && history.length === 0 && !hasReply)} aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setHistoryOpen(true); setResponseOpen(false) }}>History{history.length ? ` · ${history.length}` : ''}</button>
       </div>
       <div className="glass-hero">
-        {access.state !== 'owner' ? (missionView ? <AccessGate state={access.state} onSignIn={requestSignIn} /> : <>
-          <HomeContinue view={continueView} missionCount={missionCount} onOpenMission={openMission} />
-          <AccessGate state={access.state} onSignIn={requestSignIn} compact signedIn={access.signedIn} />
+        {access.state !== 'owner' ? (missionView ? <AccessGate state={access.state} onSignIn={requestSignIn} tester={access.tester} /> : <>
+          {homeCard}
+          <AccessGate state={access.state} onSignIn={requestSignIn} compact signedIn={access.signedIn} tester={access.tester} />
         </>) : <>
         {!missionView && <div className="glass-orb-wrap">
           <OrbSlot />
@@ -538,7 +554,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
           </> : missionView ? (
             <h2 className="glass-greeting">Continue our conversation<span>What would you like to work through?</span></h2>
           ) : (
-            <HomeContinue view={continueView} name={name} missionCount={missionCount} onOpenMission={openMission} />
+            homeCard
           )}
         </div>
       </>}

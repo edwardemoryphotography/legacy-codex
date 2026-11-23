@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DeltaCandidate, DeltaCorrection, EvidenceRecord, Mission, StrategicDelta as Delta } from '@/types'
+import { reviewCandidate, selectReviewedDelta } from '@/lib/reviewedDelta'
 import { candidateTargetsClause, operationCandidateId, predictStrategicDelta } from '@/lib/strategicDelta'
 import { ActionBtn, ActionChip, Input, Textarea } from '@/components/ui'
 import { OrbSlot, useOrbCognition } from '@/components/OrbHost'
@@ -288,16 +289,7 @@ export default function StrategicDelta({
     [missions, evidence, corrections, now, suppliedOperations],
   )
 
-  const reviewedOperation = useMemo<DeltaCandidate | null>(() => {
-    if (!projectReview?.operation) return null
-    return {
-      id: `project-operation:${projectReview.missionId}:${encodeURIComponent(projectReview.operation)}`,
-      targetId: `project:${projectReview.missionId}`,
-      kind: 'model_suggested', missionId: projectReview.missionId,
-      move: projectReview.operation, projectFinishLine: projectReview.finishLine, rank: 0,
-    }
-  }, [projectReview])
-
+  const reviewedOperation = useMemo(() => reviewCandidate(projectReview), [projectReview])
   const suggestedOperations = useMemo(
     () => [
       ...suppliedOperations,
@@ -315,16 +307,7 @@ export default function StrategicDelta({
 
   const delta = useMemo(() => {
     if (now === null) return null
-    const predicted = predictStrategicDelta(missions, evidence, corrections, now, suggestedOperations)
-    const target = missions.find(mission => mission.id === predicted.missionId)
-    // A deciding question supersedes filler operations for this project,
-    // while supplied steps and conflict/blocker/capacity gates keep priority.
-    if (projectReview?.decision !== 'clarify' || predicted.missionId !== projectReview.missionId ||
-        predicted.provenance === 'supplied' || predicted.situation === 'evidence_conflict' ||
-        !target || target.blocker || target.capacityMismatch) return predicted
-    return { ...predicted, provenance: 'insufficient_context' as const, candidateId: `project:${target.id}`,
-      move: projectReview.clarification!, because: projectReview.why,
-      blockingGap: 'One fact would change the best next move.', wouldChangeIf: projectReview.clarification! }
+    return selectReviewedDelta(missions, evidence, corrections, now, suggestedOperations, projectReview)
   }, [missions, evidence, corrections, now, suggestedOperations, projectReview])
 
   // Fires at most once for each target/rejection state: only when the deterministic pass has

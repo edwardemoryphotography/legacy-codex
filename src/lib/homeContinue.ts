@@ -17,6 +17,8 @@ export type ContinueStatus =
   | 'no_primary'
   | 'in_progress'
   | 'saved'
+  | 'suggested'
+  | 'clarify'
   | 'accepted'
   | 'no_step'
   /** The mission and its actions loaded, but accepted suggestions could not be read. */
