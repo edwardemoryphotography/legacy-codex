@@ -82,6 +82,7 @@ function AccessGate({ state, onSignIn, compact = false, signedIn = false, tester
 
 export default function HomeTab({ onNavigate, session, onSessionChange, variant = 'home', projectRevision = 0, onProjectChange, onSignIn }: { projectRevision?: number; onProjectChange?: () => void; variant?: 'home' | 'mission'; onNavigate: (id: TabId) => void; session?: HomeSession; onSessionChange?: Dispatch<SetStateAction<HomeSession>>; onSignIn?: () => void }) {
   const missionView = variant === 'mission'
+  const [reviewActive, setReviewActive] = useState(false)
   const [decisionRevision, setDecisionRevision] = useState(0)
   const territory = useMissionTerritory({ withEvents: true, withDecisionHistory: !missionView, refreshKey: projectRevision + decisionRevision })
   const { missions, loadError, actions, actionsRead, events, eventsRead, links, linksRead, linksTruncated, evidenceRead } = territory
@@ -282,7 +283,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     key={`${territory.accountId}:${primaryMission.id}:${projectRevision}:${decisionRevision}`}
     territory={territory} mission={primaryMission} saved={homeNextActionSaved} view={continueView}
     allowReview={access.configured && (access.state === 'owner' || access.tester === true)}
-    onOpen={openMission} onChange={() => setDecisionRevision(value => value + 1)}
+    onOpen={openMission} onReviewActivity={setReviewActive} onChange={() => setDecisionRevision(value => value + 1)}
   /> : <HomeContinue view={continueView} name={access.state === 'owner' ? name : undefined} missionCount={missionCount} onOpenMission={() => openMission()}>
     {primaryMission && (evidenceRead === 'failed' || linksRead === 'failed' || linksTruncated || eventsRead === 'failed') &&
       <p role="status">Showing saved context. Codex could not check the full decision history and evidence.</p>}
@@ -293,7 +294,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const over = !noTextNeeded && text.length > limit
   // Send and microphone remain separate controls. An unavailable submission
   // explains its reason beside the input instead of silently consuming Enter.
-  const ready = access.state === 'owner' && access.configured && !busy && !voice.active && !over && (noTextNeeded || text.trim() !== '')
+  const ready = access.state === 'owner' && access.configured && !reviewActive && !busy && !voice.active && !over && (noTextNeeded || text.trim() !== '')
 
   const closeTools = () => {
     setSheetOpen(false)
@@ -358,7 +359,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send() }
   }
 
-  const immersive = !missionView && (liveActive || ['listening', 'thinking', 'acting'].includes(presentation.state))
+  const immersive = !missionView && (liveActive || (!reviewActive && ['listening', 'thinking', 'acting'].includes(presentation.state)))
   const reply = current.reply
   const hasReply = Boolean(reply)
   const takeawayTitle = reply ? homeTakeaway(reply.text).slice(0, 240) : ''
@@ -479,7 +480,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       data-next-action-read={homeNextAction.readState}
       aria-label={missionView ? 'Project conversation' : 'Home'}
     >
-      {access.state === 'owner' && (!missionView || busy || voice.active || liveActive) && <ConversationPresence status={brief.status} busy={busy} loadError={loadError} pending={!loadError && !busy && !voice.active && !liveActive ? missions === null ? 'Reading saved missions' : actionsRead === 'pending' ? 'Reading saved actions' : null : null} voice={voice} live={livePhase} reply={Boolean(current.reply)} />}
+      {access.state === 'owner' && (!missionView || busy || voice.active || liveActive) && <ConversationPresence status={brief.status} busy={busy || reviewActive} loadError={loadError} pending={reviewActive ? 'Comparing project moves' : !loadError && !busy && !voice.active && !liveActive ? missions === null ? 'Reading saved missions' : actionsRead === 'pending' ? 'Reading saved actions' : null : null} voice={voice} live={livePhase} reply={Boolean(current.reply)} />}
       <div className={styles.context}>
         {(missionView || hasReply) && <span>{primaryMission ? `Working on: ${primaryMission.title}` : 'Your conversation with Codex'}</span>}
         {/* The card's own button opens Mission, so a second control to the same
@@ -501,6 +502,9 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
             <p className={styles.eyebrow}>{reply.label || 'Codex response'} · Excerpt</p>
             <h2 className={styles.answer}>{homeTakeaway(reply.text)}</h2>
             <div className="flex flex-wrap justify-center gap-2">
+              {!missionView && <button type="button" className="glass-chip glass" onClick={() => update(previous => ({
+                ...previous, history: previous.reply ? [...previous.history, previous.reply].slice(-6) : previous.history, reply: null,
+              }))}>Back to my next move</button>}
               <button type="button" className={`glass-chip glass ${styles.readMore}`} aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setResponseOpen(true); setHistoryOpen(false) }}>Read full answer <span aria-hidden="true">↗</span></button>
               {primaryMission && actionsRead === 'ok' && !isReplySavedAsAction && !savedAction && (
                 <button
@@ -593,7 +597,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
           missions={missions ?? []}
           primaryMissionId={primaryMission?.id ?? null}
           tier={current.tier === 'deep' ? 'deep' : 'routine'}
-          disabled={busy || voice.active || missions === null || Boolean(loadError) || !brief.configured || access.state !== 'owner'}
+          disabled={reviewActive || busy || voice.active || missions === null || Boolean(loadError) || !brief.configured || access.state !== 'owner'}
           onPhaseChange={setLivePhase}
           onSaveAnswer={saveLiveAnswer}
           canSave={Boolean(primaryMission)}

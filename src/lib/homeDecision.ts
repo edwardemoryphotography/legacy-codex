@@ -7,7 +7,7 @@ import type { SavedActionSnapshot } from './nextAction'
 
 /** A recommendation can change while the commitment and its return note retain their identity. */
 export function homeDecision(view: HomeContinueView, mission: Mission, saved: SavedActionSnapshot | null,
-  delta: StrategicDelta, review: ProjectReview | null, corrections: DeltaCorrection[]) {
+  delta: StrategicDelta, review: ProjectReview | null, corrections: DeltaCorrection[], staleAcceptance: string | null = null) {
   const reviewed = review && (delta.provenance === 'model' && delta.candidateId === reviewCandidate(review)?.id ||
     review.decision === 'clarify' && delta.candidateId === `project:${mission.id}` && delta.move === review.clarification) ? review : null
   const constrained = ['primary_blocked', 'primary_capacity_mismatch', 'evidence_conflict'].includes(delta.situation)
@@ -16,9 +16,12 @@ export function homeDecision(view: HomeContinueView, mission: Mission, saved: Sa
   const rejected = [...corrections].reverse().find(c => c.missionId === mission.id && view.stepTitle &&
     (c.correctedMove === view.stepTitle || operationsEquivalent(c.correctedMove, view.stepTitle)))
   const commitmentLeads = saved && !rejected && !constrained && (resume || (!reviewed && (delta.provenance !== 'supplied' || sameAction)))
-  const acceptedLeads = !saved && view.status === 'accepted' && !rejected && !constrained && !reviewed && delta.provenance !== 'supplied'
+  const acceptedLeads = !saved && view.status === 'accepted' && !staleAcceptance && !rejected && !constrained && !reviewed && delta.provenance !== 'supplied'
   const reasons = [...view.reasons]
-  const specific = reviewed?.unknowns[0] || delta.wouldChangeIf
+  const specific = reviewed?.unknowns[0] || (commitmentLeads || acceptedLeads
+    ? 'A blocker, conflicting evidence, or a correction to this step would change the recommendation.'
+    : delta.wouldChangeIf)
+  if (staleAcceptance) reasons.push({ label: 'What changed', text: staleAcceptance })
   if (rejected) reasons.push({ label: 'Your reason for setting this move aside', text: rejected.reason })
   if (specific) reasons.push({ label: 'What would change this move', text: specific })
   if (reviewed) {
@@ -35,7 +38,9 @@ export function homeDecision(view: HomeContinueView, mission: Mission, saved: Sa
   }
   if (commitmentLeads || acceptedLeads) {
     const why = reviewed?.why ?? (acceptedLeads ? 'You accepted this suggestion. The recorded constraints give no reason to set it aside.' :
-      'You already chose this step. The available mission records give no higher-priority reason to interrupt it.')
+      sameAction && saved?.status === 'IN_PROGRESS'
+        ? 'The step from your project context matches the action already in progress. Resume from your saved starting point.'
+        : 'You already chose this step. The available mission records give no higher-priority reason to interrupt it.')
     if (!reviewed && delta.move !== view.stepTitle) reasons.push({ label: 'Also considered', text: delta.move })
     return { view: { ...view, reasons, cta: saved?.status === 'TODO' ? 'Open this saved step' : view.cta }, why, followsSaved: Boolean(saved), correction: { missionId: mission.id, move: view.stepTitle!, candidateId: resume ? delta.candidateId : null }, reviewed }
   }

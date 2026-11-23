@@ -5,9 +5,10 @@ import type { Mission } from '@/types'
 import type { MissionTerritory } from '@/hooks/useMissionTerritory'
 import { rowToCorrection, rowToEvidence, rowToSuppliedStep } from './tabs/MissionTab'
 import { supabase } from '@/lib/supabase/client'
+import { latestAcceptance } from '@/lib/nextActionLedger'
 import { homeDecision } from '@/lib/homeDecision'
 import type { HomeContinueView } from '@/lib/homeContinue'
-import { stableHash, type SavedActionSnapshot } from '@/lib/nextAction'
+import { deriveNextAction, stableHash, type SavedActionSnapshot } from '@/lib/nextAction'
 import type { ProjectReview } from '@/lib/projectReview'
 import { reviewCandidate, selectReviewedDelta } from '@/lib/reviewedDelta'
 import HomeContinue from './HomeContinue'
@@ -20,10 +21,11 @@ interface Props {
   saved: SavedActionSnapshot | null
   allowReview: boolean
   onOpen: (focusSaved: boolean) => void
+  onReviewActivity: (active: boolean) => void
   onChange: () => void
 }
 
-export default function HomeStrategicDecision({ territory, mission, view, saved, allowReview, onOpen, onChange }: Props) {
+export default function HomeStrategicDecision({ territory, mission, view, saved, allowReview, onOpen, onChange, onReviewActivity }: Props) {
   const { accountId, missions, evidence, links, events } = territory
   const [review, setReview] = useState<ProjectReview | null>(null)
   const [phase, setPhase] = useState<'idle' | 'restoring' | 'reviewing' | 'saving'>('idle')
@@ -65,6 +67,12 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
   }, [accountId, missionId, eligible, reviewDate])
 
   useEffect(() => {
+    if (phase !== 'reviewing') return
+    onReviewActivity(true)
+    return () => onReviewActivity(false)
+  }, [phase, onReviewActivity])
+
+  useEffect(() => {
     if (!review) return
     const timeout = setTimeout(() => setReview(null), Math.max(0, Date.parse(review.reviewedAt) + 3_600_000 - Date.now()))
     return () => clearTimeout(timeout)
@@ -80,7 +88,8 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
     const candidate = reviewCandidate(current)
     const delta = selectReviewedDelta(missions ?? [], evidence.map(rowToEvidence), corrections, new Date().toISOString(),
       candidate ? [...supplied, candidate] : supplied, current)
-    return homeDecision(view, mission, saved, delta, current, corrections)
+    const nextAction = deriveNextAction({ mission, delta, savedAction: saved, acceptance: latestAcceptance(links, mission) })
+    return homeDecision(view, mission, saved, delta, current, corrections, nextAction.staleReason)
   }, [links, eligible, review, missionId, finishLine, saved, missions, evidence, view, mission])
 
   const correctionKey = decision.correction ? JSON.stringify(decision.correction) : null
