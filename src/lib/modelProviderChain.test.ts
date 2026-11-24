@@ -29,7 +29,11 @@ const TOOL = {
   description: 'Return the reviewed proposal.',
   input_schema: {
     type: 'object' as const,
-    properties: { decision: { type: 'string' }, operation: { type: 'string' } },
+    additionalProperties: false,
+    properties: {
+      decision: { type: 'string', enum: ['act', 'resume', 'clarify'] },
+      operation: { type: 'string', maxLength: 240 },
+    },
     required: ['decision', 'operation'],
   },
 }
@@ -54,6 +58,7 @@ describe('runProviderChainReviewStep', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 
@@ -138,6 +143,39 @@ describe('runProviderChainReviewStep', () => {
     const payload = mocks.createMessage.mock.calls[0]?.[0] as { tools?: unknown; tool_choice?: unknown }
     expect(payload.tools).toBeUndefined()
     expect(payload.tool_choice).toBeUndefined()
+  })
+
+  it('rejects JSON whose field types or enum are wrong', async () => {
+    mocks.createMessage.mockResolvedValue({
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: '{"decision":"invent","operation":"Ship it"}' }],
+    })
+    await expect(runProviderChainReviewStep(request())).rejects.toThrow()
+  })
+
+  it('rejects a tool_use block that violates the schema', async () => {
+    mocks.createMessage.mockResolvedValue({
+      stop_reason: 'tool_use',
+      content: [{ type: 'tool_use', name: TOOL.name, input: { decision: 'act', operation: 'x', extra: true } }],
+    })
+    await expect(runProviderChainReviewStep(request())).rejects.toThrow()
+  })
+
+  it('falls back to the next provider when Anthropic rejects the request', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'openai-test-key')
+    mocks.createMessage.mockRejectedValue(Object.assign(new Error('400'), { status: 400 }))
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'completed', output: [{
+        type: 'function_call', name: TOOL.name,
+        arguments: JSON.stringify({ decision: 'act', operation: 'Ship it' }),
+      }] }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await runProviderChainReviewStep(request())
+    expect(result.provider).toBe('openai')
+    expect(result.toolInput).toMatchObject({ decision: 'act' })
   })
 
   it('logs only a sanitized failure class, never the message body', async () => {

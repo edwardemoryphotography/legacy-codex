@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { Tool } from '@anthropic-ai/sdk/resources/messages'
+import { validateToolInput, type ToolSchema } from './toolSchemaValidation'
 
 export type ModelProviderId = 'anthropic' | 'gemini' | 'openai'
 
@@ -339,10 +340,8 @@ async function callOpenAIReviewStep(req: ReviewStepRequest, timeoutMs: number): 
  * still runs authoritatively.
  */
 function structuredToolInput(text: string, tool: ReviewStepRequest['tool']): Record<string, unknown> | null {
-  const schema = tool.input_schema as { required?: unknown }
-  const required = Array.isArray(schema.required)
-    ? schema.required.filter((key): key is string => typeof key === 'string')
-    : []
+  const schema = tool.input_schema as ToolSchema
+  const required = Array.isArray(schema.required) ? schema.required : []
   if (!required.length) return null
   const candidates = [text.trim()]
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
@@ -354,10 +353,8 @@ function structuredToolInput(text: string, tool: ReviewStepRequest['tool']): Rec
     if (!candidate) continue
     try {
       const parsed: unknown = JSON.parse(candidate)
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) &&
-          required.every(key => Object.prototype.hasOwnProperty.call(parsed, key))) {
-        return parsed as Record<string, unknown>
-      }
+      // Complete structural check against the tool schema, not just keys.
+      if (validateToolInput(parsed, schema) === null) return parsed as Record<string, unknown>
     } catch { /* not JSON; try the next candidate */ }
   }
   return null
@@ -415,7 +412,9 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
             block.type === 'tool_use' && block.name === req.tool.name,
         )
         if (req.requireToolOutput) {
-          if (response.stop_reason === 'tool_use' && outputs.length === 1) {
+          const validToolUse = response.stop_reason === 'tool_use' && outputs.length === 1 &&
+            validateToolInput(outputs[0].input, req.tool.input_schema as ToolSchema) === null
+          if (validToolUse) {
             result = { stopReason: 'tool_use', text: '', toolInput: outputs[0].input, provider: 'anthropic' }
           } else {
             const structured = structuredToolInput(text, req.tool)
@@ -432,7 +431,8 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
         if (!req.requireToolOutput) {
           if (called.stopReason !== 'end_turn' || !called.text.trim()) throw new Error('Invalid model response')
           result = called
-        } else if (called.stopReason === 'tool_use' && called.toolInput) {
+        } else if (called.stopReason === 'tool_use' && called.toolInput &&
+          validateToolInput(called.toolInput, req.tool.input_schema as ToolSchema) === null) {
           result = called
         } else {
           const structured = structuredToolInput(called.text, req.tool)
