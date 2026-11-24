@@ -254,6 +254,10 @@ export function decomposeFinishLine(finishLine: string | null): string[] {
     .split(/,\s*(?:and\s+|then\s+)?|\s+and\s+|;\s*|\s+then\s+/i)
     .map(part => part.trim())
     .filter(Boolean)
+  // A coordinated subject can contain commas or "and" before its shared verb.
+  // An isolated determiner and noun ("the build") does not describe a proof.
+  // Keep the finish line whole rather than renumbering recorded clause targets.
+  if (parts.some(part => /^(?:when\s+)?(?:the|a|an|our|my|its|their)\s+[\p{L}\p{N}_-]+$/iu.test(part))) return []
   // One part means it did not decompose — the whole finish line is not a
   // smaller target than itself.
   return parts.length > 1 ? parts : []
