@@ -139,12 +139,26 @@ export function PersistentOrb() {
     function place() {
       if (!node) return
       if (!slot) {
+        node.dataset.orb = 'dock'
         node.style.removeProperty('left')
         node.style.removeProperty('top')
         node.style.removeProperty('width')
         node.style.removeProperty('height')
         return
       }
+      // A slot inside a collapsed/hidden subtree (composer expansion, empty
+      // reply state) must not keep the orb frozen at its last position over the
+      // copy. Walk computed styles so this is testable without layout.
+      let painted = true
+      for (let ancestor: HTMLElement | null = slot; ancestor; ancestor = ancestor.parentElement) {
+        const style = window.getComputedStyle(ancestor)
+        if (style.display === 'none' || style.visibility === 'hidden') { painted = false; break }
+      }
+      if (!painted) {
+        node.dataset.orb = 'hidden'
+        return
+      }
+      node.dataset.orb = 'hero'
       const at = offsetWithin(slot, node.offsetParent)
       node.style.left = `${at.left}px`
       node.style.top = `${at.top}px`

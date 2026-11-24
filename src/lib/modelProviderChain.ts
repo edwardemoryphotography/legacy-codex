@@ -21,9 +21,16 @@ export type ModelTier = 'routine' | 'deep'
 //           keep gpt-6.1-terra where visual interpretation is required
 //   gemini  routine gemini-4-hydrogen | deep gemini-4-neon | long-horizon gemini-4-carbon
 //   anthropic routine claude-sonnet-5-5 | deep claude-opus-5-5 (current defaults)
+// Selected by real measured completion through this review contract on
+// 2026-11-24 (authorized credentials, non-personal probe context):
+//   routine  gemini-4-hydrogen 8.3s | gpt-6.2-sol 8.0s | sonnet-5-5 15.9s
+//            (previous defaults: gemini-3.8-flash 11.7s, gpt-6.1-terra 11.6s)
+//   deep     gpt-6.2-astra 17.2s | opus-5-5 19.0s | gemini-4-neon 36.9s
+// Slower-but-completing beats faster-but-failing. Candidates remain overridable
+// through CODEX_{ROUTINE,DEEP}_{PROVIDER}_MODEL.
 const MODELS: Record<ModelTier, Record<ModelProviderId, string>> = {
-  routine: { anthropic: 'claude-sonnet-5-5', gemini: 'gemini-3.8-flash', openai: 'gpt-6.1-terra' },
-  deep: { anthropic: 'claude-opus-5-5', gemini: 'gemini-4-argon', openai: 'gpt-6.1-sol' },
+  routine: { anthropic: 'claude-sonnet-5-5', gemini: 'gemini-4-hydrogen', openai: 'gpt-6.2-sol' },
+  deep: { anthropic: 'claude-opus-5-5', gemini: 'gemini-4-argon', openai: 'gpt-6.2-astra' },
 }
 export function modelFor(provider: ModelProviderId, tier: ModelTier): string {
   return process.env[`CODEX_${tier.toUpperCase()}_${provider.toUpperCase()}_MODEL`]?.trim() || MODELS[tier][provider]
@@ -81,6 +88,10 @@ export interface ReviewStepResult {
   text: string
   toolInput: unknown | null
   provider: ModelProviderId
+  /** Sanitized provider metadata for chain diagnostics (never content). */
+  completion?: string | null
+  usage?: { input?: number; output?: number } | null
+  validation?: string | null
 }
 
 /**
@@ -91,16 +102,18 @@ export interface ReviewStepResult {
  * fallbacks get bounded hedge windows from whatever remains.
  */
 export function reviewAttemptBudget(tier: ModelTier, index: number, remainingMs: number): number {
-  const primaryCap = tier === 'deep' ? 45_000 : 20_000
-  const fallbackCap = tier === 'deep' ? 12_000 : 10_000
+  const primaryCap = tier === 'deep' ? 45_000 : 22_000
+  const fallbackCap = tier === 'deep' ? 20_000 : 20_000
   return Math.max(1, Math.min(remainingMs, index === 0 ? primaryCap : fallbackCap))
 }
 
 /** Economy starts with the fastest/cheapest configured provider; Deep starts with the deepest. */
 export function orderedReviewProviders(tier: ModelTier): ModelProviderId[] {
   const configured = configuredModelProviders()
-  if (tier === 'deep') return configured
-  return (['gemini', 'anthropic', 'openai'] as ModelProviderId[]).filter(provider => configured.includes(provider))
+  const order: ModelProviderId[] = tier === 'deep'
+    ? ['anthropic', 'openai', 'gemini']
+    : ['gemini', 'anthropic', 'openai']
+  return order.filter(provider => configured.includes(provider))
 }
 
 function nextAttemptTimeoutMs(
@@ -135,7 +148,7 @@ async function callGeminiText(req: TextGenerationRequest, timeoutMs: number, mod
       }),
     },
   )
-  if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`)
+  if (!res.ok) throw Object.assign(new Error(`Gemini HTTP ${res.status}`), { status: res.status })
   const data = (await res.json()) as {
     candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>
   }
@@ -158,7 +171,7 @@ async function callOpenAIText(req: TextGenerationRequest, timeoutMs: number, mod
       max_output_tokens: req.maxTokens, reasoning: { effort: tier === 'deep' ? 'medium' : 'low' }, store: false,
     }),
   })
-  if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`)
+  if (!res.ok) throw Object.assign(new Error(`OpenAI HTTP ${res.status}`), { status: res.status })
   const data = (await res.json()) as {
     status?: string
     output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }>
@@ -271,6 +284,7 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number, t
   )
   if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`)
   const data = (await res.json()) as {
+    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number }
     candidates?: Array<{
       finishReason?: string
       content?: {
@@ -284,30 +298,32 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number, t
   }
 
   const candidate = data.candidates?.[0]
+  const completion = candidate?.finishReason ?? null
+  const usage = data.usageMetadata ? { input: data.usageMetadata.promptTokenCount, output: data.usageMetadata.candidatesTokenCount } : null
   // Thinking parts are not answer text; a truncated turn is not accepted.
   const parts = (candidate?.content?.parts ?? []).filter(part => !part.thought)
   const finishedCleanly = !candidate?.finishReason || candidate.finishReason === 'STOP'
   if (req.requireToolOutput) {
-    if (!finishedCleanly) return { stopReason: 'other', text: '', toolInput: null, provider: 'gemini' }
+    if (!finishedCleanly) return { stopReason: 'other', text: '', toolInput: null, provider: 'gemini', completion, usage, validation: 'unclean_completion' }
     const fnPart = parts.find(p => p.functionCall && p.functionCall.name === req.tool.name)
     if (fnPart?.functionCall?.args && typeof fnPart.functionCall.args === 'object') {
       return {
         stopReason: 'tool_use',
         text: '',
         toolInput: fnPart.functionCall.args,
-        provider: 'gemini',
+        provider: 'gemini', completion, usage,
       }
     }
     const textJoined = parts.map(p => p.text ?? '').join('\n').trim()
     if (textJoined) {
       try {
         JSON.parse(textJoined)
-        return { stopReason: 'structured_text', text: textJoined, toolInput: null, provider: 'gemini' }
+        return { stopReason: 'structured_text', text: textJoined, toolInput: null, provider: 'gemini', completion, usage }
       } catch {
-        return { stopReason: 'other', text: textJoined, toolInput: null, provider: 'gemini' }
+        return { stopReason: 'other', text: textJoined, toolInput: null, provider: 'gemini', completion, usage, validation: 'no_structured_output' }
       }
     }
-    return { stopReason: 'other', text: '', toolInput: null, provider: 'gemini' }
+    return { stopReason: 'other', text: '', toolInput: null, provider: 'gemini', completion, usage, validation: 'no_tool_call' }
   }
 
   const text = parts.map(p => p.text ?? '').join('\n').trim()
@@ -315,7 +331,9 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number, t
     stopReason: finishedCleanly && text ? 'end_turn' : 'other',
     text,
     toolInput: null,
-    provider: 'gemini',
+    provider: 'gemini', completion, usage,
+    ...(finishedCleanly ? {} : { validation: 'unclean_completion' }),
+    ...(text ? {} : { validation: 'empty_text' }),
   }
 }
 
@@ -345,21 +363,28 @@ async function callOpenAIReviewStep(req: ReviewStepRequest, timeoutMs: number, t
   if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`)
   const data = (await res.json()) as {
     status?: string
+    usage?: { input_tokens?: number; output_tokens?: number }
     output?: Array<{ type?: string; name?: string; arguments?: string; content?: Array<{ type?: string; text?: string }> }>
   }
-  if (data.status && data.status !== 'completed') return { stopReason: 'other', text: '', toolInput: null, provider: 'openai' }
+  const completion = data.status ?? null
+  const usage = data.usage ? { input: data.usage.input_tokens, output: data.usage.output_tokens } : null
+  if (data.status && data.status !== 'completed') {
+    return { stopReason: 'other', text: '', toolInput: null, provider: 'openai', completion, usage, validation: 'incomplete_generation' }
+  }
   if (req.requireToolOutput) {
     const call = data.output?.find(item => item.type === 'function_call' && item.name === req.tool.name)
-    if (!call?.arguments) return { stopReason: 'other', text: '', toolInput: null, provider: 'openai' }
+    if (!call?.arguments) {
+      return { stopReason: 'other', text: '', toolInput: null, provider: 'openai', completion, usage, validation: 'no_tool_call' }
+    }
     try {
-      return { stopReason: 'tool_use', text: '', toolInput: JSON.parse(call.arguments), provider: 'openai' }
+      return { stopReason: 'tool_use', text: '', toolInput: JSON.parse(call.arguments), provider: 'openai', completion, usage }
     } catch {
-      return { stopReason: 'other', text: '', toolInput: null, provider: 'openai' }
+      return { stopReason: 'other', text: '', toolInput: null, provider: 'openai', completion, usage, validation: 'malformed_tool_arguments' }
     }
   }
   const text = (data.output ?? []).flatMap(item => item.type === 'message' ? item.content ?? [] : [])
     .filter(item => item.type === 'output_text').map(item => item.text ?? '').join('\n').trim()
-  return { stopReason: text ? 'end_turn' : 'other', text, toolInput: null, provider: 'openai' }
+  return { stopReason: text ? 'end_turn' : 'other', text, toolInput: null, provider: 'openai', completion, usage, ...(text ? {} : { validation: 'empty_text' }) }
 }
 
 /**
@@ -503,6 +528,9 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
           const structured = structuredToolInput(called.text, req.tool)
           if (structured) result = { ...called, stopReason: 'structured_text', toolInput: structured }
         }
+        completion = called.completion ?? completion
+        usage = called.usage ?? usage
+        validation = called.validation ?? validation
       }
       if (!result) throw new Error('Invalid model response')
       return result

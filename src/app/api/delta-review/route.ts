@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
   const owner = await deltaReviewer(req)
   if ('response' in owner) return owner.response
   if (req.nextUrl.searchParams.get('capabilities') === '1') return NextResponse.json({ configured: isModelChainConfigured(), tester: owner.tester }, { headers: { 'Cache-Control': 'no-store' } })
+  const tier: 'routine' | 'deep' = req.nextUrl.searchParams.get('tier') === 'deep' ? 'deep' : 'routine'
   const missionId = req.nextUrl.searchParams.get('missionId')
   if (!missionId || !UUID.test(missionId)) return NextResponse.json({ error: 'A saved mission is required.' }, { status: 400 })
   try {
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
     const history = await client.from('mission_events').select('detail').eq('user_id', owner.userId).eq('mission_id', missionId).eq('type', 'delta_reviewed').order('created_at', { ascending: false }).limit(1)
     if (history.error) throw new Error('Could not read review history.')
     const previousReview = history.data?.[0] ? historicalReview(history.data[0].detail, missionId) : null
-    return NextResponse.json({ previousReview, review: projectIsReviewable(context) ? await cachedProjectReview(client, owner.userId, context) : null, lessons: context.lessons }, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ previousReview, review: projectIsReviewable(context) ? await cachedProjectReview(client, owner.userId, context, tier) : null, lessons: context.lessons }, { headers: { 'Cache-Control': 'no-store' } })
   } catch {
     return NextResponse.json({ error: 'Could not restore the project review. Your saved work is unchanged.' }, { status: 503 })
   }
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
       if (existing.error) throw existing.error
       if (existing.data && existing.data.detail !== note.note) return NextResponse.json({ error: 'This answer changed. Submit it as a new request.' }, { status: 409 })
       if (!existing.data) {
-        const previous = body.previousReviewKey ? await cachedProjectReview(client, owner.userId, context) : null
+        const previous = body.previousReviewKey ? await cachedProjectReview(client, owner.userId, context, tier) : null
         if (body.previousReviewKey && previous?.contextKey !== body.previousReviewKey) return NextResponse.json({ error: 'The draft context changed or expired. Refresh before revising it; keep your answer to paste back in.' }, { status: 409 })
         const rows = [{ user_id: owner.userId, mission_id: body.missionId, type: 'delta_context_added', detail: note.note, idempotency_key: key }]
         const previousText = previous?.workDraft || previous?.clarification
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
       }
       context = await loadProjectContext(client, owner.userId, body.missionId)
     }
-    const cached = await cachedProjectReview(client, owner.userId, context)
+    const cached = await cachedProjectReview(client, owner.userId, context, tier)
     if (cached) return NextResponse.json({ operation: cached.operation, review: cached, lessons: context.lessons })
     if (owner.tester) {
       const reserved = await client.rpc('reserve_mission_review')
@@ -93,9 +94,11 @@ export async function POST(req: NextRequest) {
     // draft -> critique sequence. Both use the same sources, validation gates
     // and persistence. The packet is bounded in Economy, not the integrity.
     const compact = tier === 'routine'
-    const packetSources = compact ? compactEvidenceSources(context.sources) : context.sources
+    const packing = compact ? compactEvidenceSources(context.sources) : { sources: context.sources, droppedLessons: 0 }
+    const packetSources = packing.sources
     const reviewWarnings = compact
-      ? [...context.warnings, 'Economy: bounded evidence packet and one structured pass; no independent critique was run. Switch to Deep for a two-pass review.']
+      ? [...context.warnings, 'Economy: bounded evidence packet and one structured pass; no independent critique was run. Switch to Deep for a two-pass review.',
+        ...(packing.droppedLessons ? [`${packing.droppedLessons} confirmed lesson(s) were omitted rather than truncated so their conditions stayed intact.`] : [])]
       : context.warnings
     const makePacket = (sources = packetSources) => JSON.stringify({ mission: { id: context.mission.id, title: context.mission.title.slice(0, 160),
       finishLine: body.finishLine, state: context.mission.state }, sources, warnings: reviewWarnings })
@@ -112,7 +115,7 @@ export async function POST(req: NextRequest) {
       const startedAt = Date.now()
       const single = await runProviderChainReviewStep({
         maxTokens: 2_600,
-        system: PROJECT_REVIEW_RULES,
+        system: `${PROJECT_REVIEW_RULES}\nThis request is a single pass. No draft and no critique have run. Compare and submit the reviewed decision directly; do not describe or claim a critique.`,
         requireToolOutput: true,
         tool: PROJECT_REVIEW_OUTPUT,
         deadlineAt: reviewDeadlineAt,
@@ -172,13 +175,14 @@ export async function POST(req: NextRequest) {
     if (current.contextKey !== context.contextKey) return NextResponse.json({ error: 'Your project changed during review. Review the updated context.' }, { status: 409 })
     const reviewedAt = new Date().toISOString()
     const transferObservation = measureTransfer({ baseline, after: parsed, sources: packetSources, lessons: context.lessons, missionId: body.missionId, requestContextAdded: Boolean(note), reviewedAt, interventionEvidence: context.interventionEvidence })
-    const review: ProjectReview = { ...parsed, transferObservation, missionId: body.missionId, finishLine: body.finishLine, sources: packetSources, warnings: reviewWarnings, contextKey: context.contextKey, reviewedAt, cached: false }
+    const review: ProjectReview = { ...parsed, transferObservation, missionId: body.missionId, finishLine: body.finishLine, sources: packetSources, warnings: reviewWarnings, contextKey: context.contextKey, reviewedAt, cached: false,
+      tier, critique: compact ? 'single_pass' : 'independent' }
     // A cached proposal is not an action or evidence. It lives in the existing
     // transitional Delta ledger and is invalidated by context/correction changes.
     stage = 'persistence'
-    const saved = await client.from('mission_events').insert({ user_id: owner.userId, mission_id: body.missionId, type: 'delta_reviewed', detail: JSON.stringify(review), idempotency_key: `review:${context.contextKey}:${Math.floor(Date.parse(review.reviewedAt) / 3_600_000)}` })
+    const saved = await client.from('mission_events').insert({ user_id: owner.userId, mission_id: body.missionId, type: 'delta_reviewed', detail: JSON.stringify(review), idempotency_key: `review:${tier}:${context.contextKey}:${Math.floor(Date.parse(review.reviewedAt) / 3_600_000)}` })
     if (saved.error?.code === '23505') {
-      const winner = await cachedProjectReview(client, owner.userId, context)
+      const winner = await cachedProjectReview(client, owner.userId, context, tier)
       if (winner) return NextResponse.json({ operation: winner.operation, review: winner, lessons: context.lessons })
     }
     if (saved.error) return NextResponse.json({ error: 'The review could not be saved. Your commitments are unchanged.' }, { status: 503 })
@@ -188,7 +192,7 @@ export async function POST(req: NextRequest) {
       stage, ...providerFailureReason(error),
       ...(error instanceof Error && error.name !== 'Error' ? { errorName: error.name } : {}),
     })
-    const message = stage === 'draft' || stage === 'critique'
+    const message = stage === 'draft' || stage === 'critique' || stage === 'review'
       ? 'The model service could not complete the review. Your context is saved; no action or lesson was created.'
       : stage === 'persistence' ? 'The model answered, but its review could not be saved. No action or lesson was created.'
         : 'Project context could not be reconstructed. Your saved work is unchanged.'

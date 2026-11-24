@@ -2220,3 +2220,7 @@ body {
   .codex-tab { min-height: 52px; font-size: 0.65rem; }
   .codex-footer { padding: 24px 6px 0; }
 }
+
+/* The shell orb hides when its slot has no painted box (collapsed composer or
+   an empty stage) instead of freezing at a stale position over content. */
+.sd.sd-orb-host[data-orb="hidden"] { opacity: 0; visibility: hidden; }

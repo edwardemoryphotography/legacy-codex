@@ -61,6 +61,9 @@ export interface LessonConfirmation {
 }
 
 export interface ProjectReview {
+  /** Generation provenance: an Economy review must never look like Deep. */
+  tier?: 'routine' | 'deep'
+  critique?: 'single_pass' | 'independent'
   structuralBridge?: StructuralBridge | null
   transferObservation?: TransferObservation
   workDraft?: string | null

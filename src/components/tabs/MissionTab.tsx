@@ -1256,7 +1256,7 @@ export default function MissionTab({ onMissionChange, externalRevision = 0 }: { 
           try {
             const { data: { session } } = await supabase.auth.getSession()
             if (session) {
-              const restore = await fetch(`/api/delta-review?missionId=${encodeURIComponent(request.missionId)}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+              const restore = await fetch(`/api/delta-review?missionId=${encodeURIComponent(request.missionId)}&tier=deep`, { headers: { Authorization: `Bearer ${session.access_token}` } })
               if (restore.ok) {
                 const restored = await restore.json() as { lessons?: ConfirmedLesson[] }
                 if (generation === reviewGeneration.current) setConfirmedLessons(restored.lessons ?? [])
@@ -1301,7 +1301,7 @@ export default function MissionTab({ onMissionChange, externalRevision = 0 }: { 
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         if (sessionError || !session) throw new Error('Session unavailable.')
-        const response = await fetch(`/api/delta-review?missionId=${encodeURIComponent(target.id)}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+        const response = await fetch(`/api/delta-review?missionId=${encodeURIComponent(target.id)}&tier=deep`, { headers: { Authorization: `Bearer ${session.access_token}` } })
         const data = await response.json() as { review?: ProjectReview | null; previousReview?: HistoricalReview | null; lessons?: ConfirmedLesson[]; error?: string }
         if (!response.ok) throw new Error(data.error || 'Could not restore the project review.')
         if (!cancelled && generation === reviewGeneration.current) {

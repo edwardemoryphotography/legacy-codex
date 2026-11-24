@@ -286,8 +286,8 @@ describe('review execution strategy (P0 latency repair)', () => {
 
   it('budgets the primary provider realistically instead of fair-splitting the deadline', () => {
     expect(reviewAttemptBudget('deep', 0, 60_000)).toBe(45_000)
-    expect(reviewAttemptBudget('deep', 1, 15_000)).toBe(12_000)
-    expect(reviewAttemptBudget('routine', 0, 45_000)).toBe(20_000)
+    expect(reviewAttemptBudget('deep', 1, 15_000)).toBe(15_000)
+    expect(reviewAttemptBudget('routine', 0, 45_000)).toBe(22_000)
     expect(reviewAttemptBudget('routine', 2, 6_000)).toBe(6_000)
   })
 
@@ -295,7 +295,7 @@ describe('review execution strategy (P0 latency repair)', () => {
     vi.stubEnv('GEMINI_API_KEY', 'gemini-key')
     vi.stubEnv('OPENAI_API_KEY', 'openai-key')
     expect(orderedReviewProviders('routine')).toEqual(['gemini', 'anthropic', 'openai'])
-    expect(orderedReviewProviders('deep')).toEqual(['anthropic', 'gemini', 'openai'])
+    expect(orderedReviewProviders('deep')).toEqual(['anthropic', 'openai', 'gemini'])
   })
 
   it('uses the selected tier model for the review call', async () => {
