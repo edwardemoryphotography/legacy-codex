@@ -1227,8 +1227,8 @@ export default function MissionTab({ onMissionChange, externalRevision = 0 }: { 
       const response = await fetch('/api/delta-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify(request),
-        signal: AbortSignal.timeout(110_000),
+        body: JSON.stringify({ ...request, tier: request.tier ?? 'deep' }),
+        signal: AbortSignal.timeout(125_000),
       })
       const data = await response.json() as { review?: ProjectReview | null; previousReview?: HistoricalReview | null; lessons?: ConfirmedLesson[]; error?: string }
       if (!response.ok) throw new Error(data.error || 'Project review could not complete.')

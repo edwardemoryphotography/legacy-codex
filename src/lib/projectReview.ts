@@ -92,6 +92,8 @@ export interface ProjectReviewRequest {
   contextNote?: string
   requestId?: string
   previousReviewKey?: string
+  /** Omitted means Deep: an explicit review is a deliberate investigation. */
+  tier?: 'routine' | 'deep'
 }
 
 export function boundSourceText(text: string, maxChars = 6_000): { text: string; truncated: boolean } {

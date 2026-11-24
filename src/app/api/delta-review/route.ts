@@ -1,4 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk'
 import { historicalReview } from '@/lib/reviewHistory'
 import { NextRequest, NextResponse } from 'next/server'
 import { PROJECT_REVIEW_OUTPUT, PROJECT_REVIEW_RULES } from '@/lib/projectReviewPrompt'
@@ -10,7 +9,7 @@ import { unsupportedReviewAssertions } from '@/lib/claimIntegrity'
 import { measureTransfer } from '@/lib/structuralTransfer'
 import { isConcreteMove } from '@/lib/strategicDelta'
 import { cachedProjectReview, projectIsReviewable } from '@/lib/projectReviewStore'
-import { isModelChainConfigured, runProviderChainReviewStep } from '@/lib/modelProviderChain'
+import { isModelChainConfigured, providerFailureReason, runProviderChainReviewStep } from '@/lib/modelProviderChain'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -45,7 +44,7 @@ export async function POST(req: NextRequest) {
   if (Number.isFinite(declaredLength) && declaredLength > 32_768) return NextResponse.json({ error: 'Request is too large.' }, { status: 413 })
   const text = await req.text()
   if (Buffer.byteLength(text) > 32_768) return NextResponse.json({ error: 'Request is too large.' }, { status: 413 })
-  let body: { missionId?: unknown; finishLine?: unknown; contextNote?: unknown; requestId?: unknown; previousReviewKey?: unknown }
+  let body: { missionId?: unknown; finishLine?: unknown; contextNote?: unknown; requestId?: unknown; previousReviewKey?: unknown; tier?: unknown }
   try { body = JSON.parse(text) } catch { return NextResponse.json({ error: 'Invalid review request.' }, { status: 400 }) }
   if (!body || typeof body.missionId !== 'string' || !UUID.test(body.missionId) || typeof body.finishLine !== 'string' || !body.finishLine.trim() || body.finishLine.length > 2_000) {
     return NextResponse.json({ error: 'A saved mission and finish line are required.' }, { status: 400 })
@@ -54,6 +53,9 @@ export async function POST(req: NextRequest) {
   const note = parseAssistanceNote(body)
   if (note === null) return NextResponse.json({ error: 'Add an answer under 6,000 characters and try again.' }, { status: 400 })
   if (body.previousReviewKey !== undefined && (typeof body.previousReviewKey !== 'string' || !/^[a-f0-9]{64}$/.test(body.previousReviewKey))) return NextResponse.json({ error: 'The previous draft reference is invalid.' }, { status: 400 })
+  // Economy is the default. Deep is an explicit investigation choice and gets
+  // a longer, tier-appropriate budget; both keep the same validation gates.
+  const tier: 'routine' | 'deep' = body.tier === 'deep' ? 'deep' : 'routine'
   try {
     const client = projectUserClient(owner.url, req.headers.get('Authorization') ?? '')
     let context = await loadProjectContext(client, owner.userId, body.missionId)
@@ -94,18 +96,16 @@ export async function POST(req: NextRequest) {
     const withheld = context.sources.filter(source => source.kind !== 'lesson')
     const comparingLessons = withheld.length !== context.sources.length
     let baseline: ReviewProposal | null = null
-    const reviewDeadlineAt = Date.now() + 90_000
-    const draftDeadlineAt = Date.now() + Math.max(15_000, Math.floor((reviewDeadlineAt - Date.now()) / 2))
+    const reviewDeadlineAt = Date.now() + (tier === 'deep' ? 100_000 : 45_000)
+    const draftDeadlineAt = Date.now() + (tier === 'deep' ? 55_000 : 25_000)
     stage = 'draft'
     const draft = await runProviderChainReviewStep({
-      maxTokens: comparingLessons ? 4_200 : 1_600,
+      maxTokens: tier === 'deep' ? (comparingLessons ? 4_200 : 1_600) : (comparingLessons ? 3_000 : 1_200),
       system: PROJECT_REVIEW_RULES,
       requireToolOutput: comparingLessons,
       tool: PROJECT_REVIEW_OUTPUT,
       deadlineAt: draftDeadlineAt,
-      // Let a single configured provider use the step budget instead of the
-      // 25s default attempt ceiling; the shared deadline still bounds it.
-      timeoutMs: 45_000,
+      tier,
       userContent: `Compare feasible moves and propose one choice from this context.${comparingLessons ? ' Submit the provisional choice through submit_project_review.' : ''}\n${makePacket(comparingLessons ? withheld : context.sources)}`,
     })
     if (comparingLessons) {
@@ -118,12 +118,12 @@ export async function POST(req: NextRequest) {
     const draftText = comparingLessons ? JSON.stringify(baseline) : draft.text
     stage = 'critique'
     const final = await runProviderChainReviewStep({
-      maxTokens: 4_200,
+      maxTokens: tier === 'deep' ? 4_200 : 2_600,
       system: PROJECT_REVIEW_RULES,
       requireToolOutput: true,
       tool: PROJECT_REVIEW_OUTPUT,
       deadlineAt: reviewDeadlineAt,
-      timeoutMs: 45_000,
+      tier,
       userContent: `Critique the draft independently against the original context. Does the chosen move beat the alternatives on impact, urgency, dependencies, reported capacity and uncertainty? Is resuming a saved action better? Does the finish condition describe an observable result? Does a missing fact change the winner? Find unsupported facts, stale evidence, duplicates and paraphrases of corrected approaches. Revise once; submit through submit_project_review. A self-check is still a model proposal, not verification.\nOriginal context:\n${packet}\nDraft (untrusted proposal):\n${draftText.slice(0, 10_000)}`,
     })
     stage = 'validation'
@@ -158,8 +158,10 @@ export async function POST(req: NextRequest) {
     if (saved.error) return NextResponse.json({ error: 'The review could not be saved. Your commitments are unchanged.' }, { status: 503 })
     return NextResponse.json({ operation: review.operation, review, lessons: context.lessons })
   } catch (error) {
-    const providerStatus = error instanceof Anthropic.APIError ? error.status : undefined
-    console.error('/api/delta-review failed', { stage, providerStatus })
+    console.error('/api/delta-review failed', {
+      stage, ...providerFailureReason(error),
+      ...(error instanceof Error && error.name !== 'Error' ? { errorName: error.name } : {}),
+    })
     const message = stage === 'draft' || stage === 'critique'
       ? 'The model service could not complete the review. Your context is saved; no action or lesson was created.'
       : stage === 'persistence' ? 'The model answered, but its review could not be saved. No action or lesson was created.'

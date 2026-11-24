@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@anthropic-ai/sdk', () => ({ default: mocks.FakeAnthropic }))
 
-import { runProviderChainReviewStep } from './modelProviderChain'
+import { orderedReviewProviders, reviewAttemptBudget, runProviderChainReviewStep } from './modelProviderChain'
 
 const TOOL = {
   name: 'submit_project_review',
@@ -272,5 +272,65 @@ describe('provider contract hardening (independent audit)', () => {
       }] }),
     }))
     await expect(runProviderChainReviewStep(request())).rejects.toThrow()
+  })
+})
+
+
+describe('review execution strategy (P0 latency repair)', () => {
+  beforeEach(() => {
+    mocks.createMessage.mockReset()
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key')
+    vi.stubEnv('GEMINI_API_KEY', '')
+    vi.stubEnv('OPENAI_API_KEY', '')
+  })
+
+  it('budgets the primary provider realistically instead of fair-splitting the deadline', () => {
+    expect(reviewAttemptBudget('deep', 0, 60_000)).toBe(45_000)
+    expect(reviewAttemptBudget('deep', 1, 15_000)).toBe(12_000)
+    expect(reviewAttemptBudget('routine', 0, 45_000)).toBe(15_000)
+    expect(reviewAttemptBudget('routine', 2, 6_000)).toBe(6_000)
+  })
+
+  it('orders Economy fast-first and Deep strongest-first', () => {
+    vi.stubEnv('GEMINI_API_KEY', 'gemini-key')
+    vi.stubEnv('OPENAI_API_KEY', 'openai-key')
+    expect(orderedReviewProviders('routine')).toEqual(['gemini', 'anthropic', 'openai'])
+    expect(orderedReviewProviders('deep')).toEqual(['anthropic', 'gemini', 'openai'])
+  })
+
+  it('uses the selected tier model for the review call', async () => {
+    const response = { stop_reason: 'tool_use', content: [{ type: 'tool_use', name: TOOL.name, input: { decision: 'act', operation: 'Ship it' } }], usage: { input_tokens: 10, output_tokens: 5 } }
+    mocks.createMessage.mockResolvedValue(response)
+    await runProviderChainReviewStep({ ...request(), tier: 'routine' })
+    expect((mocks.createMessage.mock.calls[0]?.[0] as { model?: string }).model).toBe('claude-sonnet-5-5')
+
+    mocks.createMessage.mockReset()
+    mocks.createMessage.mockResolvedValue(response)
+    await runProviderChainReviewStep({ ...request(), tier: 'deep' })
+    expect((mocks.createMessage.mock.calls[0]?.[0] as { model?: string }).model).toBe('claude-opus-5-5')
+  })
+
+  it('classifies an SDK timeout as timed_out', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mocks.createMessage.mockRejectedValue(Object.assign(new Error('Request timed out.'), { name: 'APIConnectionTimeoutError' }))
+    await expect(runProviderChainReviewStep({ ...request(), tier: 'routine' })).rejects.toThrow()
+    const logged = warn.mock.calls.map(call => JSON.stringify(call)).join(' ')
+    expect(logged).toContain('timed_out')
+    expect(logged).toContain('APIConnectionTimeoutError')
+  })
+
+  it('logs completion and validation without leaking model text', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mocks.createMessage.mockResolvedValue({
+      stop_reason: 'max_tokens',
+      content: [{ type: 'text', text: 'SECRET-MODEL-OUTPUT' }],
+      usage: { input_tokens: 11, output_tokens: 22 },
+    })
+    await expect(runProviderChainReviewStep({ ...request(), tier: 'routine' })).rejects.toThrow()
+    const logged = warn.mock.calls.map(call => JSON.stringify(call)).join(' ')
+    expect(logged).toContain('unclean_completion')
+    expect(logged).toContain('max_tokens')
+    expect(logged).toContain('"tier":"routine"')
+    expect(logged).not.toContain('SECRET-MODEL-OUTPUT')
   })
 })

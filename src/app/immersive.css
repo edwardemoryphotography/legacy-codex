@@ -162,3 +162,11 @@
 :root[data-home-composing="true"] .codex-shell[data-screen="home"] .glass-top {
   display: none;
 }
+
+/* Mission's phone hero orb paints at a 124px floor (mission-assistance.css),
+   while the wrapping slot reserved 104px. The extra 20px drew over the mission
+   copy that wraps around the float. Reserve what actually paints so text can
+   never scroll under the orb. Home keeps its own fluid sizing above. */
+@media (max-width: 600px) {
+  .codex-shell[data-screen="mission"] .sd-field-slot { --sd-field-size: 124px; }
+}
