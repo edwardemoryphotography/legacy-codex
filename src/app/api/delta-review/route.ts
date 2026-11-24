@@ -103,10 +103,13 @@ export async function POST(req: NextRequest) {
       requireToolOutput: comparingLessons,
       tool: PROJECT_REVIEW_OUTPUT,
       deadlineAt: draftDeadlineAt,
+      // Let a single configured provider use the step budget instead of the
+      // 25s default attempt ceiling; the shared deadline still bounds it.
+      timeoutMs: 45_000,
       userContent: `Compare feasible moves and propose one choice from this context.${comparingLessons ? ' Submit the provisional choice through submit_project_review.' : ''}\n${makePacket(comparingLessons ? withheld : context.sources)}`,
     })
     if (comparingLessons) {
-      baseline = draft.stopReason === 'tool_use' && draft.toolInput ? parseProjectReview(JSON.stringify(draft.toolInput), withheld, body.missionId) : null
+      baseline = (draft.stopReason === 'tool_use' || draft.stopReason === 'structured_text') && draft.toolInput ? parseProjectReview(JSON.stringify(draft.toolInput), withheld, body.missionId) : null
       // Model-asserted verification cannot qualify as a lesson-withheld baseline.
       if (baseline && unsupportedReviewAssertions(baseline).length) baseline = null
       // A malformed baseline cannot become a measured comparison. Still allow
@@ -120,10 +123,11 @@ export async function POST(req: NextRequest) {
       requireToolOutput: true,
       tool: PROJECT_REVIEW_OUTPUT,
       deadlineAt: reviewDeadlineAt,
+      timeoutMs: 45_000,
       userContent: `Critique the draft independently against the original context. Does the chosen move beat the alternatives on impact, urgency, dependencies, reported capacity and uncertainty? Is resuming a saved action better? Does the finish condition describe an observable result? Does a missing fact change the winner? Find unsupported facts, stale evidence, duplicates and paraphrases of corrected approaches. Revise once; submit through submit_project_review. A self-check is still a model proposal, not verification.\nOriginal context:\n${packet}\nDraft (untrusted proposal):\n${draftText.slice(0, 10_000)}`,
     })
     stage = 'validation'
-    const parsed = final.stopReason === 'tool_use' && final.toolInput
+    const parsed = (final.stopReason === 'tool_use' || final.stopReason === 'structured_text') && final.toolInput
       ? parseProjectReview(JSON.stringify(final.toolInput), context.sources, body.missionId) : null
     if (!parsed || (parsed.operation && !isConcreteMove(parsed.operation, { title: context.mission.title, finishLine: context.mission.finish_line }))) {
       return NextResponse.json({ error: 'The review did not return a grounded choice with a finish condition. No recommendation was accepted.' }, { status: 502 })

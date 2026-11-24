@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { Tool } from '@anthropic-ai/sdk/resources/messages'
+import { validateToolInput, type ToolSchema } from './toolSchemaValidation'
 
 export type ModelProviderId = 'anthropic' | 'gemini' | 'openai'
 
@@ -61,7 +62,7 @@ export interface ReviewStepRequest {
 }
 
 export interface ReviewStepResult {
-  stopReason: 'end_turn' | 'tool_use' | 'other'
+  stopReason: 'end_turn' | 'tool_use' | 'structured_text' | 'other'
   text: string
   toolInput: unknown | null
   provider: ModelProviderId
@@ -225,10 +226,10 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): 
   }
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       signal: AbortSignal.timeout(timeoutMs),
       body: JSON.stringify(body),
     },
@@ -240,6 +241,7 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): 
       content?: {
         parts?: Array<{
           text?: string
+          thought?: boolean
           functionCall?: { name?: string; args?: unknown }
         }>
       }
@@ -247,8 +249,11 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): 
   }
 
   const candidate = data.candidates?.[0]
-  const parts = candidate?.content?.parts ?? []
+  // Thinking parts are not answer text; a truncated turn is not accepted.
+  const parts = (candidate?.content?.parts ?? []).filter(part => !part.thought)
+  const finishedCleanly = !candidate?.finishReason || candidate.finishReason === 'STOP'
   if (req.requireToolOutput) {
+    if (!finishedCleanly) return { stopReason: 'other', text: '', toolInput: null, provider: 'gemini' }
     const fnPart = parts.find(p => p.functionCall && p.functionCall.name === req.tool.name)
     if (fnPart?.functionCall?.args && typeof fnPart.functionCall.args === 'object') {
       return {
@@ -261,12 +266,8 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): 
     const textJoined = parts.map(p => p.text ?? '').join('\n').trim()
     if (textJoined) {
       try {
-        return {
-          stopReason: 'tool_use',
-          text: textJoined,
-          toolInput: JSON.parse(textJoined),
-          provider: 'gemini',
-        }
+        JSON.parse(textJoined)
+        return { stopReason: 'structured_text', text: textJoined, toolInput: null, provider: 'gemini' }
       } catch {
         return { stopReason: 'other', text: textJoined, toolInput: null, provider: 'gemini' }
       }
@@ -275,7 +276,6 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): 
   }
 
   const text = parts.map(p => p.text ?? '').join('\n').trim()
-  const finishedCleanly = !candidate?.finishReason || candidate.finishReason === 'STOP'
   return {
     stopReason: finishedCleanly && text ? 'end_turn' : 'other',
     text,
@@ -331,6 +331,54 @@ async function callOpenAIReviewStep(req: ReviewStepRequest, timeoutMs: number): 
  * Executes a structured review step (draft or critique) across the configured
  * provider chain (Claude -> Gemini -> OpenAI).
  */
+/**
+ * Opus 5.5 rejects forced tool choice (`tool_choice` values "tool" and "any"
+ * return HTTP 400). Keep `auto` and accept either one matching tool_use block
+ * or, when the model answers in text, a JSON object carrying every schema
+ * `required` key. Prose never qualifies; downstream source/proposal validation
+ * still runs authoritatively.
+ */
+function structuredToolInput(text: string, tool: ReviewStepRequest['tool']): Record<string, unknown> | null {
+  const schema = tool.input_schema as ToolSchema
+  const required = Array.isArray(schema.required) ? schema.required : []
+  if (!required.length) return null
+  // A critique may quote the draft's fenced JSON before its own revised
+  // answer, so later fences are preferred over earlier ones. Never accept two
+  // different plausible objects silently: last valid block wins by design.
+  const fences = [...text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)]
+    .map(match => match[1]?.trim())
+    .filter((value): value is string => Boolean(value))
+    .reverse()
+  const first = text.indexOf('{')
+  const last = text.lastIndexOf('}')
+  const candidates = [...fences, text.trim()]
+  if (first >= 0 && last > first) candidates.push(text.slice(first, last + 1))
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    try {
+      const parsed: unknown = JSON.parse(candidate)
+      // Complete structural check against the tool schema, not just keys.
+      if (validateToolInput(parsed, schema) === null) return parsed as Record<string, unknown>
+    } catch { /* not JSON; try the next candidate */ }
+  }
+  return null
+}
+
+/** Sanitized failure class for diagnostics. Never logs model or prompt text. */
+function providerFailureReason(err: unknown): { reason: string; status?: number } {
+  const raw = err && typeof err === 'object' && 'status' in err ? Number((err as { status: unknown }).status) : undefined
+  const status = Number.isFinite(raw) ? raw : undefined
+  const message = err instanceof Error ? err.message : ''
+  const fromMessage = /HTTP (\d{3})/.exec(message)
+  const code = status ?? (fromMessage ? Number(fromMessage[1]) : undefined)
+  const reason = code === 429 ? 'rate_limited'
+    : code === 400 ? 'invalid_request'
+      : code !== undefined && code >= 500 ? 'provider_error'
+        : /timeout|deadline|abort/i.test(message) ? 'timed_out'
+          : code !== undefined ? 'http_error' : 'unavailable_or_incomplete'
+  return code === undefined ? { reason } : { reason, status: code }
+}
+
 export async function runProviderChainReviewStep(req: ReviewStepRequest): Promise<ReviewStepResult> {
   const providers = configuredModelProviders()
   if (providers.length === 0) {
@@ -344,63 +392,67 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
     const remainingProviders = providers.length - i
     try {
       const attemptTimeoutMs = nextAttemptTimeoutMs(deadlineAt, remainingProviders, req.timeoutMs ?? 25_000)
+      let result: ReviewStepResult | null = null
       if (provider === 'anthropic') {
         const model = new Anthropic({ maxRetries: 0, timeout: attemptTimeoutMs })
         const response = await model.messages.create({
           model: modelFor('anthropic', 'deep'),
-          max_tokens: req.maxTokens,
+          // Opus 5.5 thinking is always on and counts against max_tokens.
+          max_tokens: Math.max(req.maxTokens, 16_000),
           system: req.system,
+          // Opus 5.5: `tool_choice` "tool"/"any" is a 400. The prompt names the
+          // tool; the acceptance gate below still requires structured output.
           ...(req.requireToolOutput
-            ? {
-                tools: [req.tool],
-                tool_choice: { type: 'auto' as const, disable_parallel_tool_use: true },
-              }
+            ? { tools: [req.tool], tool_choice: { type: 'auto' as const, disable_parallel_tool_use: true } }
             : {}),
           messages: [{ role: 'user', content: req.userContent }],
         })
-        if (req.requireToolOutput) {
-          const outputs = response.content.filter(
-            (block): block is Anthropic.ToolUseBlock =>
-              block.type === 'tool_use' && block.name === req.tool.name,
-          )
-          const validToolUse = response.stop_reason === 'tool_use' && outputs.length === 1
-          if (!validToolUse) throw new Error('Invalid model response')
-          return {
-            stopReason: validToolUse ? 'tool_use' : 'other',
-            text: '',
-            toolInput: validToolUse ? outputs[0].input : null,
-            provider: 'anthropic',
-          }
-        }
+        // Adaptive thinking returns thinking blocks first: select by type.
         const text = response.content
           .filter((b): b is Anthropic.TextBlock => b.type === 'text')
           .map(b => b.text)
           .join('\n')
-        if (response.stop_reason !== 'end_turn' || !text.trim()) throw new Error('Invalid model response')
-        return {
-          stopReason: 'end_turn',
-          text,
-          toolInput: null,
-          provider: 'anthropic',
+        const outputs = response.content.filter(
+          (block): block is Anthropic.ToolUseBlock =>
+            block.type === 'tool_use' && block.name === req.tool.name,
+        )
+        if (req.requireToolOutput) {
+          const validToolUse = response.stop_reason === 'tool_use' && outputs.length === 1 &&
+            validateToolInput(outputs[0].input, req.tool.input_schema as ToolSchema) === null
+          if (validToolUse) {
+            result = { stopReason: 'tool_use', text: '', toolInput: outputs[0].input, provider: 'anthropic' }
+          } else if (response.stop_reason === 'end_turn' && outputs.length === 0) {
+            // Only a completed turn may fall back to text JSON. max_tokens,
+            // refusal and pause_turn are incomplete or aborted answers.
+            const structured = structuredToolInput(text, req.tool)
+            if (structured) result = { stopReason: 'structured_text', text: '', toolInput: structured, provider: 'anthropic' }
+          }
+        } else {
+          if (response.stop_reason !== 'end_turn' || !text.trim()) throw new Error('Invalid model response')
+          result = { stopReason: 'end_turn', text, toolInput: null, provider: 'anthropic' }
         }
-      }
-      if (provider === 'gemini' || provider === 'openai') {
-        const result = provider === 'gemini'
+      } else if (provider === 'gemini' || provider === 'openai') {
+        const called = provider === 'gemini'
           ? await callGeminiReviewStep(req, attemptTimeoutMs)
           : await callOpenAIReviewStep(req, attemptTimeoutMs)
-        if (result.stopReason !== (req.requireToolOutput ? 'tool_use' : 'end_turn')) throw new Error('Invalid model response')
-        return result
+        if (!req.requireToolOutput) {
+          if (called.stopReason !== 'end_turn' || !called.text.trim()) throw new Error('Invalid model response')
+          result = called
+        } else if (called.stopReason === 'tool_use' && called.toolInput &&
+          validateToolInput(called.toolInput, req.tool.input_schema as ToolSchema) === null) {
+          result = called
+        } else {
+          const structured = structuredToolInput(called.text, req.tool)
+          if (structured) result = { ...called, stopReason: 'structured_text', toolInput: structured }
+        }
       }
+      if (!result) throw new Error('Invalid model response')
+      return result
     } catch (err) {
       lastError = err
-      const status = err && typeof err === 'object' && 'status' in err ? err.status : undefined
-      console.warn('Model review provider failed', {
-        provider, reason: status === 429 ? 'rate limited'
-          : err instanceof Error && /timeout|deadline|abort/i.test(err.message) ? 'timed out'
-            : 'unavailable or incomplete',
-      })
+      // Status class only: never model output, prompts, or account context.
+      console.warn('Model review provider failed', { provider, ...providerFailureReason(err) })
     }
   }
   throw lastError ?? new Error('All configured model providers failed')
 }
-
