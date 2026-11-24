@@ -26,15 +26,23 @@ struct CaptureThoughtIntent: AppIntent {
                 _ = try await api.createCapture(pending)
                 return .result(dialog: "Captured in the PocketForge Inbox.")
             } catch let error as PocketForgeAPIError where error.canQueueCapture {
-                try? await PendingCaptureStore.shared.enqueue(pending)
-                return .result(dialog: "Saved on this iPhone. It has not reached Codex yet.")
+                do {
+                    try await PendingCaptureStore.shared.enqueue(pending)
+                    return .result(dialog: "Saved on this iPhone. It has not reached Codex yet.")
+                } catch {
+                    return .result(dialog: "Capture failed. It could not be saved on this iPhone or in Codex.")
+                }
             } catch {
                 return .result(dialog: "Capture failed. \(error.localizedDescription)")
             }
         }
 
-        try? await PendingCaptureStore.shared.enqueue(pending)
-        return .result(dialog: "Saved on this iPhone.")
+        do {
+            try await PendingCaptureStore.shared.enqueue(pending)
+            return .result(dialog: "Saved on this iPhone. It has not reached Codex yet.")
+        } catch {
+            return .result(dialog: "Capture failed. It could not be saved on this iPhone.")
+        }
     }
 }
 
