@@ -150,7 +150,15 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
   }
 
   return <HomeContinue view={decision.view} missionCount={missions?.length ?? 0} why={decision.why} onOpenMission={() => onOpen(decision.followsSaved)}>
-    {eligible && <button className={styles.secondary} disabled={phase !== 'idle' || correcting} onClick={() => void compare()}>
+    {/* The recommendation and the commitment are complementary. When the
+        proposal differs from an existing unfinished saved action, keep a
+        direct, one-tap Resume beside it instead of burying it in reasons or
+        the collapsed alternative. */}
+    {saved && !decision.followsSaved && <button type="button" className={styles.secondary} onClick={() => onOpen(true)}
+      aria-label={`Resume your saved step: ${saved.title}`}>
+      Resume: {saved.title.length > 60 ? `${saved.title.slice(0, 57)}…` : saved.title}
+    </button>}
+    {eligible && <button type="button" className={styles.secondary} disabled={phase !== 'idle' || correcting} onClick={() => void compare()}>
       {phase === 'reviewing' ? 'Comparing moves…' : 'Compare moves with AI'}
     </button>}
     {decision.correction && <button className={styles.secondary} disabled={phase !== 'idle'} aria-expanded={correcting}

@@ -52,7 +52,10 @@ export function homeDecision(view: HomeContinueView, mission: Mission, saved: Sa
   if (saved) reasons.unshift({ label: 'Your existing commitment', text: saved.title })
   else if (view.status === 'accepted' && view.stepTitle) reasons.unshift({ label: 'Previously accepted', text: view.stepTitle })
   const question = delta.provenance === 'insufficient_context'
-  const capacityGap = question && delta.situation === 'primary_capacity_mismatch'
+  // The capacity report belongs to the Primary. When the engine defers the
+  // Primary and clarifies the Secondary, keep the Secondary's actual missing
+  // input instead of replacing it with the Primary's capacity question.
+  const capacityGap = question && delta.situation === 'primary_capacity_mismatch' && delta.missionId === mission.id
   const title = capacityGap ? 'What smaller step fits your available capacity?' : delta.move
   const why = reviewed?.why ?? (capacityGap ? 'You reported that the Primary mission exceeds your capacity.' : delta.because)
   return {
