@@ -30,7 +30,7 @@ struct CaptureThoughtIntent: AppIntent {
                     try await PendingCaptureStore.shared.enqueue(pending)
                     return .result(dialog: "Saved on this iPhone. It has not reached Codex yet.")
                 } catch {
-                    return .result(dialog: "Capture failed. It could not be saved on this iPhone or in Codex.")
+                    return .result(dialog: "Could not save on this iPhone. The Codex save could not be confirmed.")
                 }
             } catch {
                 return .result(dialog: "Capture failed. \(error.localizedDescription)")
