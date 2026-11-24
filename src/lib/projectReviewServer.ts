@@ -65,7 +65,9 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
     // are bounded. In particular, a Secondary cannot inherit the Primary's gate.
     client.from('evidence_snapshots').select('id', { count: 'exact', head: true }).eq('mission_id', missionId).eq('status', 'conflict'),
     client.from('mission_events').select('id,mission_id,created_at').eq('user_id', userId).neq('mission_id', missionId).eq('type', 'delta_corrected').order('created_at', { ascending: false }).limit(100),
-    client.from('actions').select('id,action_title,status,resume_note,updated_at').eq('mission_id', missionId).in('status', ['TODO', 'IN_PROGRESS']).limit(1),
+    // Deterministic unfinished commitment: newest first, so a mission with more
+    // than one open action cannot return an arbitrary row.
+    client.from('actions').select('id,action_title,status,resume_note,updated_at').eq('mission_id', missionId).in('status', ['TODO', 'IN_PROGRESS']).order('updated_at', { ascending: false }).limit(1),
   ])
   // An unavailable read is not an empty set. Do not call the model on a
   // deceptively complete context packet.

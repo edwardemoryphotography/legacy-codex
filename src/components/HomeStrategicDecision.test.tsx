@@ -36,7 +36,7 @@ describe('HomeStrategicDecision resume visibility', () => {
     const overCapacity = { ...mission, capacityMismatch: true }
     const onOpen = renderDecision(overCapacity)
 
-    const resume = screen.getByRole('button', { name: 'Resume your saved step' })
+    const resume = screen.getByRole('button', { name: 'Resume your saved step: Upload three prints' })
     fireEvent.click(resume)
     // One tap goes to the saved action itself, not just the top of Mission.
     expect(onOpen).toHaveBeenCalledWith(true)
@@ -44,6 +44,6 @@ describe('HomeStrategicDecision resume visibility', () => {
 
   it('does not duplicate Resume when the saved step already leads', () => {
     renderDecision(mission)
-    expect(screen.queryByRole('button', { name: 'Resume your saved step' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Resume your saved step/ })).toBeNull()
   })
 })
