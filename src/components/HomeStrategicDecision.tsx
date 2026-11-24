@@ -51,7 +51,7 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session || session.user.id !== accountId) throw new Error()
-        const res = await fetch(`/api/delta-review?missionId=${encodeURIComponent(missionId)}`, {
+        const res = await fetch(`/api/delta-review?missionId=${encodeURIComponent(missionId)}&tier=${tier}`, {
           headers: { Authorization: 'Bearer ' + session.access_token }, cache: 'no-store', signal: controller.signal,
         })
         if (!res.ok) throw new Error()

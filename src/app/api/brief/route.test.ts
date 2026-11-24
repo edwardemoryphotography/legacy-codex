@@ -193,7 +193,7 @@ describe('/api/brief owner gate', () => {
       : { mode, missions: [{ ...mission, blocker: 'stuck' }], missionIds: ['00000000-0000-4000-8000-0000000000aa'], target: { kind: mode === 'architect' ? 'mission' : 'blocker' } }
     const response = await POST(request(body, userToken(OWNER_ID)))
     expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ provider: 'openai', model: mode === 'daily_brief' ? 'gpt-6.1-terra' : 'gpt-6.1-sol', fallbacks: [{ provider: 'anthropic', reason: 'unavailable' }] })
+    expect(await response.json()).toMatchObject({ provider: 'openai', model: mode === 'daily_brief' ? 'gpt-6.2-sol' : 'gpt-6.2-astra', fallbacks: [{ provider: 'anthropic', reason: 'unavailable' }] })
     expect(fetchMock).toHaveBeenCalledOnce()
     expect(fetchMock.mock.calls[0][0]).toBe('https://api.openai.com/v1/responses')
     const options = fetchMock.mock.calls[0][1]!
@@ -284,7 +284,7 @@ describe('explicit question cost tier', () => {
     expect(response.status).toBe(503)
     expect(createMessage.mock.calls[0][0].model).toBe('claude-sonnet-5-5')
     const payload = JSON.parse(outgoing.mock.calls[0][1]!.body as string)
-    expect(payload.model).toBe('gpt-6.1-terra')
+    expect(payload.model).toBe('gpt-6.2-sol')
     expect(payload.max_output_tokens).toBe(4096)
     expect(payload.reasoning.effort).toBe('low')
   })
