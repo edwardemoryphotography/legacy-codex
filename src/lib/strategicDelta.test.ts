@@ -755,6 +755,10 @@ describe('a step the user supplied', () => {
 })
 
 describe('decomposeFinishLine', () => {
+  it('keeps a coordinated subject attached to the condition it must meet', () => {
+    expect(decomposeFinishLine('When the build and the rollout both pass')).toEqual([])
+  })
+
   it('splits a sequence of proofs into its parts, keeping the human\'s words', () => {
     expect(decomposeFinishLine('ships the change, verifies it, and records the evidence')).toEqual([
       'ships the change',

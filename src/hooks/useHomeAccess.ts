@@ -11,6 +11,7 @@ export interface HomeAccess {
   configured: boolean
   name: string
   /** True for a confirmed email account; false or absent for an anonymous guest. */
+  tester?: boolean
   signedIn?: boolean
 }
 
@@ -65,7 +66,7 @@ export function useHomeAccess(): HomeAccess {
         if (body.tester === true) {
           // Tester grants apply to project review only; they do not open brief
           // or live voice. Do not present those tools as ready.
-          setAccess({ state: 'no-access', configured: body.configured === true, name: '' })
+          setAccess({ state: 'no-access', configured: body.configured === true, name: '', signedIn, tester: true })
           return
         }
         if (body.tester !== false) {

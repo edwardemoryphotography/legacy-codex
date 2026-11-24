@@ -24,7 +24,7 @@ vi.mock('@/lib/supabase/client', () => ({
     from: (table: string) => {
       if (table === 'actions') return { select: () => ({ not: () => ({ neq: async () => db.actions }) }) }
       if (table === 'evidence_snapshots') return { select: () => ({ not: () => ({ order: async () => db.evidence }) }) }
-      if (table === 'mission_events') return { select: () => ({ eq: () => ({ order: () => ({ limit: async () => db.events }), in: () => ({ order: () => ({ range: async () => db.events }) }) }) }) }
+      if (table === 'mission_events') return { select: () => ({ eq: () => ({ order: () => ({ limit: async () => db.events }), in: () => ({ order: () => ({ order: () => ({ range: async () => db.events }) }) }) }) }) }
       if (table === 'territory_nodes') return {
         select: () => ({ eq: () => ({ order: async () => db.entities }) }),
         insert: (row: Record<string, unknown>) => ({

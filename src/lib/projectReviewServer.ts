@@ -65,19 +65,24 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
     // are bounded. In particular, a Secondary cannot inherit the Primary's gate.
     client.from('evidence_snapshots').select('id', { count: 'exact', head: true }).eq('mission_id', missionId).eq('status', 'conflict'),
     client.from('mission_events').select('id,mission_id,created_at').eq('user_id', userId).neq('mission_id', missionId).eq('type', 'delta_corrected').order('created_at', { ascending: false }).limit(100),
+    // Deterministic unfinished commitment: newest first, so a mission with more
+    // than one open action cannot return an arbitrary row.
+    client.from('actions').select('id,action_title,status,resume_note,updated_at').eq('mission_id', missionId).in('status', ['TODO', 'IN_PROGRESS']).order('updated_at', { ascending: false }).limit(1),
   ])
   // An unavailable read is not an empty set. Do not call the model on a
   // deceptively complete context packet.
   if (results.some(r => r.error)) throw new Error('Could not read all project context. Your saved work is unchanged.')
-  const [missions, evidence, actions, events, corrections, conflicts, correctionOrigins] = results
+  const [missions, evidence, actions, events, corrections, conflicts, correctionOrigins, unfinished] = results
   const hasEvidenceConflict = (conflicts.count ?? 0) > 0
   const sources: ProjectSource[] = [{ id: `mission:${target.data.id}`, label: target.data.title, kind: 'mission', missionId, recordedAt: target.data.updated_at, status: 'human-defined outcome', ...boundSourceText(JSON.stringify(target.data), 4_000) }]
   for (const row of evidence.data ?? []) sources.push({ id: `evidence:${row.id}`, label: row.source, kind: 'evidence', missionId, recordedAt: row.observed_at, status: `Derived snapshot: ${row.status}; not canonical evidence truth`, ...boundSourceText(JSON.stringify(row), 2_000) })
-  for (const row of actions.data ?? []) sources.push({ id: `action:${row.id}`, label: row.action_title, kind: 'commitment', missionId, recordedAt: row.updated_at, status: 'human-reported commitment and progress; not verified completion', commitment: { id: row.id, missionId, status: row.status, actionTitle: resumableTitle(row.action_title) }, ...boundSourceText(JSON.stringify(row), 2_000) })
+  const openAction = unfinished.data?.[0]
+  const commitments = [...(unfinished.data ?? []), ...(actions.data ?? []).filter(row => row.id !== openAction?.id)].slice(0, 8)
+  for (const row of commitments) sources.push({ id: `action:${row.id}`, label: row.action_title, kind: 'commitment', missionId, recordedAt: row.updated_at, status: 'human-reported commitment and progress; not verified completion', commitment: { id: row.id, missionId, status: row.status, actionTitle: resumableTitle(row.action_title) }, ...boundSourceText(JSON.stringify(row), 2_000) })
   for (const row of events.data ?? []) sources.push({ id: `event:${row.id}`, label: row.type === 'delta_draft_context' ? 'Previous working draft' : 'Your project context', kind: row.type === 'delta_draft_context' ? 'model_draft' : 'human_note', missionId, recordedAt: row.created_at, status: row.type === 'delta_draft_context' ? 'Earlier model-generated draft; unverified, supplied only for revision' : 'human-reported', ...boundSourceText(row.detail, 6_000) })
   for (const row of corrections.data ?? []) sources.push({ id: `event:${row.id}`, label: 'Your correction', kind: 'correction', missionId, recordedAt: row.created_at, status: 'human correction; authoritative for this recommendation', ...boundSourceText(JSON.stringify(row), 2_000) })
   const warnings = ['Up to 4 projects are read deeply: projects where a confirmed lesson is known to have been learned, prior correction origins, then shared vocabulary. A mission a casebook, incident or received lesson is merely recorded under is a ledger anchor, not an origin, and earns no deeper read. Provenance candidates can be fetched outside the 50 recent-project window (up to 20). None is a proven structural match. Eight additional summaries remain available; omitted projects and semantic links may be missed.',
-    'Target context is bounded to 12 evidence rows, 8 commitments, 24 notes/events and 100 corrections. Each related project contributes up to 6 evidence rows, 4 commitments, 8 notes and 20 corrections. Lesson history is paged until at most 16 active scoped rules are found; retired and unrelated rules do not consume the selection window. Older or omitted material may change the interpretation.',
+    'Target context is bounded to 12 evidence rows, 8 commitments including the unfinished action, 24 notes/events and 100 corrections. Each related project contributes up to 6 evidence rows, 4 commitments, 8 notes and 20 corrections. Lesson history is paged until at most 16 active scoped rules are found; retired and unrelated rules do not consume the selection window. Older or omitted material may change the interpretation.',
     'Evidence here is the Mission evidence_snapshots read model. evidence_items owns canonical evidence truth; those workspace records are not read without a verified account/workspace link. A snapshot status or a human DONE report does not verify the outcome.']
   const notes = (events.data ?? []).filter(e => e.type === 'delta_context_added').map(e => e.detail).join('\n')
   const linkedFiles = sourceLinks(notes).map(url => ({ url, missionId }))
@@ -156,6 +161,7 @@ export async function loadProjectContext(client: ReturnType<typeof projectUserCl
   // when the total packet must be clipped.
   const priority: Record<ProjectSource['kind'], number> = { correction: 1, lesson: 2, human_note: 3, model_draft: 4, repository: 4, evidence: 5, commitment: 6, mission: 7 }
   sources.sort((a, b) => a.id === `mission:${missionId}` ? -1 : b.id === `mission:${missionId}` ? 1 :
+    a.id === `action:${openAction?.id}` ? -1 : b.id === `action:${openAction?.id}` ? 1 :
     priority[a.kind] - priority[b.kind] || Number(targetSourceIds.has(b.id)) - Number(targetSourceIds.has(a.id)))
   // A long correction/notes history must not crowd out all evidence and
   // commitments. Preserve category headroom as well as the total bound.

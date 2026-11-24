@@ -6,7 +6,9 @@ import { savedActionDisplay } from '@/lib/savedActionDisplay'
  *  what is next, and why. Every line is a saved value or an explicit statement
  *  that nothing is saved; the status words never upgrade a suggestion into a
  *  commitment or a commitment into finished work. */
-export default function HomeContinue({ view, name, missionCount, onOpenMission }: {
+export default function HomeContinue({ view, name, missionCount, onOpenMission, children, why }: {
+  why?: string
+  children?: React.ReactNode
   view: HomeContinueView
   name?: string
   missionCount: number
@@ -56,14 +58,16 @@ export default function HomeContinue({ view, name, missionCount, onOpenMission }
         {readableStep?.fromNote && <p className={styles.stepNote}>From your note: {readableStep.fromNote}</p>}
         {view.blocker && <p className={styles.blocker}><span>Blocked by</span> {view.blocker}</p>}
       </div>
+      {why && <p className={styles.quiet}><strong>Why this move</strong> {why}</p>}
       <button type="button" className={`glass-continuity-button ${styles.primary}`} onClick={onOpenMission}>{view.cta}</button>
+      {children}
       {view.reasons.length > 0 && (
         <details className={styles.why}>
-          <summary>What Codex has from you</summary>
+          <summary>{why ? 'Evidence and alternatives' : 'What Codex has from you'}</summary>
           <dl>
             {readableStep?.original && <div><dt>Original saved wording</dt><dd>{readableStep.original}</dd></div>}
-            {view.reasons.map(reason => (
-              <div key={reason.label}><dt>{reason.label}</dt><dd>{reason.text}</dd></div>
+            {view.reasons.map((reason, index) => (
+              <div key={`${index}-${reason.label}`}><dt>{reason.label}</dt><dd>{reason.text}</dd></div>
             ))}
           </dl>
         </details>
