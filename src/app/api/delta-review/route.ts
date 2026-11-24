@@ -103,6 +103,9 @@ export async function POST(req: NextRequest) {
       requireToolOutput: comparingLessons,
       tool: PROJECT_REVIEW_OUTPUT,
       deadlineAt: draftDeadlineAt,
+      // Let a single configured provider use the step budget instead of the
+      // 25s default attempt ceiling; the shared deadline still bounds it.
+      timeoutMs: 45_000,
       userContent: `Compare feasible moves and propose one choice from this context.${comparingLessons ? ' Submit the provisional choice through submit_project_review.' : ''}\n${makePacket(comparingLessons ? withheld : context.sources)}`,
     })
     if (comparingLessons) {
@@ -120,6 +123,7 @@ export async function POST(req: NextRequest) {
       requireToolOutput: true,
       tool: PROJECT_REVIEW_OUTPUT,
       deadlineAt: reviewDeadlineAt,
+      timeoutMs: 45_000,
       userContent: `Critique the draft independently against the original context. Does the chosen move beat the alternatives on impact, urgency, dependencies, reported capacity and uncertainty? Is resuming a saved action better? Does the finish condition describe an observable result? Does a missing fact change the winner? Find unsupported facts, stale evidence, duplicates and paraphrases of corrected approaches. Revise once; submit through submit_project_review. A self-check is still a model proposal, not verification.\nOriginal context:\n${packet}\nDraft (untrusted proposal):\n${draftText.slice(0, 10_000)}`,
     })
     stage = 'validation'

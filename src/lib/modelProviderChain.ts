@@ -226,10 +226,10 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): 
   }
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       signal: AbortSignal.timeout(timeoutMs),
       body: JSON.stringify(body),
     },
@@ -241,6 +241,7 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): 
       content?: {
         parts?: Array<{
           text?: string
+          thought?: boolean
           functionCall?: { name?: string; args?: unknown }
         }>
       }
@@ -248,8 +249,11 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): 
   }
 
   const candidate = data.candidates?.[0]
-  const parts = candidate?.content?.parts ?? []
+  // Thinking parts are not answer text; a truncated turn is not accepted.
+  const parts = (candidate?.content?.parts ?? []).filter(part => !part.thought)
+  const finishedCleanly = !candidate?.finishReason || candidate.finishReason === 'STOP'
   if (req.requireToolOutput) {
+    if (!finishedCleanly) return { stopReason: 'other', text: '', toolInput: null, provider: 'gemini' }
     const fnPart = parts.find(p => p.functionCall && p.functionCall.name === req.tool.name)
     if (fnPart?.functionCall?.args && typeof fnPart.functionCall.args === 'object') {
       return {
@@ -262,12 +266,8 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): 
     const textJoined = parts.map(p => p.text ?? '').join('\n').trim()
     if (textJoined) {
       try {
-        return {
-          stopReason: 'tool_use',
-          text: textJoined,
-          toolInput: JSON.parse(textJoined),
-          provider: 'gemini',
-        }
+        JSON.parse(textJoined)
+        return { stopReason: 'structured_text', text: textJoined, toolInput: null, provider: 'gemini' }
       } catch {
         return { stopReason: 'other', text: textJoined, toolInput: null, provider: 'gemini' }
       }
@@ -276,7 +276,6 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): 
   }
 
   const text = parts.map(p => p.text ?? '').join('\n').trim()
-  const finishedCleanly = !candidate?.finishReason || candidate.finishReason === 'STOP'
   return {
     stopReason: finishedCleanly && text ? 'end_turn' : 'other',
     text,
@@ -343,11 +342,16 @@ function structuredToolInput(text: string, tool: ReviewStepRequest['tool']): Rec
   const schema = tool.input_schema as ToolSchema
   const required = Array.isArray(schema.required) ? schema.required : []
   if (!required.length) return null
-  const candidates = [text.trim()]
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
-  if (fenced?.[1]) candidates.push(fenced[1].trim())
+  // A critique may quote the draft's fenced JSON before its own revised
+  // answer, so later fences are preferred over earlier ones. Never accept two
+  // different plausible objects silently: last valid block wins by design.
+  const fences = [...text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)]
+    .map(match => match[1]?.trim())
+    .filter((value): value is string => Boolean(value))
+    .reverse()
   const first = text.indexOf('{')
   const last = text.lastIndexOf('}')
+  const candidates = [...fences, text.trim()]
   if (first >= 0 && last > first) candidates.push(text.slice(first, last + 1))
   for (const candidate of candidates) {
     if (!candidate) continue
@@ -393,7 +397,8 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
         const model = new Anthropic({ maxRetries: 0, timeout: attemptTimeoutMs })
         const response = await model.messages.create({
           model: modelFor('anthropic', 'deep'),
-          max_tokens: req.maxTokens,
+          // Opus 5.5 thinking is always on and counts against max_tokens.
+          max_tokens: Math.max(req.maxTokens, 16_000),
           system: req.system,
           // Opus 5.5: `tool_choice` "tool"/"any" is a 400. The prompt names the
           // tool; the acceptance gate below still requires structured output.
@@ -416,7 +421,9 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
             validateToolInput(outputs[0].input, req.tool.input_schema as ToolSchema) === null
           if (validToolUse) {
             result = { stopReason: 'tool_use', text: '', toolInput: outputs[0].input, provider: 'anthropic' }
-          } else {
+          } else if (response.stop_reason === 'end_turn' && outputs.length === 0) {
+            // Only a completed turn may fall back to text JSON. max_tokens,
+            // refusal and pause_turn are incomplete or aborted answers.
             const structured = structuredToolInput(text, req.tool)
             if (structured) result = { stopReason: 'structured_text', text: '', toolInput: structured, provider: 'anthropic' }
           }

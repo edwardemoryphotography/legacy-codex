@@ -191,3 +191,86 @@ describe('runProviderChainReviewStep', () => {
     expect(logged).not.toContain('account text')
   })
 })
+
+describe('provider contract hardening (independent audit)', () => {
+  beforeEach(() => {
+    mocks.createMessage.mockReset()
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key')
+    vi.stubEnv('GEMINI_API_KEY', '')
+    vi.stubEnv('OPENAI_API_KEY', '')
+  })
+
+  it('rejects an Anthropic text fallback when the turn was truncated', async () => {
+    // max_tokens means the answer was cut off; the JSON may look valid.
+    mocks.createMessage.mockResolvedValue({
+      stop_reason: 'max_tokens',
+      content: [{ type: 'text', text: '{"decision":"act","operation":"Ship it"}' }],
+    })
+    await expect(runProviderChainReviewStep(request())).rejects.toThrow()
+  })
+
+  it('rejects a refusal/pause turn that carries JSON text', async () => {
+    for (const stop of ['refusal', 'pause_turn']) {
+      mocks.createMessage.mockReset()
+      mocks.createMessage.mockResolvedValue({
+        stop_reason: stop,
+        content: [{ type: 'text', text: '{"decision":"act","operation":"Ship it"}' }],
+      })
+      await expect(runProviderChainReviewStep(request())).rejects.toThrow()
+    }
+  })
+
+  it('accepts the last fenced block when a critique quotes the draft first', async () => {
+    mocks.createMessage.mockResolvedValue({
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: [
+        'The draft proposed:',
+        '```json',
+        '{"decision":"invent","operation":"Draft answer"}',
+        '```',
+        'My reviewed answer:',
+        '```json',
+        '{"decision":"act","operation":"Ship it"}',
+        '```',
+      ].join('\n') }],
+    })
+    const result = await runProviderChainReviewStep(request())
+    expect(result.toolInput).toMatchObject({ decision: 'act', operation: 'Ship it' })
+  })
+
+  it('uses the Gemini header auth, filters thought parts and requires STOP', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', '')
+    vi.stubEnv('GEMINI_API_KEY', 'gemini-test-key')
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{
+        finishReason: 'STOP',
+        content: { parts: [
+          { text: 'internal thinking', thought: true },
+          { text: '{"decision":"act","operation":"Ship it"}' },
+        ] },
+      }] }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await runProviderChainReviewStep(request())
+    expect(result.provider).toBe('gemini')
+    expect(result.toolInput).toMatchObject({ decision: 'act' })
+    const [url, init] = fetchMock.mock.calls[0] as [string, { headers: Record<string, string> }]
+    expect(url).not.toContain('key=')
+    expect(init.headers['x-goog-api-key']).toBe('gemini-test-key')
+  })
+
+  it('rejects a truncated Gemini review turn', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', '')
+    vi.stubEnv('GEMINI_API_KEY', 'gemini-test-key')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{
+        finishReason: 'MAX_TOKENS',
+        content: { parts: [{ text: '{"decision":"act","operation":"Ship it"}' }] },
+      }] }),
+    }))
+    await expect(runProviderChainReviewStep(request())).rejects.toThrow()
+  })
+})
