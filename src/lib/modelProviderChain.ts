@@ -8,6 +8,19 @@ export type ModelTier = 'routine' | 'deep'
 // Model IDs verified against official provider catalogs (October 2026).
 // Scoped overrides intentionally replace legacy OPENAI_MODEL and GEMINI_MODEL,
 // which can silently pin a previous-generation model.
+// Production defaults are the models whose contracts this repo has actually
+// exercised. Candidate upgrades from the 2026-11-24 catalog audit are listed
+// below but are NOT enabled by default: an id that exists in documentation is
+// not proof that this account's API key is entitled to it, or that its
+// reasoning/structured-output contract matches. Verify with real credentials
+// before switching, using the existing scoped override keys:
+//   CODEX_ROUTINE_{ANTHROPIC,GEMINI,OPENAI}_MODEL
+//   CODEX_DEEP_{ANTHROPIC,GEMINI,OPENAI}_MODEL
+// Candidates (docs-verified, entitlement-unverified):
+//   openai  routine gpt-6.2-sol (medium) | deep gpt-6.2-astra | small gpt-6-luna
+//           keep gpt-6.1-terra where visual interpretation is required
+//   gemini  routine gemini-4-hydrogen | deep gemini-4-neon | long-horizon gemini-4-carbon
+//   anthropic routine claude-sonnet-5-5 | deep claude-opus-5-5 (current defaults)
 const MODELS: Record<ModelTier, Record<ModelProviderId, string>> = {
   routine: { anthropic: 'claude-sonnet-5-5', gemini: 'gemini-3.8-flash', openai: 'gpt-6.1-terra' },
   deep: { anthropic: 'claude-opus-5-5', gemini: 'gemini-4-argon', openai: 'gpt-6.1-sol' },
@@ -78,8 +91,8 @@ export interface ReviewStepResult {
  * fallbacks get bounded hedge windows from whatever remains.
  */
 export function reviewAttemptBudget(tier: ModelTier, index: number, remainingMs: number): number {
-  const primaryCap = tier === 'deep' ? 45_000 : 15_000
-  const fallbackCap = tier === 'deep' ? 12_000 : 8_000
+  const primaryCap = tier === 'deep' ? 45_000 : 20_000
+  const fallbackCap = tier === 'deep' ? 12_000 : 10_000
   return Math.max(1, Math.min(remainingMs, index === 0 ? primaryCap : fallbackCap))
 }
 
@@ -222,8 +235,8 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number, t
     systemInstruction: { parts: [{ text: req.system }] },
     contents: [{ role: 'user', parts: [{ text: req.userContent }] }],
     generationConfig: {
-      maxOutputTokens: tier === 'deep' ? Math.max(req.maxTokens, 32_768) : Math.max(req.maxTokens, 16_384),
-      thinkingConfig: { thinkingLevel: 'medium' },
+      maxOutputTokens: tier === 'deep' ? Math.max(req.maxTokens, 32_768) : Math.max(req.maxTokens, 12_288),
+      thinkingConfig: { thinkingLevel: tier === 'deep' ? 'medium' : 'low' },
     },
   }
 
@@ -418,8 +431,15 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
     let completion: string | null = null
     let validation: string | null = null
     let usage: { input?: number; output?: number } | null = null
+    const minimumAttemptMs = tier === 'deep' ? 12_000 : 6_000
+    const remainingMs = deadlineAt - Date.now()
+    if (remainingMs < minimumAttemptMs) {
+      console.warn('Model review provider skipped', { provider, tier, reason: 'insufficient_deadline', remainingMs })
+      lastError ??= new Error('Model request deadline exceeded')
+      break
+    }
     try {
-      const attemptTimeoutMs = reviewAttemptBudget(tier, i, deadlineAt - Date.now())
+      const attemptTimeoutMs = reviewAttemptBudget(tier, i, remainingMs)
       let result: ReviewStepResult | null = null
       if (provider === 'anthropic') {
         model = modelFor('anthropic', tier)
@@ -427,7 +447,7 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
         const response = await client.messages.create({
           model,
           // Opus 5.5 thinking is always on and counts against max_tokens.
-          max_tokens: Math.max(req.maxTokens, tier === 'deep' ? 16_000 : 8_000),
+          max_tokens: Math.max(req.maxTokens, tier === 'deep' ? 16_000 : 10_000),
           system: req.system,
           // Opus 5.5: `tool_choice` "tool"/"any" is a 400. The prompt names the
           // tool; the acceptance gate below still requires structured output.

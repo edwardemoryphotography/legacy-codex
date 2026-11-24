@@ -5,6 +5,7 @@ import { deltaReviewer } from '@/lib/supabase/deltaAuth'
 import { parseAssistanceNote } from '@/lib/missionAssistance'
 import { loadProjectContext, projectUserClient } from '@/lib/projectReviewServer'
 import { parseProjectReview, type ProjectReview, type ReviewProposal } from '@/lib/projectReview'
+import { compactEvidenceSources } from '@/lib/reviewPacket'
 import { unsupportedReviewAssertions } from '@/lib/claimIntegrity'
 import { measureTransfer } from '@/lib/structuralTransfer'
 import { isConcreteMove } from '@/lib/strategicDelta'
@@ -88,47 +89,72 @@ export async function POST(req: NextRequest) {
       if (reserved.error) return NextResponse.json({ error: 'Could not reserve an AI request. Your context is saved.' }, { status: 503 })
       if (reserved.data !== true) return NextResponse.json({ error: 'Please wait a minute before trying again. If your tester allowance is used up, ask Eddie to renew it. Your context is saved.' }, { status: 429 })
     }
-    // Full mission/lesson content is represented in the bounded sources.
-    // Only identify the target here; do not bypass excerpts with raw records.
-    const makePacket = (sources = context.sources) => JSON.stringify({ mission: { id: context.mission.id, title: context.mission.title.slice(0, 160),
-      finishLine: body.finishLine, state: context.mission.state }, sources, warnings: context.warnings })
+    // Economy makes ONE compact structured pass; Deep keeps the independent
+    // draft -> critique sequence. Both use the same sources, validation gates
+    // and persistence. The packet is bounded in Economy, not the integrity.
+    const compact = tier === 'routine'
+    const packetSources = compact ? compactEvidenceSources(context.sources) : context.sources
+    const reviewWarnings = compact
+      ? [...context.warnings, 'Economy: bounded evidence packet and one structured pass; no independent critique was run. Switch to Deep for a two-pass review.']
+      : context.warnings
+    const makePacket = (sources = packetSources) => JSON.stringify({ mission: { id: context.mission.id, title: context.mission.title.slice(0, 160),
+      finishLine: body.finishLine, state: context.mission.state }, sources, warnings: reviewWarnings })
     const packet = makePacket()
+    console.info('/api/delta-review packet', { tier, stage: 'assembly', packetChars: packet.length, sources: packetSources.length, fullSources: context.sources.length })
     const withheld = context.sources.filter(source => source.kind !== 'lesson')
     const comparingLessons = withheld.length !== context.sources.length
     let baseline: ReviewProposal | null = null
+    let parsed: ReviewProposal | null = null
     const reviewDeadlineAt = Date.now() + (tier === 'deep' ? 100_000 : 45_000)
-    const draftDeadlineAt = Date.now() + (tier === 'deep' ? 55_000 : 25_000)
-    stage = 'draft'
-    const draft = await runProviderChainReviewStep({
-      maxTokens: tier === 'deep' ? (comparingLessons ? 4_200 : 1_600) : (comparingLessons ? 3_000 : 1_200),
-      system: PROJECT_REVIEW_RULES,
-      requireToolOutput: comparingLessons,
-      tool: PROJECT_REVIEW_OUTPUT,
-      deadlineAt: draftDeadlineAt,
-      tier,
-      userContent: `Compare feasible moves and propose one choice from this context.${comparingLessons ? ' Submit the provisional choice through submit_project_review.' : ''}\n${makePacket(comparingLessons ? withheld : context.sources)}`,
-    })
-    if (comparingLessons) {
-      baseline = (draft.stopReason === 'tool_use' || draft.stopReason === 'structured_text') && draft.toolInput ? parseProjectReview(JSON.stringify(draft.toolInput), withheld, body.missionId) : null
-      // Model-asserted verification cannot qualify as a lesson-withheld baseline.
-      if (baseline && unsupportedReviewAssertions(baseline).length) baseline = null
-      // A malformed baseline cannot become a measured comparison. Still allow
-      // the normal final critique to help the person, with unavailable metrics.
-    } else if (draft.stopReason !== 'end_turn') return NextResponse.json({ error: 'The review draft did not complete. No recommendation was accepted.' }, { status: 502 })
-    const draftText = comparingLessons ? JSON.stringify(baseline) : draft.text
-    stage = 'critique'
-    const final = await runProviderChainReviewStep({
-      maxTokens: tier === 'deep' ? 4_200 : 2_600,
-      system: PROJECT_REVIEW_RULES,
-      requireToolOutput: true,
-      tool: PROJECT_REVIEW_OUTPUT,
-      deadlineAt: reviewDeadlineAt,
-      tier,
-      userContent: `Critique the draft independently against the original context. Does the chosen move beat the alternatives on impact, urgency, dependencies, reported capacity and uncertainty? Is resuming a saved action better? Does the finish condition describe an observable result? Does a missing fact change the winner? Find unsupported facts, stale evidence, duplicates and paraphrases of corrected approaches. Revise once; submit through submit_project_review. A self-check is still a model proposal, not verification.\nOriginal context:\n${packet}\nDraft (untrusted proposal):\n${draftText.slice(0, 10_000)}`,
-    })
+    const draftDeadlineAt = Date.now() + (tier === 'deep' ? 55_000 : 40_000)
+    if (compact) {
+      stage = 'review'
+      const startedAt = Date.now()
+      const single = await runProviderChainReviewStep({
+        maxTokens: 2_600,
+        system: PROJECT_REVIEW_RULES,
+        requireToolOutput: true,
+        tool: PROJECT_REVIEW_OUTPUT,
+        deadlineAt: reviewDeadlineAt,
+        tier,
+        userContent: `Compare feasible moves and propose one reviewed decision from this context. Submit it through submit_project_review. Cite only supplied source IDs, state unknowns, and keep the operation concrete.\n${packet}`,
+      })
+      parsed = (single.stopReason === 'tool_use' || single.stopReason === 'structured_text') && single.toolInput
+        ? parseProjectReview(JSON.stringify(single.toolInput), packetSources, body.missionId) : null
+      console.info('/api/delta-review economy pass', { tier, stage: 'review', provider: single.provider, elapsedMs: Date.now() - startedAt, accepted: Boolean(parsed) })
+    } else {
+      stage = 'draft'
+      const draft = await runProviderChainReviewStep({
+        maxTokens: comparingLessons ? 4_200 : 1_600,
+        system: PROJECT_REVIEW_RULES,
+        requireToolOutput: comparingLessons,
+        tool: PROJECT_REVIEW_OUTPUT,
+        deadlineAt: draftDeadlineAt,
+        tier,
+        userContent: `Compare feasible moves and propose one choice from this context.${comparingLessons ? ' Submit the provisional choice through submit_project_review.' : ''}\n${makePacket(comparingLessons ? withheld : context.sources)}`,
+      })
+      if (comparingLessons) {
+        baseline = (draft.stopReason === 'tool_use' || draft.stopReason === 'structured_text') && draft.toolInput ? parseProjectReview(JSON.stringify(draft.toolInput), withheld, body.missionId) : null
+        // Model-asserted verification cannot qualify as a lesson-withheld baseline.
+        if (baseline && unsupportedReviewAssertions(baseline).length) baseline = null
+        // A malformed baseline cannot become a measured comparison. Still allow
+        // the normal final critique to help the person, with unavailable metrics.
+      } else if (draft.stopReason !== 'end_turn') return NextResponse.json({ error: 'The review draft did not complete. No recommendation was accepted.' }, { status: 502 })
+      const draftText = comparingLessons ? JSON.stringify(baseline) : draft.text
+      stage = 'critique'
+      const final = await runProviderChainReviewStep({
+        maxTokens: 4_200,
+        system: PROJECT_REVIEW_RULES,
+        requireToolOutput: true,
+        tool: PROJECT_REVIEW_OUTPUT,
+        deadlineAt: reviewDeadlineAt,
+        tier,
+        userContent: `Critique the draft independently against the original context. Does the chosen move beat the alternatives on impact, urgency, dependencies, reported capacity and uncertainty? Is resuming a saved action better? Does the finish condition describe an observable result? Does a missing fact change the winner? Find unsupported facts, stale evidence, duplicates and paraphrases of corrected approaches. Revise once; submit through submit_project_review. A self-check is still a model proposal, not verification.\nOriginal context:\n${packet}\nDraft (untrusted proposal):\n${draftText.slice(0, 10_000)}`,
+      })
+      parsed = (final.stopReason === 'tool_use' || final.stopReason === 'structured_text') && final.toolInput
+        ? parseProjectReview(JSON.stringify(final.toolInput), packetSources, body.missionId) : null
+    }
     stage = 'validation'
-    const parsed = (final.stopReason === 'tool_use' || final.stopReason === 'structured_text') && final.toolInput
-      ? parseProjectReview(JSON.stringify(final.toolInput), context.sources, body.missionId) : null
     if (!parsed || (parsed.operation && !isConcreteMove(parsed.operation, { title: context.mission.title, finishLine: context.mission.finish_line }))) {
       return NextResponse.json({ error: 'The review did not return a grounded choice with a finish condition. No recommendation was accepted.' }, { status: 502 })
     }
@@ -145,8 +171,8 @@ export async function POST(req: NextRequest) {
     const current = await loadProjectContext(client, owner.userId, body.missionId)
     if (current.contextKey !== context.contextKey) return NextResponse.json({ error: 'Your project changed during review. Review the updated context.' }, { status: 409 })
     const reviewedAt = new Date().toISOString()
-    const transferObservation = measureTransfer({ baseline, after: parsed, sources: context.sources, lessons: context.lessons, missionId: body.missionId, requestContextAdded: Boolean(note), reviewedAt, interventionEvidence: context.interventionEvidence })
-    const review: ProjectReview = { ...parsed, transferObservation, missionId: body.missionId, finishLine: body.finishLine, sources: context.sources, warnings: context.warnings, contextKey: context.contextKey, reviewedAt, cached: false }
+    const transferObservation = measureTransfer({ baseline, after: parsed, sources: packetSources, lessons: context.lessons, missionId: body.missionId, requestContextAdded: Boolean(note), reviewedAt, interventionEvidence: context.interventionEvidence })
+    const review: ProjectReview = { ...parsed, transferObservation, missionId: body.missionId, finishLine: body.finishLine, sources: packetSources, warnings: reviewWarnings, contextKey: context.contextKey, reviewedAt, cached: false }
     // A cached proposal is not an action or evidence. It lives in the existing
     // transitional Delta ledger and is invalidated by context/correction changes.
     stage = 'persistence'

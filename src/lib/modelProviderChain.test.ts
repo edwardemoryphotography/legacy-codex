@@ -287,7 +287,7 @@ describe('review execution strategy (P0 latency repair)', () => {
   it('budgets the primary provider realistically instead of fair-splitting the deadline', () => {
     expect(reviewAttemptBudget('deep', 0, 60_000)).toBe(45_000)
     expect(reviewAttemptBudget('deep', 1, 15_000)).toBe(12_000)
-    expect(reviewAttemptBudget('routine', 0, 45_000)).toBe(15_000)
+    expect(reviewAttemptBudget('routine', 0, 45_000)).toBe(20_000)
     expect(reviewAttemptBudget('routine', 2, 6_000)).toBe(6_000)
   })
 
