@@ -184,10 +184,24 @@ export function PersistentOrb() {
       ancestor = ancestor.parentElement
     }
     window.addEventListener('resize', place)
+    // An inner scroll container moves the slot without resizing it (Home's
+    // recommendation text is the real case). Without this the absolute host
+    // stays put while the slot scrolls away and the orb draws over the copy.
+    let frame = 0
+    const onScroll = () => {
+      if (frame) return
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        place()
+      })
+    }
+    window.addEventListener('scroll', onScroll, { capture: true, passive: true })
     let live = true
     void document.fonts?.ready.then(() => { if (live) place() })
     return () => {
       live = false
+      if (frame) window.cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', onScroll, { capture: true })
       observer?.disconnect()
       window.removeEventListener('resize', place)
     }
