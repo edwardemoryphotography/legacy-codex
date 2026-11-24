@@ -20,12 +20,13 @@ interface Props {
   view: HomeContinueView
   saved: SavedActionSnapshot | null
   allowReview: boolean
+  tier?: 'routine' | 'deep'
   onOpen: (focusSaved: boolean) => void
   onReviewActivity: (active: boolean) => void
   onChange: () => void
 }
 
-export default function HomeStrategicDecision({ territory, mission, view, saved, allowReview, onOpen, onChange, onReviewActivity }: Props) {
+export default function HomeStrategicDecision({ territory, mission, view, saved, allowReview, tier = 'routine', onOpen, onChange, onReviewActivity }: Props) {
   const { accountId, missions, evidence, links, events } = territory
   const [review, setReview] = useState<ProjectReview | null>(null)
   const [phase, setPhase] = useState<'idle' | 'restoring' | 'reviewing' | 'saving'>('idle')
@@ -105,10 +106,10 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session || session.user.id !== accountId) throw new Error('Reopen Home to check your account.')
-      const deadline = AbortSignal.timeout(110_000)
+      const deadline = AbortSignal.timeout(tier === 'deep' ? 125_000 : 60_000)
       const res = await fetch('/api/delta-review', { method: 'POST', signal: signal ? AbortSignal.any([signal, deadline]) : deadline, headers: {
         Authorization: 'Bearer ' + session.access_token, 'Content-Type': 'application/json',
-      }, body: JSON.stringify({ missionId, finishLine }) })
+      }, body: JSON.stringify({ missionId, finishLine, tier }) })
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Could not compare these moves.')
       if (signal?.aborted) return

@@ -59,6 +59,8 @@ export interface ReviewStepRequest {
   tool: Tool
   timeoutMs?: number
   deadlineAt?: number
+  /** Economy (routine) is the default; Deep is an explicit investigation choice. */
+  tier?: ModelTier
 }
 
 export interface ReviewStepResult {
@@ -66,6 +68,26 @@ export interface ReviewStepResult {
   text: string
   toolInput: unknown | null
   provider: ModelProviderId
+}
+
+/**
+ * Review budgets are tier- and position-based, not a fair split of the
+ * deadline. Equal splitting starves the primary provider: three 15s attempts
+ * cannot finish a deep reasoning pass, so every participant fails and the
+ * "resilient" chain guarantees failure. The primary gets a realistic share;
+ * fallbacks get bounded hedge windows from whatever remains.
+ */
+export function reviewAttemptBudget(tier: ModelTier, index: number, remainingMs: number): number {
+  const primaryCap = tier === 'deep' ? 45_000 : 15_000
+  const fallbackCap = tier === 'deep' ? 12_000 : 8_000
+  return Math.max(1, Math.min(remainingMs, index === 0 ? primaryCap : fallbackCap))
+}
+
+/** Economy starts with the fastest/cheapest configured provider; Deep starts with the deepest. */
+export function orderedReviewProviders(tier: ModelTier): ModelProviderId[] {
+  const configured = configuredModelProviders()
+  if (tier === 'deep') return configured
+  return (['gemini', 'anthropic', 'openai'] as ModelProviderId[]).filter(provider => configured.includes(provider))
 }
 
 function nextAttemptTimeoutMs(
@@ -191,16 +213,16 @@ export async function runProviderChainText(req: TextGenerationRequest): Promise<
   throw lastError ?? new Error('All configured model providers failed')
 }
 
-async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): Promise<ReviewStepResult> {
+async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number, tier: ModelTier): Promise<ReviewStepResult> {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
-  const model = modelFor('gemini', 'deep')
+  const model = modelFor('gemini', tier)
 
   const body: Record<string, unknown> = {
     systemInstruction: { parts: [{ text: req.system }] },
     contents: [{ role: 'user', parts: [{ text: req.userContent }] }],
     generationConfig: {
-      maxOutputTokens: model === 'gemini-4-argon' ? Math.max(req.maxTokens, 32_768) : req.maxTokens,
+      maxOutputTokens: tier === 'deep' ? Math.max(req.maxTokens, 32_768) : Math.max(req.maxTokens, 16_384),
       thinkingConfig: { thinkingLevel: 'medium' },
     },
   }
@@ -284,14 +306,14 @@ async function callGeminiReviewStep(req: ReviewStepRequest, timeoutMs: number): 
   }
 }
 
-async function callOpenAIReviewStep(req: ReviewStepRequest, timeoutMs: number): Promise<ReviewStepResult> {
+async function callOpenAIReviewStep(req: ReviewStepRequest, timeoutMs: number, tier: ModelTier): Promise<ReviewStepResult> {
   const apiKey = process.env.OPENAI_API_KEY?.trim()
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
-  const model = modelFor('openai', 'deep')
+  const model = modelFor('openai', tier)
   const payload: Record<string, unknown> = {
     model, instructions: req.system, input: req.userContent,
-    max_output_tokens: Math.max(req.maxTokens, 12_288),
-    reasoning: { effort: 'medium' }, store: false,
+    max_output_tokens: tier === 'deep' ? Math.max(req.maxTokens, 12_288) : Math.max(req.maxTokens, 8_192),
+    reasoning: { effort: tier === 'deep' ? 'medium' : 'low' }, store: false,
   }
   if (req.requireToolOutput) {
     payload.tools = [{
@@ -365,7 +387,7 @@ function structuredToolInput(text: string, tool: ReviewStepRequest['tool']): Rec
 }
 
 /** Sanitized failure class for diagnostics. Never logs model or prompt text. */
-function providerFailureReason(err: unknown): { reason: string; status?: number } {
+export function providerFailureReason(err: unknown): { reason: string; status?: number } {
   const raw = err && typeof err === 'object' && 'status' in err ? Number((err as { status: unknown }).status) : undefined
   const status = Number.isFinite(raw) ? raw : undefined
   const message = err instanceof Error ? err.message : ''
@@ -374,31 +396,38 @@ function providerFailureReason(err: unknown): { reason: string; status?: number 
   const reason = code === 429 ? 'rate_limited'
     : code === 400 ? 'invalid_request'
       : code !== undefined && code >= 500 ? 'provider_error'
-        : /timeout|deadline|abort/i.test(message) ? 'timed_out'
+        : /timed?\s*out|timeout|deadline|abort/i.test(message) ? 'timed_out'
           : code !== undefined ? 'http_error' : 'unavailable_or_incomplete'
   return code === undefined ? { reason } : { reason, status: code }
 }
 
 export async function runProviderChainReviewStep(req: ReviewStepRequest): Promise<ReviewStepResult> {
-  const providers = configuredModelProviders()
+  const tier = req.tier ?? 'routine'
+  const providers = orderedReviewProviders(tier)
   if (providers.length === 0) {
     throw new Error('No model provider configured')
   }
 
-  const deadlineAt = req.deadlineAt ?? Date.now() + (req.timeoutMs ?? 45_000)
+  const deadlineAt = req.deadlineAt ?? Date.now() + (tier === 'deep' ? 110_000 : 45_000)
   let lastError: unknown = null
   for (let i = 0; i < providers.length; i += 1) {
     const provider = providers[i]!
-    const remainingProviders = providers.length - i
+    const attemptStarted = Date.now()
+    let model: string | null = provider === 'anthropic' ? modelFor('anthropic', tier)
+      : provider === 'gemini' ? modelFor('gemini', tier) : modelFor('openai', tier)
+    let completion: string | null = null
+    let validation: string | null = null
+    let usage: { input?: number; output?: number } | null = null
     try {
-      const attemptTimeoutMs = nextAttemptTimeoutMs(deadlineAt, remainingProviders, req.timeoutMs ?? 25_000)
+      const attemptTimeoutMs = reviewAttemptBudget(tier, i, deadlineAt - Date.now())
       let result: ReviewStepResult | null = null
       if (provider === 'anthropic') {
-        const model = new Anthropic({ maxRetries: 0, timeout: attemptTimeoutMs })
-        const response = await model.messages.create({
-          model: modelFor('anthropic', 'deep'),
+        model = modelFor('anthropic', tier)
+        const client = new Anthropic({ maxRetries: 0, timeout: attemptTimeoutMs })
+        const response = await client.messages.create({
+          model,
           // Opus 5.5 thinking is always on and counts against max_tokens.
-          max_tokens: Math.max(req.maxTokens, 16_000),
+          max_tokens: Math.max(req.maxTokens, tier === 'deep' ? 16_000 : 8_000),
           system: req.system,
           // Opus 5.5: `tool_choice` "tool"/"any" is a 400. The prompt names the
           // tool; the acceptance gate below still requires structured output.
@@ -407,6 +436,8 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
             : {}),
           messages: [{ role: 'user', content: req.userContent }],
         })
+        completion = response.stop_reason
+        usage = { input: response.usage?.input_tokens, output: response.usage?.output_tokens }
         // Adaptive thinking returns thinking blocks first: select by type.
         const text = response.content
           .filter((b): b is Anthropic.TextBlock => b.type === 'text')
@@ -421,20 +452,27 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
             validateToolInput(outputs[0].input, req.tool.input_schema as ToolSchema) === null
           if (validToolUse) {
             result = { stopReason: 'tool_use', text: '', toolInput: outputs[0].input, provider: 'anthropic' }
-          } else if (response.stop_reason === 'end_turn' && outputs.length === 0) {
+          } else if (response.stop_reason !== 'end_turn') {
+            validation = 'unclean_completion'
+          } else if (outputs.length > 0) {
+            validation = 'invalid_tool_use'
+          } else {
             // Only a completed turn may fall back to text JSON. max_tokens,
             // refusal and pause_turn are incomplete or aborted answers.
             const structured = structuredToolInput(text, req.tool)
             if (structured) result = { stopReason: 'structured_text', text: '', toolInput: structured, provider: 'anthropic' }
+            else validation = 'no_structured_output'
           }
         } else {
-          if (response.stop_reason !== 'end_turn' || !text.trim()) throw new Error('Invalid model response')
+          if (response.stop_reason !== 'end_turn') validation = 'unclean_completion'
+          if (!text.trim()) validation = 'empty_text'
+          if (validation) throw new Error('Invalid model response')
           result = { stopReason: 'end_turn', text, toolInput: null, provider: 'anthropic' }
         }
       } else if (provider === 'gemini' || provider === 'openai') {
         const called = provider === 'gemini'
-          ? await callGeminiReviewStep(req, attemptTimeoutMs)
-          : await callOpenAIReviewStep(req, attemptTimeoutMs)
+          ? await callGeminiReviewStep(req, attemptTimeoutMs, tier)
+          : await callOpenAIReviewStep(req, attemptTimeoutMs, tier)
         if (!req.requireToolOutput) {
           if (called.stopReason !== 'end_turn' || !called.text.trim()) throw new Error('Invalid model response')
           result = called
@@ -450,8 +488,16 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
       return result
     } catch (err) {
       lastError = err
-      // Status class only: never model output, prompts, or account context.
-      console.warn('Model review provider failed', { provider, ...providerFailureReason(err) })
+      // Operational diagnostics only: no prompts, project text or raw output.
+      console.warn('Model review provider failed', {
+        provider, tier, attempt: i + 1, of: providers.length, model,
+        elapsedMs: Date.now() - attemptStarted,
+        ...providerFailureReason(err),
+        ...(completion ? { completion } : {}),
+        ...(validation ? { validation } : {}),
+        ...(usage ? { usage } : {}),
+        ...(err instanceof Error && err.name !== 'Error' ? { errorName: err.name } : {}),
+      })
     }
   }
   throw lastError ?? new Error('All configured model providers failed')

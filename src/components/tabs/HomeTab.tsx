@@ -283,6 +283,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     key={`${territory.accountId}:${primaryMission.id}:${projectRevision}:${decisionRevision}`}
     territory={territory} mission={primaryMission} saved={homeNextActionSaved} view={continueView}
     allowReview={access.configured && (access.state === 'owner' || access.tester === true)}
+    tier={current.tier === 'deep' ? 'deep' : 'routine'}
     onOpen={openMission} onReviewActivity={setReviewActive} onChange={() => setDecisionRevision(value => value + 1)}
   /> : <HomeContinue view={continueView} name={access.state === 'owner' ? name : undefined} missionCount={missionCount} onOpenMission={() => openMission()}>
     {primaryMission && (evidenceRead === 'failed' || linksRead === 'failed' || linksTruncated || eventsRead === 'failed') &&
