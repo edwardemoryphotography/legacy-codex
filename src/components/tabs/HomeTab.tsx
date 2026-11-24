@@ -310,6 +310,9 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
 
   const send = async () => {
     if (sending.current || busy) return
+    // One model request at a time: Enter must honour the same exclusion as the
+    // disabled Send control while a move comparison is running.
+    if (reviewActive) return
     if (access.state !== 'owner') {
       setSubmitNotice(access.state === 'checking'
         ? 'Checking whether this account can use AI. Your text is still here.'

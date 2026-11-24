@@ -131,6 +131,23 @@ describe('Home recommendation versus saved commitment', () => {
     expect(decision.view.reasons).toContainEqual({ label: 'Your existing commitment', text: action.title })
   })
 
+  it('keeps the Secondary clarification when the Primary is over capacity', () => {
+    const secondary: Mission = {
+      ...mission, id: 'm2', title: 'Photo backup', state: 'secondary',
+      finishLine: 'Copies verified on both drives', updatedAt: '2026-11-02T00:00:00Z',
+    }
+    const constrained = { ...mission, capacityMismatch: true }
+    const delta = predictStrategicDelta([constrained, secondary], [], [], mission.updatedAt)
+    // The engine correctly targets the Secondary...
+    expect(delta.missionId).toBe('m2')
+    expect(delta.situation).toBe('primary_capacity_mismatch')
+    // ...so the Primary's capacity question must not replace its missing input.
+    const decision = homeDecision(view({ mission: constrained }), constrained, action, delta, null, [])
+    expect(decision.view.stepTitle).toBe(delta.move)
+    expect(decision.view.stepTitle).not.toBe('What smaller step fits your available capacity?')
+    expect(decision.view.stepLabel).toBe('Next move on Photo backup')
+  })
+
   it('does not recommend resuming work the person explicitly rejected on Home', () => {
     const corrections = [{ id: 'c1', missionId: mission.id, correctedMove: action.title, reason: 'Capacity changed', createdAt: mission.updatedAt }]
     const delta = predictStrategicDelta([mission], [], corrections, mission.updatedAt)
