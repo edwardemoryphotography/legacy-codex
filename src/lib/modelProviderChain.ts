@@ -353,7 +353,11 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
           ...(req.requireToolOutput
             ? {
                 tools: [req.tool],
-                tool_choice: { type: 'auto' as const, disable_parallel_tool_use: true },
+                tool_choice: {
+                  type: 'tool' as const,
+                  name: req.tool.name,
+                  disable_parallel_tool_use: true,
+                },
               }
             : {}),
           messages: [{ role: 'user', content: req.userContent }],
