@@ -59,8 +59,9 @@ export async function POST(req: NextRequest) {
   // a longer, tier-appropriate budget; both keep the same validation gates.
   const tier: 'routine' | 'deep' = body.tier === 'deep' ? 'deep' : 'routine'
   // The client abort stops this screen; the platform may still let server work
-  // finish. Honour that truth: never persist a review for a disconnected request,
-  // and never claim the provider call was cancelled.
+  // finish. Persistence is skipped only when a disconnect is actually observable
+  // before the write; this is best-effort, not a guarantee, and the provider call
+  // is never described as cancelled.
   const cancelled = () => req.signal.aborted
   const cancelledResponse = () => {
     console.info('/api/delta-review cancelled', { stage, tier })
@@ -205,10 +206,11 @@ export async function POST(req: NextRequest) {
         tier, selectionPolicy: 'static_measured_v1', provider: winner, model: winnerModel,
         fallbacks: attempts.map(attempt => ({ provider: attempt.provider, model: attempt.model, reason: attempt.reason, ...(attempt.skipped ? { skipped: true } : {}) })),
         draft: draftParticipant, critique: critiqueParticipant,
-        elapsedMs: Date.now() - reviewStartedAt, elapsedBasis: 'request_start_to_review_built',
+        elapsedMs: Date.now() - reviewStartedAt, elapsedBasis: 'after_context_assembly_to_review_built',
       } }
     // A cached proposal is not an action or evidence. It lives in the existing
     // transitional Delta ledger and is invalidated by context/correction changes.
+    if (cancelled()) return cancelledResponse()
     stage = 'persistence'
     const saved = await client.from('mission_events').insert({ user_id: owner.userId, mission_id: body.missionId, type: 'delta_reviewed', detail: JSON.stringify(review), idempotency_key: `review:${tier}:${context.contextKey}:${Math.floor(Date.parse(review.reviewedAt) / 3_600_000)}` })
     if (saved.error?.code === '23505') {

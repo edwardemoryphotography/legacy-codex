@@ -16,7 +16,7 @@ import BriefTab from './tabs/BriefTab'
 import OriginTab from './tabs/OriginTab'
 import TerritoryTab from './tabs/TerritoryTab'
 import HomeTab from './tabs/HomeTab'
-import type { LiveVoiceSnapshot } from './CodexLiveVoice'
+import { transportBillingSummary, type LiveVoiceSnapshot } from './CodexLiveVoice'
 import { OrbHostProvider, PersistentOrb } from './OrbHost'
 import ThemeReview from './ThemeReview'
 import { supabase } from '@/lib/supabase/client'
@@ -90,8 +90,11 @@ export default function CodexApp() {
   const [missionTalkOpen, setMissionTalkOpen] = useState(false)
   const [homeSession, setHomeSession] = useState(emptyHomeSession)
   const [liveVoice, setLiveVoice] = useState<LiveVoiceSnapshot>({
-    active: false, phase: 'idle', muted: false, label: '', detail: '', hasProposal: false, turnCount: 0,
+    active: false, phase: 'idle', transportState: 'idle', connected: false, muted: false, micState: 'unavailable', micLive: false,
+    label: '', detail: '', hasProposal: false, turnCount: 0,
+    retainedExchanges: 0, suppliedMessages: 0, recoveredExchanges: 0, directRecoveryAdvisorySent: false,
   })
+  const [liveVoiceControls, setLiveVoiceControls] = useState<{ mute: () => void; end: () => void } | null>(null)
   useEffect(() => {
     if (typeof supabase.auth.onAuthStateChange !== 'function') return
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
@@ -173,9 +176,11 @@ export default function CodexApp() {
     }
   }, [menuOpen, closeMenu])
 
+  const voiceImmersive = liveVoice.active && activeTab === 'home'
+
   return (
     <OrbHostProvider placed={activeTab === 'home' || activeTab === 'mission'}>
-    <div className="codex-shell" data-screen={activeTab}>
+    <div className="codex-shell" data-screen={activeTab} data-voice-immersive={voiceImmersive ? 'true' : undefined}>
       <div className="glass-aurora" aria-hidden="true">
         <div className="glass-blob glass-b1" /><div className="glass-blob glass-b2" /><div className="glass-blob glass-b3" />
       </div>
@@ -239,12 +244,23 @@ export default function CodexApp() {
           <div className="voice-continuity-bar glass" role="region" aria-label="Active live voice session">
             <div className="voice-continuity-status">
               <span className="voice-continuity-dot" data-phase={liveVoice.phase} aria-hidden="true" />
-              <span>Live voice · {liveVoice.label || 'Connected'}</span>
+              <span>Live voice · {liveVoice.label || 'Connected'}{liveVoice.muted ? ' · muted' : ''}</span>
               {liveVoice.hasProposal && <span className="voice-continuity-badge">Proposal ready</span>}
             </div>
-            <button type="button" className="voice-continuity-return" onClick={() => selectTab('home')}>
-              Return to voice
-            </button>
+            <p className="voice-continuity-meta" role="status">
+              {liveVoice.micState === 'live' ? 'Microphone live' : liveVoice.micState === 'muted' ? 'Microphone muted' : 'Microphone unavailable'} ·
+              {' '}{transportBillingSummary(liveVoice.transportState)} ·
+              {' '}{liveVoice.retainedExchanges} exchange{liveVoice.retainedExchanges === 1 ? '' : 's'} retained ·
+              {' '}{liveVoice.suppliedMessages} message{liveVoice.suppliedMessages === 1 ? '' : 's'} supplied to backend reasoning
+              {liveVoice.recoveredExchanges > 0 ? ` · ${liveVoice.recoveredExchanges} recovered` : ''}
+            </p>
+            <div className="voice-continuity-actions">
+              <button type="button" className="voice-continuity-return" aria-pressed={liveVoice.muted} onClick={liveVoiceControls?.mute}>
+                {liveVoice.muted ? 'Unmute' : 'Mute'}
+              </button>
+              <button type="button" className="voice-continuity-return" onClick={() => selectTab('home')}>Return to voice</button>
+              <button type="button" className="voice-continuity-return" onClick={liveVoiceControls?.end}>End</button>
+            </div>
           </div>
         )}
         {activeTab === 'mission' && (
@@ -266,6 +282,7 @@ export default function CodexApp() {
               session={homeSession}
               onSessionChange={setHomeSession}
               onLiveVoiceStateChange={setLiveVoice}
+              onLiveVoiceControls={setLiveVoiceControls}
             />
           </div>
         )}

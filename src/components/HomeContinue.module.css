@@ -318,7 +318,32 @@
   margin: 2px 0 0;
   font: 400 13.5px/1.5 var(--g-body);
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
+}
+
+.reasonMarkdown > :first-child {
+  margin-top: 0;
+}
+
+.reasonMarkdown > :last-child {
+  margin-bottom: 0;
+}
+
+.reasonMarkdown p {
+  margin: 0 0 6px;
+}
+
+.reasonMarkdown ul,
+.reasonMarkdown ol {
+  margin: 4px 0 6px;
+  padding-left: 18px;
+}
+
+.reasonMarkdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .9em;
+  padding: 1px 4px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--g-mist) 10%, transparent);
 }
 
 /* Intelligence provenance & expandable readable source chips */

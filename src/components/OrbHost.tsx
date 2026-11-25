@@ -172,7 +172,9 @@ function inspectScrollClip(
       // Inner vertical scroll container (e.g. Home's .glass-hero): once the
       // user scrolls down enough that the slot enters/crosses the top edge,
       // glide into the compact top-right header dock so content stays clear.
-      if (clipsY && (style.overflowY === 'auto' || style.overflowY === 'scroll')) {
+      // Never dock away an active immersive orb (live voice or active request).
+      const inImmersiveStage = Boolean(slot.closest('[data-immersive="true"], [data-busy="true"]'))
+      if (!inImmersiveStage && clipsY && (style.overflowY === 'auto' || style.overflowY === 'scroll')) {
         if (parent.scrollTop > 16 || (pHeight > 0 && slotTop < pTop - 4)) {
           dockForScroll = true
           break
@@ -217,8 +219,11 @@ export function PersistentOrb() {
   const host = useContext(OrbHostContext)
   const nodeRef = useRef<HTMLDivElement>(null)
   const modeRef = useRef<'hero' | 'dock' | null>(null)
+  const placeRef = useRef<((animateTransition?: boolean) => void) | null>(null)
   const motionAllowed = useMotionAllowed()
   const slot = host?.placed ? host.slot : null
+  const live = host?.cognition ?? RESTING
+  const interaction = host?.interaction ?? 'ambient'
 
   useLayoutEffect(() => {
     const node = nodeRef.current
@@ -303,6 +308,7 @@ export function PersistentOrb() {
       }
     }
 
+    placeRef.current = place
     node.dataset.orb = mode
     place(false)
     modeRef.current = mode
@@ -352,6 +358,7 @@ export function PersistentOrb() {
     void document.fonts?.ready.then(() => { if (live) place(false) })
     return () => {
       live = false
+      placeRef.current = null
       if (frame) window.cancelAnimationFrame(frame)
       window.removeEventListener('scroll', onScroll, { capture: true })
       observer?.disconnect()
@@ -359,9 +366,19 @@ export function PersistentOrb() {
     }
   }, [slot, motionAllowed])
 
+  // Re-measure immediately whenever cognition/operation/interaction changes
+  // (e.g. entering active processing from an expanded composer where the slot
+  // just transitioned from display:none to visible).
+  useLayoutEffect(() => {
+    placeRef.current?.(false)
+    const raf = typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
+      ? window.requestAnimationFrame(() => placeRef.current?.(false))
+      : 0
+    return () => { if (raf) window.cancelAnimationFrame(raf) }
+  }, [live.cognition, live.operation, live.recording, interaction])
+
   if (!host) return null
-  const live = host.cognition ?? RESTING
-  const presentation = orbPresentation({ ...live, interaction: host.interaction })
+  const presentation = orbPresentation({ ...live, interaction })
   return (
     <div
       ref={nodeRef}
@@ -371,7 +388,7 @@ export function PersistentOrb() {
       data-provenance={live.provenance}
       data-recording={live.recording ? 'true' : undefined}
       data-resumable={live.resumable ? 'true' : undefined}
-      data-interaction={host.interaction}
+      data-interaction={interaction}
     >
       <CognitionField />
       <CodexOrb state={presentation.state} cognition={live.cognition} />

@@ -278,6 +278,16 @@
   font: 400 15px/1.6 var(--g-body);
 }
 
+.recoveryNotice {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--g-glass-edge) 75%, transparent);
+  background: color-mix(in srgb, var(--g-mist) 6%, transparent);
+  color: var(--g-mist-dim);
+  font: 400 12.5px/1.5 var(--g-body);
+}
+
 .turnList {
   display: flex;
   flex-direction: column;

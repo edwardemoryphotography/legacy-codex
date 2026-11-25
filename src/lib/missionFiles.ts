@@ -4,10 +4,22 @@
 // and the reading rules always survive.
 import type { Mission } from '@/types'
 
-const MAX_INSTRUCTION = 400
+// The owner's request is sent whole or rejected explicitly; safety framing and
+// filenames live outside this budget. Keep in sync with MAX_INSTRUCTION_LENGTH
+// in src/app/api/analyze/route.ts.
+export const MAX_INSTRUCTION = 4_000
 // Must stay in sync with MAX_TOTAL_BYTES in src/app/api/analyze/route.ts.
 export const MAX_ATTACH_BYTES = 4 * 1024 * 1024
 export const ATTACH_ACCEPT = '.pdf,.txt,.md,.csv,.json,image/*'
+export const HOME_ATTACH_ACCEPT = 'image/*,.heic,.heif,.pdf,.txt,.md,.csv,.json'
+export const ACCEPTED_FILE_SUMMARY = 'PDF, text/Markdown/CSV/JSON, or JPEG/PNG/WebP/GIF/HEIC images'
+
+export function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return '0 B'
+  if (bytes < 1024) return `${Math.round(bytes)} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes >= 100 * 1024 ? 0 : 1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
 
 const RULES = 'Read only these files. List: what the work is; stated requirements and limits (page/word counts, deadlines, required sections); where the draft stands; anything that conflicts with the finish line. Write Unknown where the files are silent.'
 

@@ -12,6 +12,7 @@ import type { SavedOpenActionSnapshot } from '@/components/SavedActions'
 import { deriveObservableAcceptanceChecks } from '@/lib/missionAssistance'
 import { deriveNextAction, type AcceptanceSnapshot } from '@/lib/nextAction'
 import { savedActionDisplay } from '@/lib/savedActionDisplay'
+import SafeMarkdown from '@/components/SafeMarkdown'
 import ReactMarkdown from 'react-markdown'
 import type { ConfirmedLesson, ProjectReview, ProjectReviewRequest } from '@/lib/projectReview'
 
@@ -856,15 +857,15 @@ export default function StrategicDelta({
                     ? 'Current move (in progress)'
                     : 'Current saved action'}
                 </strong>
-                {': '}“{readableCurrent?.heading ?? currentSavedAction.title}”
+                {': '}“<SafeMarkdown inline>{readableCurrent?.heading ?? currentSavedAction.title}</SafeMarkdown>”
                 {currentSavedAction.status === 'IN_PROGRESS'
                   ? ' — in progress now. A new prediction will not overwrite or reset it.'
                   : altCollapsed ? ' — saved for this mission.' : ' — saved for this mission. The prediction below is an optional alternative.'}
               </p>
-              {readableCurrent?.fromNote && <p className="sd-hint">From your note: {readableCurrent.fromNote}</p>}
-              {readableCurrent?.original && <details className="sd-hint"><summary>Original saved wording</summary><p>{readableCurrent.original}</p></details>}
+              {readableCurrent?.fromNote && <p className="sd-hint">From your note: <SafeMarkdown inline>{readableCurrent.fromNote}</SafeMarkdown></p>}
+              {readableCurrent?.original && <details className="sd-hint"><summary>Original saved wording</summary><SafeMarkdown>{readableCurrent.original}</SafeMarkdown></details>}
               {currentSavedAction.resumeNote && (
-                <p className="sd-hint">Where you left off: {currentSavedAction.resumeNote}</p>
+                <div className="sd-hint">Where you left off: <SafeMarkdown inline>{currentSavedAction.resumeNote}</SafeMarkdown></div>
               )}
               <div className="sd-followthrough-row">
                 {currentSavedAction.status !== 'IN_PROGRESS' && onStartSavedAction && (

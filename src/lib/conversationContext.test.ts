@@ -32,3 +32,29 @@ describe('conversation continuity boundaries', () => {
     expect(restoreHomeSession('a')).toEqual(emptyHomeSession('a'))
   })
 })
+
+describe('live voice completed-turn recovery', () => {
+  const entry = { question: 'What should I do next?', text: 'Publish the checkout page.', provider: 'Economy · Gemini', actionTitle: 'Publish checkout', finishWhen: 'Page is live' }
+  it('restores bounded completed turns only under their account', () => {
+    const entries = Array.from({ length: 50 }, (_, index) => ({ ...entry, question: `q${index}` }))
+    preserveHomeSession({ ...emptyHomeSession('a'), liveEntries: entries })
+    const restored = restoreHomeSession('a')
+    expect(restored.liveEntries).toHaveLength(40)
+    expect(restored.liveEntries?.at(-1)?.question).toBe('q49')
+    expect(restoreHomeSession('b').liveEntries).toEqual([])
+  })
+  it('rejects malformed entries instead of trusting them', () => {
+    sessionStorage.setItem('codex-conversation:a', JSON.stringify({ ...emptyHomeSession('a'), liveEntries: [{ question: 'q', text: 42 }] }))
+    expect(restoreHomeSession('a').liveEntries).toEqual([])
+  })
+})
+
+describe('partial live-turn honesty', () => {
+  it('retains a completion-less fragment as partial and never as a completed exchange', () => {
+    preserveHomeSession({ ...emptyHomeSession('a'), liveEntries: [
+      { question: 'Tell me about boomerangs', text: 'A boomerang is a returning structure…', provider: 'Live voice', actionTitle: null, finishWhen: null, partial: true, source: 'direct' },
+    ] })
+    const restored = restoreHomeSession('a')
+    expect(restored.liveEntries?.[0]).toMatchObject({ partial: true, source: 'direct' })
+  })
+})
