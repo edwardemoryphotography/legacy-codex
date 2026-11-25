@@ -1,16 +1,170 @@
 {
-  "generatedAt": "2026-11-24T19:22:34.454Z",
+  "generatedAt": "2026-11-25T03:23:26.765Z",
   "unavailableSources": [],
   "records": [
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-210",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#210",
+      "kind": "custom",
+      "status": "unverified",
+      "claim": "PR #210 \"feat(voice): integrated Living Voice — persistent session, recovery, mute/end on every screen\" open, not yet merged.",
+      "observedAt": "2026-11-25T03:19:53Z",
+      "fetchedAt": "2026-11-25T03:23:22.366Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-213",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#213",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #213 \"fix(review): use the measured Gemini model for Deep reviews\" merged. 2 check run(s), 2 passing.",
+      "observedAt": "2026-11-25T03:07:55Z",
+      "fetchedAt": "2026-11-25T03:23:22.808Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-208",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#208",
+      "kind": "custom",
+      "status": "unverified",
+      "claim": "PR #208 \"feat(home): Living Intelligence Experience — scroll-docked aurora orb, Strategic Delta hierarchy, readable provenance\" open, not yet merged.",
+      "observedAt": "2026-11-25T02:59:19Z",
+      "fetchedAt": "2026-11-25T03:23:22.808Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-212",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#212",
+      "kind": "custom",
+      "status": "unverified",
+      "claim": "PR #212 \"Capture BR-036: redundancy needs a viable execution budget\" open, not yet merged.",
+      "observedAt": "2026-11-25T02:42:45Z",
+      "fetchedAt": "2026-11-25T03:23:22.808Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-211",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#211",
+      "kind": "custom",
+      "status": "unverified",
+      "claim": "PR #211 \"Restore the saved Strategic Delta comparison when switching tiers\" open, not yet merged.",
+      "observedAt": "2026-11-25T02:24:32Z",
+      "fetchedAt": "2026-11-25T03:23:22.808Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-209",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#209",
+      "kind": "custom",
+      "status": "unverified",
+      "claim": "PR #209 \"Add BR-035: cognitive continuity across interface boundaries\" open, not yet merged.",
+      "observedAt": "2026-11-25T02:11:58Z",
+      "fetchedAt": "2026-11-25T03:23:22.808Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-207",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#207",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #207 \"fix(review): provider-verified models, honest diagnostics, cache and orb integrity\" merged. 2 check run(s), 2 passing.",
+      "observedAt": "2026-11-24T23:45:59Z",
+      "fetchedAt": "2026-11-25T03:23:23.145Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-206",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#206",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #206 \"fix(review): single compact Economy pass + scroll-tracked orb (P0 #2)\" merged. 2 check run(s), 2 passing.",
+      "observedAt": "2026-11-24T23:18:45Z",
+      "fetchedAt": "2026-11-25T03:23:23.446Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-205",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#205",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #205 \"fix(review): tier-aware budgets, diagnostics, and phone orb slot (P0)\" merged. 2 check run(s), 2 passing.",
+      "observedAt": "2026-11-24T22:53:04Z",
+      "fetchedAt": "2026-11-25T03:23:23.827Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-204",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#204",
+      "kind": "custom",
+      "status": "unverified",
+      "claim": "PR #204 \"PocketForge: native Codex reconciliation and truthful Siri capture\" open, not yet merged.",
+      "observedAt": "2026-11-24T22:39:52Z",
+      "fetchedAt": "2026-11-25T03:23:23.827Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-203",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#203",
+      "kind": "custom",
+      "status": "unverified",
+      "claim": "PR #203 \"Integration candidate (do not merge): #202 + #200 + #199/#201\" open, not yet merged.",
+      "observedAt": "2026-11-24T22:37:36Z",
+      "fetchedAt": "2026-11-25T03:23:23.827Z",
+      "prReadSucceeded": true
+    },
     {
       "id": "github-pr-edwardemoryphotography/legacy-codex-199",
       "missionId": null,
       "source": "github:edwardemoryphotography/legacy-codex#199",
-      "kind": "custom",
-      "status": "unverified",
-      "claim": "PR #199 \"Make Strategic Delta reconsider the next move on Home\" open, not yet merged.",
-      "observedAt": "2026-11-24T04:14:00Z",
-      "fetchedAt": "2026-11-24T19:22:27.353Z",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #199 \"Make Strategic Delta reconsider the next move on Home\" merged. 3 check run(s), 3 passing.",
+      "observedAt": "2026-11-24T22:35:24Z",
+      "fetchedAt": "2026-11-25T03:23:24.173Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-200",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#200",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #200 \"fix(review): accept validated structured output without forced tool choice\" merged. 2 check run(s), 2 passing.",
+      "observedAt": "2026-11-24T22:32:02Z",
+      "fetchedAt": "2026-11-25T03:23:24.458Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-202",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#202",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #202 \"fix(security): upgrade Next to patched releases in frontend and Foundry\" merged. 2 check run(s), 2 passing.",
+      "observedAt": "2026-11-24T22:19:10Z",
+      "fetchedAt": "2026-11-25T03:23:24.774Z",
+      "prReadSucceeded": true
+    },
+    {
+      "id": "github-pr-edwardemoryphotography/legacy-codex-201",
+      "missionId": null,
+      "source": "github:edwardemoryphotography/legacy-codex#201",
+      "kind": "merged_pr",
+      "status": "verified",
+      "claim": "PR #201 \"fix(home): keep Secondary clarification and gate Enter during comparison\" merged. 2 check run(s), 2 passing.",
+      "observedAt": "2026-11-24T22:11:55Z",
+      "fetchedAt": "2026-11-25T03:23:25.110Z",
       "prReadSucceeded": true
     },
     {
@@ -21,7 +175,7 @@
       "status": "verified",
       "claim": "PR #198 \"fix(ux): show readable saved-action titles without rewriting history\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-20T00:11:57Z",
-      "fetchedAt": "2026-11-24T19:22:27.777Z",
+      "fetchedAt": "2026-11-25T03:23:25.420Z",
       "prReadSucceeded": true
     },
     {
@@ -32,7 +186,7 @@
       "status": "verified",
       "claim": "PR #197 \"feat(home): lead with what matters, the next step, and why (Operation First Light)\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-19T23:58:58Z",
-      "fetchedAt": "2026-11-24T19:22:28.175Z",
+      "fetchedAt": "2026-11-25T03:23:25.721Z",
       "prReadSucceeded": true
     },
     {
@@ -43,7 +197,7 @@
       "status": "verified",
       "claim": "PR #196 \"docs: record historical provenance release evidence\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-16T21:14:46Z",
-      "fetchedAt": "2026-11-24T19:22:28.506Z",
+      "fetchedAt": "2026-11-25T03:23:26.058Z",
       "prReadSucceeded": true
     },
     {
@@ -54,7 +208,7 @@
       "status": "verified",
       "claim": "PR #195 \"fix: finish historical lesson provenance repair\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-16T21:11:42Z",
-      "fetchedAt": "2026-11-24T19:22:28.804Z",
+      "fetchedAt": "2026-11-25T03:23:26.443Z",
       "prReadSucceeded": true
     },
     {
@@ -65,161 +219,7 @@
       "status": "verified",
       "claim": "PR #194 \"fix: keep a lesson's ledger mission separate from its origin\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-16T18:22:05Z",
-      "fetchedAt": "2026-11-24T19:22:29.299Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-193",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#193",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #193 \"Fix Codex tools dialog contrast in Light mode\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-15T17:51:54Z",
-      "fetchedAt": "2026-11-24T19:22:29.700Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-192",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#192",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #192 \"Add the other 33 real boomerangs to Codex Mission learning review\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-13T04:00:34Z",
-      "fetchedAt": "2026-11-24T19:22:30.079Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-191",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#191",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #191 \"Record Relay repair release evidence and remaining acceptance\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-12T22:21:01Z",
-      "fetchedAt": "2026-11-24T19:22:30.523Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-190",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#190",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #190 \"Preserve approved lesson exceptions through Relay\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-12T22:12:14Z",
-      "fetchedAt": "2026-11-24T19:22:30.824Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-189",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#189",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #189 \"Let real incidents enter the lesson loop as owner-confirmed candidates\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-12T04:09:10Z",
-      "fetchedAt": "2026-11-24T19:22:31.114Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-188",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#188",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #188 \"Preserve 34 sourced boomerangs in Legacy Codex Root and define inheritance build\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-10T08:34:58Z",
-      "fetchedAt": "2026-11-24T19:22:31.442Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-187",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#187",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #187 \"Replace clipped Codex tools flyout with native modal on iPhone\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-10T06:53:59Z",
-      "fetchedAt": "2026-11-24T19:22:31.719Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-186",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#186",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #186 \"Keep Ask Codex visible in iOS embedded browser when keyboard opens\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-10T06:38:18Z",
-      "fetchedAt": "2026-11-24T19:22:32.020Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-185",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#185",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #185 \"Fix iPhone keyboard overlay and keep Ask Codex composer visible\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-10T04:07:05Z",
-      "fetchedAt": "2026-11-24T19:22:32.407Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-174",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#174",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #174 \"Bound iPhone Live Voice startup so connecting never hangs indefinitely\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-09T20:31:55Z",
-      "fetchedAt": "2026-11-24T19:22:32.723Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-167",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#167",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #167 \"Add GPT-Live voice conversation mode to existing Legacy Codex Home\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-09T20:31:43Z",
-      "fetchedAt": "2026-11-24T19:22:33.053Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-184",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#184",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #184 \"feat(ux): give Save as my next action primary dominance over accept\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-05T04:19:26Z",
-      "fetchedAt": "2026-11-24T19:22:33.389Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-183",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#183",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #183 \"feat(ux): group navigation into four core loops and scale mobile reply orb\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-05T03:33:26Z",
-      "fetchedAt": "2026-11-24T19:22:34.091Z",
-      "prReadSucceeded": true
-    },
-    {
-      "id": "github-pr-edwardemoryphotography/legacy-codex-182",
-      "missionId": null,
-      "source": "github:edwardemoryphotography/legacy-codex#182",
-      "kind": "merged_pr",
-      "status": "verified",
-      "claim": "PR #182 \"Territory Path 2: saved connections, state and log\" merged. 2 check run(s), 2 passing.",
-      "observedAt": "2026-11-05T02:25:47Z",
-      "fetchedAt": "2026-11-24T19:22:34.454Z",
+      "fetchedAt": "2026-11-25T03:23:26.765Z",
       "prReadSucceeded": true
     }
   ]
