@@ -4,7 +4,16 @@ import { measureTransfer } from './structuralTransfer'
 import type { loadProjectContext, projectUserClient } from './projectReviewServer'
 
 export async function cachedProjectReview(client: ReturnType<typeof projectUserClient>, userId: string, context: Awaited<ReturnType<typeof loadProjectContext>>, tier?: 'routine' | 'deep'): Promise<ProjectReview | null> {
-  const cached = await client.from('mission_events').select('detail').eq('user_id', userId).eq('mission_id', context.mission.id).eq('type', 'delta_reviewed').order('created_at', { ascending: false }).limit(1)
+  let reviews = client.from('mission_events').select('detail').eq('user_id', userId)
+    .eq('mission_id', context.mission.id).eq('type', 'delta_reviewed')
+  // Match the exact write keys from the current and previous hour before
+  // taking the newest row. Another tier must not hide a reusable review.
+  if (tier) {
+    const hour = Math.floor(Date.now() / 3_600_000)
+    const prefix = `review:${tier}:${context.contextKey}:`
+    reviews = reviews.in('idempotency_key', [`${prefix}${hour}`, `${prefix}${hour - 1}`])
+  }
+  const cached = await reviews.order('created_at', { ascending: false }).limit(1)
   if (cached.error) throw new Error('Could not read the previous review.')
   if (!cached.data?.[0]) return null
   try {
@@ -14,7 +23,7 @@ export async function cachedProjectReview(client: ReturnType<typeof projectUserC
     if (valid && unsupportedReviewAssertions(valid).length) return null
     if (previous.missionId !== context.mission.id || previous.finishLine !== context.mission.finish_line || previous.contextKey !== context.contextKey || !valid || !Number.isFinite(age) || age < 0 || age > 3_600_000) return null
     // Economy and Deep are different work products. Never let one restore as the other.
-    if (tier && previous.tier && previous.tier !== tier) return null
+    if (tier && previous.tier !== tier) return null
     const candidateBaseline = previous.transferObservation?.baseline
       ? parseProjectReview(JSON.stringify(previous.transferObservation.baseline), context.sources.filter(source => source.kind !== 'lesson'), context.mission.id) : null
     const baseline = candidateBaseline && !unsupportedReviewAssertions(candidateBaseline).length ? candidateBaseline : null
