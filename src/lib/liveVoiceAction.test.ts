@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseVoiceAction } from './liveVoiceAction'
+import { extractFinishCondition, parseVoiceAction } from './liveVoiceAction'
 
 describe('parseVoiceAction', () => {
   it('separates one concrete action from the full answer', () => {
@@ -18,5 +18,14 @@ describe('parseVoiceAction', () => {
 
   it('keeps prose when no action line exists', () => {
     expect(parseVoiceAction('No structured line.')).toEqual({ text: 'No structured line.', actionTitle: null })
+  })
+})
+
+describe('extractFinishCondition', () => {
+  it('extracts an explicit finish condition when present without inventing one', () => {
+    expect(extractFinishCondition('**Interpretation (proposed):** Narrow scope.\n\n**Finish when:** One verified order is placed.')).toBe(
+      'One verified order is placed.',
+    )
+    expect(extractFinishCondition('No finish line stated here.')).toBeNull()
   })
 })

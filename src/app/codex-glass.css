@@ -23,8 +23,12 @@ html::before, html::after, body::before, body::after { display: none; }
 .glass-b1 { width: 300px; height: 300px; left: -80px; top: -60px; background: radial-gradient(circle, var(--g-violet), transparent 68%); }
 .glass-b2 { width: 280px; height: 280px; right: -90px; top: 200px; background: radial-gradient(circle, var(--g-teal), transparent 68%); animation-delay: -6s; opacity: .55; }
 .glass-b3 { width: 320px; height: 260px; left: 10px; bottom: -120px; background: radial-gradient(circle, var(--g-violet), transparent 70%); animation-delay: -11s; opacity: .6; }
-/* Faster drift only while a real request is in flight. */
-.codex-shell:has(.glass-home[data-state="thinking"]) { --g-speed: 5s; }
+/* Faster drift only while a real request or live voice activity is in flight. */
+.codex-shell:has(.glass-home[data-state="thinking"]),
+.codex-shell:has(.glass-home[data-live-phase="reasoning"]) { --g-speed: 5s; }
+.codex-shell:has(.glass-home[data-live-phase="listening"]) { --g-speed: 10s; }
+.codex-shell:has(.glass-home[data-live-phase="responding"]) { --g-speed: 8s; }
+.codex-shell:has(.glass-home[data-live-phase="interrupted"]) .glass-aurora { opacity: .34; }
 @keyframes glass-drift { from { transform: translate(0, 0) scale(1); } to { transform: translate(40px, 50px) scale(1.18); } }
 
 .glass { background: var(--g-glass); border: 1px solid var(--g-glass-edge); backdrop-filter: blur(22px) saturate(1.5); -webkit-backdrop-filter: blur(22px) saturate(1.5); }
@@ -170,3 +174,56 @@ html::before, html::after, body::before, body::after { display: none; }
   .glass-hero { gap: 17px; }
   .glass-bridge { padding: 15px; }
 }
+
+/* Compact persistent live-voice indicator when navigating away from Home
+   while a voice session remains active. */
+.voice-continuity-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 8px 10px 8px 14px;
+  border-radius: 999px;
+  color: var(--g-mist);
+  font-family: var(--g-body);
+}
+.voice-continuity-status {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  font: 600 13px/1.3 var(--g-body);
+}
+.voice-continuity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--g-teal);
+}
+.voice-continuity-dot[data-phase="reasoning"] { background: #e2be68; }
+.voice-continuity-dot[data-phase="connecting"] { background: var(--g-violet); }
+.voice-continuity-dot[data-phase="interrupted"] { background: #e07b8a; }
+.voice-continuity-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--g-violet) 50%, var(--g-glass-edge));
+  background: color-mix(in srgb, var(--g-violet) 18%, transparent);
+  font: 600 11.5px/1.3 var(--g-body);
+  color: var(--g-mist);
+}
+.voice-continuity-return {
+  flex: none;
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--g-teal) 55%, var(--g-glass-edge));
+  background: color-mix(in srgb, var(--g-teal) 16%, transparent);
+  color: var(--g-mist);
+  font: 600 13px/1.2 var(--g-body);
+  cursor: pointer;
+}
+.voice-continuity-return:focus-visible { outline: 2px solid var(--g-teal); outline-offset: 2px; }

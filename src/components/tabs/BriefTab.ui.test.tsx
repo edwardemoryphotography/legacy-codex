@@ -156,4 +156,19 @@ describe('BriefTab Architect Scan and Break Wall', () => {
     expect((screen.getByRole('button', { name: 'Architect Scan' }) as HTMLButtonElement).disabled).toBe(true)
     await waitFor(() => expect((screen.getByRole('button', { name: 'Break Wall' }) as HTMLButtonElement).disabled).toBe(false))
   })
+
+  it('renders a long Architect Scan mission title with a compact mode badge, accessible full-title disclosure, and readable provider label', async () => {
+    const longTitle = 'Build and verify the complete multi-intelligence Legacy Codex architecture and physical iPhone voice experience'
+    db.missions = [{ ...missionRow, title: longTitle }]
+    stubFetch(200, { text: 'Focus on one concrete move.', provider: 'anthropic', model: 'claude-opus-5-5' })
+    render(<BriefTab />)
+    const scan = await screen.findByRole('button', { name: 'Architect Scan' })
+    await waitFor(() => expect((scan as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(scan)
+
+    expect(await screen.findByText('Focus on one concrete move.')).toBeTruthy()
+    expect(screen.getByText('Full mission title')).toBeTruthy()
+    expect(screen.getByText('Claude · claude-opus-5-5')).toBeTruthy()
+    expect(screen.getAllByText(longTitle).length).toBeGreaterThanOrEqual(1)
+  })
 })

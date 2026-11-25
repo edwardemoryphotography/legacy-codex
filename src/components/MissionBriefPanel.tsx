@@ -127,11 +127,57 @@ export default function MissionBriefPanel({ mission, action, acceptance = null, 
 
 export function BriefOutput({ brief }: { brief: BriefRunner }) {
   if (!brief.output) return null
+  const rawLabel = brief.outputLabel?.trim() || ''
+  const parts = rawLabel.split(' · ').filter(Boolean)
+  const isLongComposite = parts.length > 1 && rawLabel.length > 56
+  const modeLabel = parts[0] || rawLabel
+  const detailLabel = parts.slice(1).join(' · ')
+
   return (
-    <Card style={{ fontSize: '0.92rem', lineHeight: 1.6 }}>
-      {brief.outputLabel && <Badge tone="muted">{brief.outputLabel}</Badge>}
-      {brief.providerLabel && <p style={{ color: 'var(--text-soft)', overflowWrap: 'anywhere' }}>{brief.providerLabel}</p>}
-      <div className="codex-markdown">
+    <Card style={{ fontSize: '0.92rem', lineHeight: 1.6, minWidth: 0, overflow: 'hidden' }}>
+      {rawLabel && (
+        isLongComposite ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0, maxWidth: '100%', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', minWidth: 0, maxWidth: '100%' }}>
+              <Badge tone="muted">{modeLabel}</Badge>
+              <span
+                title={detailLabel}
+                style={{
+                  flex: '1 1 160px',
+                  minWidth: 0,
+                  maxWidth: '100%',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  fontSize: '0.88rem',
+                  fontWeight: 600,
+                  color: 'var(--text)',
+                }}
+              >
+                {detailLabel}
+              </span>
+            </div>
+            <details style={{ minWidth: 0, maxWidth: '100%' }}>
+              <summary style={{ cursor: 'pointer', fontSize: '0.78rem', color: 'var(--teal)', fontWeight: 600 }}>
+                Full mission title
+              </summary>
+              <p style={{ margin: '4px 0 0', fontSize: '0.84rem', color: 'var(--text-soft)', overflowWrap: 'anywhere' }}>
+                {detailLabel}
+              </p>
+            </details>
+          </div>
+        ) : (
+          <div style={{ marginBottom: '6px', minWidth: 0, maxWidth: '100%' }}>
+            <Badge tone="muted" wrap>{rawLabel}</Badge>
+          </div>
+        )
+      )}
+      {brief.providerLabel && (
+        <p style={{ margin: '0 0 10px', fontSize: '0.82rem', color: 'var(--text-soft)', minWidth: 0, overflowWrap: 'anywhere' }}>
+          {brief.providerLabel}
+        </p>
+      )}
+      <div className="codex-markdown" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{brief.output}</ReactMarkdown>
       </div>
     </Card>

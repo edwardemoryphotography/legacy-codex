@@ -201,8 +201,8 @@
 .home:not([data-reply="true"]) .takeaway { min-height: 72px; }
 
 
-/* One immersive surface during a real GPT-Live session. The existing orb
-   remains the only primary presence; detailed project controls return on exit. */
+/* One immersive orb-first surface during a real GPT-Live session. The existing
+   orb dominates the stage; transcript lives behind swipe-down / Transcript button. */
 .home[data-live-voice-active="true"] .context,
 .home[data-live-voice-active="true"] .takeaway,
 .home[data-live-voice-active="true"] .modelChoice,
@@ -211,9 +211,63 @@
 .home[data-live-voice-active="true"] :global(.glass-dock > .glass-pill),
 .home[data-live-voice-active="true"] :global(.glass-dock > .glass-sheet),
 .home[data-live-voice-active="true"] :global(.glass-dock > .glass-tool-tag) { display: none; }
-.home[data-live-voice-active="true"] :global(.glass-hero) { flex: 1; min-height: 0; }
-.home[data-live-voice-active="true"] :global(.glass-orb-wrap) { justify-content: center; }
-.home[data-live-voice-active="true"] :global(.glass-dock) { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.home[data-live-voice-active="true"]:global(.glass-home) :global(.glass-hero) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  justify-content: space-between;
+  padding: 6px 0 8px;
+  gap: 10px;
+  --home-orb-size: min(300px, calc(100vw - 64px), max(148px, calc(var(--codex-viewport-height, 100dvh) - 270px)));
+}
+.home[data-live-voice-active="true"]:not([data-voice-transcript="true"]):global(.glass-home) :global(.glass-hero) {
+  touch-action: none;
+}
+.home[data-live-voice-active="true"] :global(.glass-orb-wrap) {
+  flex: 1 1 auto;
+  justify-content: center;
+  gap: 14px;
+}
+.home[data-live-voice-active="true"] :global(.glass-orb-state) {
+  display: block;
+  margin-top: 6px;
+  font: 500 17px/1.35 var(--g-display);
+  letter-spacing: -.01em;
+  color: var(--g-mist);
+}
+.home[data-live-voice-active="true"] :global(.glass-dock) {
+  padding-top: 4px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+}
+
+.swipeTranscriptCue {
+  flex: none;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--g-glass-edge) 72%, transparent);
+  background: color-mix(in srgb, var(--g-mist) 6%, transparent);
+  color: var(--g-mist-dim);
+  font: 500 12.5px/1.25 var(--g-body);
+  cursor: pointer;
+  transition: color 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+.swipeTranscriptCue:hover,
+.swipeTranscriptCue:focus-visible {
+  color: var(--g-mist);
+  border-color: var(--g-glass-edge);
+  background: color-mix(in srgb, var(--g-mist) 10%, transparent);
+}
+.swipeCueBar {
+  width: 30px;
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--g-mist) 34%, transparent);
+}
 
 @media (max-width: 700px) { .home :global(.home-runtime-note) { display: none; } }
 
