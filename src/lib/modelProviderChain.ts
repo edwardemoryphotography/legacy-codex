@@ -30,7 +30,7 @@ export type ModelTier = 'routine' | 'deep'
 // through CODEX_{ROUTINE,DEEP}_{PROVIDER}_MODEL.
 const MODELS: Record<ModelTier, Record<ModelProviderId, string>> = {
   routine: { anthropic: 'claude-sonnet-5-5', gemini: 'gemini-4-hydrogen', openai: 'gpt-6.2-sol' },
-  deep: { anthropic: 'claude-opus-5-5', gemini: 'gemini-4-argon', openai: 'gpt-6.2-astra' },
+  deep: { anthropic: 'claude-opus-5-5', gemini: 'gemini-4-neon', openai: 'gpt-6.2-astra' },
 }
 export function modelFor(provider: ModelProviderId, tier: ModelTier): string {
   return process.env[`CODEX_${tier.toUpperCase()}_${provider.toUpperCase()}_MODEL`]?.trim() || MODELS[tier][provider]
@@ -103,6 +103,9 @@ export interface ReviewStepResult {
  */
 export function reviewAttemptBudget(tier: ModelTier, index: number, remainingMs: number): number {
   const primaryCap = tier === 'deep' ? 45_000 : 22_000
+  // Known, unresolved: Deep's Gemini model (gemini-4-neon) completed the review
+  // probe in 36.9s, above this 20s fallback cap, so as a Deep fallback it is
+  // likely to time out. Left unchanged on purpose; see BR-036.
   const fallbackCap = tier === 'deep' ? 20_000 : 20_000
   return Math.max(1, Math.min(remainingMs, index === 0 ? primaryCap : fallbackCap))
 }
@@ -129,12 +132,20 @@ function nextAttemptTimeoutMs(
   return Math.max(1, Math.min(maxAttemptMs, fairShare, remainingMs))
 }
 
+// Gemini 4 thinking models spend output tokens on internal thinking, so the
+// text adapter keeps Google's recommended 32,768 minimum for them. Argon stays
+// listed so an explicit CODEX_DEEP_GEMINI_MODEL=gemini-4-argon override keeps
+// its previous allowance. Neon's text-generation contract has not been
+// verified; the 2026-11-24 probe exercised only the structured review step.
+const GEMINI_THINKING_TEXT_MODELS = new Set(['gemini-4-argon', 'gemini-4-neon'])
+export function geminiTextOutputTokens(model: string, requested: number): number {
+  return GEMINI_THINKING_TEXT_MODELS.has(model) ? Math.max(requested, 32_768) : requested
+}
+
 async function callGeminiText(req: TextGenerationRequest, timeoutMs: number, model: string, tier: ModelTier): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
-  // Gemini 4 Argon spends output tokens on internal thinking. Use Google's
-  // recommended minimum cap; lower thinking effort for economical requests.
-  const maxOutputTokens = model === 'gemini-4-argon' ? Math.max(req.maxTokens, 32_768) : req.maxTokens
+  const maxOutputTokens = geminiTextOutputTokens(model, req.maxTokens)
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
     {
