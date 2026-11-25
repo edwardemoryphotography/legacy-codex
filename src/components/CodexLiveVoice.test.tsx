@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import CodexLiveVoice, { liveVoiceActivityLabel } from './CodexLiveVoice'
+import CodexLiveVoice, { inspectMicrophoneStream, liveVoiceActivityLabel, transportBillingSummary, type LiveVoiceSnapshot } from './CodexLiveVoice'
 import type { Mission } from '@/types'
 
 vi.mock('@/lib/supabase/client', () => ({
@@ -40,7 +40,20 @@ type FakeChannel = {
 }
 
 function setupLiveVoiceMocks(briefPayload: Record<string, unknown>) {
-  const audioTrack = { enabled: true, stop: vi.fn() }
+  const listeners = new Map<string, Set<() => void>>()
+  const audioTrack = {
+    enabled: true,
+    muted: false,
+    readyState: 'live',
+    stop: vi.fn(() => { audioTrack.readyState = 'ended' }),
+    addEventListener: vi.fn((name: string, fn: () => void) => {
+      if (!listeners.has(name)) listeners.set(name, new Set())
+      listeners.get(name)!.add(fn)
+    }),
+    removeEventListener: vi.fn((name: string, fn: () => void) => {
+      listeners.get(name)?.delete(fn)
+    }),
+  }
   const stream = {
     getAudioTracks: () => [audioTrack],
     getTracks: () => [audioTrack],
@@ -77,6 +90,7 @@ function setupLiveVoiceMocks(briefPayload: Record<string, unknown>) {
   }
   vi.stubGlobal('RTCPeerConnection', FakePeerConnection)
 
+  const briefBodies: Array<Record<string, unknown>> = []
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     if (url === '/api/live-voice' && init?.method === 'GET') {
       return { ok: true, status: 200, json: async () => ({ ok: true }) }
@@ -85,6 +99,7 @@ function setupLiveVoiceMocks(briefPayload: Record<string, unknown>) {
       return { ok: true, status: 200, json: async () => ({ id: 'sess-1', sdp: 'fake-answer' }) }
     }
     if (url === '/api/brief' && init?.method === 'POST') {
+      briefBodies.push(JSON.parse(String(init.body)) as Record<string, unknown>)
       return { ok: true, status: 200, json: async () => briefPayload }
     }
     return { ok: true, status: 200, json: async () => ({}) }
@@ -93,6 +108,8 @@ function setupLiveVoiceMocks(briefPayload: Record<string, unknown>) {
 
   return {
     audioTrack,
+    briefBodies,
+    getChannel: () => activeChannel,
     emit: (payload: Record<string, unknown>) => {
       activeChannel?.onmessage?.({ data: JSON.stringify(payload) })
     },
@@ -105,20 +122,40 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('liveVoiceActivityLabel', () => {
-  it('returns one concise truthful label per genuine state', () => {
+describe('liveVoiceActivityLabel & transport/mic helpers', () => {
+  it('returns concise truthful labels per genuine state', () => {
     expect(liveVoiceActivityLabel('connecting', false)).toBe('Connecting…')
     expect(liveVoiceActivityLabel('listening', false)).toBe('Listening')
     expect(liveVoiceActivityLabel('listening', true)).toBe('Microphone muted')
     expect(liveVoiceActivityLabel('reasoning', false)).toBe('Codex is working')
     expect(liveVoiceActivityLabel('responding', false)).toBe('Codex speaking')
+    expect(liveVoiceActivityLabel('responding', true)).toBe('Audio muted')
     expect(liveVoiceActivityLabel('interrupted', false)).toBe('Connection interrupted')
+  })
+
+  it('derives micLive strictly from MediaStreamTrack readyState/enabled/muted', () => {
+    const liveTrack = { readyState: 'live', enabled: true, muted: false }
+    const disabledTrack = { readyState: 'live', enabled: false, muted: false }
+    const hwMutedTrack = { readyState: 'live', enabled: true, muted: true }
+    const endedTrack = { readyState: 'ended', enabled: true, muted: false }
+    expect(inspectMicrophoneStream({ getAudioTracks: () => [liveTrack] } as unknown as MediaStream)).toEqual({ micLive: true, micState: 'live' })
+    expect(inspectMicrophoneStream({ getAudioTracks: () => [disabledTrack] } as unknown as MediaStream)).toEqual({ micLive: false, micState: 'muted' })
+    expect(inspectMicrophoneStream({ getAudioTracks: () => [hwMutedTrack] } as unknown as MediaStream)).toEqual({ micLive: false, micState: 'muted' })
+    expect(inspectMicrophoneStream({ getAudioTracks: () => [endedTrack] } as unknown as MediaStream)).toEqual({ micLive: false, micState: 'unavailable' })
+    expect(inspectMicrophoneStream(null)).toEqual({ micLive: false, micState: 'unavailable' })
+  })
+
+  it('distinguishes connecting, connected, interrupted and terminated transport billing states', () => {
+    expect(transportBillingSummary('connecting')).toContain('not yet live')
+    expect(transportBillingSummary('connected')).toContain('metered while connected')
+    expect(transportBillingSummary('interrupted')).toContain('reconnecting')
+    expect(transportBillingSummary('terminated')).toContain('ended')
   })
 })
 
-describe('CodexLiveVoice orb-first experience', () => {
-  it('hides transcript by default, renders Markdown cleanly on reveal, supports mute, and shows calm commitment-conflict sheet', async () => {
-    const { audioTrack, emit } = setupLiveVoiceMocks({
+describe('CodexLiveVoice orb-first experience & PR #210 review fixes', () => {
+  it('keeps micLive truthful across phases, records authoritative direct turns into backend reasoning context, and never opens transcript automatically', async () => {
+    const { audioTrack, briefBodies, emit, getChannel } = setupLiveVoiceMocks({
       tier: 'routine',
       provider: 'gemini',
       model: 'gemini-4-hydrogen',
@@ -126,6 +163,7 @@ describe('CodexLiveVoice orb-first experience', () => {
     })
     const onAnswer = vi.fn()
     const onPhaseChange = vi.fn()
+    const snapshots: LiveVoiceSnapshot[] = []
     const onSaveAnswer = vi.fn(async () => ({
       ok: false,
       error: 'Conflict',
@@ -141,8 +179,16 @@ describe('CodexLiveVoice orb-first experience', () => {
         primaryMissionId="m1"
         tier="routine"
         canSave
+        initialEntries={[{
+          question: 'Recovered earlier question',
+          text: 'Recovered earlier answer',
+          provider: 'Economy · Gemini',
+          actionTitle: null,
+          finishWhen: null,
+        }]}
         onAnswer={onAnswer}
         onPhaseChange={onPhaseChange}
+        onSnapshotChange={snap => snapshots.push(snap)}
         onSaveAnswer={onSaveAnswer}
       />,
     )
@@ -150,50 +196,98 @@ describe('CodexLiveVoice orb-first experience', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Talk live with Codex/ }))
     })
+
+    // Before session.started, transportState is connecting (NOT connected/billed).
+    expect(snapshots.at(-1)?.transportState).toBe('connecting')
+    expect(snapshots.at(-1)?.suppliedMessages).toBe(0)
+
     act(() => {
       emit({ type: 'session.started' })
     })
 
-    // Transcript curtain exists for smooth reveal but is hidden by default (orb-first).
+    // Connected, micLive true from actual track, and advisory recovery note sent to direct live channel.
+    expect(snapshots.at(-1)?.transportState).toBe('connected')
+    expect(snapshots.at(-1)?.micLive).toBe(true)
+    expect(snapshots.at(-1)?.micState).toBe('live')
+    expect(snapshots.at(-1)?.recoveredExchanges).toBe(1)
+    expect(snapshots.at(-1)?.directRecoveryAdvisorySent).toBe(true)
+    expect(getChannel()?.send).toHaveBeenCalledWith(expect.stringContaining('Recovered unverified prior conversation'))
+
+    // Transcript stays hidden by default (orb-first).
     const transcript = container.querySelector('#live-voice-transcript')
     expect(transcript).toHaveAttribute('aria-hidden', 'true')
     expect(transcript).not.toHaveAttribute('data-open')
 
-    // Mute toggles actual local microphone track without dropping the session.
-    const muteBtn = screen.getByRole('button', { name: 'Mute microphone' })
-    fireEvent.click(muteBtn)
+    // Partial output delta without authoritative completion MUST NOT be committed as a completed exchange.
+    act(() => {
+      emit({ type: 'session.input_transcript.delta', delta: 'Quick direct question', start_ms: 0, end_ms: 200 })
+      emit({ type: 'session.output_transcript.delta', delta: 'Direct spoken reply.' })
+    })
+    // Still only 1 recovered exchange (partial delta not committed yet).
+    expect(snapshots.at(-1)?.retainedExchanges).toBe(1)
+    // Even while responding, micLive stays true because track is still enabled & live.
+    expect(snapshots.at(-1)?.micLive).toBe(true)
+    expect(snapshots.at(-1)?.micState).toBe('live')
+
+    // Authoritative completion commits the direct exchange into BOTH entries AND reasoning buffer.
+    act(() => {
+      emit({ type: 'session.output_transcript.done', transcript: 'Direct spoken reply.' })
+    })
+    expect(snapshots.at(-1)?.retainedExchanges).toBe(2)
+
+    // Duplicate done event must not duplicate the direct exchange.
+    act(() => {
+      emit({ type: 'session.response.done', transcript: 'Direct spoken reply.' })
+    })
+    expect(snapshots.at(-1)?.retainedExchanges).toBe(2)
+
+    // Mute toggles actual track without dropping session.
+    fireEvent.click(screen.getByRole('button', { name: 'Mute microphone' }))
     expect(audioTrack.enabled).toBe(false)
-    expect(screen.getByRole('button', { name: 'Unmute microphone' })).toHaveAttribute('aria-pressed', 'true')
+    expect(snapshots.at(-1)?.micLive).toBe(false)
+    expect(snapshots.at(-1)?.micState).toBe('muted')
     fireEvent.click(screen.getByRole('button', { name: 'Unmute microphone' }))
     expect(audioTrack.enabled).toBe(true)
+    expect(snapshots.at(-1)?.micLive).toBe(true)
 
-    // Deliver a real transcript utterance + delegation so a response with Markdown & proposal arrives.
+    // Delegated turn receives BOTH recovered turn AND completed direct turn in conversation payload.
     act(() => {
-      emit({ type: 'session.input_transcript.delta', delta: 'What should I do next?', start_ms: 0, end_ms: 400 })
-      emit({ type: 'session.delegation.created', offset_ms: 500, delegation: { id: 'del-1', target: 'client' } })
+      emit({ type: 'session.input_transcript.delta', delta: 'What should I do next?', start_ms: 300, end_ms: 600 })
+      emit({ type: 'session.delegation.created', offset_ms: 700, delegation: { id: 'del-1', target: 'client' } })
     })
 
-    // Wait for the 250ms fragment gather + /api/brief resolution.
     await vi.waitFor(() => expect(onAnswer).toHaveBeenCalledOnce())
+    expect(briefBodies).toHaveLength(1)
+    const sentConversation = briefBodies[0].conversation as Array<{ role: string; text: string }>
+    expect(sentConversation).toEqual([
+      { role: 'user', text: 'Recovered earlier question' },
+      { role: 'assistant', text: 'Recovered earlier answer' },
+      { role: 'user', text: 'Quick direct question' },
+      { role: 'assistant', text: 'Direct spoken reply.' },
+    ])
+    // suppliedMessages equals the actual count sent (4), never calculated as retained * 2 (6).
+    await vi.waitFor(() => expect(snapshots.at(-1)?.suppliedMessages).toBe(4))
+    expect(snapshots.at(-1)?.retainedExchanges).toBe(3)
 
-    // Still orb-first: transcript stays hidden until explicitly opened; only subtle proposal pill appears.
+    // Still orb-first after multiple reciprocal turns: transcript NEVER auto-opened.
     expect(transcript).not.toHaveAttribute('data-open')
     const proposalPill = screen.getByRole('button', { name: /Proposed action ready/ })
     expect(proposalPill).toBeInTheDocument()
 
-    // Reveal transcript via accessible button: Markdown renders properly (no literal **).
-    fireEvent.click(screen.getByRole('button', { name: /Transcript · 1/ }))
+    // Explicit Transcript open renders Markdown properly and discloses recovery boundary truthfully.
+    fireEvent.click(screen.getByRole('button', { name: /Transcript · 3/ }))
     expect(transcript).toHaveAttribute('data-open', 'true')
+    expect(within(transcript as HTMLElement).getByText(/no server-side audio session resume/i)).toBeInTheDocument()
     const strong = within(transcript as HTMLElement).getByText('Interpretation (proposed):')
     expect(strong.tagName).toBe('STRONG')
     expect((transcript as HTMLElement).textContent).not.toContain('**Interpretation')
 
-    // Return to orb via accessible button without ending the session.
+    // Return to orb explicitly without ending session.
     fireEvent.click(screen.getByRole('button', { name: /Back to orb/ }))
     expect(transcript).not.toHaveAttribute('data-open')
     expect(screen.getByRole('button', { name: 'End voice session' })).toBeInTheDocument()
 
-    // Open compact Action Proposal sheet -> displays proposed action, why, finish condition, and calm conflict.
+    // Compact Action Proposal sheet preserves confirmation & calm conflict UX.
     fireEvent.click(proposalPill)
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByText('Proposed action · not saved')).toBeInTheDocument()

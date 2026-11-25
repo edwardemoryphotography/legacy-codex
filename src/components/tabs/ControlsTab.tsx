@@ -8,13 +8,12 @@ import type { UIPrefs, CaptureItem, BiometricMode, EmailAccountFlow } from '@/ty
 import { supabase } from '@/lib/supabase/client'
 import { connectMissionSession, missionConnectionMessage } from '@/lib/supabase/missionSession'
 import AccountCard from '@/components/AccountCard'
+import QuickCapturePanel from '@/components/QuickCapturePanel'
 import { TREND_SAMPLE_LABEL, trendDateRange } from '@/lib/biometrics'
 import {
-  ActionBtn,
   ActionChip,
   Badge,
   Card,
-  Input,
   SectionSubtitle,
   SectionTitle,
 } from '@/components/ui'
@@ -51,7 +50,6 @@ const MODE_RECS: Record<BiometricMode, string> = {
 export default function ControlsTab({ initialAccountFlow = 'attach' }: { initialAccountFlow?: EmailAccountFlow } = {}) {
   const [prefs, setPrefs] = useLocalStorage<UIPrefs>(PREFS_KEY, DEFAULT_PREFS)
   const [manualMode, setManualMode] = useLocalStorage<BiometricMode>(MODE_KEY, DEFAULT_MODE)
-  const [captureText, setCaptureText] = useState('')
   const [bioSummary, setBioSummary] = useState<{ readiness: number; source: string; dateRange: string | null } | null>(null)
   const [status, setStatus] = useState('')
 
@@ -68,8 +66,11 @@ export default function ControlsTab({ initialAccountFlow = 'attach' }: { initial
   const {
     inbox,
     syncedCaptureIds,
+    syncError: captureSyncError,
+    lastSyncedAt: captureLastSyncedAt,
     loadCaptures,
     capture: captureIdea,
+    updateItem: updateCaptureItem,
     removeItem: removeCaptureItem,
     forceSyncItem: forceSyncCaptureItem,
     forceSyncItems: forceSyncCaptureItems,
@@ -266,44 +267,14 @@ export default function ControlsTab({ initialAccountFlow = 'attach' }: { initial
     syncPrefsToSupabase(next)
   }
 
-  function handleCapture() {
-    const text = captureText.trim()
-    if (!text) return
-    captureIdea(text)
-    setCaptureText('')
-    setStatus('Captured to inbox')
-    setTimeout(() => setStatus(''), 1200)
-  }
-
-  function copyItem(item: CaptureItem) {
-    navigator.clipboard?.writeText(item.text).then(() => {
-      setStatus('Copied')
-      setTimeout(() => setStatus(''), 900)
-    })
-  }
-
-  function removeItem(id: string) {
-    removeCaptureItem(id)
-  }
-
-  function logToResumptionStub(item: CaptureItem) {
-    // Stub: in real would mutate ResumptionLog LS, here just note + copy
-    const stub = `Resumption note from Controls: ${item.text}`
-    navigator.clipboard?.writeText(stub)
-    setStatus('Stub copied for Resumption Log (paste there)')
+  function flashStatus(msg: string) {
+    setStatus(msg)
     setTimeout(() => setStatus(''), 1600)
   }
 
   function exportInbox() {
     exportCaptureInbox()
-    setStatus('Inbox exported')
-    setTimeout(() => setStatus(''), 1200)
-  }
-
-  function clearInbox() {
-    clearCaptureInbox()
-    setStatus('Inbox cleared')
-    setTimeout(() => setStatus(''), 900)
+    flashStatus('Inbox exported')
   }
 
   // Per-item force sync helper
@@ -488,53 +459,22 @@ export default function ControlsTab({ initialAccountFlow = 'attach' }: { initial
       </Card>
 
       {/* Quick Capture + Inbox */}
-      <Card>
-        <SectionTitle>Quick Capture (Externalize Now)</SectionTitle>
-        <SectionSubtitle>Zero-friction inbox. Capture client notes, code ideas, shoot framing, blockers. Process later. Each item can be synced to your account.</SectionSubtitle>
-
-        <div className="flex gap-2 mb-3">
-          <Input
-            placeholder="Type thought, task, or note... (e.g. Client lighting reference for portrait)"
-            value={captureText}
-            onChange={setCaptureText}
-          />
-          <ActionBtn onClick={handleCapture} disabled={!captureText.trim()}>Capture</ActionBtn>
-        </div>
-
-        <div className="flex gap-2 mb-3">
-          <ActionChip onClick={exportInbox} disabled={inbox.length === 0}>Export JSON</ActionChip>
-          <ActionChip variant="danger" onClick={clearInbox} disabled={inbox.length === 0}>Clear all</ActionChip>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', alignSelf: 'center' }}>{inbox.length} captured</span>
-          <ActionChip onClick={forceSync} disabled={isSyncing || !user}>Force full sync</ActionChip>
-        </div>
-
-        {inbox.length === 0 ? (
-          <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>Inbox empty. Captures stay on this device and sync when you are signed in.</div>
-        ) : (
-          <div className="space-y-2 max-h-[260px] overflow-auto pr-1">
-            {inbox.map(item => (
-              <div key={item.id} style={{ border: '1px solid var(--line)', borderRadius: 8, padding: '8px 10px', background: 'var(--surface-soft)' }}>
-                <div style={{ fontSize: '0.85rem', marginBottom: 4 }}>{item.text}</div>
-                <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', marginBottom: 6 }}>
-                  {new Date(item.timestamp).toLocaleString()} • suggested: {item.suggested || 'general'}
-                </div>
-                <div className="flex gap-1 flex-wrap items-center">
-                  <ActionChip onClick={() => copyItem(item)}>Copy</ActionChip>
-                  <ActionChip onClick={() => logToResumptionStub(item)}>Log to Resumption (stub)</ActionChip>
-                  <ActionChip variant="ghost" onClick={() => removeItem(item.id)}>Remove</ActionChip>
-                  {syncedCaptureIds.has(item.id) ? (
-                    <Badge tone="success">Synced</Badge>
-                  ) : user ? (
-                    <ActionChip onClick={() => forceSyncItem(item)}>Sync now</ActionChip>
-                  ) : (
-                    <Badge tone="muted">local</Badge>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+      <QuickCapturePanel
+        user={user}
+        inbox={inbox}
+        syncedCaptureIds={syncedCaptureIds}
+        isSyncing={isSyncing}
+        syncError={captureSyncError}
+        lastSyncedAt={captureLastSyncedAt}
+        onCapture={captureIdea}
+        onUpdate={updateCaptureItem}
+        onRemove={removeCaptureItem}
+        onForceSync={forceSync}
+        onForceSyncItem={forceSyncItem}
+        onExport={exportInbox}
+        onClearAll={clearCaptureInbox}
+        onStatus={flashStatus}
+      />
 
       <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
         Preferences stay on this device and sync when you are signed in. {user ? 'Your account is connected.' : 'Sign in to carry them to another browser.'} Apply presets before long sessions.

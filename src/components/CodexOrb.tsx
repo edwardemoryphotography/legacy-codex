@@ -53,7 +53,7 @@ function targetUniforms(state: OrbPresentationState, cognition?: string): Unifor
 }
 
 const FRAG = `precision mediump float;
-uniform vec2 uRes;uniform vec3 uPrimary,uSecondary,uTint;uniform float uPhase,uTime,uRim,uSweep,uBright,uRing,uTintMix;
+uniform vec2 uRes;uniform vec3 uPrimary,uSecondary,uTint;uniform float uPhase,uTime,uRim,uSweep,uBright,uRing,uTintMix,uLevel;
 float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
 float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*n(p);p=p*2.03+vec2(1.7,9.2);a*=.5;}return v;}
@@ -61,14 +61,14 @@ void main(){vec2 p=(gl_FragCoord.xy*2.-uRes)/uRes.y;vec2 q=p/.82;float rr=length
 vec2 w=vec2(fbm(q*1.4+uPhase*.25),fbm(q*1.4+vec2(5.2,1.3)-uPhase*.2));float f=fbm(q*1.6+w*1.8+vec2(uPhase*.15,-uPhase*.1));
 vec3 violet=mix(uPrimary,uTint,uTintMix*.65),teal=mix(uSecondary,uTint,uTintMix*.55),ink=vec3(.05,.06,.14);
 vec3 col=mix(ink,violet,smoothstep(.25,.7,f));col=mix(col,teal,smoothstep(.5,.95,fbm(q*2.+w*2.-uPhase*.2))*.9);
-float wave=sin(q.y*3.+f*6.+uPhase*.8)*.5+.5;col+=teal*wave*.16*uBright;
-float rim=smoothstep(.55,1.,rr)*disc;col+=mix(violet,teal,.5+.5*sin(uPhase))*rim*(.35+.9*uRim);
+float wave=sin(q.y*3.+f*6.+uPhase*.8)*.5+.5;col+=teal*wave*(.16+.12*uLevel)*uBright;
+float rim=smoothstep(.55,1.,rr)*disc;col+=mix(violet,teal,.5+.5*sin(uPhase))*rim*(.35+.9*uRim+.28*uLevel);
 float a=atan(q.y,q.x);float s=pow(max(0.,cos(a-uPhase*2.2)),8.);col+=mix(teal,uTint,uTintMix)*s*rim*1.45*uSweep;
-col*=uBright*(.85+.3*f);float ringR=1.12+.05*sin(uTime*2.);float ring=exp(-pow((rr-ringR)*14.,2.))*uRing;
+col*=(uBright+.14*uLevel)*(.85+.3*f);float ringR=1.12+.04*sin(uTime*2.)+.045*uLevel;float ring=exp(-pow((rr-ringR)*14.,2.))*max(uRing,uLevel*.75);
 float alpha=max(disc,ring*.7);vec3 o=col*disc+mix(teal,uTint,uTintMix*.5)*ring*.7+(h(gl_FragCoord.xy+uTime)-.5)*.04*disc;
 gl_FragColor=vec4(min(max(o,0.),vec3(alpha)),alpha);}`
 const VERT = 'attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}'
-const UNIFORMS = ['uRes', 'uPrimary', 'uSecondary', 'uTint', 'uPhase', 'uTime', 'uRim', 'uSweep', 'uBright', 'uRing', 'uTintMix'] as const
+const UNIFORMS = ['uRes', 'uPrimary', 'uSecondary', 'uTint', 'uPhase', 'uTime', 'uRim', 'uSweep', 'uBright', 'uRing', 'uTintMix', 'uLevel'] as const
 
 /** Codex's calm control (`data-reduced-motion`) or the OS setting. */
 function useStill() {
@@ -147,6 +147,7 @@ export default function CodexOrb({ state, cognition }: { state: OrbPresentationS
     readPalette()
     paletteObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-palette', 'data-motion'] })
 
+    let level = 0
     const draw = (t: number) => {
       if (lost) return
       gl.clearColor(0, 0, 0, 0)
@@ -162,6 +163,7 @@ export default function CodexOrb({ state, cognition }: { state: OrbPresentationS
       gl.uniform1f(U.uBright, cur.bright)
       gl.uniform1f(U.uRing, cur.ring)
       gl.uniform1f(U.uTintMix, cur.tintMix)
+      gl.uniform1f(U.uLevel, still ? 0 : level)
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
     }
     const frame = (ts: number) => {
@@ -170,7 +172,11 @@ export default function CodexOrb({ state, cognition }: { state: OrbPresentationS
       const k = Math.min(1, dt * 5)
       const tgt = targetRef.current
       for (const key of Object.keys(cur) as (keyof Uniforms)[]) cur[key] += (tgt[key] - cur[key]) * k
-      phase += dt * cur.flow * motion
+      // Read actual real-time microphone/playback amplitude published by CodexLiveVoice (0 when idle).
+      const rawLevel = Number.parseFloat(document.documentElement.style.getPropertyValue('--codex-voice-level') || '0')
+      const targetLevel = Number.isFinite(rawLevel) ? Math.max(0, Math.min(1, rawLevel)) : 0
+      level += (targetLevel - level) * Math.min(1, dt * 12)
+      phase += dt * (cur.flow + level * 0.45) * motion
       draw(phase)
       raf = 0
       kick()

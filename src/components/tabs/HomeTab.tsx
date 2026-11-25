@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type KeyboardEvent, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type Dispatch, type SetStateAction } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { connectMissionSession } from '@/lib/supabase/missionSession'
 import { missionsToBriefContext } from '@/lib/dailyBrief'
@@ -9,6 +9,7 @@ import { useHomeAccess } from '@/hooks/useHomeAccess'
 import { useMissionTerritory } from '@/hooks/useMissionTerritory'
 import { useTaskVoice } from '@/hooks/useTaskVoice'
 import CodexLiveVoice, { type LiveVoicePhase, type LiveVoiceSnapshot, type VoiceAnswer, type VoiceSaveResult } from '@/components/CodexLiveVoice'
+import { recordPresentationTransition, transitionVoicePresentation, type VoicePresentationMode, type VoicePresentationTrigger } from '@/lib/voicePresentation'
 import { OrbSlot, useOrbCognition, useOrbInteraction, useOrbPresentation } from '@/components/OrbHost'
 import { BRIEF_VISITOR_COPY } from '@/components/MissionBriefPanel'
 import { homeMissionRoster, homeRequest, QUESTION_LIMIT, PROMPT_LIMIT, promptHelpQuestion, type HomeTool } from '@/lib/homeRequest'
@@ -117,12 +118,51 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const [local, setLocal] = useState(emptyHomeSession)
   const [livePhase, setLivePhase] = useState<LiveVoicePhase>('idle')
   const [liveSnapshot, setLiveSnapshot] = useState<LiveVoiceSnapshot>({
-    active: false, phase: 'idle', muted: false, label: '', detail: '', hasProposal: false, turnCount: 0,
-    micLive: false, billed: false, retainedTurns: 0, suppliedTurns: 0, recoveredTurns: 0,
+    active: false, phase: 'idle', transportState: 'idle', muted: false, micState: 'unavailable', micLive: false,
+    label: '', detail: '', hasProposal: false, turnCount: 0,
+    retainedExchanges: 0, suppliedMessages: 0, recoveredExchanges: 0, directRecoveryAdvisorySent: false,
   })
-  const [voiceTranscriptOpen, setVoiceTranscriptOpen] = useState(false)
+  const [voicePresentation, setVoicePresentation] = useState<VoicePresentationMode>('inactive')
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const fullscreenSupported = useSyncExternalStore(
+    () => () => {},
+    () => typeof document !== 'undefined' && Boolean(document.fullscreenEnabled),
+    () => false,
+  )
   const orbSwipeOrigin = useRef<{ x: number; y: number } | null>(null)
   const liveActive = livePhase !== 'idle'
+  const voiceTranscriptOpen = voicePresentation === 'transcript'
+
+  const transitionPresentation = useCallback((trigger: VoicePresentationTrigger) => {
+    setVoicePresentation(current => {
+      const next = transitionVoicePresentation(current, trigger)
+      if (next !== current) recordPresentationTransition(current, next, trigger)
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [])
+
+  // Exit browser fullscreen cleanly when a live voice session ends.
+  useEffect(() => {
+    if (!liveActive && typeof document !== 'undefined' && document.fullscreenElement) {
+      void document.exitFullscreen?.().catch(() => {})
+    }
+  }, [liveActive])
+
+  const toggleBrowserFullscreen = useCallback(() => {
+    if (typeof document === 'undefined' || !document.fullscreenEnabled) return
+    if (document.fullscreenElement) {
+      void document.exitFullscreen?.().catch(() => {})
+    } else {
+      void document.documentElement.requestFullscreen?.().catch(() => {})
+    }
+  }, [])
+
   useEffect(() => {
     onLiveVoiceStateChange?.(liveSnapshot)
   }, [liveSnapshot, onLiveVoiceStateChange])
@@ -515,13 +555,14 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       data-state={presentation.state}
       data-live-voice-active={liveActive ? 'true' : undefined}
       data-live-phase={liveActive ? livePhase : undefined}
+      data-voice-presentation={voicePresentation}
       data-voice-transcript={liveActive && voiceTranscriptOpen ? 'true' : undefined}
       data-immersive={immersive ? 'true' : undefined}
       data-reviewing={reviewActive ? 'true' : undefined}
-      data-reply={hasReply ? 'true' : undefined}
+      data-reply={hasReply && !liveActive ? 'true' : undefined}
       data-access-gate={access.state !== 'owner' ? 'true' : undefined}
       data-composer-expanded={composerExpanded ? 'true' : undefined}
-      data-continue={!missionView && !hasReply ? continueView.status : undefined}
+      data-continue={!missionView && !hasReply && !liveActive ? continueView.status : undefined}
       data-next-action-state={homeNextAction.state}
       data-next-action-read={homeNextAction.readState}
       aria-label={missionView ? 'Project conversation' : 'Home'}
@@ -538,6 +579,8 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
         className="glass-hero"
         onTouchStart={event => {
           if (!liveActive || voiceTranscriptOpen) return
+          const target = event.target as HTMLElement | null
+          if (target?.closest('button, a, input, textarea, summary, details')) return
           const t = event.touches[0]
           if (t) orbSwipeOrigin.current = { x: t.clientX, y: t.clientY }
         }}
@@ -549,19 +592,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
           if (!t) return
           const dx = t.clientX - start.x
           const dy = t.clientY - start.y
-          if (dy > 42 && Math.abs(dy) > Math.abs(dx) * 1.25) setVoiceTranscriptOpen(true)
-        }}
-        onPointerDown={event => {
-          if (!liveActive || voiceTranscriptOpen || event.pointerType === 'touch') return
-          orbSwipeOrigin.current = { x: event.clientX, y: event.clientY }
-        }}
-        onPointerUp={event => {
-          if (!liveActive || voiceTranscriptOpen || event.pointerType === 'touch' || !orbSwipeOrigin.current) return
-          const start = orbSwipeOrigin.current
-          orbSwipeOrigin.current = null
-          const dx = event.clientX - start.x
-          const dy = event.clientY - start.y
-          if (dy > 42 && Math.abs(dy) > Math.abs(dx) * 1.25) setVoiceTranscriptOpen(true)
+          if (dy > 56 && Math.abs(dy) > Math.abs(dx) * 1.4) transitionPresentation('open-transcript-swipe')
         }}
       >
         {access.state !== 'owner' ? (missionView ? <AccessGate state={access.state} onSignIn={requestSignIn} tester={access.tester} /> : <>
@@ -569,18 +600,43 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
           <AccessGate state={access.state} onSignIn={requestSignIn} compact signedIn={access.signedIn} tester={access.tester} />
         </>) : <>
         {!missionView && liveActive && !voiceTranscriptOpen && (
-          <button
-            type="button"
-            className={styles.swipeTranscriptCue}
-            onClick={() => setVoiceTranscriptOpen(true)}
-          >
-            <span className={styles.swipeCueBar} aria-hidden="true" />
-            <span>
-              {liveSnapshot.turnCount > 0
-                ? `Swipe down for transcript · ${liveSnapshot.turnCount}`
-                : 'Swipe down for transcript'}
-            </span>
-          </button>
+          <div className={styles.immersiveTopBar}>
+            <span className={styles.immersiveTopSpacer} aria-hidden="true" />
+            <button
+              type="button"
+              className={styles.swipeTranscriptCue}
+              onClick={() => transitionPresentation('open-transcript-button')}
+            >
+              <span className={styles.swipeCueBar} aria-hidden="true" />
+              <span>
+                {liveSnapshot.turnCount > 0
+                  ? `Transcript · ${liveSnapshot.turnCount}`
+                  : 'Transcript'}
+              </span>
+            </button>
+            {fullscreenSupported ? (
+              <button
+                type="button"
+                className={styles.fullscreenBtn}
+                aria-pressed={isFullscreen}
+                aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                onClick={toggleBrowserFullscreen}
+              >
+                {isFullscreen ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3" />
+                  </svg>
+                )}
+              </button>
+            ) : (
+              <span className={styles.immersiveTopSpacer} aria-hidden="true" />
+            )}
+          </div>
         )}
         {!missionView && <div className="glass-orb-wrap">
           <OrbSlot />
@@ -707,7 +763,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
             tier={current.tier === 'deep' ? 'deep' : 'routine'}
             disabled={reviewActive || busy || voice.active || missions === null || Boolean(loadError) || !brief.configured || access.state !== 'owner'}
             transcriptOpen={voiceTranscriptOpen}
-            onTranscriptOpenChange={setVoiceTranscriptOpen}
+            onTranscriptTransition={transitionPresentation}
             onPhaseChange={setLivePhase}
             initialEntries={session?.liveEntries ?? []}
             onEntriesChange={entries => update(previous => ({ ...previous, liveEntries: entries.slice(-40) }))}

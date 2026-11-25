@@ -4,9 +4,11 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { useCapture } from './useCapture'
 import { captureInboxKey, readCaptureInbox, writeCaptureInbox } from '@/lib/captureCache'
 
-const db = vi.hoisted(() => ({ limit: vi.fn(), upsert: vi.fn() }))
+const db = vi.hoisted(() => ({ limit: vi.fn(), upsert: vi.fn(), del: vi.fn() }))
 vi.mock('@/lib/supabase/client', () => ({ supabase: { from: () => ({
-  select: () => ({ eq: () => ({ order: () => ({ limit: db.limit }) }) }), upsert: db.upsert,
+  select: () => ({ eq: () => ({ order: () => ({ limit: db.limit }) }) }),
+  upsert: db.upsert,
+  delete: () => ({ eq: () => ({ eq: db.del, then: (resolve: (value: unknown) => void) => resolve(db.del()) }) }),
 }) } }))
 const source = { id: 'source', is_anonymous: false } as User
 const destination = { id: 'destination', is_anonymous: true } as User
@@ -17,6 +19,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   db.limit.mockResolvedValue({ data: [], error: null })
   db.upsert.mockResolvedValue({ error: null })
+  db.del.mockResolvedValue({ error: null })
 })
 
 it('hides the previous account immediately and cannot force-upload its captures into an empty destination', async () => {
@@ -66,4 +69,19 @@ it('keeps failed-read local data scoped to its original account', async () => {
   const hook = renderHook(() => useCapture(source))
   await act(async () => { await expect(hook.result.current.loadCaptures(source.id)).rejects.toThrow('offline') })
   expect(hook.result.current.inbox).toEqual([secret])
+})
+
+it('edits a capture verbatim under the same account and syncs it to Supabase', async () => {
+  writeCaptureInbox(source.id, [secret])
+  const hook = renderHook(() => useCapture(source))
+  await act(() => hook.result.current.loadCaptures(source.id))
+  const editedMarkdown = '# Notes\n\n| Col A | Col B |\n| --- | --- |\n| 1 | 2 |'
+  let result: { ok: boolean; synced: boolean } | undefined
+  await act(async () => { result = await hook.result.current.updateItem(secret.id, editedMarkdown) })
+  expect(result).toEqual({ ok: true, synced: true })
+  expect(readCaptureInbox(source.id)[0].text).toBe(editedMarkdown)
+  expect(db.upsert).toHaveBeenCalledWith(
+    [expect.objectContaining({ id: secret.id, user_id: source.id, text: editedMarkdown })],
+    expect.anything(),
+  )
 })

@@ -216,28 +216,76 @@
   min-height: 0;
   overflow: hidden;
   justify-content: space-between;
-  padding: 6px 0 8px;
+  padding: max(12px, env(safe-area-inset-top)) 0 8px;
   gap: 10px;
-  --home-orb-size: min(300px, calc(100vw - 64px), max(148px, calc(var(--codex-viewport-height, 100dvh) - 270px)));
+  /* Desktop targets ~50% viewport height (45-55% band), invariant across phases. */
+  --home-orb-size: clamp(240px, 50dvh, min(520px, calc(100vw - 120px), calc(var(--codex-viewport-height, 100dvh) - 220px)));
+}
+@media (max-width: 700px) {
+  .home[data-live-voice-active="true"]:global(.glass-home) :global(.glass-hero) {
+    --home-orb-size: min(310px, calc(100vw - 56px), max(160px, calc(var(--codex-viewport-height, 100dvh) - 270px)));
+  }
 }
 .home[data-live-voice-active="true"]:not([data-voice-transcript="true"]):global(.glass-home) :global(.glass-hero) {
   touch-action: none;
 }
 .home[data-live-voice-active="true"] :global(.glass-orb-wrap) {
   flex: 1 1 auto;
+  height: auto;
   justify-content: center;
-  gap: 14px;
+  gap: 18px;
+}
+.home[data-live-voice-active="true"] :global(.glass-orb-wrap .sd-field-slot) {
+  width: var(--home-orb-size);
+  height: var(--home-orb-size);
 }
 .home[data-live-voice-active="true"] :global(.glass-orb-state) {
   display: block;
-  margin-top: 6px;
-  font: 500 17px/1.35 var(--g-display);
+  margin-top: 8px;
+  font: 500 clamp(16px, 2vw, 19px)/1.35 var(--g-display);
   letter-spacing: -.01em;
   color: var(--g-mist);
 }
 .home[data-live-voice-active="true"] :global(.glass-dock) {
   padding-top: 4px;
-  padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+}
+
+.immersiveTopBar {
+  flex: none;
+  width: min(680px, 100%);
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 0 4px;
+}
+.immersiveTopSpacer {
+  width: 44px;
+  height: 44px;
+}
+.fullscreenBtn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--g-glass-edge) 68%, transparent);
+  background: color-mix(in srgb, var(--g-mist) 6%, transparent);
+  color: var(--g-mist-dim);
+  cursor: pointer;
+  transition: color 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+.fullscreenBtn:hover,
+.fullscreenBtn:focus-visible {
+  color: var(--g-mist);
+  border-color: var(--g-glass-edge);
+  background: color-mix(in srgb, var(--g-mist) 12%, transparent);
+}
+.fullscreenBtn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .swipeTranscriptCue {
@@ -277,18 +325,18 @@
 .home :global(.glass-hero)::-webkit-scrollbar { display: none; }
 
 @media (max-width: 700px) {
-  .home:global(.glass-home[data-reply="true"]) :global(.glass-orb-wrap) {
+  .home:global(.glass-home[data-reply="true"]:not([data-live-voice-active="true"])) :global(.glass-orb-wrap) {
     display: flex;
     justify-content: center;
     align-items: center;
     gap: 8px;
     margin: 0 0 -4px;
   }
-  .home:global(.glass-home[data-reply="true"]) :global(.glass-orb-wrap .sd-field-slot) {
+  .home:global(.glass-home[data-reply="true"]:not([data-live-voice-active="true"])) :global(.glass-orb-wrap .sd-field-slot) {
     width: 32px;
     height: 32px;
   }
-  .home:global(.glass-home[data-reply="true"]) :global(.glass-orb-state) {
+  .home:global(.glass-home[data-reply="true"]:not([data-live-voice-active="true"])) :global(.glass-orb-state) {
     display: none;
   }
 }
