@@ -7,9 +7,9 @@
 
 ## What this is
 
-The curated catalog currently contains **34 distinguishable historical catches and structural lessons** recovered from the accessible November 2025–November 2026 source graph. Every entry has a stable ID, source, target, common structure, reasoning bridge, practical consequence, required evidence, provenance and maturity classification.
+The curated catalog originally contained **34 distinguishable historical catches and structural lessons** recovered from the accessible November 2025–November 2026 source graph. Every entry has a stable ID, source, target, common structure, reasoning bridge, practical consequence, required evidence, provenance and maturity classification.
 
-This is a **historical research index**, not an automatically learned account ledger. All 34 mark future independent inheritance `not-demonstrated`. The 2015–2017 handwritten sources and complete earlier conversation history were not available in this inspection. Do not claim the catalog exhausts them. Do not fabricate their text, dates, source IDs or cases. If those primary artifacts become accessible, reconcile and add entries with citations.
+This is a **historical research index**, not an automatically learned account ledger. All entries mark future independent inheritance `not-demonstrated`. The 2015–2017 handwritten sources and complete earlier conversation history were not available in this inspection. Do not claim the catalog exhausts them. Do not fabricate their text, dates, source IDs or cases. If those primary artifacts become accessible, reconcile and add entries with citations.
 
 The **October 30 retrospective mentioned a catalog of 18 repository boomerangs**. We recovered the category outline but not its complete named source artifact. This casebook is a new evidence-based reconstruction, **not** a claim to reproduce that specific list verbatim.
 
@@ -54,6 +54,12 @@ Each selected historical record displays its source-to-target bridge, coverage l
 Confirming a record makes it an owner-scoped operating rule, not an independently verified future transfer. The existing retrieval path includes at most 16 applicable active confirmed rules and a finite context budget per request; it does not yet rank all 34 by causal relevance or guarantee future inheritance. Unconfirmed records stay out of model context. Later use remains subject to relevance, conditions, exclusions, context budget, and independent verification. Because old insights predate some current missions, a required mission association is a *ledger anchor*, not evidence of where the insight originated. The human selects it explicitly.
 
 All 34 entries can now be browsed across IC-001 and the historical selector, but this does not recover unavailable 2015–2017 originals or other unexamined boomerangs. **No automated boomerang discovery or cross-domain transfer proof is added by this work.**
+
+## Ongoing capture — November 24, 2026
+
+BR-035 records the actual owner-reported voice interruption and failed conversational recovery. It extends the original 34-entry corpus as a candidate bridge, not a verified repair or confirmed account lesson. The source is restricted and private transcripts are not republished. Related cases BR-006 and BR-023 remain distinct and unchanged.
+
+For future additions, reconcile against existing IDs and open casebook PRs; append only distinct source-grounded bridges, preserve source access classifications, conditions and verification requirements, and keep transfer unknown until demonstrated. Root and Mission candidate projections derive from the same catalog. A catalog update requires reviewed code and deployment; a separate explicit owner confirmation is still required for account learning. No automatic production database writes or auto-merges.
 
 ## Boundaries and follow-up
 
