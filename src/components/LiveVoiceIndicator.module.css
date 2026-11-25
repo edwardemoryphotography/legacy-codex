@@ -1,0 +1,9 @@
+.bar { position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 45; display: flex; align-items: center; gap: 10px; max-width: min(540px, calc(100vw - 24px)); padding: 8px 10px; border-radius: var(--radius-xl, 24px); background: var(--surface, rgba(10, 13, 29, .86)); border: 1px solid var(--line, rgba(255,255,255,.14)); color: var(--tx, #e9eaf7); backdrop-filter: blur(14px); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--teal, #6fe3d2); flex: none; }
+.dot[data-state="muted"], .dot[data-state="disconnected"] { background: var(--amber, #ffb05c); }
+.dot[data-state="codex-is-working"], .dot[data-state="connecting"] { background: var(--brand, #7d8cff); }
+.copy { display: flex; flex-direction: column; min-width: 0; font-size: 12px; line-height: 1.3; }
+.copy strong { font-weight: 600; }
+.copy span { color: var(--tx-dim, #a9aec9); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.actions { display: flex; gap: 6px; flex: none; }
+@media (max-width: 520px) { .copy span { display: none; } }

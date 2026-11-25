@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import CodexApp from './CodexApp'
 import { useState } from 'react'
@@ -27,7 +27,9 @@ describe('the top-left menu holds every screen', () => {
       'src',
       '/origin/architecture/index.html#lens=frontend~database',
     )
-    expect(screen.queryByText('Glass home')).not.toBeInTheDocument()
+    // Home stays mounted (hidden) so the live voice transport survives
+    // navigation; its content is intentionally still in the document.
+    expect(document.querySelector<HTMLElement>('#home-conversation')?.hidden).toBe(true)
     expect(screen.queryByRole('dialog', { name: 'Menu' })).not.toBeInTheDocument()
   })
 
@@ -60,4 +62,16 @@ it('keeps a pending conversation mounted across Home and Mission navigation', ()
     if (name === 'Mission') fireEvent.click(screen.getByRole('button', { name: 'Continue conversation with Codex' }))
     expect(screen.getByRole('button', { name: 'Answer pending' })).toBeInTheDocument()
   }
+})
+
+it('keeps the live voice host mounted, hidden, when navigating away from Home', () => {
+  render(<CodexApp />)
+  expect(document.querySelector('#home-conversation')).not.toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Menu' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Territory' }))
+  const host = document.querySelector<HTMLElement>('#home-conversation')
+  expect(host).not.toBeNull()
+  expect(host?.hidden).toBe(true)
+  // The voice transport lives inside this host; provenance of the mount matters.
+  expect(within(host as HTMLElement).getByRole('button', { name: 'Start question', hidden: true })).toBeTruthy()
 })

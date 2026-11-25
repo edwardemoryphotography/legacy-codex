@@ -63,3 +63,7 @@
   .answer, .proposedAction { background: var(--g-ink); backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 :root[data-glass-opaque="true"] .answer, :root[data-glass-opaque="true"] .proposedAction { background: var(--g-ink); backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+.detail { margin: 0; font-size: 12px; line-height: 1.35; color: var(--tx-dim, #a9aec9); max-width: 44ch; }
+.detail[data-recovered="true"] { color: var(--teal, #6fe3d2); }
+.mute { align-self: flex-start; }

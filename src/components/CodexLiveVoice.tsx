@@ -8,7 +8,11 @@ import type { Mission } from '@/types'
 import { parseVoiceAction } from '@/lib/liveVoiceAction'
 import styles from './CodexLiveVoice.module.css'
 
-export type LiveVoicePhase = 'idle' | 'connecting' | 'listening' | 'reasoning' | 'responding'
+import { liveVoicePresentation } from '@/lib/liveVoiceState'
+import { useLiveVoice } from '@/lib/liveVoiceContext'
+import type { LiveTurn } from '@/lib/homeSession'
+export type { LiveVoicePhase } from '@/lib/liveVoiceState'
+type LiveVoicePhase = 'idle' | 'connecting' | 'listening' | 'reasoning' | 'responding'
 type LiveEvent = {
   type?: string
   delta?: string
@@ -37,10 +41,14 @@ function sendLive(channel: RTCDataChannel, type: string, delegationId: string | 
 /** Browser-side GPT-Live transport. Actual reasoning still uses owner-gated /api/brief. */
 export default function CodexLiveVoice({
   missions, primaryMissionId, tier, disabled, canSave = false, onAnswer, onPhaseChange, onSaveAnswer,
+  initialTurns = [], onTurnsChange,
 }: {
   missions: Mission[]
   primaryMissionId: string | null
   tier: 'routine' | 'deep'
+  initialTurns?: LiveTurn[]
+  /** Persisted only as conversation context; never a saved action or lesson. */
+  onTurnsChange?: (turns: LiveTurn[]) => void
   disabled?: boolean
   onAnswer: (answer: VoiceAnswer) => void
   onPhaseChange: (phase: LiveVoicePhase) => void
@@ -55,6 +63,14 @@ export default function CodexLiveVoice({
   const [audioBlocked, setAudioBlocked] = useState(false)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [saveError, setSaveError] = useState('')
+  const [muted, setMuted] = useState(false)
+  const [disconnected, setDisconnected] = useState(false)
+  const [recoveredCount, setRecoveredCount] = useState(0)
+  const live = useLiveVoice()
+  const initialTurnsRef = useRef(initialTurns)
+  const onTurnsChangeRef = useRef(onTurnsChange)
+  useEffect(() => { initialTurnsRef.current = initialTurns }, [initialTurns])
+  useEffect(() => { onTurnsChangeRef.current = onTurnsChange }, [onTurnsChange])
   const peer = useRef<RTCPeerConnection | null>(null)
   const microphone = useRef<MediaStream | null>(null)
   const audio = useRef<HTMLAudioElement | null>(null)
@@ -75,7 +91,7 @@ export default function CodexLiveVoice({
   useEffect(() => { currentInputs.current = { missions, primaryMissionId, tier, onAnswer } }, [missions, primaryMissionId, tier, onAnswer])
   useEffect(() => { onPhaseChange(phase) }, [phase, onPhaseChange])
 
-  const stop = useCallback((message = 'Live conversation ended.') => {
+  const stop = useCallback((message = 'Live conversation ended.', options: { explicit?: boolean } = {}) => {
     generation.current += 1
     requestVersion.current += 1
     sessionController.current?.abort()
@@ -113,8 +129,17 @@ export default function CodexLiveVoice({
     }
     audio.current = null
     setAudioBlocked(false)
+    setMuted(false)
     setPhase('idle')
     setStatus(message)
+    // Explicit termination revokes consent: do not keep the spoken transcript.
+    if (options.explicit) {
+      previousTurns.current = []
+      setRecoveredCount(0)
+      onTurnsChangeRef.current?.([])
+    } else {
+      setDisconnected(true)
+    }
   }, [])
 
   useEffect(() => {
@@ -149,7 +174,13 @@ export default function CodexLiveVoice({
     setPhase('connecting')
     userParts.current = []
     handledThrough.current = 0
-    previousTurns.current = []
+    // Navigation no longer ends the transport; this path is a genuine restart
+    // (reload, reconnection). Resume the authorized tab-scoped conversation.
+    const recovered = (initialTurnsRef.current ?? []).slice(-40)
+    previousTurns.current = recovered
+    setRecoveredCount(recovered.filter(turn => turn.role === 'user').length)
+    setDisconnected(false)
+    setMuted(false)
     sessionController.current = new AbortController()
 
     try {
@@ -308,7 +339,8 @@ export default function CodexLiveVoice({
               setSaveState('idle')
               setSaveError('')
               previousTurns.current = [...previousTurns.current, { role: 'user' as const, text: utterance },
-                { role: 'assistant' as const, text: parsed.text.slice(0, 4000) }].slice(-10)
+                { role: 'assistant' as const, text: parsed.text.slice(0, 4000) }].slice(-40)
+              onTurnsChangeRef.current?.(previousTurns.current)
               setLastAnswer(actual)
               current.onAnswer(actual)
               setStatus('Real Codex response received. Nothing has been saved automatically.')
@@ -391,6 +423,22 @@ export default function CodexLiveVoice({
     }
   }
 
+  const toggleMute = useCallback(() => {
+    setMuted(current => {
+      const next = !current
+      microphone.current?.getAudioTracks().forEach(track => { track.enabled = !next })
+      return next
+    })
+  }, [])
+
+  const { report, register } = live
+  useEffect(() => { report({ phase, muted, disconnected }) }, [report, phase, muted, disconnected])
+  useEffect(() => {
+    register({ end: () => stop('Live conversation ended.', { explicit: true }), toggleMute })
+    return () => register(null)
+  }, [register, stop, toggleMute])
+
+  const presentation = liveVoicePresentation(phase, { muted, disconnected })
   const active = phase !== 'idle'
   return (
     <section className={styles.root} data-active={active ? 'true' : undefined} aria-label="Legacy Codex live voice">
@@ -400,9 +448,11 @@ export default function CodexLiveVoice({
         </button>
       ) : (
         <div className={styles.controls}>
-          <p className={styles.state} role="status">
-            {phase === 'connecting' ? 'Connecting' : phase === 'reasoning' ? 'Codex is working' : phase === 'responding' ? 'Codex responding' : 'Listening'}
-          </p>
+          <p className={styles.state} role="status">{presentation.primary}</p>
+          <p className={styles.detail}>{presentation.detail}</p>
+          {recoveredCount > 0 && phase === 'listening' && (
+            <p className={styles.detail} data-recovered="true">Recovered {recoveredCount} earlier turn{recoveredCount === 1 ? '' : 's'} as unverified conversation context.</p>
+          )}
           {inputCaption && <p className={styles.caption} data-role="user"><span>You</span> {inputCaption}</p>}
           {outputCaption && <p className={styles.caption} data-role="codex"><span>Codex</span> {outputCaption}</p>}
           {lastAnswer && (
@@ -436,7 +486,8 @@ export default function CodexLiveVoice({
             </section>
           )}
           {audioBlocked && <button type="button" className={styles.audio} onClick={() => void audio.current?.play().then(() => setAudioBlocked(false)).catch(() => setStatus('Speaker playback is blocked in this browser.'))}>Enable speaker audio</button>}
-          <button type="button" className={styles.end} onClick={() => stop()}>End voice session</button>
+          <button type="button" className={styles.mute} aria-pressed={muted} onClick={toggleMute}>{muted ? 'Unmute microphone' : 'Mute microphone'}</button>
+          <button type="button" className={styles.end} onClick={() => stop('Live conversation ended. The spoken transcript was cleared; saved project records were not changed.', { explicit: true })}>End voice session</button>
         </div>
       )}
       {status && <p className={styles.notice} role="status">{status}</p>}

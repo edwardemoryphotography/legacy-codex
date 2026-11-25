@@ -9,6 +9,8 @@ import { useHomeAccess } from '@/hooks/useHomeAccess'
 import { useMissionTerritory } from '@/hooks/useMissionTerritory'
 import { useTaskVoice } from '@/hooks/useTaskVoice'
 import CodexLiveVoice, { type LiveVoicePhase, type VoiceAnswer } from '@/components/CodexLiveVoice'
+import { liveVoicePresentation } from '@/lib/liveVoiceState'
+import { useLiveVoice } from '@/lib/liveVoiceContext'
 import { OrbSlot, useOrbCognition, useOrbInteraction, useOrbPresentation } from '@/components/OrbHost'
 import { BRIEF_VISITOR_COPY } from '@/components/MissionBriefPanel'
 import { homeMissionRoster, homeRequest, QUESTION_LIMIT, PROMPT_LIMIT, promptHelpQuestion, type HomeTool } from '@/lib/homeRequest'
@@ -38,10 +40,15 @@ export { promptHelpQuestion }
 
 
 
-function ConversationPresence({ status, busy, loadError, pending, voice, live, reply }: { status: string; busy: boolean; loadError: string; pending: string | null; voice: { active: boolean; phase: string }; live: LiveVoicePhase; reply: boolean }) {
+function ConversationPresence({ status, busy, loadError, pending, voice, live, reply, liveMuted }: { status: string; busy: boolean; loadError: string; pending: string | null; voice: { active: boolean; phase: string }; live: LiveVoicePhase; reply: boolean; liveMuted: boolean }) {
+  // While a live session is active it is the authoritative interaction state.
+  // The orb must not settle on a stale "ready" while the mic is actually live.
+  const livePresence = liveVoicePresentation(live, { muted: liveMuted })
   const consulting = busy || live === 'reasoning'
-  useOrbCognition({ cognition: status === 'error' || loadError ? 'failed' : consulting ? 'deriving' : status === 'done' || reply || live === 'responding' ? 'settled' : 'insufficient', operation: live === 'reasoning' ? 'Consulting saved Codex context' : pending, provenance: consulting ? 'model' : 'insufficient_context', recording: false })
-  useOrbInteraction(live === 'listening' || voice.phase === 'listening' ? 'listening' : live !== 'idle' || voice.active ? 'engaged' : 'ambient')
+  useOrbCognition(livePresence.active
+    ? { cognition: livePresence.orbCognition, operation: livePresence.primary ?? undefined, provenance: livePresence.recording || consulting ? 'model' : 'insufficient_context', recording: livePresence.recording }
+    : { cognition: status === 'error' || loadError ? 'failed' : consulting ? 'deriving' : status === 'done' || reply ? 'settled' : 'insufficient', operation: pending, provenance: consulting ? 'model' : 'insufficient_context', recording: false })
+  useOrbInteraction(livePresence.listening || voice.phase === 'listening' ? 'listening' : livePresence.active || voice.active ? 'engaged' : 'ambient')
   return null
 }
 
@@ -94,6 +101,10 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const [local, setLocal] = useState(emptyHomeSession)
   const [livePhase, setLivePhase] = useState<LiveVoicePhase>('idle')
   const liveActive = livePhase !== 'idle'
+  const { state: liveState } = useLiveVoice()
+  // One authoritative status while live: the orb must not claim "Recommendation
+  // ready" while the session is actually listening.
+  const liveStatus = liveVoicePresentation(livePhase, { muted: liveState.muted }).primary
   const current = session ?? local
   const update = onSessionChange ?? setLocal
   const { text, tool, history } = current
@@ -488,7 +499,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       data-next-action-read={homeNextAction.readState}
       aria-label={missionView ? 'Project conversation' : 'Home'}
     >
-      {access.state === 'owner' && (!missionView || busy || voice.active || liveActive) && <ConversationPresence status={brief.status} busy={busy || reviewActive} loadError={loadError} pending={reviewActive ? (current.tier === 'deep' ? 'Deep review · draft & critique' : 'Economy · single structured pass') : !loadError && !busy && !voice.active && !liveActive ? missions === null ? 'Reading saved missions' : actionsRead === 'pending' ? 'Reading saved actions' : null : null} voice={voice} live={livePhase} reply={Boolean(current.reply)} />}
+      {access.state === 'owner' && (!missionView || busy || voice.active || liveActive) && <ConversationPresence status={brief.status} busy={busy || reviewActive} loadError={loadError} pending={reviewActive ? (current.tier === 'deep' ? 'Deep review · draft & critique' : 'Economy · single structured pass') : !loadError && !busy && !voice.active && !liveActive ? missions === null ? 'Reading saved missions' : actionsRead === 'pending' ? 'Reading saved actions' : null : null} voice={voice} live={livePhase} liveMuted={liveState.muted} reply={Boolean(current.reply)} />}
       <div className={styles.context}>
         {(missionView || hasReply) && <span>{primaryMission ? `Working on: ${primaryMission.title}` : 'Your conversation with Codex'}</span>}
         {/* The card's own button opens Mission, so a second control to the same
@@ -503,7 +514,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
         </>) : <>
         {!missionView && <div className="glass-orb-wrap">
           <OrbSlot />
-          <span className="glass-orb-state" aria-hidden="true">{presentation.state === 'idle' ? 'Ready when you are' : presentation.state === 'ready' ? 'Recommendation ready' : presentation.label}</span>
+          <span className="glass-orb-state" aria-hidden="true">{liveActive ? liveStatus : presentation.state === 'idle' ? 'Ready when you are' : presentation.state === 'ready' ? 'Recommendation ready' : presentation.label}</span>
           {immersive && busy && (
             <p className={styles.activeObjective}>
               {activeQuestion ? `“${activeQuestion.length > 96 ? `${activeQuestion.slice(0, 93)}…` : activeQuestion}”` : tool ? TOOL_LABEL[tool] : 'Working on your request'}
@@ -618,6 +629,8 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
             tier={current.tier === 'deep' ? 'deep' : 'routine'}
             disabled={reviewActive || busy || voice.active || missions === null || Boolean(loadError) || !brief.configured || access.state !== 'owner'}
             onPhaseChange={setLivePhase}
+            initialTurns={session?.liveTurns ?? []}
+            onTurnsChange={turns => update(previous => ({ ...previous, liveTurns: turns.slice(-40) }))}
             onSaveAnswer={saveLiveAnswer}
             canSave={Boolean(primaryMission)}
             onAnswer={answer => {

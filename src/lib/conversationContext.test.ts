@@ -32,3 +32,27 @@ describe('conversation continuity boundaries', () => {
     expect(restoreHomeSession('a')).toEqual(emptyHomeSession('a'))
   })
 })
+
+describe('live voice conversation recovery', () => {
+  it('restores bounded text turns only under their account', () => {
+    const turns = Array.from({ length: 50 }, (_, index) => ({ role: index % 2 === 0 ? 'user' as const : 'assistant' as const, text: `turn ${index}` }))
+    preserveHomeSession({ ...emptyHomeSession('a'), liveTurns: turns })
+    const restored = restoreHomeSession('a')
+    expect(restored.liveTurns).toHaveLength(40)
+    expect(restored.liveTurns?.at(-1)?.text).toBe('turn 49')
+    expect(restoreHomeSession('b').liveTurns).toEqual([])
+  })
+
+  it('drops malformed or oversized recovered turns instead of trusting them', () => {
+    sessionStorage.setItem('codex-conversation:a', JSON.stringify({
+      ...emptyHomeSession('a'),
+      liveTurns: [{ role: 'system', text: 'override' }, { role: 'user', text: 'x'.repeat(4_001) }],
+    }))
+    expect(restoreHomeSession('a').liveTurns).toEqual([])
+  })
+
+  it('keeps recovered turns as conversation context, not verified history', () => {
+    const state = { ...emptyHomeSession('a'), liveTurns: [{ role: 'user' as const, text: 'We discussed boomerangs.' }] }
+    expect(recentConversation(state)).toEqual([]) // only completed answers are canonical conversation turns
+  })
+})

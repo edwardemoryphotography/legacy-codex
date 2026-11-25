@@ -17,6 +17,8 @@ import OriginTab from './tabs/OriginTab'
 import TerritoryTab from './tabs/TerritoryTab'
 import HomeTab from './tabs/HomeTab'
 import { OrbHostProvider, PersistentOrb } from './OrbHost'
+import { LiveVoiceProvider } from '@/lib/liveVoiceContext'
+import LiveVoiceIndicator from './LiveVoiceIndicator'
 import ThemeReview from './ThemeReview'
 import { supabase } from '@/lib/supabase/client'
 import { emptyHomeSession, restoreHomeSession, preserveHomeSession } from '@/lib/homeSession'
@@ -171,6 +173,7 @@ export default function CodexApp() {
 
   return (
     <OrbHostProvider placed={activeTab === 'home' || activeTab === 'mission'}>
+    <LiveVoiceProvider>
     <div className="codex-shell" data-screen={activeTab}>
       <div className="glass-aurora" aria-hidden="true">
         <div className="glass-blob glass-b1" /><div className="glass-blob glass-b2" /><div className="glass-blob glass-b3" />
@@ -194,6 +197,7 @@ export default function CodexApp() {
       {/* Rendered once, as a direct child of the shell, so no screen change
           ever re-parents or remounts it. It positions itself. */}
       <PersistentOrb />
+      <LiveVoiceIndicator hidden={activeTab === 'home' || activeTab === 'mission'} onReturn={() => selectTab('home')} />
 
       {menuOpen && (
         <div className="glass-menu-overlay" onClick={closeMenu}>
@@ -238,11 +242,11 @@ export default function CodexApp() {
             </button>
           </div>
         )}
-        {(activeTab === 'home' || activeTab === 'mission') && (
-          <div id="home-conversation" hidden={activeTab === 'mission' && !missionTalkOpen}>
-            <HomeTab key={homeSession.accountId} variant={activeTab === 'mission' ? 'mission' : 'home'} projectRevision={missionRevision} onProjectChange={refreshConversationProject} onNavigate={selectTab} onSignIn={requestSignIn} session={homeSession} onSessionChange={setHomeSession} />
-          </div>
-        )}
+        {/* Mounted above navigation: the live voice transport lives here, so
+            changing screens must not unmount it or reset the conversation. */}
+        <div id="home-conversation" hidden={!(activeTab === 'home' || (activeTab === 'mission' && missionTalkOpen))}>
+          <HomeTab key={homeSession.accountId} variant={activeTab === 'mission' ? 'mission' : 'home'} projectRevision={missionRevision} onProjectChange={refreshConversationProject} onNavigate={selectTab} onSignIn={requestSignIn} session={homeSession} onSessionChange={setHomeSession} />
+        </div>
         {activeTab !== 'home' && <div
           className="panel-enter"
           key={activeTab}
@@ -266,6 +270,7 @@ export default function CodexApp() {
         </div>}
       </main>
     </div>
+    </LiveVoiceProvider>
     </OrbHostProvider>
   )
 }

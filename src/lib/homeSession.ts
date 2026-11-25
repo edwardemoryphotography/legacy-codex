@@ -2,9 +2,11 @@ import { QUESTION_LIMIT, type HomeTool } from './homeRequest'
 import type { ConversationTier } from './modelPreference'
 export type HomeReply = { question: string; text: string; label: string; provider: string; actionTitle?: string | null }
 /** Account-scoped dialogue for this browser tab; never a saved action or lesson. */
-export type HomeSession = { accountId: string | null; text: string; tool: HomeTool | null; history: HomeReply[]; reply: HomeReply | null; tier?: ConversationTier }
+export type LiveTurn = { role: 'user' | 'assistant'; text: string }
+export const LIVE_TURN_LIMIT = 40
+export type HomeSession = { accountId: string | null; text: string; tool: HomeTool | null; history: HomeReply[]; reply: HomeReply | null; tier?: ConversationTier; liveTurns?: LiveTurn[] }
 export function emptyHomeSession(accountId: string | null = null): HomeSession {
-  return { accountId, text: '', tool: null, history: [], reply: null }
+  return { accountId, text: '', tool: null, history: [], reply: null, liveTurns: [] }
 }
 
 export function recentConversation(session: HomeSession) {
@@ -24,10 +26,15 @@ export function restoreHomeSession(accountId: string): HomeSession {
     if (value.accountId !== accountId || typeof value.text !== 'string' || value.text.length > QUESTION_LIMIT ||
         ![null, 'brief', 'triage', 'ask', 'prompt'].includes(value.tool) || !Array.isArray(value.history) || value.history.length > 6 ||
         !value.history.every(reply) || (value.reply !== null && !reply(value.reply))) return emptyHomeSession(accountId)
-    return { accountId, text: value.text, tool: value.tool, history: value.history, reply: value.reply }
+    const liveTurn = (item: unknown): item is LiveTurn => Boolean(item && typeof item === 'object' &&
+      ((item as LiveTurn).role === 'user' || (item as LiveTurn).role === 'assistant') &&
+      typeof (item as LiveTurn).text === 'string' && (item as LiveTurn).text.length > 0 && (item as LiveTurn).text.length <= 4_000)
+    const liveTurns = Array.isArray(value.liveTurns) && value.liveTurns.length <= LIVE_TURN_LIMIT && value.liveTurns.every(liveTurn)
+      ? value.liveTurns as LiveTurn[] : []
+    return { accountId, text: value.text, tool: value.tool, history: value.history, reply: value.reply, liveTurns }
   } catch { return emptyHomeSession(accountId) }
 }
 export function preserveHomeSession(session: HomeSession) {
   if (!session.accountId) return
-  try { sessionStorage.setItem(`codex-conversation:${session.accountId}`, JSON.stringify({ ...session, history: session.history.slice(-6) })) } catch { /* Keep in-memory continuity when storage is unavailable. */ }
+  try { sessionStorage.setItem(`codex-conversation:${session.accountId}`, JSON.stringify({ ...session, history: session.history.slice(-6), liveTurns: (session.liveTurns ?? []).slice(-LIVE_TURN_LIMIT) })) } catch { /* Keep in-memory continuity when storage is unavailable. */ }
 }
