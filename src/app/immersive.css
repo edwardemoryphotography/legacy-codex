@@ -45,8 +45,8 @@
 .glass-chip { min-height: 44px; }
 .glass-results { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 8px 0 12px; overflow-wrap: anywhere; }
 .glass-results:empty { display: none; }
-.glass-home[data-reply="true"]:not([data-live-voice-active="true"]) .glass-hero { flex: none; gap: 6px; padding-bottom: 8px; --home-orb-size: min(154px, calc(var(--codex-viewport-height, 100dvh) * .22)); }
-.glass-home[data-reply="true"]:not([data-live-voice-active="true"]) .glass-orb-wrap { flex: none; height: calc(var(--home-orb-size) + 20px); }
+.glass-home[data-reply="true"]:not([data-live-voice-active="true"]):not([data-immersive="true"]) .glass-hero { flex: none; gap: 6px; padding-bottom: 8px; --home-orb-size: min(140px, calc(var(--codex-viewport-height, 100dvh) * .20)); }
+.glass-home[data-reply="true"]:not([data-live-voice-active="true"]):not([data-immersive="true"]) .glass-orb-wrap { flex: none; height: auto; }
 .glass-home[data-immersive="true"] .glass-orb-wrap { flex: 1 1 auto; height: auto; }
 .glass-home[data-reply="true"] .glass-greeting, .glass-home[data-reply="true"] .glass-home-note,
 .glass-home[data-immersive="true"] .glass-greeting, .glass-home[data-immersive="true"] .glass-home-note { max-height: 0; margin: 0; opacity: 0; overflow: hidden; }
@@ -122,8 +122,10 @@
 
 /* Compact before the keyboard animation begins. CodexLiveVoice is the first
    child in the dock and stays mounted; the focused textarea is the interaction
-   that needs screen space. The Send and microphone buttons remain reachable. */
-:root[data-home-composing="true"] .glass-home .glass-hero,
+   that needs screen space. The Send and microphone buttons remain reachable.
+   Active processing (data-immersive / data-busy) always takes precedence so
+   the centered Living Aurora orb never disappears when submitting from focus. */
+:root[data-home-composing="true"] .glass-home:not([data-immersive="true"]):not([data-busy="true"]) .glass-hero,
 :root[data-home-composing="true"] .glass-home .glass-home-links,
 :root[data-home-composing="true"] .glass-home .glass-dock > :first-child,
 :root[data-home-composing="true"] .glass-home .glass-dock > .home-runtime-note,

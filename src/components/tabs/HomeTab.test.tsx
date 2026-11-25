@@ -901,8 +901,17 @@ describe('Home native composer file upload', () => {
 
     // Temporary provenance is explicit, staged attachments cleared, and answer displayed in place.
     expect(screen.queryByRole('list', { name: 'Attached files' })).toBeNull()
-    expect(screen.getAllByText(/Attachment analysis · temporary file \(not stored\)/).length).toBeGreaterThan(0)
+    expect(screen.getByText('Attachment analysis · Temporary (not stored) · Excerpt')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /Observed evidence: 3 prints are listed in checklist\.md\./ })).toBeInTheDocument()
+
+    // Full-answer modal keeps heading short and places rationale/file handling in expandable details.
+    fireEvent.click(screen.getByRole('button', { name: 'Read full answer' }))
+    const dialog = screen.getByRole('dialog', { name: 'Attachment analysis' })
+    expect(within(dialog).getByRole('heading', { name: 'Attachment analysis' })).toBeInTheDocument()
+    expect(within(dialog).getByText('Economy · Claude · claude-sonnet-5-5')).toBeInTheDocument()
+    expect(within(dialog).getByText('Model selection & file details')).toBeInTheDocument()
+    expect(within(dialog).getByText(/checklist\.md \(29 B\)/)).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close details' }))
 
     // Conversational follow-up grounds /api/brief in the explicitly identified temporary analysis.
     fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'Which one should I frame first?' } })
@@ -979,5 +988,106 @@ describe('saved-action Markdown rendering', () => {
     expect(card.textContent).not.toContain('**file upload**')
     expect(within(card).getByText('Next step:').tagName).toBe('STRONG')
     expect(card.querySelector('img')).toBeNull()
+  })
+})
+
+describe('PR #210 visual polish: orb precedence, active processing, and modal hierarchy', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('clears composer-expanded hiding during active photo analysis and restores draft & photo on cancel', async () => {
+    let resolveFetch: (value: unknown) => void = () => {}
+    const fetchMock = vi.fn(() => new Promise(resolve => { resolveFetch = resolve }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { container } = render(<HomeTab onNavigate={() => {}} />)
+    const textarea = screen.getByLabelText('Ask Codex')
+    const longPrompt = 'Evaluate lighting, composition, and print readiness across all highlights and shadow regions.\nKeep the critique direct.'
+    fireEvent.change(textarea, { target: { value: longPrompt } })
+    expect(container.querySelector('.glass-home')).toHaveAttribute('data-composer-expanded', 'true')
+
+    const fileInput = screen.getByTestId('home-attachment-input') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(fileInput, { target: { files: [new File([new Uint8Array(2048)], 'portrait.jpg', { type: 'image/jpeg' })] } })
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    })
+
+    const homeEl = container.querySelector('.glass-home')!
+    expect(homeEl).toHaveAttribute('data-busy', 'true')
+    expect(homeEl).toHaveAttribute('data-immersive', 'true')
+    // Active processing MUST take precedence over composer expansion so the orb never hides.
+    expect(homeEl).not.toHaveAttribute('data-composer-expanded')
+    expect(screen.getByText('Analyzing photo…')).toBeInTheDocument()
+    expect(screen.getByText(/portrait\.jpg · 2\.0 KB/)).toBeInTheDocument()
+
+    // Cancelling keeps both the submitted draft and staged photo intact.
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel request' }))
+    expect(screen.getByLabelText('Ask Codex')).toHaveValue(longPrompt)
+    expect(screen.getByRole('button', { name: 'Remove portrait.jpg' })).toBeInTheDocument()
+
+    // Resolve dangling mock cleanly.
+    resolveFetch({ ok: false, status: 500, json: async () => ({}) })
+  })
+
+  it('uses short Photo analysis title and expandable model-selection details for image replies and legacy restored labels', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        text: 'Balanced natural light on the subject; slight highlight clipping on the shoulder.',
+        provider: 'anthropic',
+        model: 'claude-sonnet-5-5',
+        tier: 'routine',
+        selection: { rationale: 'Economy: efficient vision-capable Claude model for routine analysis.' },
+      }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    function SessionHarness() {
+      const [session, setSession] = useState(emptyHomeSession)
+      return <HomeTab onNavigate={() => {}} session={session} onSessionChange={setSession} />
+    }
+
+    render(<SessionHarness />)
+    const fileInput = screen.getByTestId('home-attachment-input') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(fileInput, { target: { files: [new File([new Uint8Array(1024)], 'studio.jpg', { type: 'image/jpeg' })] } })
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    })
+
+    expect(screen.getByText('Photo analysis · Temporary (not stored) · Excerpt')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Read full answer' }))
+    const dialog = screen.getByRole('dialog', { name: 'Photo analysis' })
+    const heading = within(dialog).getByRole('heading', { name: 'Photo analysis' })
+    expect(heading.textContent).toBe('Photo analysis')
+    expect(within(dialog).getByText('Economy · Claude · claude-sonnet-5-5')).toBeInTheDocument()
+    expect(within(dialog).getByText('Temporary · not stored')).toBeInTheDocument()
+    expect(within(dialog).getByText(/Economy: efficient vision-capable Claude model/)).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Continue conversation' })).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close details' }))
+  })
+
+  it('normalizes legacy concatenated attachment labels into a short modal heading', () => {
+    const legacySession: HomeSession = {
+      ...emptyHomeSession(),
+      reply: {
+        question: 'Attached temporarily (not stored): portrait.jpg — Critique lighting',
+        text: 'Strong rim light and clean background separation.',
+        label: 'Attachment analysis · temporary file (not stored) · Economy: efficient vision-capable Claude model · Processed once by Claude for this analysis; this app stores only the analysis, not the file.',
+        provider: 'Economy · Claude · claude-sonnet-5-5',
+        attachments: [{ name: 'portrait.jpg', size: 150_000 }],
+      },
+    }
+    render(<HomeTab onNavigate={() => {}} session={legacySession} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Read full answer' }))
+    const dialog = screen.getByRole('dialog', { name: 'Photo analysis' })
+    expect(within(dialog).getByRole('heading', { name: 'Photo analysis' })).toBeInTheDocument()
+    expect(within(dialog).getByText(/Economy: efficient vision-capable Claude model/)).toBeInTheDocument()
   })
 })

@@ -100,19 +100,45 @@ describe('PersistentOrb', () => {
     expect(host.getAttribute('data-orb')).toBe('hero')
   })
 
-  it('hides the orb when its slot is inside a display:none subtree', () => {
-    function HiddenHarness() {
+  it('hides the orb when its slot is inside a display:none subtree and restores hero placement when unhidden on active processing', () => {
+    function ToggleHarness({ hidden, cognition }: { hidden: boolean; cognition: OrbCognition }) {
       return (
         <OrbHostProvider placed>
           <PersistentOrb />
-          <div style={{ display: 'none' }}>
-            <Publisher {...settled} />
+          <div style={{ display: hidden ? 'none' : 'flex' }} data-immersive={hidden ? undefined : 'true'}>
+            <Publisher {...cognition} />
           </div>
         </OrbHostProvider>
       )
     }
-    render(<HiddenHarness />)
+    const { rerender } = render(<ToggleHarness hidden cognition={settled} />)
     const host = document.querySelector('.sd-orb-host') as HTMLElement
     expect(host.getAttribute('data-orb')).toBe('hidden')
+
+    rerender(<ToggleHarness hidden={false} cognition={{ cognition: 'deriving', provenance: 'model', recording: false, operation: 'Analyzing photo' }} />)
+    expect(host.getAttribute('data-orb')).toBe('hero')
+    expect(host.getAttribute('data-orb-state')).toBe('acting')
+  })
+
+  it('never docks an active immersive orb due to stale inner scrollTop', async () => {
+    function ImmersiveScrollHarness() {
+      return (
+        <OrbHostProvider placed>
+          <div className="codex-shell" style={{ position: 'relative' }} data-immersive="true">
+            <PersistentOrb />
+            <div data-testid="immersive-scroller" style={{ overflowY: 'auto', height: '400px' }}>
+              <Publisher cognition="deriving" provenance="model" recording={false} operation="Analyzing photo" />
+            </div>
+          </div>
+        </OrbHostProvider>
+      )
+    }
+    render(<ImmersiveScrollHarness />)
+    const host = document.querySelector('.sd-orb-host') as HTMLElement
+    const scroller = screen.getByTestId('immersive-scroller')
+    Object.defineProperty(scroller, 'scrollTop', { configurable: true, value: 180 })
+    scroller.dispatchEvent(new Event('scroll', { bubbles: false }))
+    await new Promise(resolve => window.requestAnimationFrame(() => resolve(undefined)))
+    expect(host.getAttribute('data-orb')).toBe('hero')
   })
 })

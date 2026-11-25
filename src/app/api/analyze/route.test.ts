@@ -114,6 +114,8 @@ describe('/api/analyze owner gate', () => {
     expect(response.status).toBe(200)
     const call = createMessage.mock.calls[0][0]
     expect(call.system).toMatch(/untrusted artifact data/i)
+    expect(call.system).toMatch(/photographer or reviewer/i)
+    expect(call.system).toMatch(/do not automatically assume a person depicted/i)
     const blocks = call.messages[0].content as Array<{ type: string; text?: string }>
     const joined = blocks.map(b => b.text ?? '').join('\n')
     expect(joined).toContain('UNTRUSTED UPLOADED ARTIFACTS BEGIN')

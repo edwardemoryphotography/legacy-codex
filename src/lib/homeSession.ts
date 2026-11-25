@@ -3,7 +3,56 @@ import type { ConversationTier } from './modelPreference'
 export type LiveEntry = { question: string; text: string; provider: string; actionTitle: string | null; finishWhen: string | null; saved?: boolean; /** A live answer with no completion boundary is retained honestly as partial. */ partial?: boolean; source?: 'delegated' | 'direct' }
 export const LIVE_ENTRY_LIMIT = 40
 export type HomeAttachmentMeta = { name: string; size: number; note?: string | null }
-export type HomeReply = { question: string; text: string; label: string; provider: string; actionTitle?: string | null; attachments?: HomeAttachmentMeta[] }
+export type HomeReply = {
+  question: string
+  text: string
+  label: string
+  provider: string
+  actionTitle?: string | null
+  attachments?: HomeAttachmentMeta[]
+  selectionRationale?: string | null
+  processingDisclosure?: string | null
+}
+
+/** Separates concise modal/card headings from expandable model-selection and
+ *  file-processing disclosures (including legacy concatenated labels restored
+ *  from sessionStorage). */
+export function replyDisplayMeta(reply: HomeReply): {
+  shortTitle: string
+  isAttachment: boolean
+  selectionRationale: string | null
+  processingDisclosure: string | null
+} {
+  const hasAttachments = Boolean(reply.attachments && reply.attachments.length > 0)
+  const rawLabel = (reply.label || '').trim()
+  const looksLikeAttachment = hasAttachments || /^(Photo|Attachment) analysis\b/i.test(rawLabel)
+  if (!looksLikeAttachment) {
+    return {
+      shortTitle: rawLabel || 'Full answer',
+      isAttachment: false,
+      selectionRationale: reply.selectionRationale ?? null,
+      processingDisclosure: reply.processingDisclosure ?? null,
+    }
+  }
+  const allImages = hasAttachments && reply.attachments!.every(item => /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(item.name))
+  const shortTitle = /^Photo analysis\b/i.test(rawLabel) || allImages ? 'Photo analysis' : 'Attachment analysis'
+  let selectionRationale = reply.selectionRationale ?? null
+  let processingDisclosure = reply.processingDisclosure ?? null
+  // Gracefully unpack legacy multi-part labels saved in tab storage before this polish.
+  if (!selectionRationale && !processingDisclosure && rawLabel.includes(' · ')) {
+    const parts = rawLabel.split(' · ').slice(1).map(part => part.trim()).filter(Boolean)
+    const filtered = parts.filter(part => !/^temporary files?\b/i.test(part))
+    const disclosureIdx = filtered.findIndex(part => /processed once|stores only/i.test(part))
+    if (disclosureIdx >= 0) {
+      processingDisclosure = filtered.slice(disclosureIdx).join(' · ')
+      const before = filtered.slice(0, disclosureIdx).join(' · ')
+      if (before) selectionRationale = before
+    } else if (filtered.length > 0) {
+      selectionRationale = filtered.join(' · ')
+    }
+  }
+  return { shortTitle, isAttachment: true, selectionRationale, processingDisclosure }
+}
 /** Account-scoped dialogue for this browser tab; never a saved action or lesson. */
 export type HomeSession = { accountId: string | null; text: string; tool: HomeTool | null; history: HomeReply[]; reply: HomeReply | null; tier?: ConversationTier; liveEntries?: LiveEntry[] }
 export function emptyHomeSession(accountId: string | null = null): HomeSession {
@@ -38,6 +87,8 @@ export function restoreHomeSession(accountId: string): HomeSession {
     const reply = (item: unknown): item is HomeReply => Boolean(item && typeof item === 'object' &&
       ['question', 'text', 'label', 'provider'].every(key => typeof (item as Record<string, unknown>)[key] === 'string' && ((item as Record<string, string>)[key].length <= 100_000)) &&
       ((item as { actionTitle?: unknown }).actionTitle === undefined || (item as { actionTitle?: unknown }).actionTitle === null || (typeof (item as { actionTitle?: unknown }).actionTitle === 'string' && (item as { actionTitle: string }).actionTitle.length <= 240)) &&
+      ((item as { selectionRationale?: unknown }).selectionRationale === undefined || (item as { selectionRationale?: unknown }).selectionRationale === null || (typeof (item as { selectionRationale?: unknown }).selectionRationale === 'string' && (item as { selectionRationale: string }).selectionRationale.length <= 1_000)) &&
+      ((item as { processingDisclosure?: unknown }).processingDisclosure === undefined || (item as { processingDisclosure?: unknown }).processingDisclosure === null || (typeof (item as { processingDisclosure?: unknown }).processingDisclosure === 'string' && (item as { processingDisclosure: string }).processingDisclosure.length <= 1_000)) &&
       ((item as { attachments?: unknown }).attachments === undefined || (Array.isArray((item as { attachments?: unknown }).attachments) && (item as { attachments: unknown[] }).attachments.length <= 8 && (item as { attachments: unknown[] }).attachments.every(attachmentMeta))))
     if (value.accountId !== accountId || typeof value.text !== 'string' || value.text.length > QUESTION_LIMIT ||
         ![null, 'brief', 'triage', 'ask', 'prompt'].includes(value.tool) || !Array.isArray(value.history) || value.history.length > 6 ||
