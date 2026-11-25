@@ -11,7 +11,8 @@ describe('historical boomerangs visible in the existing owner lesson gate', () =
     const allIds = [...INCIDENT_CANDIDATES.map(x => x.casebookId), ...HISTORICAL_LESSON_CANDIDATES.map(x => x.casebookId)]
     expect(allIds.sort()).toEqual(BOOMERANG_CASES.map(x => x.id).sort())
     expect(new Set(allIds).size).toBe(BOOMERANG_CASES.length)
-    expect(HISTORICAL_LESSON_CANDIDATES).toHaveLength(33)
+    expect(HISTORICAL_LESSON_CANDIDATES).toHaveLength(BOOMERANG_CASES.length - INCIDENT_CANDIDATES.length)
+    expect(findReviewableLessonCandidate('BR-035')).not.toBeNull()
     expect(HISTORICAL_LESSON_CANDIDATES.find(x => x.id === 'BR-034')).toBeUndefined()
   })
 
