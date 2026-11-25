@@ -858,6 +858,40 @@ export const BOOMERANG_CASES: readonly BoomerangCase[] = [
         "url": "https://github.com/edwardemoryphotography/legacy-codex/blob/main/docs/verification/nextaction-contract-2026-11-03.md"
       }
     ]
+  },
+  {
+    "id": "BR-036",
+    "era": "2026-11-24",
+    "title": "Redundancy fails when no participant has a viable budget",
+    "sourceDomain": "Production Project Review failures documented in PRs #205 and #206: a shared draft deadline produced roughly 15-second provider attempts; later fixed caps still left a fallback about two seconds.",
+    "targetDomain": "Future model routing, staged agent work and other deadline-constrained fallback plans",
+    "sharedStructure": "Adding alternatives cannot improve completion if scheduling and workload leave each alternative below its viable execution budget.",
+    "reasoningBridge": "Equal division and later fixed caps both preserved an oversized review workload. PR #206 changed Economy to one compact pass rather than merely adjusting constants. This suggests checking operation size, contract and measured completion together before adding fallbacks. Unlike BR-034's containing-structure repair, this candidate concerns resource admission across competing execution attempts. Application to other workflows is a hypothesis, not an observed transfer.",
+    "practicalConsequence": "When coordinating work under a shared deadline, measure the actual operation and model configuration, reserve a viable primary attempt, skip infeasible fallbacks and reduce workload explicitly when needed. Preserve user tier, evidence limits and consent. Conditions: deadline-bound sequential attempts with measured workload-dependent latency. Exceptions: independent parallel capacity or genuinely fast alternatives may benefit from redundancy. Do not generalize one provider measurement into a universal ranking.",
+    "evidenceRequired": "The source PRs document timed-out production attempts and later live-provider probes; probes used development credentials and a minimal non-personal packet, so they do not establish production entitlement or real-mission usefulness. Provider availability, output-contract defects and request overhead are competing causes to check. On a genuinely different later task, compare grounded usefulness, completion, latency and total cost under actual constraints, without the owner repeating this correction. Keep quality and independent critique requirements explicit; a shorter pass is not automatically equivalent to Deep review.",
+    "recordStatus": "candidate",
+    "inheritance": "not-demonstrated",
+    "sources": [
+      {
+        "label": "Production timeout diagnosis and first budget repair",
+        "access": "public",
+        "url": "https://github.com/edwardemoryphotography/legacy-codex/pull/205"
+      },
+      {
+        "label": "Repeated timeout and compact single-pass structural repair",
+        "access": "public",
+        "url": "https://github.com/edwardemoryphotography/legacy-codex/pull/206"
+      },
+      {
+        "label": "Live provider probe report and production-verification limits",
+        "access": "public",
+        "url": "https://github.com/edwardemoryphotography/legacy-codex/pull/207"
+      },
+      {
+        "label": "November 24 owner-authorized adaptive intelligence selection doctrine (restricted Notion source)",
+        "access": "restricted"
+      }
+    ]
   }
 ] as const
 
