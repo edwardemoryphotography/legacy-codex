@@ -17,9 +17,14 @@ describe('humanizeSourceText', () => {
     expect(result).not.toMatch(/f58a32e2|11111111/)
   })
 
-  it('falls back to a plain kind phrase for an unknown source ID', () => {
+  it('marks an unknown source ID as unverified instead of presenting it as a supplied source', () => {
     const result = humanizeSourceText('See event:99999999-8888-7777-6666-555555555555 for details.', sources)
-    expect(result).toBe('See your saved note for details.')
+    expect(result).toBe('See an unverified source reference for details.')
+  })
+
+  it('marks an unknown bare UUID as unverified', () => {
+    const result = humanizeSourceText('See 99999999-8888-7777-6666-555555555555 for details.', sources)
+    expect(result).toBe('See an unverified reference for details.')
   })
 
   it('replaces bare UUIDs that match known supplied sources', () => {
@@ -60,12 +65,43 @@ describe('reviewProvenanceSummary', () => {
     const summary = reviewProvenanceSummary(review)
     expect(summary.tierLabel).toBe('Economy')
     expect(summary.passLabel).toBe('Single structured pass')
-    expect(summary.selectionBasis).toBe('Selected by Economy default')
+    expect(summary.selectionBasis).toBe('Economy default')
     expect(summary.intelligenceLabel).toBe('Gemini · gemini-4-hydrogen')
     expect(summary.elapsedLabel).toBe('16.4s')
     expect(summary.sourcesSummary).toBe('2 of 3 supplied sources cited')
     expect(summary.citedLessons).toHaveLength(1)
+    expect(summary.executionUnknown).toBe(true)
+    expect(summary.policyLabel).toBe('Selection policy not recorded for this older review')
+    expect(summary.citedLessonNote).toBe('Lessons cited as context; influence not demonstrated')
     expect(sourceKindLabel('lesson')).toBe('Confirmed lesson')
+  })
+
+  it('reports tier, static policy, actual participants, fallbacks and measured interval', () => {
+    const review = {
+      tier: 'deep' as const, critique: 'independent' as const, provider: 'anthropic' as const, model: 'claude-opus-5-5',
+      elapsedMs: 21_000,
+      execution: {
+        tier: 'deep' as const, selectionPolicy: 'static_measured_v1' as const,
+        provider: 'anthropic' as const, model: 'claude-opus-5-5',
+        fallbacks: [{ provider: 'gemini' as const, model: 'gemini-4-argon', reason: 'timed_out' }],
+        draft: { provider: 'anthropic' as const, model: 'claude-opus-5-5' },
+        critique: { provider: 'anthropic' as const, model: 'claude-opus-5-5' },
+        elapsedMs: 21_000, elapsedBasis: 'request_start_to_review_built' as const,
+      },
+      missionId: sources[0].id.slice(8), finishLine: 'One print sold', operation: 'Publish listings',
+      decision: 'act' as const, finishWhen: 'Live', clarification: null, resumeActionId: null,
+      alternatives: [], biggerPicture: 'Launch', why: 'Direct', overlooked: 'None', selfCheck: 'Grounded',
+      unknowns: [], sourceIds: [sources[0].id], sources: [sources[0]], contextKey: 'a'.repeat(64),
+      reviewedAt: '2026-11-24T23:50:00Z', cached: false, warnings: [], lesson: null,
+    } as unknown as ProjectReview
+    const summary = reviewProvenanceSummary(review)
+    expect(summary.selectionBasis).toBe('User selected Deep')
+    expect(summary.policyLabel).toBe('Static measured selection — not learned routing')
+    expect(summary.intelligenceLabel).toBe('Claude · claude-opus-5-5')
+    expect(summary.fallbackLabel).toBe('Fallback used: Gemini (timed_out)')
+    expect(summary.participantsLabel).toBe('Draft: Claude · claude-opus-5-5 · Critique: Claude · claude-opus-5-5')
+    expect(summary.elapsedBasisLabel).toBe('whole request, start to review built')
+    expect(summary.executionUnknown).toBe(false)
   })
 
   it('omits provider/model cleanly when absent on an older cached record', () => {

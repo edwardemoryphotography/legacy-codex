@@ -58,20 +58,15 @@ export function humanizeSourceText(text: string, sources?: readonly ProjectSourc
   let out = text.replace(SOURCE_TOKEN_RE, token => {
     const match = byId.get(token)
     if (match) return `“${shortLabel(match)}”`
-    const kind = token.slice(0, token.indexOf(':'))
-    if (kind === 'mission') return 'this mission'
-    if (kind === 'action') return 'your saved step'
-    if (kind === 'lesson') return 'a confirmed lesson'
-    if (kind === 'evidence') return 'recorded evidence'
-    if (kind === 'event') return 'your saved note'
-    if (kind === 'repository') return 'linked repository file'
-    return 'saved source'
+    // The token is not one of the supplied sources. Never render it as if it
+    // were a legitimate supplied source; say that it is unverified.
+    return 'an unverified source reference'
   })
 
   if (byUuid.size > 0) {
     out = out.replace(BARE_UUID_RE, uuid => {
       const match = byUuid.get(uuid.toLowerCase())
-      return match ? `“${shortLabel(match)}”` : uuid
+      return match ? `“${shortLabel(match)}”` : 'an unverified reference'
     })
   }
 
@@ -83,9 +78,17 @@ export function humanizeSourceText(text: string, sources?: readonly ProjectSourc
 export interface ReviewProvenanceSummary {
   tierLabel: string | null
   passLabel: string | null
+  /** The user's explicit choice (or the Economy default), not a routing claim. */
   selectionBasis: string | null
+  /** Static measured policy vs unknown for older records. Never "learned". */
+  policyLabel: string | null
   intelligenceLabel: string | null
+  fallbackLabel: string | null
+  participantsLabel: string | null
   elapsedLabel: string | null
+  elapsedBasisLabel: string | null
+  executionUnknown: boolean
+  citedLessonNote: string | null
   sourcesSummary: string
   citedSources: ProjectSource[]
   citedLessons: ProjectSource[]
@@ -108,16 +111,36 @@ export function reviewProvenanceSummary(review: ProjectReview): ReviewProvenance
       ? 'Draft + independent critique'
       : null
   const selectionBasis = review.tier === 'deep'
-    ? 'Selected by Deep mode'
+    ? 'User selected Deep'
     : review.tier === 'routine'
-      ? 'Selected by Economy default'
+      ? 'Economy default'
       : null
-  const providerName = review.provider ? PROVIDER_LABELS[review.provider] : null
-  const intelligenceLabel = providerName && review.model
-    ? `${providerName} · ${review.model}`
-    : providerName ?? review.model ?? null
-  const elapsedLabel = typeof review.elapsedMs === 'number' && Number.isFinite(review.elapsedMs) && review.elapsedMs >= 0
-    ? review.elapsedMs >= 1_000 ? `${(review.elapsedMs / 1_000).toFixed(1)}s` : `${Math.round(review.elapsedMs)}ms`
+  const execution = review.execution
+  const providerName = execution ? PROVIDER_LABELS[execution.provider]
+    : review.provider ? PROVIDER_LABELS[review.provider] : null
+  const modelName = execution?.model ?? review.model ?? null
+  const intelligenceLabel = providerName && modelName
+    ? `${providerName} · ${modelName}`
+    : providerName ?? modelName ?? null
+  const policyLabel = execution
+    ? 'Static measured selection — not learned routing'
+    : review.tier ? 'Selection policy not recorded for this older review' : null
+  const fallbackLabel = execution
+    ? execution.fallbacks.length
+      ? `Fallback used: ${execution.fallbacks.map(item => `${PROVIDER_LABELS[item.provider]}${item.skipped ? ' skipped' : ` (${item.reason})`}`).join(' → ')}`
+      : 'No fallback used'
+    : null
+  const participant = (value: { provider: NonNullable<ProjectReview['provider']>; model: string } | null) =>
+    value ? `${PROVIDER_LABELS[value.provider]} · ${value.model}` : null
+  const participantsLabel = execution?.critique
+    ? `Draft: ${participant(execution.draft) ?? 'not recorded'} · Critique: ${participant(execution.critique)}`
+    : null
+  const measuredMs = execution?.elapsedMs ?? review.elapsedMs
+  const elapsedLabel = typeof measuredMs === 'number' && Number.isFinite(measuredMs) && measuredMs >= 0
+    ? measuredMs >= 1_000 ? `${(measuredMs / 1_000).toFixed(1)}s` : `${Math.round(measuredMs)}ms`
+    : null
+  const elapsedBasisLabel = elapsedLabel
+    ? execution ? 'whole request, start to review built' : 'recorded duration'
     : null
 
   const citedSet = new Set(review.sourceIds)
@@ -131,8 +154,14 @@ export function reviewProvenanceSummary(review: ProjectReview): ReviewProvenance
     tierLabel,
     passLabel,
     selectionBasis,
+    policyLabel,
     intelligenceLabel,
+    fallbackLabel,
+    participantsLabel,
     elapsedLabel,
+    elapsedBasisLabel,
+    executionUnknown: !execution,
+    citedLessonNote: citedLessons.length ? 'Lessons cited as context; influence not demonstrated' : null,
     sourcesSummary,
     citedSources,
     citedLessons,

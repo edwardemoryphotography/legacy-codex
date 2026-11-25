@@ -106,12 +106,12 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
   const correcting = Boolean(correctionKey && correctionKey === correctionTarget)
 
   function cancelComparison() {
+    // Truthful semantics: this stops waiting on this screen. The server may
+    // already be in a provider call, and a cancelled request is not persisted.
     activeReviewAbort.current?.abort()
-    activeReviewAbort.current = null
-    pending.current = false
-    setPhase('idle')
-    setNotice('Comparison cancelled. Your saved step is still here.')
+    setNotice('Stopped waiting. A model request already in flight may still finish on the server; a cancelled result is not saved or shown.')
     setNoticeError(false)
+    // pending/phase are cleared by the owning request's finally block only.
   }
 
   async function compare() {
@@ -145,9 +145,13 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
         : err instanceof Error ? err.message : 'Could not compare these moves.')
       setNoticeError(true)
     } finally {
-      if (activeReviewAbort.current === cancelController) activeReviewAbort.current = null
-      pending.current = false
-      if (!unmountSignal?.aborted) setPhase('idle')
+      // Only the request that still owns the slot may clear its state. A
+      // superseded request finishing late must not reset the newer one.
+      if (activeReviewAbort.current === cancelController) {
+        activeReviewAbort.current = null
+        pending.current = false
+        if (!unmountSignal?.aborted) setPhase('idle')
+      }
     }
   }
 
@@ -195,8 +199,9 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
             ? 'Deep · draft and independent critique over your saved mission context.'
             : 'Economy · single structured pass over your saved mission context.'}
         </p>
+        <p className={styles.processingDetail}>Stopping closes this screen. Server work already in flight may finish; it will not be saved.</p>
         <button type="button" className={styles.secondary} onClick={cancelComparison}>
-          Cancel comparison
+          Stop waiting
         </button>
       </section>
     )
@@ -210,15 +215,20 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
           {info.tierLabel && <span className={styles.metaTag}>{info.tierLabel}</span>}
           {info.passLabel && <span className={styles.metaTag}>{info.passLabel}</span>}
           {info.selectionBasis && <span className={styles.metaTag}>{info.selectionBasis}</span>}
+          {info.policyLabel && <span className={styles.metaTag}>{info.policyLabel}</span>}
           {info.intelligenceLabel && <span className={styles.metaTag}>{info.intelligenceLabel}</span>}
-          {info.elapsedLabel && <span className={styles.metaTag}>{info.elapsedLabel}</span>}
+          {info.fallbackLabel && <span className={styles.metaTag}>{info.fallbackLabel}</span>}
+          {info.participantsLabel && <span className={styles.metaTag}>{info.participantsLabel}</span>}
+          {info.elapsedLabel && <span className={styles.metaTag}>{info.elapsedLabel}{info.elapsedBasisLabel ? ` · ${info.elapsedBasisLabel}` : ''}</span>}
+          {info.executionUnknown && <span className={styles.metaTag}>Execution provenance not recorded</span>}
           <span className={styles.metaTag}>{info.sourcesSummary}</span>
           {info.cached && <span className={styles.metaTag}>Cached review</span>}
           {info.citedLessons.map(lesson => (
             <span key={lesson.id} className={`${styles.metaTag} ${styles.metaTagLesson}`}>
-              Lesson cited · {lesson.label.length > 48 ? `${lesson.label.slice(0, 45).trimEnd()}…` : lesson.label}
+              Lesson cited (context only) · {lesson.label.length > 40 ? `${lesson.label.slice(0, 37).trimEnd()}…` : lesson.label}
             </span>
           ))}
+          {info.citedLessonNote && <span className={styles.metaTag}>{info.citedLessonNote}</span>}
         </div>
         {info.citedSources.length > 0 && (
           <div className={styles.sourceChipList}>
