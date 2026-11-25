@@ -16,6 +16,7 @@ import styles from './CodexLiveVoice.module.css'
 export type LiveVoicePhase = 'idle' | 'connecting' | 'listening' | 'reasoning' | 'responding' | 'interrupted'
 export type LiveTransportState = 'idle' | 'connecting' | 'connected' | 'interrupted' | 'terminated'
 export type LiveMicState = 'live' | 'muted' | 'unavailable'
+export const VOICE_ENDED_MESSAGE = 'Voice ended. Spoken transcript cleared; earlier replies stay in Home; nothing saved.'
 
 type LiveEvent = {
   type?: string
@@ -520,7 +521,7 @@ export default function CodexLiveVoice({
   useEffect(() => {
     onControlsChange?.({
       mute: toggleMute,
-      end: () => stop('Voice ended. Spoken transcript cleared; earlier replies stay in Home; nothing saved.', { explicit: true }),
+      end: () => stop(VOICE_ENDED_MESSAGE, { explicit: true }),
     })
     return () => onControlsChange?.(null)
   }, [onControlsChange, toggleMute, stop])
@@ -1011,7 +1012,7 @@ export default function CodexLiveVoice({
               type="button"
               className={styles.end}
               aria-label="End voice session"
-              onClick={() => stop('Voice ended. Spoken transcript cleared; earlier replies stay in Home; nothing saved.', { explicit: true })}
+              onClick={() => stop(VOICE_ENDED_MESSAGE, { explicit: true })}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
                 <path d="M6 6l12 12M18 6L6 18" />

@@ -6,6 +6,7 @@ import { connectMissionSession } from '@/lib/supabase/missionSession'
 import { ActionBtn, Input, Textarea } from '@/components/ui'
 import type { RoutedActionDraft } from './TaskRouter'
 import { savedActionDisplay } from '@/lib/savedActionDisplay'
+import SafeMarkdown, { hasMarkdownSyntax } from '@/components/SafeMarkdown'
 
 export interface SavedOpenActionSnapshot {
   id: string
@@ -203,7 +204,16 @@ export default function SavedActions({
           <ActionBtn disabled={saving || !title.trim()} onClick={saveAction}>{saving ? 'Saving…' : 'Save next action'}</ActionBtn>
         </div> : <p>No unfinished actions are saved. Choose your next action on the Mission screen.</p>)}
         {doneActions.length > 0 && <details><summary>Actions you marked done ({doneActions.length})</summary>
-          {doneActions.map(action => <div key={action.id} className="mt-3 commitment-done"><p>{action.action_title}</p><p className="text-sm" style={{ color: 'var(--text-dim)' }}>{action.resume_note || 'No completion note saved.'}</p></div>)}
+          {doneActions.map(action => (
+            <div key={action.id} className="mt-3 commitment-done">
+              <p><SafeMarkdown inline>{action.action_title}</SafeMarkdown></p>
+              {action.resume_note ? (
+                <SafeMarkdown className="text-sm space-y-1" >{action.resume_note}</SafeMarkdown>
+              ) : (
+                <p className="text-sm" style={{ color: 'var(--text-dim)' }}>No completion note saved.</p>
+              )}
+            </div>
+          ))}
         </details>}
         <button type="button" className="underline text-sm" onClick={() => { setLoading(true); void load() }}>Refresh saved actions</button>
       </>}
@@ -214,6 +224,7 @@ export default function SavedActions({
 
 function ActionCard({ action, onSaved, matchesRecommendation, draftNote }: { action: SavedAction; onSaved: (action: SavedAction) => void; matchesRecommendation?: boolean; draftNote?: string | null }) {
   const [note, setNote] = useState(action.resume_note ?? '')
+  const [previewNote, setPreviewNote] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const busyRef = useRef(false)
@@ -250,13 +261,26 @@ function ActionCard({ action, onSaved, matchesRecommendation, draftNote }: { act
     }
   }
   const readable = savedActionDisplay(action.action_title, action.mission.title)
+  const noteHasMarkdown = hasMarkdownSyntax(note)
   return <article id={`saved-action-${action.id}`} tabIndex={-1} className="commitment-card">
     <p className="commitment-meta">{action.mission.title} · {action.status === 'IN_PROGRESS' ? 'In progress' : 'Ready to resume'}{action.mission.state !== 'primary' ? ` · Mission ${action.mission.state}` : ''}</p>
-    <h4 className="commitment-title">{readable.heading}</h4>
-    {readable.fromNote && <p className="commitment-lead">From your note: {readable.fromNote}</p>}
-    {readable.original && <details className="route-handoff"><summary>Original saved wording</summary><p>{readable.original}</p></details>}
+    <h4 className="commitment-title"><SafeMarkdown inline>{readable.heading}</SafeMarkdown></h4>
+    {readable.fromNote && <p className="commitment-lead">From your note: <SafeMarkdown inline>{readable.fromNote}</SafeMarkdown></p>}
+    {readable.original && <details className="route-handoff"><summary>Original saved wording</summary><SafeMarkdown>{readable.original}</SafeMarkdown></details>}
     {matchesRecommendation && <p className="commitment-same">Same words as the recommendation you accepted.</p>}
-    <label htmlFor={`resume-${action.id}`}>Starting point</label>
+    <div className="flex items-center justify-between gap-2">
+      <label htmlFor={`resume-${action.id}`}>Starting point</label>
+      {noteHasMarkdown && (
+        <button type="button" className="underline text-xs" aria-expanded={previewNote} onClick={() => setPreviewNote(open => !open)}>
+          {previewNote ? 'Hide formatted note' : 'Read formatted note'}
+        </button>
+      )}
+    </div>
+    {previewNote && noteHasMarkdown && (
+      <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm space-y-1" aria-label="Formatted saved note">
+        <SafeMarkdown>{note}</SafeMarkdown>
+      </div>
+    )}
     {draftNote && !note.includes(draftNote) && <div className="space-y-2"><p>A revised draft is available for this action.</p><div className="flex flex-wrap gap-2"><ActionBtn disabled={busy} onClick={() => setNote(previous => `${previous}${previous.trim() ? '\n\n' : ''}${draftNote}`)}>Add draft to starting point</ActionBtn><ActionBtn disabled={busy} onClick={() => {
       const combined = `${note}${note.trim() ? '\n\n' : ''}${draftNote}`
       setNote(combined)

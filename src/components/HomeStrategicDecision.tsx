@@ -14,6 +14,7 @@ import { reviewProvenanceSummary, sourceKindLabel } from '@/lib/readableProvenan
 import { reviewCandidate, selectReviewedDelta } from '@/lib/reviewedDelta'
 import HomeContinue from './HomeContinue'
 import styles from './HomeContinue.module.css'
+import { stripMarkdownInline } from './SafeMarkdown'
 
 interface Props {
   territory: MissionTerritory
@@ -268,16 +269,19 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
             proposal differs from an existing unfinished saved action, keep a
             direct, one-tap Resume beside it instead of burying it in reasons or
             the collapsed alternative. */}
-        {saved && !decision.followsSaved && (
-          <button
-            type="button"
-            className={`${styles.secondary} ${styles.resumePill}`}
-            onClick={() => onOpen(true)}
-            aria-label={`Resume your saved step: ${saved.title}`}
-          >
-            Resume: {saved.title.length > 52 ? `${saved.title.slice(0, 49)}…` : saved.title}
-          </button>
-        )}
+        {saved && !decision.followsSaved && (() => {
+          const cleanSavedTitle = stripMarkdownInline(saved.title) || saved.title
+          return (
+            <button
+              type="button"
+              className={`${styles.secondary} ${styles.resumePill}`}
+              onClick={() => onOpen(true)}
+              aria-label={`Resume your saved step: ${cleanSavedTitle}`}
+            >
+              Resume: {cleanSavedTitle.length > 52 ? `${cleanSavedTitle.slice(0, 49)}…` : cleanSavedTitle}
+            </button>
+          )
+        })()}
         {eligible && (
           <button
             type="button"

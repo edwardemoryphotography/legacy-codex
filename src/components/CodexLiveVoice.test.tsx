@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import CodexLiveVoice, { inspectMicrophoneStream, liveVoiceActivityLabel, transportBillingSummary, type LiveVoiceSnapshot } from './CodexLiveVoice'
+import CodexLiveVoice, { inspectMicrophoneStream, liveVoiceActivityLabel, transportBillingSummary, VOICE_ENDED_MESSAGE, type LiveVoiceSnapshot } from './CodexLiveVoice'
 import type { Mission } from '@/types'
 
 vi.mock('@/lib/supabase/client', () => ({
@@ -378,6 +378,10 @@ describe('PR #210 behavioral integrity acceptance', () => {
     expect(onEntriesChange.mock.calls.at(-1)?.[0]).toHaveLength(1)
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'End voice session' })) })
     expect(onEntriesChange.mock.calls.at(-1)?.[0]).toEqual([])
+    expect(screen.getByRole('status')).toHaveTextContent(VOICE_ENDED_MESSAGE)
+    expect(VOICE_ENDED_MESSAGE.length).toBeLessThan(90)
+    expect(VOICE_ENDED_MESSAGE).toMatch(/transcript cleared/i)
+    expect(VOICE_ENDED_MESSAGE).toMatch(/nothing saved/i)
     const posts = setup.fetchMock.mock.calls.filter(([url, init]) => url === '/api/live-voice' && (init as RequestInit)?.method === 'POST')
     expect(posts).toHaveLength(1)
     expect(setup.fetchMock.mock.calls.some(([url, init]) => url === '/api/live-voice' && (init as RequestInit)?.method === 'DELETE')).toBe(true)

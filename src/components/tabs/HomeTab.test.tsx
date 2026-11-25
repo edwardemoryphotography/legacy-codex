@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { useState } from 'react'
 import { getAllEntries } from '@/data/codex'
 import { emptyHomeSession, type HomeSession } from '@/lib/homeSession'
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import HomeTab, { promptHelpQuestion } from './HomeTab'
 import { QUESTION_LIMIT } from '@/lib/homeRequest'
@@ -186,45 +186,23 @@ it('opens all five Codex tools in a native top-layer dialog and closes cleanly',
   expect(screen.getByRole('button', { name: 'Open tools' })).toHaveAttribute('aria-expanded', 'false')
 })
 
-it('closes the tools dialog without raising the keyboard for saved-work tools', () => {
+it('closes the native tools dialog before restoring composer focus for typed tools', () => {
+  render(<HomeTab onNavigate={() => {}} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Open tools' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Ask Codex' }))
+  expect(screen.queryByRole('dialog', { name: 'Codex tools' })).toBeNull()
+  expect(screen.getByRole('textbox', { name: 'Ask Codex' })).toHaveFocus()
+  expect(screen.getByRole('button', { name: 'Remove Ask Codex' })).toBeInTheDocument()
+})
+
+it('does not focus the composer textarea when Daily Brief is selected so mobile keyboard stays closed', () => {
   render(<HomeTab onNavigate={() => {}} />)
   fireEvent.click(screen.getByRole('button', { name: 'Open tools' }))
   fireEvent.click(screen.getByRole('menuitem', { name: 'Daily Brief' }))
   expect(screen.queryByRole('dialog', { name: 'Codex tools' })).toBeNull()
-  // Daily Brief uses saved missions; selecting it must not focus the composer.
   expect(screen.getByRole('textbox', { name: 'Ask Codex' })).not.toHaveFocus()
   expect(screen.getByRole('button', { name: 'Remove Daily Brief' })).toBeInTheDocument()
-
-  fireEvent.click(screen.getByRole('button', { name: 'Open tools' }))
-  fireEvent.click(screen.getByRole('menuitem', { name: 'Ask Codex' }))
-  expect(screen.getByRole('textbox', { name: 'Ask Codex' })).toHaveFocus()
-})
-
-it('opens a native file picker for attachments instead of navigating to Mission', () => {
-  const onNavigate = vi.fn()
-  render(<HomeTab onNavigate={onNavigate} />)
-  const click = vi.spyOn(HTMLInputElement.prototype, 'click')
-  fireEvent.click(screen.getByRole('button', { name: 'Open tools' }))
-  fireEvent.click(screen.getByRole('menuitem', { name: 'Photos, camera or files' }))
-  expect(click).toHaveBeenCalled()
-  expect(onNavigate).not.toHaveBeenCalled()
-  click.mockRestore()
-})
-
-it('previews selected attachments and lets the owner remove them', async () => {
-  render(<HomeTab onNavigate={() => {}} />)
-  const input = screen.getByTestId('home-attachment-input')
-  fireEvent.change(input, { target: { files: [new File(['hello'], 'notes.txt', { type: 'text/plain' })] } })
-  await waitFor(() => expect(screen.getByRole('group', { name: 'Selected attachments' })).toBeInTheDocument())
-  expect(screen.getByText(/notes\.txt/)).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'Remove notes.txt' }))
-  expect(screen.queryByRole('group', { name: 'Selected attachments' })).toBeNull()
-})
-
-it('explains an unsupported attachment rather than accepting it silently', async () => {
-  render(<HomeTab onNavigate={() => {}} />)
-  fireEvent.change(screen.getByTestId('home-attachment-input'), { target: { files: [new File(['zip'], 'archive.zip', { type: 'application/zip' })] } })
-  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/Unsupported file type: archive\.zip/))
+  expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
 })
 
 describe('HomeTab send arrow', () => {
@@ -798,5 +776,208 @@ describe('explicit conversation intelligence choice', () => {
     expect(screen.getByText(/Saved as your next action for/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Open in Mission' }))
     expect(navigate).toHaveBeenCalledWith('mission')
+  })
+})
+
+describe('Home native composer file upload', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('activates the native file picker from Plus → Photos, camera or files without navigating away from Home', () => {
+    const navigate = vi.fn()
+    render(<HomeTab onNavigate={navigate} />)
+    fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'Keep my draft intact' } })
+    const fileInput = screen.getByLabelText('Attach files') as HTMLInputElement
+    const clickSpy = vi.spyOn(fileInput, 'click').mockImplementation(() => {})
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open tools' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Photos, camera or files' }))
+
+    expect(clickSpy).toHaveBeenCalledOnce()
+    expect(navigate).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog', { name: 'Codex tools' })).toBeNull()
+    expect(screen.getByLabelText('Ask Codex')).toHaveValue('Keep my draft intact')
+    clickSpy.mockRestore()
+  })
+
+  it('preserves draft and staged attachments on picker cancellation, previews multiple attachments, and supports removal', async () => {
+    const createSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-photo')
+    const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    try {
+      render(<HomeTab onNavigate={() => {}} />)
+      fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'Review these files' } })
+      const fileInput = screen.getByLabelText('Attach files') as HTMLInputElement
+
+      const photo = new File([new Uint8Array(12_000)], 'shot.jpg', { type: 'image/jpeg' })
+      const doc = new File(['Requirements list'], 'notes.md', { type: 'text/markdown' })
+      await act(async () => {
+        fireEvent.change(fileInput, { target: { files: [photo, doc] } })
+      })
+
+      const list = screen.getByRole('list', { name: 'Attached files' })
+      expect(within(list).getAllByRole('listitem')).toHaveLength(2)
+      expect(within(list).getByAltText('shot.jpg')).toHaveAttribute('src', 'blob:mock-photo')
+      expect(within(list).getByText('notes.md')).toBeInTheDocument()
+      expect(screen.getByText(/2 files · .*Analyzed once, not stored/)).toBeInTheDocument()
+
+      // Simulated picker cancellation (empty selection) preserves everything.
+      await act(async () => {
+        fireEvent.change(fileInput, { target: { files: [] } })
+      })
+      expect(within(list).getAllByRole('listitem')).toHaveLength(2)
+      expect(screen.getByLabelText('Ask Codex')).toHaveValue('Review these files')
+
+      // Removing an attachment revokes its preview URL and keeps the remaining file.
+      fireEvent.click(screen.getByRole('button', { name: 'Remove shot.jpg' }))
+      expect(revokeSpy).toHaveBeenCalledWith('blob:mock-photo')
+      expect(within(list).getAllByRole('listitem')).toHaveLength(1)
+      expect(within(list).getByText('notes.md')).toBeInTheDocument()
+    } finally {
+      createSpy.mockRestore()
+      revokeSpy.mockRestore()
+    }
+  })
+
+  it('rejects unsupported formats explicitly and blocks sending oversized combined files', async () => {
+    render(<HomeTab onNavigate={() => {}} />)
+    const fileInput = screen.getByLabelText('Attach files') as HTMLInputElement
+
+    await act(async () => {
+      fireEvent.change(fileInput, {
+        target: {
+          files: [
+            new File(['zip'], 'archive.zip', { type: 'application/zip' }),
+            new File([new Uint8Array(5 * 1024 * 1024)], 'huge.pdf', { type: 'application/pdf' }),
+          ],
+        },
+      })
+    })
+
+    expect(screen.getByText(/Unsupported file type.*archive\.zip/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Remove huge.pdf' })).toBeInTheDocument()
+  })
+
+  it('analyzes attached files without navigating, labels analysis as temporary, and grounds follow-up questions honestly', async () => {
+    const navigate = vi.fn()
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        text: 'Observed evidence: **3 prints** are listed in `checklist.md`.',
+        provider: 'anthropic',
+        model: 'claude-sonnet-5-5',
+      }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    function SessionHarness() {
+      const [session, setSession] = useState(emptyHomeSession)
+      return <HomeTab onNavigate={navigate} session={session} onSessionChange={setSession} />
+    }
+
+    render(<SessionHarness />)
+    const fileInput = screen.getByLabelText('Attach files') as HTMLInputElement
+    const doc = new File(['- Print 1\n- Print 2\n- Print 3'], 'checklist.md', { type: 'text/markdown' })
+    await act(async () => {
+      fireEvent.change(fileInput, { target: { files: [doc] } })
+    })
+
+    // Accompanying question is optional: Send is enabled immediately with just a file.
+    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
+    fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'How many prints are listed?' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    })
+
+    expect(navigate).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledOnce()
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('/api/analyze')
+    const form = init.body as FormData
+    expect(form.get('instruction')).toBe('How many prints are listed?')
+    expect((form.getAll('files')[0] as File).name).toBe('checklist.md')
+
+    // Temporary provenance is explicit, staged attachments cleared, and answer displayed in place.
+    expect(screen.queryByRole('list', { name: 'Attached files' })).toBeNull()
+    expect(screen.getByText('Attachment analysis · temporary file (not stored) · Excerpt')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Observed evidence: 3 prints are listed in checklist\.md\./ })).toBeInTheDocument()
+
+    // Conversational follow-up grounds /api/brief in the explicitly identified temporary analysis.
+    fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'Which one should I frame first?' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    })
+    expect(run).toHaveBeenCalledWith(
+      'question',
+      expect.objectContaining({
+        question: 'Which one should I frame first?',
+        conversation: [
+          {
+            role: 'user',
+            text: 'Attached temporarily (not stored): checklist.md — How many prints are listed?',
+          },
+          {
+            role: 'assistant',
+            text: expect.stringContaining('[Temporary attachment analysis of checklist.md; original file(s) were not stored and are not re-read in follow-up turns]'),
+          },
+        ],
+      }),
+      'Ask Codex',
+    )
+  })
+
+  it('retains attachments and draft on analysis failure and on 403 non-owner denial', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({ error: 'Analysis unavailable.' }) })
+      .mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({ error: 'Forbidden' }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<HomeTab onNavigate={() => {}} />)
+    const fileInput = screen.getByLabelText('Attach files') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(fileInput, { target: { files: [new File(['abc'], 'draft.txt', { type: 'text/plain' })] } })
+    })
+    fireEvent.change(screen.getByLabelText('Ask Codex'), { target: { value: 'Check this draft' } })
+
+    // 503 failure retains file + draft and offers Try again.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    })
+    expect(screen.getByText('Analysis unavailable.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove draft.txt' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Ask Codex')).toHaveValue('Check this draft')
+
+    // Retry hits 403 -> retains file + draft and shows sign-in recovery.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    })
+    expect(screen.getByText(/only available on the owner account/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign in to your existing account' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove draft.txt' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Ask Codex')).toHaveValue('Check this draft')
+  })
+})
+
+describe('saved-action Markdown rendering', () => {
+  it('renders saved-action title and return-note Markdown cleanly without raw syntax or image requests', () => {
+    missions = [{ id: 'm1', title: 'Real mission', state: 'primary', finishLine: 'Published' }]
+    actionRows.push({
+      id: 'a1',
+      mission_id: 'm1',
+      action_title: 'Review **file upload** in `HomeTab.tsx`',
+      status: 'TODO',
+      resume_note: '**Next step:** verify `POST /api/analyze` ![diagram](https://example.test/x.png)',
+    })
+    render(<HomeTab onNavigate={() => {}} />)
+    const card = screen.getByRole('region', { name: 'What matters now' })
+    const strong = within(card).getByText('file upload')
+    expect(strong.tagName).toBe('STRONG')
+    expect(within(card).getByText('HomeTab.tsx').tagName).toBe('CODE')
+    expect(card.textContent).not.toContain('**file upload**')
+    expect(within(card).getByText('Next step:').tagName).toBe('STRONG')
+    expect(card.querySelector('img')).toBeNull()
   })
 })
