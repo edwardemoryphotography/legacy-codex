@@ -109,7 +109,7 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
     // Truthful semantics: this stops waiting on this screen. The server may
     // already be in a provider call, and a cancelled request is not persisted.
     activeReviewAbort.current?.abort()
-    setNotice('Stopped waiting. A model request already in flight may still finish on the server; a cancelled result is not saved or shown.')
+    setNotice('Stopped waiting. A model request already in flight may still finish on the server; a cancelled result is not shown, and it may still be saved if the disconnect is not observed.')
     setNoticeError(false)
     // pending/phase are cleared by the owning request's finally block only.
   }

@@ -76,7 +76,7 @@ export interface ProjectReview {
     critique: { provider: 'anthropic' | 'gemini' | 'openai'; model: string } | null
     elapsedMs: number
     /** The measured interval, stated explicitly so it is never over-read. */
-    elapsedBasis: 'request_start_to_review_built'
+    elapsedBasis: 'after_context_assembly_to_review_built'
   }
   /** Provider/model and execution duration recorded on completion (read-only metadata). */
   provider?: 'anthropic' | 'gemini' | 'openai'

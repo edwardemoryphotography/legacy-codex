@@ -118,7 +118,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const [local, setLocal] = useState(emptyHomeSession)
   const [livePhase, setLivePhase] = useState<LiveVoicePhase>('idle')
   const [liveSnapshot, setLiveSnapshot] = useState<LiveVoiceSnapshot>({
-    active: false, phase: 'idle', transportState: 'idle', muted: false, micState: 'unavailable', micLive: false,
+    active: false, phase: 'idle', transportState: 'idle', connected: false, muted: false, micState: 'unavailable', micLive: false,
     label: '', detail: '', hasProposal: false, turnCount: 0,
     retainedExchanges: 0, suppliedMessages: 0, recoveredExchanges: 0, directRecoveryAdvisorySent: false,
   })

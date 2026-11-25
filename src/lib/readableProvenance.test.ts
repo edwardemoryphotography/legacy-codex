@@ -86,7 +86,7 @@ describe('reviewProvenanceSummary', () => {
         fallbacks: [{ provider: 'gemini' as const, model: 'gemini-4-argon', reason: 'timed_out' }],
         draft: { provider: 'anthropic' as const, model: 'claude-opus-5-5' },
         critique: { provider: 'anthropic' as const, model: 'claude-opus-5-5' },
-        elapsedMs: 21_000, elapsedBasis: 'request_start_to_review_built' as const,
+        elapsedMs: 21_000, elapsedBasis: 'after_context_assembly_to_review_built' as const,
       },
       missionId: sources[0].id.slice(8), finishLine: 'One print sold', operation: 'Publish listings',
       decision: 'act' as const, finishWhen: 'Live', clarification: null, resumeActionId: null,
@@ -100,7 +100,7 @@ describe('reviewProvenanceSummary', () => {
     expect(summary.intelligenceLabel).toBe('Claude · claude-opus-5-5')
     expect(summary.fallbackLabel).toBe('Fallback used: Gemini (timed_out)')
     expect(summary.participantsLabel).toBe('Draft: Claude · claude-opus-5-5 · Critique: Claude · claude-opus-5-5')
-    expect(summary.elapsedBasisLabel).toBe('whole request, start to review built')
+    expect(summary.elapsedBasisLabel).toBe('after context assembly, to review built')
     expect(summary.executionUnknown).toBe(false)
   })
 

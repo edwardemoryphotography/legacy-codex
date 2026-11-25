@@ -90,7 +90,7 @@ export default function CodexApp() {
   const [missionTalkOpen, setMissionTalkOpen] = useState(false)
   const [homeSession, setHomeSession] = useState(emptyHomeSession)
   const [liveVoice, setLiveVoice] = useState<LiveVoiceSnapshot>({
-    active: false, phase: 'idle', transportState: 'idle', muted: false, micState: 'unavailable', micLive: false,
+    active: false, phase: 'idle', transportState: 'idle', connected: false, muted: false, micState: 'unavailable', micLive: false,
     label: '', detail: '', hasProposal: false, turnCount: 0,
     retainedExchanges: 0, suppliedMessages: 0, recoveredExchanges: 0, directRecoveryAdvisorySent: false,
   })
@@ -251,7 +251,7 @@ export default function CodexApp() {
               {liveVoice.micState === 'live' ? 'Microphone live' : liveVoice.micState === 'muted' ? 'Microphone muted' : 'Microphone unavailable'} ·
               {' '}{transportBillingSummary(liveVoice.transportState)} ·
               {' '}{liveVoice.retainedExchanges} exchange{liveVoice.retainedExchanges === 1 ? '' : 's'} retained ·
-              {' '}{liveVoice.suppliedMessages} message{liveVoice.suppliedMessages === 1 ? '' : 's'} supplied to backend
+              {' '}{liveVoice.suppliedMessages} message{liveVoice.suppliedMessages === 1 ? '' : 's'} supplied to backend reasoning
               {liveVoice.recoveredExchanges > 0 ? ` · ${liveVoice.recoveredExchanges} recovered` : ''}
             </p>
             <div className="voice-continuity-actions">

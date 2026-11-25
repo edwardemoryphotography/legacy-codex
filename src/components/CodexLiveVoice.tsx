@@ -37,6 +37,8 @@ export type LiveVoiceSnapshot = {
   active: boolean
   phase: LiveVoicePhase
   transportState: LiveTransportState
+  /** Derived from peer connection & data channel, not UI phase. */
+  connected: boolean
   muted: boolean
   micState: LiveMicState
   /** Derived strictly from actual MediaStreamTrack readyState/enabled/muted, never from phase. */
@@ -45,13 +47,13 @@ export type LiveVoiceSnapshot = {
   detail: string
   hasProposal: boolean
   turnCount: number
-  /** Completed conversational exchanges retained in this browser tab. */
+  /** Completed or partial exchanges retained in this browser tab. */
   retainedExchanges: number
-  /** Exact number of conversation messages supplied to the most recent backend /api/brief request. */
+  /** Exact number of conversation messages sent in the most recent backend /api/brief request. */
   suppliedMessages: number
   /** Exchanges restored from this account's tab-scoped recovery storage. */
   recoveredExchanges: number
-  /** True once recovered context was sent as advisory text to the live session (still unverified). */
+  /** True once recovered context was sent as advisory text to the live session (no server-side audio resume). */
   directRecoveryAdvisorySent: boolean
 }
 
@@ -64,6 +66,8 @@ type TranscriptEntry = {
   actionTitle: string | null
   finishWhen: string | null
   saved?: boolean
+  partial?: boolean
+  source?: 'delegated' | 'direct'
   recovered?: boolean
 }
 
@@ -151,9 +155,9 @@ export default function CodexLiveVoice({
   onSnapshotChange?: (snapshot: LiveVoiceSnapshot) => void
   onSaveAnswer?: (answer: VoiceAnswer) => Promise<VoiceSaveResult>
   onOpenMission?: () => void
-  /** Completed exchanges recovered from this account's tab-scoped conversation. */
+  /** Completed/partial exchanges recovered from this account's tab-scoped conversation. */
   initialEntries?: LiveEntry[]
-  /** Persist completed exchanges only; never raw audio. */
+  /** Persist exchanges only; never raw audio. */
   onEntriesChange?: (entries: LiveEntry[]) => void
   /** Lets the shell expose Mute/End while this screen is not visible. */
   onControlsChange?: (controls: { mute: () => void; end: () => void } | null) => void
@@ -179,8 +183,11 @@ export default function CodexLiveVoice({
 
   const initialEntriesRef = useRef(initialEntries)
   const onEntriesChangeRef = useRef(onEntriesChange)
+  const entriesRef = useRef<TranscriptEntry[]>([])
+  const retainedIds = useRef(new Set<string>())
   useEffect(() => { initialEntriesRef.current = initialEntries }, [initialEntries])
   useEffect(() => { onEntriesChangeRef.current = onEntriesChange }, [onEntriesChange])
+  useEffect(() => { entriesRef.current = entries }, [entries])
 
   const isTranscriptOpen = onTranscriptTransition ? transcriptOpen : localTranscriptOpen
   const triggerPresentation = useCallback((trigger: VoicePresentationTrigger) => {
@@ -206,6 +213,7 @@ export default function CodexLiveVoice({
   const disconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const startupTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const generation = useRef(0)
+  const attemptNumberRef = useRef(0)
   const requestVersion = useRef(0)
   const userParts = useRef<UserFragment[]>([])
   const handledThrough = useRef(0)
@@ -213,7 +221,6 @@ export default function CodexLiveVoice({
   const turnInputBuffer = useRef('')
   const turnOutputBuffer = useRef('')
   const delegatedTurn = useRef(false)
-  const lastCommittedDirectKey = useRef('')
   const trackCleanup = useRef<(() => void) | null>(null)
   const meterCleanup = useRef<(() => void) | null>(null)
   const phaseRef = useRef<LiveVoicePhase>('idle')
@@ -226,13 +233,67 @@ export default function CodexLiveVoice({
 
   useEffect(() => { currentInputs.current = { missions, primaryMissionId, tier, onAnswer } }, [missions, primaryMissionId, tier, onAnswer])
   useEffect(() => { phaseRef.current = phase; onPhaseChange(phase) }, [phase, onPhaseChange])
-  useEffect(() => { mutedRef.current = muted }, [muted])
 
   const syncMicInfo = useCallback(() => {
     setMicInfo(inspectMicrophoneStream(microphone.current))
   }, [])
 
+  // Pure persistence from committed refs — never invoked inside React state updaters.
+  const persistEntries = useCallback((next: TranscriptEntry[]) => {
+    onEntriesChangeRef.current?.(next.map(({ question, text, provider, actionTitle, finishWhen, saved, partial, source }) => ({
+      question,
+      text,
+      provider,
+      actionTitle,
+      finishWhen,
+      ...(saved ? { saved: true } : {}),
+      ...(partial ? { partial: true } : {}),
+      ...(source ? { source } : {}),
+    })))
+  }, [])
+
+  /** Commit a direct (non-delegated) exchange at an authoritative provider
+   *  boundary (partial: false) or on unexpected session end (partial: true).
+   *  Partial records are labeled "no completion boundary" and NEVER enter
+   *  previousTurns for backend reasoning. */
+  const commitDirectExchange = useCallback((partial: boolean, explicitAnswer?: string) => {
+    if (delegatedTurn.current) return
+    const question = turnInputBuffer.current.trim()
+    const answer = (explicitAnswer ?? turnOutputBuffer.current).trim()
+    if (!question || !answer) return
+    const id = `live:${attemptNumberRef.current}:${partial ? 'partial' : 'complete'}:${question.slice(-80)}:${answer.slice(-40)}`
+    if (retainedIds.current.has(id)) return
+    retainedIds.current.add(id)
+    const entry: TranscriptEntry = {
+      id,
+      question: question.slice(-QUESTION_LIMIT),
+      text: answer.slice(-4_000),
+      provider: 'Live voice (direct)',
+      actionTitle: null,
+      finishWhen: null,
+      saved: false,
+      partial,
+      source: 'direct',
+    }
+    const next = [...entriesRef.current, entry].slice(-40)
+    entriesRef.current = next
+    setEntries(next)
+    persistEntries(next)
+    if (!partial) {
+      previousTurns.current = [
+        ...previousTurns.current,
+        { role: 'user' as const, text: entry.question },
+        { role: 'assistant' as const, text: entry.text },
+      ].slice(-10)
+    }
+    turnInputBuffer.current = ''
+    turnOutputBuffer.current = ''
+    setInputCaption('')
+    setOutputCaption('')
+  }, [persistEntries])
+
   const active = phase !== 'idle'
+  const connected = transportState === 'connected'
   const latestProposal = entries.slice().reverse().find(entry => Boolean(entry.actionTitle)) ?? null
   const activeLabel = liveVoiceActivityLabel(phase, muted)
 
@@ -241,6 +302,7 @@ export default function CodexLiveVoice({
       active,
       phase,
       transportState,
+      connected,
       muted,
       micState: micInfo.micState,
       micLive: micInfo.micLive,
@@ -257,6 +319,7 @@ export default function CodexLiveVoice({
     active,
     phase,
     transportState,
+    connected,
     muted,
     micInfo,
     activeLabel,
@@ -298,11 +361,6 @@ export default function CodexLiveVoice({
       dialog.close()
     }
   }, [proposalOpen, activeProposal])
-
-  const persistEntries = useCallback((next: TranscriptEntry[]) => {
-    onEntriesChangeRef.current?.(next.map(({ question, text, provider, actionTitle, finishWhen, saved }) =>
-      ({ question, text, provider, actionTitle, finishWhen, ...(saved ? { saved: true } : {}) })))
-  }, [])
 
   // Real-time read-only Web Audio RMS level metering (zero simulated activity).
   // Publishes normalized 0..1 level on --codex-voice-level for CodexOrb's shader.
@@ -385,6 +443,10 @@ export default function CodexLiveVoice({
       document.documentElement.style.removeProperty('--codex-voice-level')
     }
 
+    // Retain any in-flight direct answer at unexpected termination honestly as
+    // partial (never promoted to completed context or supplied to reasoning).
+    if (!options.explicit) commitDirectExchange(true)
+
     const id = sessionId.current
     const token = accessToken.current
     sessionId.current = null
@@ -412,6 +474,7 @@ export default function CodexLiveVoice({
     turnOutputBuffer.current = ''
     delegatedTurn.current = false
     setAudioBlocked(false)
+    mutedRef.current = false
     setMuted(false)
     setMicInfo({ micLive: false, micState: 'unavailable' })
     setProposalOpen(false)
@@ -419,6 +482,8 @@ export default function CodexLiveVoice({
     triggerPresentation('session-end')
     if (options.explicit) {
       // Explicit termination revokes consent: clear retained transcript & reasoning buffer.
+      entriesRef.current = []
+      retainedIds.current.clear()
       previousTurns.current = []
       setEntries([])
       setRecoveredExchanges(0)
@@ -430,11 +495,9 @@ export default function CodexLiveVoice({
     }
     setPhase('idle')
     setStatus(message)
-  }, [triggerPresentation])
+  }, [triggerPresentation, commitDirectExchange])
 
   useEffect(() => {
-    // Only a session that was actually open can end. Without this guard,
-    // switching apps printed "Voice ended…" for a conversation never started.
     const open = () => Boolean(sessionId.current || peer.current || microphone.current || sessionController.current || taskController.current || startupTimer.current)
     const onHidden = () => { if (document.hidden && open()) stop('Voice ended when the app went to the background.') }
     const onPageHide = () => { if (open()) stop('Voice session closed.') }
@@ -448,20 +511,19 @@ export default function CodexLiveVoice({
   }, [stop])
 
   const toggleMute = useCallback(() => {
-    setMuted(current => {
-      const next = !current
-      microphone.current?.getAudioTracks().forEach(track => { track.enabled = !next })
-      // Mute must also honour the speaking state: no playback while muted.
-      if (audio.current) audio.current.muted = next
-      setMicInfo(inspectMicrophoneStream(microphone.current))
-      return next
-    })
+    const next = !mutedRef.current
+    mutedRef.current = next
+    setMuted(next)
+    microphone.current?.getAudioTracks().forEach(track => { track.enabled = !next })
+    // Mute must also honour the speaking state: no playback while muted.
+    if (audio.current) audio.current.muted = next
+    setMicInfo(inspectMicrophoneStream(microphone.current))
   }, [])
 
   useEffect(() => {
     onControlsChange?.({
       mute: toggleMute,
-      end: () => stop('Live voice ended. The spoken transcript was cleared; no saved records were changed.', { explicit: true }),
+      end: () => stop('Live voice ended. The spoken-turn transcript was cleared; earlier replies remain in your Home conversation history and no saved records were changed.', { explicit: true }),
     })
     return () => onControlsChange?.(null)
   }, [onControlsChange, toggleMute, stop])
@@ -486,18 +548,22 @@ export default function CodexLiveVoice({
     }
 
     const attempt = ++generation.current
+    attemptNumberRef.current = attempt
     setStatus('Checking Codex account access…')
-    setMuted(false)
     setInputCaption('')
     setOutputCaption('')
     turnInputBuffer.current = ''
     turnOutputBuffer.current = ''
     delegatedTurn.current = false
-    lastCommittedDirectKey.current = ''
+    retainedIds.current.clear()
 
     const recovered = (initialEntriesRef.current ?? []).slice(-40)
-    setEntries(recovered.map((entry, index) => ({ ...entry, id: `recovered-${index}`, recovered: true })))
-    previousTurns.current = recovered.flatMap(entry => [
+    const restoredEntries = recovered.map((entry, index) => ({ ...entry, id: `recovered-${index}`, recovered: true }))
+    entriesRef.current = restoredEntries
+    setEntries(restoredEntries)
+    // Only completed exchanges (not partial fragments) seed backend reasoning.
+    const completedRecovered = recovered.filter(entry => !entry.partial)
+    previousTurns.current = completedRecovered.flatMap(entry => [
       { role: 'user' as const, text: entry.question },
       { role: 'assistant' as const, text: entry.text },
     ]).slice(-10)
@@ -546,15 +612,15 @@ export default function CodexLiveVoice({
       }
       if (generation.current !== attempt) { stream.getTracks().forEach(track => track.stop()); return }
       microphone.current = stream
-      syncMicInfo()
-      // Subscribe to real MediaStreamTrack mute/unmute/ended events so micLive
-      // always reflects true capture state independent of conversational phase.
+      // Honour desired mute chosen during setup and subscribe to real track events.
       const tracks = stream.getAudioTracks()
       tracks.forEach(track => {
+        track.enabled = !mutedRef.current
         track.addEventListener?.('mute', syncMicInfo)
         track.addEventListener?.('unmute', syncMicInfo)
         track.addEventListener?.('ended', syncMicInfo)
       })
+      syncMicInfo()
       trackCleanup.current = () => {
         tracks.forEach(track => {
           track.removeEventListener?.('mute', syncMicInfo)
@@ -569,6 +635,7 @@ export default function CodexLiveVoice({
       tracks.forEach(track => connection.addTrack(track, stream))
       const player = document.createElement('audio')
       player.autoplay = true
+      player.muted = mutedRef.current
       player.setAttribute('playsinline', '')
       player.style.display = 'none'
       document.body.appendChild(player)
@@ -589,12 +656,16 @@ export default function CodexLiveVoice({
           setPhase('interrupted')
           setStatus('Reconnecting live voice…')
           disconnectTimer.current = setTimeout(() => stop('Voice connection lost. Start again to reconnect.'), 5000)
-        } else if (connection.connectionState === 'connected' && disconnectTimer.current) {
-          clearTimeout(disconnectTimer.current)
-          disconnectTimer.current = null
-          setTransportState('connected')
-          setPhase('listening')
-          setStatus('')
+        } else if (connection.connectionState === 'connected') {
+          if (disconnectTimer.current) {
+            clearTimeout(disconnectTimer.current)
+            disconnectTimer.current = null
+            setPhase('listening')
+            setStatus('')
+          }
+          if (channel.current?.readyState === 'open' && sessionId.current) {
+            setTransportState('connected')
+          }
         }
       }
 
@@ -619,11 +690,8 @@ export default function CodexLiveVoice({
           sendLive(events, 'session.thinking.append', null,
             title ? 'Current selected Primary mission: ' + title + '. Project changes require confirmation in the interface.'
               : 'No Primary mission is selected. Only actual saved project records can establish context.')
-          // Best-effort advisory note for recovered exchanges (direct session
-          // does not have server-side audio resume; backend delegation gets the
-          // full bounded previousTurns buffer separately).
-          if (recovered.length > 0) {
-            const summary = recovered.slice(-4)
+          if (completedRecovered.length > 0) {
+            const summary = completedRecovered.slice(-4)
               .map(item => `User: ${item.question.slice(0, 140)} | Codex: ${item.text.slice(0, 180)}`)
               .join(' // ')
               .slice(0, MAX_RECOVERED_ADVISORY_CHARS)
@@ -631,7 +699,7 @@ export default function CodexLiveVoice({
               events,
               'session.thinking.append',
               null,
-              `Recovered unverified prior conversation from this browser tab (${recovered.length} exchange${recovered.length === 1 ? '' : 's'}). Treat as unverified context only: ${summary}`,
+              `Recovered unverified prior conversation from this browser tab (${completedRecovered.length} exchange${completedRecovered.length === 1 ? '' : 's'}). Treat as unverified context only: ${summary}`,
             )
             setDirectRecoveryAdvisorySent(true)
           }
@@ -666,68 +734,12 @@ export default function CodexLiveVoice({
           turnOutputBuffer.current = (turnOutputBuffer.current + event.delta).slice(-4_000)
           setOutputCaption(turnOutputBuffer.current.slice(-700))
           if (!taskController.current) setPhase('responding')
-          if (event.is_final === true && !delegatedTurn.current) {
-            const q = turnInputBuffer.current.trim()
-            const a = turnOutputBuffer.current.trim()
-            const key = `${q}\u0000${a}`
-            if (q && a && lastCommittedDirectKey.current !== key) {
-              lastCommittedDirectKey.current = key
-              const directEntry: TranscriptEntry = {
-                id: `${attempt}-direct-${Date.now()}`,
-                question: q.slice(-QUESTION_LIMIT),
-                text: a.slice(-4_000),
-                provider: 'Live voice (direct)',
-                actionTitle: null,
-                finishWhen: null,
-                saved: false,
-              }
-              previousTurns.current = [
-                ...previousTurns.current,
-                { role: 'user' as const, text: directEntry.question },
-                { role: 'assistant' as const, text: directEntry.text },
-              ].slice(-10)
-              setEntries(previous => {
-                const next = [...previous, directEntry].slice(-40)
-                persistEntries(next)
-                return next
-              })
-              turnInputBuffer.current = ''
-              turnOutputBuffer.current = ''
-              setInputCaption('')
-              setOutputCaption('')
-            }
+          if (event.is_final === true) {
+            commitDirectExchange(false)
           }
         } else if (event.type && AUTHORITATIVE_OUTPUT_DONE_EVENTS.has(event.type)) {
-          // Authoritative completion boundary from provider: commit direct
-          // (non-delegated) completed exchanges into BOTH transcript entries
-          // and the same bounded reasoning buffer used by /api/brief.
-          const finalOut = (typeof event.transcript === 'string' ? event.transcript : typeof event.text === 'string' ? event.text : turnOutputBuffer.current).trim()
-          if (!delegatedTurn.current) {
-            const q = turnInputBuffer.current.trim()
-            const key = `${q}\u0000${finalOut}`
-            if (q && finalOut && lastCommittedDirectKey.current !== key) {
-              lastCommittedDirectKey.current = key
-              const directEntry: TranscriptEntry = {
-                id: `${attempt}-direct-${Date.now()}`,
-                question: q.slice(-QUESTION_LIMIT),
-                text: finalOut.slice(-4_000),
-                provider: 'Live voice (direct)',
-                actionTitle: null,
-                finishWhen: null,
-                saved: false,
-              }
-              previousTurns.current = [
-                ...previousTurns.current,
-                { role: 'user' as const, text: directEntry.question },
-                { role: 'assistant' as const, text: directEntry.text },
-              ].slice(-10)
-              setEntries(previous => {
-                const next = [...previous, directEntry].slice(-40)
-                persistEntries(next)
-                return next
-              })
-            }
-          }
+          const explicitOut = (typeof event.transcript === 'string' ? event.transcript : typeof event.text === 'string' ? event.text : '').trim()
+          commitDirectExchange(false, explicitOut || undefined)
           turnInputBuffer.current = ''
           turnOutputBuffer.current = ''
           setInputCaption('')
@@ -790,8 +802,9 @@ export default function CodexLiveVoice({
               const parsed = parseVoiceAction(result.text)
               const actual: VoiceAnswer = { question: utterance, text: parsed.text, provider, actionTitle: parsed.actionTitle }
               const entry: TranscriptEntry = {
-                id: `${attempt}-${version}`,
+                id: `delegation:${delegationId}`,
                 ...actual,
+                source: 'delegated',
                 finishWhen: extractFinishCondition(parsed.text),
                 saved: false,
               }
@@ -804,11 +817,11 @@ export default function CodexLiveVoice({
               setOutputCaption('')
               previousTurns.current = [...previousTurns.current, { role: 'user' as const, text: utterance },
                 { role: 'assistant' as const, text: parsed.text.slice(0, 4000) }].slice(-10)
-              setEntries(previous => {
-                const next = [...previous, entry].slice(-40)
-                persistEntries(next)
-                return next
-              })
+              retainedIds.current.add(entry.id)
+              const nextEntries = [...entriesRef.current, entry].slice(-40)
+              entriesRef.current = nextEntries
+              setEntries(nextEntries)
+              persistEntries(nextEntries)
               current.onAnswer(actual)
               setStatus('')
               sendLive(events, 'session.commentary.append', delegationId,
@@ -910,11 +923,10 @@ export default function CodexLiveVoice({
     const result = await onSaveAnswer(activeProposal)
     if (result.ok) {
       setSaveState('saved')
-      setEntries(previous => {
-        const next = previous.map(item => item.id === activeProposal.id ? { ...item, saved: true } : item)
-        persistEntries(next)
-        return next
-      })
+      const nextEntries = entriesRef.current.map(item => item.id === activeProposal.id ? { ...item, saved: true } : item)
+      entriesRef.current = nextEntries
+      setEntries(nextEntries)
+      persistEntries(nextEntries)
       setActiveProposal(current => current ? { ...current, saved: true } : current)
     } else {
       setSaveState('idle')
@@ -1014,7 +1026,7 @@ export default function CodexLiveVoice({
               type="button"
               className={styles.end}
               aria-label="End voice session"
-              onClick={() => stop('Live voice ended. The spoken transcript was cleared; no saved records were changed.', { explicit: true })}
+              onClick={() => stop('Live voice ended. The spoken-turn transcript was cleared; earlier replies remain in your Home conversation history and no saved records were changed.', { explicit: true })}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
                 <path d="M6 6l12 12M18 6L6 18" />
@@ -1083,7 +1095,7 @@ export default function CodexLiveVoice({
             ) : (
               <div className={styles.turnList}>
                 {entries.map(entry => (
-                  <article key={entry.id} className={styles.turnGroup}>
+                  <article key={entry.id} className={styles.turnGroup} data-partial={entry.partial ? 'true' : undefined}>
                     <div className={styles.userBubble}>
                       <span className={styles.speakerLabel}>You{entry.recovered ? ' · recovered' : ''}</span>
                       <p>{entry.question}</p>
@@ -1097,6 +1109,7 @@ export default function CodexLiveVoice({
                       </div>
                       <div className={styles.turnFooter}>
                         <span className={styles.turnProvider}>{entry.provider}</span>
+                        {entry.partial && <span className={styles.turnProvider}>Partial · no completion boundary</span>}
                         {entry.actionTitle && (
                           <button
                             type="button"
