@@ -77,3 +77,9 @@ The catalog remains **readable in Codex Root** and, when this feature is deploye
 ## For future developers
 
 Keep entry IDs stable; do not silently rewrite history. Append corrected interpretations with a dated provenance note or an explicit superseding entry. Preserve readable source links and note any restricted origin without publishing its contents. Do not assert a `verified` status merely because tests pass or the model reports an insight. The owner's current request and applicable safety rules remain authoritative.
+
+## Capture checkpoint — November 24, 2026
+
+BR-036 proposes the workload/budget admission lesson from the public reports in PRs #205–#207. It is distinct from BR-035's interface/session continuity mechanism and remains a candidate with inheritance not demonstrated. Conditions, exceptions, competing causes and the independent future proof gate are retained in the catalog entry.
+
+This capture inspected main's 34 records and open PR #209's BR-035 plus growth-compatible tests; it does not replace or modify that PR. Accessible owner-context search and the authorized Catch Boomerangs and Master Hub pages were consulted. Private doctrine is represented by a restricted label only. Access was partial, not an exhaustive conversation archive. No production record or confirmed lesson was written. Subsequent captures must reconcile main and open casebook branches before assigning another ID.
