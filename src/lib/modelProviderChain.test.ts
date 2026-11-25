@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@anthropic-ai/sdk', () => ({ default: mocks.FakeAnthropic }))
 
-import { orderedReviewProviders, reviewAttemptBudget, runProviderChainReviewStep } from './modelProviderChain'
+import { geminiTextOutputTokens, modelFor, orderedReviewProviders, reviewAttemptBudget, runProviderChainReviewStep, runProviderChainText } from './modelProviderChain'
 
 const TOOL = {
   name: 'submit_project_review',
@@ -332,5 +332,67 @@ describe('review execution strategy (P0 latency repair)', () => {
     expect(logged).toContain('max_tokens')
     expect(logged).toContain('"tier":"routine"')
     expect(logged).not.toContain('SECRET-MODEL-OUTPUT')
+  })
+})
+
+describe('Deep Gemini model selection (measured model repair)', () => {
+  beforeEach(() => {
+    vi.stubEnv('CODEX_DEEP_GEMINI_MODEL', '')
+    vi.stubEnv('CODEX_ROUTINE_GEMINI_MODEL', '')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  })
+
+  it('defaults Deep to the measured gemini-4-neon and leaves routine unchanged', () => {
+    expect(modelFor('gemini', 'deep')).toBe('gemini-4-neon')
+    expect(modelFor('gemini', 'routine')).toBe('gemini-4-hydrogen')
+  })
+
+  it('still honours an explicit Deep Gemini override, including Argon', () => {
+    vi.stubEnv('CODEX_DEEP_GEMINI_MODEL', 'gemini-4-argon')
+    expect(modelFor('gemini', 'deep')).toBe('gemini-4-argon')
+  })
+
+  it('keeps the 32,768-token floor for Argon and Neon in the text adapter', () => {
+    expect(geminiTextOutputTokens('gemini-4-neon', 1_000)).toBe(32_768)
+    expect(geminiTextOutputTokens('gemini-4-argon', 1_000)).toBe(32_768)
+    expect(geminiTextOutputTokens('gemini-4-neon', 40_000)).toBe(40_000)
+    expect(geminiTextOutputTokens('gemini-4-hydrogen', 1_000)).toBe(1_000)
+  })
+
+  it('sends the Deep text request to gemini-4-neon with the thinking allowance', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', '')
+    vi.stubEnv('OPENAI_API_KEY', '')
+    vi.stubEnv('GEMINI_API_KEY', 'gemini-test-key')
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: 'ok' }] } }] }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await runProviderChainText({ system: 's', userContent: 'u', maxTokens: 1_000, tier: 'deep' })
+    expect(result.model).toBe('gemini-4-neon')
+    const [url, init] = fetchMock.mock.calls[0] as [string, { body: string }]
+    expect(url).toContain('/models/gemini-4-neon:generateContent')
+    expect(JSON.parse(init.body).generationConfig.maxOutputTokens).toBe(32_768)
+  })
+
+  it('gives the structured Deep review step the same 32,768-token allowance', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', '')
+    vi.stubEnv('OPENAI_API_KEY', '')
+    vi.stubEnv('GEMINI_API_KEY', 'gemini-test-key')
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: '{"decision":"act","operation":"Ship it"}' }] } }] }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await runProviderChainReviewStep({ ...request(), tier: 'deep' })
+    const [url, init] = fetchMock.mock.calls[0] as [string, { body: string }]
+    expect(url).toContain('/models/gemini-4-neon:generateContent')
+    expect(JSON.parse(init.body).generationConfig.maxOutputTokens).toBe(32_768)
   })
 })
