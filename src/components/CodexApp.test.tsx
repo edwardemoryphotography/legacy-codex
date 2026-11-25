@@ -7,7 +7,7 @@ import { useState } from 'react'
 vi.mock('@/lib/supabase/client', () => ({ supabase: { auth: { onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }) } } }))
 
 vi.mock('./tabs/MissionTab', () => ({ default: ({ onMissionChange }: { onMissionChange?: () => void }) => <button onClick={onMissionChange}>Commit workspace change</button> }))
-vi.mock('./tabs/HomeTab', () => ({ default: function TestConversation({ projectRevision = 0, onLiveVoiceStateChange }: { projectRevision?: number; onLiveVoiceStateChange?: (state: { active: boolean; phase: string; muted: boolean; label: string; detail: string; hasProposal: boolean; turnCount: number }) => void }) { const [pending, setPending] = useState(false); return <><p>Glass home</p><button onClick={() => setPending(true)}>{pending ? 'Answer pending' : 'Start question'}</button><button onClick={() => onLiveVoiceStateChange?.({ active: true, phase: 'listening', muted: false, label: 'Listening', detail: '', hasProposal: true, turnCount: 1 })}>Activate live voice</button><span>Project revision {projectRevision}</span></> } }))
+vi.mock('./tabs/HomeTab', () => ({ default: function TestConversation({ projectRevision = 0, onLiveVoiceStateChange }: { projectRevision?: number; onLiveVoiceStateChange?: (state: { active: boolean; phase: string; transportState: string; connected: boolean; muted: boolean; micState: string; micLive: boolean; label: string; detail: string; hasProposal: boolean; turnCount: number; retainedExchanges: number; suppliedMessages: number; recoveredExchanges: number; directRecoveryAdvisorySent: boolean }) => void }) { const [pending, setPending] = useState(false); return <><p>Glass home</p><button onClick={() => setPending(true)}>{pending ? 'Answer pending' : 'Start question'}</button><button onClick={() => onLiveVoiceStateChange?.({ active: true, phase: 'listening', transportState: 'connected', connected: true, muted: false, micState: 'live', micLive: true, label: 'Listening', detail: '', hasProposal: true, turnCount: 1, retainedExchanges: 1, suppliedMessages: 2, recoveredExchanges: 0, directRecoveryAdvisorySent: false })}>Activate live voice</button><span>Project revision {projectRevision}</span></> } }))
 vi.mock('./ThemeReview', () => ({ default: () => null }))
 vi.mock('./OrbHost', () => ({
   OrbHostProvider: ({ children }: { children: unknown }) => children,
@@ -63,13 +63,15 @@ it('keeps a pending conversation mounted across Home and Mission navigation', ()
 })
 
 it('keeps an active live voice session mounted across Territory navigation and offers Return to voice', () => {
-  render(<CodexApp />)
+  const { container } = render(<CodexApp />)
   fireEvent.click(screen.getByRole('button', { name: 'Activate live voice' }))
+  expect(container.querySelector('.codex-shell')).toHaveAttribute('data-voice-immersive', 'true')
   fireEvent.click(screen.getByRole('button', { name: 'Menu' }))
   fireEvent.click(screen.getByRole('button', { name: 'Territory' }))
   // Persistent indicator appears on non-Home screen and HomeTab stays mounted (hidden) so voice is not torn down.
   expect(screen.getByRole('region', { name: 'Active live voice session' })).toBeInTheDocument()
   expect(screen.getByText('Live voice · Listening')).toBeInTheDocument()
+  expect(screen.getByText(/Microphone live · Connected · live audio metered while connected · 1 exchange retained · 2 messages supplied to backend reasoning/)).toBeInTheDocument()
   expect(screen.getByText('Proposal ready')).toBeInTheDocument()
   expect(document.getElementById('home-conversation')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Return to voice' }))

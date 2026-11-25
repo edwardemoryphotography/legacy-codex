@@ -1,10 +1,8 @@
 'use client'
 
-// Shared capture-to-nd_captures pipeline. Originally lived duplicated in
-// ControlsTab (the full inbox UI) and, temporarily, inline in MissionTab
-// (write-only, no inbox display — Mission Screen must not expose the full
-// backlog). Both now go through this one hook so there is exactly one place
-// that writes a capture.
+// Shared capture-to-nd_captures pipeline. Used by ControlsTab (full Quick
+// Capture inbox UI) and MissionTab (write-only capture). Original captured
+// text is always stored verbatim and isolated strictly per user account.
 
 import { useCallback, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
@@ -13,6 +11,7 @@ import type { CaptureItem } from '@/types'
 import { supabase } from '@/lib/supabase/client'
 
 const EMPTY_INBOX: CaptureItem[] = []
+const CAPTURE_LIMIT = 50
 
 interface CaptureRow {
   id: string
@@ -41,6 +40,8 @@ export function useCapture(user: User | null) {
   const syncedCaptureIds = cache.ownerId === ownerId ? cache.synced : new Set<string>()
   const loadAttempt = useRef(0)
   const [status, setStatus] = useState('')
+  const [syncError, setSyncError] = useState('')
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
 
   const setInbox = useCallback((next: CaptureItem[] | ((previous: CaptureItem[]) => CaptureItem[])) => {
     setCache(previous => {
@@ -61,11 +62,10 @@ export function useCapture(user: User | null) {
 
   const flash = useCallback((msg: string) => {
     setStatus(msg)
-    setTimeout(() => setStatus(''), 1200)
+    setTimeout(() => setStatus(''), 1400)
   }, [])
 
-  // Pulls the last 12 captures from Supabase as the inbox (source of truth
-  // once signed in). Called by whichever tab's auth effect runs first.
+  // Pulls recent captures from Supabase as the inbox (source of truth once signed in).
   const loadCaptures = useCallback(async (userId: string) => {
     const attempt = ++loadAttempt.current
     const { data, error } = await supabase
@@ -73,10 +73,11 @@ export function useCapture(user: User | null) {
       .select('id, text, created_at, tags')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
-      .limit(12)
+      .limit(CAPTURE_LIMIT)
     if (attempt !== loadAttempt.current) return
     const local = readCaptureInbox(userId)
     if (error) {
+      setSyncError('Could not load cloud captures. Showing items saved on this device.')
       setCache({ ownerId: userId, inbox: local, synced: new Set() })
       throw error
     }
@@ -86,8 +87,10 @@ export function useCapture(user: User | null) {
       timestamp: d.created_at,
       suggested: (d.tags && d.tags[0]) || 'general',
     }))
-    const items = [...local.filter(item => !remote.some(row => row.id === item.id)), ...remote].slice(0, 12)
+    const items = [...local.filter(item => !remote.some(row => row.id === item.id)), ...remote].slice(0, CAPTURE_LIMIT)
     try { writeCaptureInbox(userId, items) } catch { /* Keep the current account visible even if storage is unavailable. */ }
+    setSyncError('')
+    setLastSyncedAt(new Date().toISOString())
     setCache({ ownerId: userId, inbox: items, synced: new Set(remote.map(item => item.id)) })
   }, [])
 
@@ -111,6 +114,8 @@ export function useCapture(user: User | null) {
 
     if (error) throw error
 
+    setSyncError('')
+    setLastSyncedAt(new Date().toISOString())
     setSyncedCaptureIds(prev => {
       const next = new Set(prev)
       items.forEach(item => next.add(item.id))
@@ -118,8 +123,7 @@ export function useCapture(user: User | null) {
     })
   }, [user, setSyncedCaptureIds])
 
-  // A new idea always enters Parked by default (spec §6) — nd_captures'
-  // own default state column already encodes that; this just writes text.
+  // Preserves captured text verbatim (trimmed of outer whitespace only).
   const capture = useCallback((text: string) => {
     const trimmed = text.trim()
     if (!trimmed) return
@@ -129,36 +133,71 @@ export function useCapture(user: User | null) {
       timestamp: new Date().toISOString(),
       suggested: suggestTag(trimmed),
     }
-    // Persist synchronously before sync checks ownership; React may defer its
-    // state updater until after the async write has already started.
-    try { writeCaptureInbox(ownerId, [item, ...readCaptureInbox(ownerId)].slice(0, 12)) } catch { /* Keep the draft in memory below. */ }
-    setInbox(prev => [item, ...prev.filter(current => current.id !== item.id)].slice(0, 12))
+    try { writeCaptureInbox(ownerId, [item, ...readCaptureInbox(ownerId)].slice(0, CAPTURE_LIMIT)) } catch { /* Keep the draft in memory below. */ }
+    setInbox(prev => [item, ...prev.filter(current => current.id !== item.id)].slice(0, CAPTURE_LIMIT))
     flash('Captured to inbox')
     return syncToSupabase([item])
       .then(() => {
-        if (user?.id) flash('Saved to Supabase')
+        if (user?.id) flash('Synced to your account')
         return item
       })
       .catch(() => {
-        flash('Capture sync failed (RLS?)')
+        setSyncError('Saved on this device, but cloud sync did not complete.')
+        flash('Saved locally (sync pending)')
         return item
       })
   }, [setInbox, syncToSupabase, user, flash, ownerId])
 
-  const removeItem = useCallback(async (id: string) => {
+  // Edits an existing capture verbatim while preserving its ID and original timestamp.
+  const updateItem = useCallback(async (id: string, nextText: string): Promise<{ ok: boolean; synced: boolean; error?: string }> => {
+    const trimmed = nextText.trim()
+    if (!trimmed) return { ok: false, synced: false, error: 'Capture text cannot be empty.' }
+    const stored = readCaptureInbox(ownerId)
+    const target = stored.find(item => item.id === id) ?? inbox.find(item => item.id === id)
+    if (!target) return { ok: false, synced: false, error: 'Capture was not found in this account.' }
+    const updated: CaptureItem = { ...target, text: trimmed, suggested: suggestTag(trimmed) }
+    const merged = [updated, ...stored.filter(item => item.id !== id)]
+      .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))
+      .slice(0, CAPTURE_LIMIT)
+    try { writeCaptureInbox(ownerId, merged) } catch { /* Keep updated text in memory. */ }
+    setInbox(prev => prev.map(item => item.id === id ? updated : item))
+    setSyncedCaptureIds(prev => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+    if (!user?.id) return { ok: true, synced: false }
+    try {
+      await syncToSupabase([updated])
+      return { ok: true, synced: true }
+    } catch {
+      const message = 'Updated on this device, but cloud sync failed. Use Sync now to retry.'
+      setSyncError(message)
+      return { ok: true, synced: false, error: message }
+    }
+  }, [ownerId, inbox, setInbox, setSyncedCaptureIds, user, syncToSupabase])
+
+  const removeItem = useCallback(async (id: string): Promise<{ ok: boolean; error?: string }> => {
+    const nextLocal = readCaptureInbox(ownerId).filter(item => item.id !== id)
+    try { writeCaptureInbox(ownerId, nextLocal) } catch { /* Keep removal in memory. */ }
     setInbox(prev => prev.filter(i => i.id !== id))
     setSyncedCaptureIds(prev => {
       const next = new Set(prev)
       next.delete(id)
       return next
     })
-    if (!user?.id) return
+    if (!user?.id) return { ok: true }
     try {
-      await supabase.from('nd_captures').delete().eq('id', id).eq('user_id', user.id)
+      const { error } = await supabase.from('nd_captures').delete().eq('id', id).eq('user_id', user.id)
+      if (error) throw error
+      setSyncError('')
+      return { ok: true }
     } catch {
-      // silent — local removal already happened, matches prior ControlsTab behavior
+      const message = 'Removed on this device, but cloud deletion could not be confirmed.'
+      setSyncError(message)
+      return { ok: false, error: message }
     }
-  }, [user, setInbox, setSyncedCaptureIds])
+  }, [ownerId, user, setInbox, setSyncedCaptureIds])
 
   const forceSyncItem = useCallback(async (item: CaptureItem) => {
     await syncToSupabase([item])
@@ -179,17 +218,33 @@ export function useCapture(user: User | null) {
     URL.revokeObjectURL(url)
   }, [inbox])
 
-  const clearInbox = useCallback(() => {
+  const clearInbox = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    try { writeCaptureInbox(ownerId, []) } catch { /* Clear memory below. */ }
     setInbox([])
     setSyncedCaptureIds(new Set())
-  }, [setInbox, setSyncedCaptureIds])
+    if (!user?.id) return { ok: true }
+    try {
+      const { error } = await supabase.from('nd_captures').delete().eq('user_id', user.id)
+      if (error) throw error
+      setSyncError('')
+      setLastSyncedAt(new Date().toISOString())
+      return { ok: true }
+    } catch {
+      const message = 'Cleared on this device, but cloud captures could not be deleted.'
+      setSyncError(message)
+      return { ok: false, error: message }
+    }
+  }, [ownerId, user, setInbox, setSyncedCaptureIds])
 
   return {
     inbox,
     syncedCaptureIds,
     status,
+    syncError,
+    lastSyncedAt,
     loadCaptures,
     capture,
+    updateItem,
     removeItem,
     forceSyncItem,
     forceSyncItems,

@@ -140,7 +140,7 @@ export function reviewProvenanceSummary(review: ProjectReview): ReviewProvenance
     ? measuredMs >= 1_000 ? `${(measuredMs / 1_000).toFixed(1)}s` : `${Math.round(measuredMs)}ms`
     : null
   const elapsedBasisLabel = elapsedLabel
-    ? execution ? 'whole request, start to review built' : 'recorded duration'
+    ? execution ? 'after context assembly, to review built' : 'recorded duration'
     : null
 
   const citedSet = new Set(review.sourceIds)

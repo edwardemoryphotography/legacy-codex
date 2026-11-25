@@ -1,6 +1,7 @@
 import type { HomeContinueView } from '@/lib/homeContinue'
 import styles from './HomeContinue.module.css'
 import { savedActionDisplay } from '@/lib/savedActionDisplay'
+import SafeMarkdown from '@/components/SafeMarkdown'
 
 /** Home's Strategic Delta card: compact mission identity above a prominent
  *  recommended next move, concise why-now, observable finish condition, one
@@ -60,11 +61,15 @@ export default function HomeContinue({ view, name, missionCount, onOpenMission, 
 
       <div className={styles.moveStage}>
         <p className={styles.stepBadge} data-tone={badgeTone}>{view.stepLabel ?? 'Next step'}</p>
-        <p className={styles.moveHeadline}>{readableStep?.heading ?? view.stepTitle ?? (view.status === 'step_unknown'
-          ? 'No saved step was found. Whether you accepted a suggestion could not be checked.'
-          : 'No next step is saved for this mission yet.')}</p>
-        {readableStep?.fromNote && <p className={styles.stepNote}>From your note: {readableStep.fromNote}</p>}
-        {view.blocker && <p className={styles.blocker}><span>Blocked by</span> {view.blocker}</p>}
+        <p className={styles.moveHeadline}>
+          <SafeMarkdown inline>
+            {readableStep?.heading ?? view.stepTitle ?? (view.status === 'step_unknown'
+              ? 'No saved step was found. Whether you accepted a suggestion could not be checked.'
+              : 'No next step is saved for this mission yet.')}
+          </SafeMarkdown>
+        </p>
+        {readableStep?.fromNote && <p className={styles.stepNote}>From your note: <SafeMarkdown inline>{readableStep.fromNote}</SafeMarkdown></p>}
+        {view.blocker && <p className={styles.blocker}><span>Blocked by</span> <SafeMarkdown inline>{view.blocker}</SafeMarkdown></p>}
       </div>
 
       {why && (
@@ -91,9 +96,9 @@ export default function HomeContinue({ view, name, missionCount, onOpenMission, 
             {provenance}
             {view.reasons.length > 0 && (
               <dl>
-                {readableStep?.original && <div><dt>Original saved wording</dt><dd>{readableStep.original}</dd></div>}
+                {readableStep?.original && <div><dt>Original saved wording</dt><dd><SafeMarkdown className={styles.reasonMarkdown}>{readableStep.original}</SafeMarkdown></dd></div>}
                 {view.reasons.map((reason, index) => (
-                  <div key={`${index}-${reason.label}`}><dt>{reason.label}</dt><dd>{reason.text}</dd></div>
+                  <div key={`${index}-${reason.label}`}><dt>{reason.label}</dt><dd><SafeMarkdown className={styles.reasonMarkdown}>{reason.text}</SafeMarkdown></dd></div>
                 ))}
               </dl>
             )}

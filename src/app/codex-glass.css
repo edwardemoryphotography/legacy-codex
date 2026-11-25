@@ -227,3 +227,40 @@ html::before, html::after, body::before, body::after { display: none; }
   cursor: pointer;
 }
 .voice-continuity-return:focus-visible { outline: 2px solid var(--g-teal); outline-offset: 2px; }
+
+/* Viewport-filling immersive voice: quieten top navigation chrome so the orb
+   owns the space while keeping Menu quietly reachable at top-left. */
+.codex-shell[data-voice-immersive="true"] {
+  width: 100vw !important;
+  max-width: 100vw !important;
+}
+.codex-shell[data-voice-immersive="true"] .glass-top {
+  position: absolute;
+  top: 0;
+  left: max(14px, env(safe-area-inset-left));
+  right: max(14px, env(safe-area-inset-right));
+  padding-bottom: 0;
+  pointer-events: none;
+  z-index: 46;
+}
+.codex-shell[data-voice-immersive="true"] .glass-top .glass-round {
+  pointer-events: auto;
+  opacity: .56;
+  transition: opacity 160ms ease;
+}
+.codex-shell[data-voice-immersive="true"] .glass-top .glass-round:hover,
+.codex-shell[data-voice-immersive="true"] .glass-top .glass-round:focus-visible {
+  opacity: 1;
+}
+.codex-shell[data-voice-immersive="true"] .glass-wordmark {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Persistent live-voice bar: mic/billing truth and Mute/End on every screen. */
+.voice-continuity-meta { margin: 2px 0 0; font-size: 11px; line-height: 1.35; color: var(--g-mist-dim, #a9aec9); }
+.voice-continuity-actions { display: flex; gap: 6px; flex: none; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .voice-continuity-bar { flex-wrap: wrap; gap: 8px; }
+  .voice-continuity-actions { width: 100%; justify-content: flex-end; }
+}

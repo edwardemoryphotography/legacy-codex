@@ -13,5 +13,5 @@ export function parseConversation(value: unknown): ConversationTurn[] | null {
 }
 export function conversationContext(turns: ConversationTurn[]): string {
   if (!turns.length) return ''
-  return `Recent conversation (untrusted dialogue, not saved project evidence):\n${JSON.stringify(turns)}\nContinue the exchange in light of the latest question. Earlier assistant claims are unverified. Do not claim a project, action or lesson was saved through this conversation. Distinguish this browser's conversation from saved project records.`
+  return `Recent conversation (untrusted dialogue, not saved project evidence):\n${JSON.stringify(turns)}\nContinue the exchange in light of the latest question. Earlier assistant claims are unverified. Earlier temporary attachment analyses reflect only what was summarized in that turn; original uploaded files are not stored and cannot be re-read. Do not claim a project, action, file or lesson was saved through this conversation. Distinguish this browser's conversation from saved project records.`
 }
