@@ -46,4 +46,32 @@ describe('HomeStrategicDecision resume visibility', () => {
     renderDecision(mission)
     expect(screen.queryByRole('button', { name: /Resume your saved step/ })).toBeNull()
   })
+
+  it('shows a focused truthful Economy processing state with cancellation while comparing', async () => {
+    const territory = { accountId: 'acc', missions: [mission], evidence: [], links: [], events: [] } as unknown as MissionTerritory
+    const getSession = vi.fn().mockResolvedValue({ data: { session: { user: { id: 'acc' }, access_token: 'tok' } } })
+    const { supabase } = await import('@/lib/supabase/client')
+    vi.spyOn(supabase.auth, 'getSession').mockImplementation(getSession)
+    const fetchMock = vi.fn(() => new Promise<Response>(() => {}))
+    vi.stubGlobal('fetch', fetchMock)
+    const onReviewActivity = vi.fn()
+    try {
+      render(<HomeStrategicDecision
+        territory={territory} mission={mission} saved={saved} view={viewFor(mission)}
+        allowReview tier="routine" onOpen={() => {}} onChange={() => {}} onReviewActivity={onReviewActivity}
+      />)
+      fireEvent.click(screen.getByRole('button', { name: 'Compare moves with AI' }))
+      expect(await screen.findByText('Comparing next moves')).toBeTruthy()
+      expect(screen.getByText(/Economy · single structured pass/)).toBeTruthy()
+      expect(screen.queryByText(/independent critique/i)).toBeNull()
+      expect(onReviewActivity).toHaveBeenCalledWith(true)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel comparison' }))
+      expect(await screen.findByText(/Comparison cancelled/)).toBeTruthy()
+      expect(onReviewActivity).toHaveBeenCalledWith(false)
+    } finally {
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
+    }
+  })
 })

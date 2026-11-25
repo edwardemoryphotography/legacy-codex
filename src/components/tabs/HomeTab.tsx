@@ -101,6 +101,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const setTool = (next: SetStateAction<Tool | null>) => update(prev => ({ ...prev, tool: typeof next === 'function' ? next(prev.tool) : next }))
   const [sheetOpen, setSheetOpen] = useState(false)
   const [submitNotice, setSubmitNotice] = useState('')
+  const [activeQuestion, setActiveQuestion] = useState('')
   const sending = useRef<symbol | null>(null)
   const question = useRef('')
   const input = useRef<HTMLTextAreaElement>(null)
@@ -342,7 +343,9 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     const submitted = text
     const token = Symbol('home-request')
     sending.current = token
-    question.current = text.trim()
+    const trimmedQuestion = text.trim()
+    question.current = trimmedQuestion
+    setActiveQuestion(trimmedQuestion)
     setSubmitNotice('')
     try {
       update(prev => ({ ...prev, history: prev.reply ? [...prev.history, prev.reply].slice(-6) : prev.history, reply: null }))
@@ -476,6 +479,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       data-state={presentation.state}
       data-live-voice-active={liveActive ? 'true' : undefined}
       data-immersive={immersive ? 'true' : undefined}
+      data-reviewing={reviewActive ? 'true' : undefined}
       data-reply={hasReply ? 'true' : undefined}
       data-access-gate={access.state !== 'owner' ? 'true' : undefined}
       data-composer-expanded={composerExpanded ? 'true' : undefined}
@@ -484,13 +488,13 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       data-next-action-read={homeNextAction.readState}
       aria-label={missionView ? 'Project conversation' : 'Home'}
     >
-      {access.state === 'owner' && (!missionView || busy || voice.active || liveActive) && <ConversationPresence status={brief.status} busy={busy || reviewActive} loadError={loadError} pending={reviewActive ? 'Comparing project moves' : !loadError && !busy && !voice.active && !liveActive ? missions === null ? 'Reading saved missions' : actionsRead === 'pending' ? 'Reading saved actions' : null : null} voice={voice} live={livePhase} reply={Boolean(current.reply)} />}
+      {access.state === 'owner' && (!missionView || busy || voice.active || liveActive) && <ConversationPresence status={brief.status} busy={busy || reviewActive} loadError={loadError} pending={reviewActive ? (current.tier === 'deep' ? 'Deep review · draft & critique' : 'Economy · single structured pass') : !loadError && !busy && !voice.active && !liveActive ? missions === null ? 'Reading saved missions' : actionsRead === 'pending' ? 'Reading saved actions' : null : null} voice={voice} live={livePhase} reply={Boolean(current.reply)} />}
       <div className={styles.context}>
         {(missionView || hasReply) && <span>{primaryMission ? `Working on: ${primaryMission.title}` : 'Your conversation with Codex'}</span>}
         {/* The card's own button opens Mission, so a second control to the same
             place appears only when the card is not offering one. */}
         {(missionView || hasReply || continueView.status === 'loading') && <button type="button" className="glass-chip glass" onClick={() => onNavigate(missionView ? 'home' : 'mission')}>{missionView ? 'Back to Home' : 'Open Mission'}</button>}
-        <button type="button" className="glass-chip glass" hidden={immersive || (access.state !== 'owner' && history.length === 0 && !hasReply)} aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setHistoryOpen(true); setResponseOpen(false) }}>History{history.length ? ` · ${history.length}` : ''}</button>
+        <button type="button" className={`glass-chip glass ${styles.historyBtn}`} hidden={immersive || reviewActive || (access.state !== 'owner' && history.length === 0 && !hasReply)} aria-haspopup="dialog" aria-controls="home-detail-panel" onClick={() => { setHistoryOpen(true); setResponseOpen(false) }}>History{history.length ? ` · ${history.length}` : ''}</button>
       </div>
       <div className="glass-hero">
         {access.state !== 'owner' ? (missionView ? <AccessGate state={access.state} onSignIn={requestSignIn} tester={access.tester} /> : <>
@@ -499,7 +503,12 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
         </>) : <>
         {!missionView && <div className="glass-orb-wrap">
           <OrbSlot />
-          <span className="glass-orb-state" aria-hidden="true">{presentation.state === 'idle' ? 'Ready when you are' : presentation.state === 'ready' ? 'Response ready' : presentation.label}</span>
+          <span className="glass-orb-state" aria-hidden="true">{presentation.state === 'idle' ? 'Ready when you are' : presentation.state === 'ready' ? 'Recommendation ready' : presentation.label}</span>
+          {immersive && busy && (
+            <p className={styles.activeObjective}>
+              {activeQuestion ? `“${activeQuestion.length > 96 ? `${activeQuestion.slice(0, 93)}…` : activeQuestion}”` : tool ? TOOL_LABEL[tool] : 'Working on your request'}
+            </p>
+          )}
         </div>}
         <div className={styles.takeaway} hidden={immersive}>
           {reply ? <>
@@ -597,31 +606,32 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
       </dialog>
 
       <div className="glass-dock" hidden={access.state !== 'owner'}>
-        <CodexLiveVoice
-          missions={missions ?? []}
-          primaryMissionId={primaryMission?.id ?? null}
-          tier={current.tier === 'deep' ? 'deep' : 'routine'}
-          disabled={reviewActive || busy || voice.active || missions === null || Boolean(loadError) || !brief.configured || access.state !== 'owner'}
-          onPhaseChange={setLivePhase}
-          onSaveAnswer={saveLiveAnswer}
-          canSave={Boolean(primaryMission)}
-          onAnswer={answer => {
-            update(previous => ({
-              ...previous,
-              history: previous.reply ? [...previous.history, previous.reply].slice(-6) : previous.history,
-              reply: { question: answer.question, text: answer.text, label: 'Live Codex', provider: answer.provider, actionTitle: answer.actionTitle },
-            }))
-            setSavedReplyText(null)
-            setSavedReplyMissionId(null)
-            setSaveReplyError(null)
-          }}
-        />
-        <fieldset className={styles.modelChoice} disabled={busy || voice.active}>
-          <legend>Intelligence</legend>
-          <button type="button" aria-pressed={current.tier !== 'deep'} onClick={() => update(prev => ({ ...prev, tier: 'routine' }))}>Economy</button>
-          <button type="button" aria-pressed={current.tier === 'deep'} onClick={() => update(prev => ({ ...prev, tier: 'deep' }))}>Deep</button>
-          <span>{current.tier === 'deep' ? 'Higher-cost reasoning' : 'Lower-cost models · default'}</span>
-        </fieldset>
+        <div className={styles.dockBar}>
+          <fieldset className={styles.modelChoice} disabled={busy || voice.active || reviewActive}>
+            <legend>Intelligence</legend>
+            <button type="button" aria-pressed={current.tier !== 'deep'} onClick={() => update(prev => ({ ...prev, tier: 'routine' }))}>Economy</button>
+            <button type="button" aria-pressed={current.tier === 'deep'} onClick={() => update(prev => ({ ...prev, tier: 'deep' }))}>Deep</button>
+          </fieldset>
+          <CodexLiveVoice
+            missions={missions ?? []}
+            primaryMissionId={primaryMission?.id ?? null}
+            tier={current.tier === 'deep' ? 'deep' : 'routine'}
+            disabled={reviewActive || busy || voice.active || missions === null || Boolean(loadError) || !brief.configured || access.state !== 'owner'}
+            onPhaseChange={setLivePhase}
+            onSaveAnswer={saveLiveAnswer}
+            canSave={Boolean(primaryMission)}
+            onAnswer={answer => {
+              update(previous => ({
+                ...previous,
+                history: previous.reply ? [...previous.history, previous.reply].slice(-6) : previous.history,
+                reply: { question: answer.question, text: answer.text, label: 'Live Codex', provider: answer.provider, actionTitle: answer.actionTitle },
+              }))
+              setSavedReplyText(null)
+              setSavedReplyMissionId(null)
+              setSaveReplyError(null)
+            }}
+          />
+        </div>
         <p className="glass-note home-runtime-note">Continue here or in Mission. Recent conversation stays in this browser tab.</p>
         {busy && <button type="button" className="glass-chip glass" onClick={() => { sending.current = null; brief.reset(); setSubmitNotice('Request cancelled. Your text is still here. The server may finish processing it.'); }}>Cancel request</button>}
         {brief.status === 'error' && <button type="button" className="glass-chip glass" onClick={() => void send()}>Try again</button>}

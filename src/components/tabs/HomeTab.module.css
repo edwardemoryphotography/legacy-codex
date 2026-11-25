@@ -104,31 +104,89 @@
   .home:global(.glass-home[data-reply="true"]) :global(.glass-home-links) { display: none; }
 }
 
-.context { flex: none; min-width: 0; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; font-size: 13px; color: var(--g-mist-dim); overflow-wrap: anywhere; }
+.context { flex: none; min-width: 0; display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; font-size: 13px; color: var(--g-mist-dim); overflow-wrap: anywhere; }
+.home[data-reply="true"] .context,
+.mission .context { justify-content: center; }
 .context > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: 100%; }
 .context button { min-height: 44px; }
-.mission:global(.glass-home) { height: auto; min-height: 0; padding: 20px; margin-bottom: 20px; border: 1px solid var(--g-glass-edge); border-radius: 24px; }
+.historyBtn { font-size: 13px; padding: 7px 13px; color: var(--g-mist-dim); }
+.historyBtn:hover { color: var(--g-mist); }
+
+.mission:global(.glass-home) { height: auto; min-height: 0; padding: 16px; gap: 8px; margin-bottom: 20px; border: 1px solid var(--g-glass-edge); border-radius: 24px; }
 .mission:global(.glass-home) :global(.glass-hero) { flex: none; overflow: visible; }
 .mission:global(.glass-home[data-reply="true"]) :global(.glass-hero) { flex: 0 0 auto; height: auto; min-height: auto; overflow: visible; }
-.mission .takeaway { flex: none; overflow: visible; max-width: 640px; }
+.mission .takeaway { flex: none; overflow: visible; max-width: 640px; gap: 8px; }
 .panelBody :global(.glass-output-text) { white-space: normal; overflow-wrap: anywhere; }
 .panelBody :global(.glass-output-text pre) { white-space: pre-wrap; }
-
 .mission:not([data-reply="true"]) .takeaway { display: none; }
 .mission:not([data-reply="true"]) :global(.glass-hero) { display: none; }
 .mission:global(.glass-home[data-access-gate="true"]) :global(.glass-hero) { display: flex; flex: 1 1 auto; }
-.mission .takeaway { gap: 8px; }
-.mission:global(.glass-home) { padding: 10px 12px; }
 .mission :global(.glass-greeting) { font-size: 20px; }
 .mission :global(.glass-greeting span) { font-size: 15px; }
 .mission .answer { font-size: 16px; line-height: 1.35; max-height: 2.7em; }
-.mission:global(.glass-home) { gap: 8px; padding: 16px; }
 
-.modelChoice { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; border: 0; margin: 0 0 6px; padding: 0; color: var(--g-mist-dim); font: 400 12px var(--g-body); }
+.activeObjective {
+  margin: 10px 0 0;
+  max-width: min(400px, calc(100vw - 48px));
+  font: 500 17px/1.38 var(--g-display);
+  color: var(--g-mist);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+/* Unified dock bar: segmented Intelligence tier + compact Talk live control
+   share one calm horizontal band above the Liquid Glass composer pill. */
+.dockBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.home[data-live-voice-active="true"] .dockBar {
+  justify-content: center;
+}
+.home[data-reviewing="true"] :global(.glass-dock) {
+  opacity: .5;
+  transition: opacity 220ms ease;
+}
+.home[data-reviewing="true"]:global(.glass-home) :global(.glass-hero) {
+  --home-orb-size: min(196px, calc(100vw - 80px), max(120px, calc((var(--codex-viewport-height, 100dvh) - 340px) * .65)));
+  justify-content: center;
+  gap: 16px;
+}
+
+.modelChoice {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--g-glass-edge);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--g-mist) 5%, transparent);
+  margin: 0;
+  padding: 3px;
+  color: var(--g-mist-dim);
+  font: 400 12px var(--g-body);
+}
 .modelChoice legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-.modelChoice button { min-height: 44px; padding: 8px 13px; border: 1px solid var(--g-glass-edge); border-radius: 999px; background: transparent; color: var(--g-mist); font: 600 13px var(--g-body); cursor: pointer; }
-.modelChoice button[aria-pressed="true"] { border-color: var(--g-teal); background: color-mix(in srgb, var(--g-teal) 12%, transparent); }
-.modelChoice:disabled { opacity: .65; }
+.modelChoice button {
+  min-height: 38px;
+  padding: 6px 13px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--g-mist-dim);
+  font: 600 13px var(--g-body);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+.modelChoice button[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--g-teal) 50%, transparent);
+  background: color-mix(in srgb, var(--g-teal) 16%, transparent);
+  color: var(--g-mist);
+}
+.modelChoice:disabled { opacity: .6; }
 .modelChoice button:focus-visible { outline: 2px solid var(--g-teal); outline-offset: 2px; }
 
 /* Keep detail recoverable without repeating whole mission/action notes on Home. */

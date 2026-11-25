@@ -13,6 +13,55 @@
 :root .sd.sd-orb-host[data-orb] .sd-field { background: none; box-shadow: none; border: 0; }
 :root .sd.sd-orb-host[data-orb] .sd-field::before, :root .sd.sd-orb-host[data-orb] .sd-field > * { display: none; }
 .codex-orb-stage { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; container-type: size; }
+/* Subtle atmospheric halo tied strictly to real orb states — preserves the
+   living aurora glow without obstructing text or exceeding slot bounds. */
+.codex-orb-stage::before {
+  content: '';
+  position: absolute;
+  inset: -16%;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--g-violet, #6A5CFF) 34%, transparent) 0%, color-mix(in srgb, var(--g-teal, #22D3BE) 18%, transparent) 44%, transparent 72%);
+  opacity: .62;
+  transition: opacity 420ms ease, transform 420ms ease;
+}
+.sd-orb-host[data-orb-state="thinking"] .codex-orb-stage::before {
+  background: radial-gradient(circle, rgba(226, 190, 104, .34) 0%, color-mix(in srgb, var(--g-teal, #22D3BE) 24%, transparent) 46%, transparent 74%);
+  opacity: .92;
+  transform: scale(1.08);
+}
+.sd-orb-host[data-orb-state="listening"] .codex-orb-stage::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--g-teal, #22D3BE) 42%, transparent) 0%, color-mix(in srgb, var(--g-violet, #6A5CFF) 18%, transparent) 50%, transparent 74%);
+  opacity: .9;
+  transform: scale(1.06);
+}
+.sd-orb-host[data-orb-state="acting"] .codex-orb-stage::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--g-violet, #6A5CFF) 42%, transparent) 0%, color-mix(in srgb, var(--g-teal, #22D3BE) 22%, transparent) 48%, transparent 74%);
+  opacity: .84;
+}
+.sd-orb-host[data-orb-state="ready"] .codex-orb-stage::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--g-teal, #22D3BE) 32%, transparent) 0%, color-mix(in srgb, var(--g-violet, #6A5CFF) 16%, transparent) 46%, transparent 72%);
+  opacity: .74;
+}
+.sd-orb-host[data-orb-state="blocked"] .codex-orb-stage::before {
+  background: radial-gradient(circle, rgba(196, 107, 125, .28) 0%, transparent 66%);
+  opacity: .42;
+}
+.sd-orb-host[data-orb="dock"] .codex-orb-stage::before {
+  inset: -12%;
+  opacity: .45;
+}
+:root[data-theme="light"] .codex-orb-stage::before {
+  opacity: .38;
+}
+@media (prefers-reduced-motion: reduce) {
+  .codex-orb-stage::before { transition: none; transform: none !important; }
+}
+:root[data-reduced-motion="true"] .codex-orb-stage::before,
+:root[data-motion="reduced"] .codex-orb-stage::before {
+  transition: none;
+  transform: none !important;
+}
 /* Size from the shorter axis so a tall, narrow host (72x132 on desktop and
    some iPhone states) cannot stretch the sphere into a vertical strip. */
 .codex-orb { position: relative; width: 100%; width: min(100cqw, 100cqh); height: auto; aspect-ratio: 1; min-width: 0; min-height: 0; }

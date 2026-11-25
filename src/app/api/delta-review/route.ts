@@ -10,7 +10,7 @@ import { unsupportedReviewAssertions } from '@/lib/claimIntegrity'
 import { measureTransfer } from '@/lib/structuralTransfer'
 import { isConcreteMove } from '@/lib/strategicDelta'
 import { cachedProjectReview, projectIsReviewable } from '@/lib/projectReviewStore'
-import { isModelChainConfigured, providerFailureReason, runProviderChainReviewStep } from '@/lib/modelProviderChain'
+import { isModelChainConfigured, modelFor, providerFailureReason, runProviderChainReviewStep, type ModelProviderId } from '@/lib/modelProviderChain'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -108,6 +108,7 @@ export async function POST(req: NextRequest) {
     const comparingLessons = withheld.length !== context.sources.length
     let baseline: ReviewProposal | null = null
     let parsed: ReviewProposal | null = null
+    let winningProvider: ModelProviderId | undefined
     const reviewDeadlineAt = Date.now() + (tier === 'deep' ? 100_000 : 45_000)
     const draftDeadlineAt = Date.now() + (tier === 'deep' ? 55_000 : 40_000)
     if (compact) {
@@ -122,6 +123,7 @@ export async function POST(req: NextRequest) {
         tier,
         userContent: `Compare feasible moves and propose one reviewed decision from this context. Submit it through submit_project_review. Cite only supplied source IDs, state unknowns, and keep the operation concrete.\n${packet}`,
       })
+      winningProvider = single.provider
       parsed = (single.stopReason === 'tool_use' || single.stopReason === 'structured_text') && single.toolInput
         ? parseProjectReview(JSON.stringify(single.toolInput), packetSources, body.missionId) : null
       console.info('/api/delta-review economy pass', { tier, stage: 'review', provider: single.provider, elapsedMs: Date.now() - startedAt, accepted: Boolean(parsed) })
@@ -154,6 +156,7 @@ export async function POST(req: NextRequest) {
         tier,
         userContent: `Critique the draft independently against the original context. Does the chosen move beat the alternatives on impact, urgency, dependencies, reported capacity and uncertainty? Is resuming a saved action better? Does the finish condition describe an observable result? Does a missing fact change the winner? Find unsupported facts, stale evidence, duplicates and paraphrases of corrected approaches. Revise once; submit through submit_project_review. A self-check is still a model proposal, not verification.\nOriginal context:\n${packet}\nDraft (untrusted proposal):\n${draftText.slice(0, 10_000)}`,
       })
+      winningProvider = final.provider
       parsed = (final.stopReason === 'tool_use' || final.stopReason === 'structured_text') && final.toolInput
         ? parseProjectReview(JSON.stringify(final.toolInput), packetSources, body.missionId) : null
     }
@@ -176,7 +179,8 @@ export async function POST(req: NextRequest) {
     const reviewedAt = new Date().toISOString()
     const transferObservation = measureTransfer({ baseline, after: parsed, sources: packetSources, lessons: context.lessons, missionId: body.missionId, requestContextAdded: Boolean(note), reviewedAt, interventionEvidence: context.interventionEvidence })
     const review: ProjectReview = { ...parsed, transferObservation, missionId: body.missionId, finishLine: body.finishLine, sources: packetSources, warnings: reviewWarnings, contextKey: context.contextKey, reviewedAt, cached: false,
-      tier, critique: compact ? 'single_pass' : 'independent' }
+      tier, critique: compact ? 'single_pass' : 'independent',
+      ...(winningProvider ? { provider: winningProvider, model: modelFor(winningProvider, tier) } : {}) }
     // A cached proposal is not an action or evidence. It lives in the existing
     // transitional Delta ledger and is invalidated by context/correction changes.
     stage = 'persistence'

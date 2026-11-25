@@ -10,6 +10,7 @@ import { homeDecision } from '@/lib/homeDecision'
 import type { HomeContinueView } from '@/lib/homeContinue'
 import { deriveNextAction, stableHash, type SavedActionSnapshot } from '@/lib/nextAction'
 import type { ProjectReview } from '@/lib/projectReview'
+import { reviewProvenanceSummary, sourceKindLabel } from '@/lib/readableProvenance'
 import { reviewCandidate, selectReviewedDelta } from '@/lib/reviewedDelta'
 import HomeContinue from './HomeContinue'
 import styles from './HomeContinue.module.css'
@@ -31,10 +32,12 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
   const [review, setReview] = useState<ProjectReview | null>(null)
   const [phase, setPhase] = useState<'idle' | 'restoring' | 'reviewing' | 'saving'>('idle')
   const [notice, setNotice] = useState('')
+  const [noticeError, setNoticeError] = useState(false)
   const [correctionTarget, setCorrectionTarget] = useState<string | null>(null)
   const [reason, setReason] = useState('')
   const pending = useRef(false)
   const request = useRef<AbortController | null>(null)
+  const activeReviewAbort = useRef<AbortController | null>(null)
   const finishLine = mission.finishLine
   const missionId = mission.id
   const reviewDate = events.find(event => event.mission_id === missionId && event.type === 'delta_reviewed')?.created_at
@@ -58,14 +61,20 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
         const result = await res.json()
         if (!controller.signal.aborted) setReview(result.review ?? null)
       } catch {
-        if (!controller.signal.aborted) setNotice('The previous comparison could not be checked.')
+        if (!controller.signal.aborted) {
+          setNotice('The previous comparison could not be checked.')
+          setNoticeError(false)
+        }
       } finally {
         if (!controller.signal.aborted) setPhase('idle')
       }
     }
     if (eligible && reviewDate && Date.parse(reviewDate) >= Date.now() - 3_600_000) void restore()
-    return () => controller.abort()
-  }, [accountId, missionId, eligible, reviewDate])
+    return () => {
+      controller.abort()
+      activeReviewAbort.current?.abort()
+    }
+  }, [accountId, missionId, eligible, reviewDate, tier])
 
   useEffect(() => {
     if (phase !== 'reviewing') return
@@ -96,32 +105,49 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
   const correctionKey = decision.correction ? JSON.stringify(decision.correction) : null
   const correcting = Boolean(correctionKey && correctionKey === correctionTarget)
 
+  function cancelComparison() {
+    activeReviewAbort.current?.abort()
+    activeReviewAbort.current = null
+    pending.current = false
+    setPhase('idle')
+    setNotice('Comparison cancelled. Your saved step is still here.')
+    setNoticeError(false)
+  }
+
   async function compare() {
     if (!eligible || phase !== 'idle' || pending.current) return
-    const signal = request.current?.signal
+    const unmountSignal = request.current?.signal
+    const cancelController = new AbortController()
+    activeReviewAbort.current = cancelController
     pending.current = true
     setPhase('reviewing')
     setNotice('')
+    setNoticeError(false)
     setReview(null)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session || session.user.id !== accountId) throw new Error('Reopen Home to check your account.')
       const deadline = AbortSignal.timeout(tier === 'deep' ? 125_000 : 60_000)
-      const res = await fetch('/api/delta-review', { method: 'POST', signal: signal ? AbortSignal.any([signal, deadline]) : deadline, headers: {
+      const signals = [cancelController.signal, deadline, ...(unmountSignal ? [unmountSignal] : [])]
+      const res = await fetch('/api/delta-review', { method: 'POST', signal: AbortSignal.any(signals), headers: {
         Authorization: 'Bearer ' + session.access_token, 'Content-Type': 'application/json',
       }, body: JSON.stringify({ missionId, finishLine, tier }) })
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Could not compare these moves.')
-      if (signal?.aborted) return
+      if (cancelController.signal.aborted || unmountSignal?.aborted) return
       setReview(result.review ?? null)
-      setNotice(result.review ? 'Comparison ready.' : 'The current mission constraints prevent a review. Reopen Mission to check what changed.')
+      setNotice(result.review ? '' : 'The current mission constraints prevent a review. Reopen Mission to check what changed.')
+      setNoticeError(false)
     } catch (err) {
-      if (!signal?.aborted) setNotice(err instanceof Error && err.name === 'TimeoutError'
+      if (cancelController.signal.aborted || unmountSignal?.aborted) return
+      setNotice(err instanceof Error && err.name === 'TimeoutError'
         ? 'The comparison timed out. Your saved step is still available.'
         : err instanceof Error ? err.message : 'Could not compare these moves.')
+      setNoticeError(true)
     } finally {
+      if (activeReviewAbort.current === cancelController) activeReviewAbort.current = null
       pending.current = false
-      if (!signal?.aborted) setPhase('idle')
+      if (!unmountSignal?.aborted) setPhase('idle')
     }
   }
 
@@ -132,6 +158,7 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
     pending.current = true
     setPhase('saving')
     setNotice('')
+    setNoticeError(false)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session || session.user.id !== accountId || signal?.aborted) throw new Error()
@@ -143,34 +170,153 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
       if (error && error.code !== '23505') throw error
       if (!signal?.aborted) onChange()
     } catch {
-      if (!signal?.aborted) setNotice('Could not confirm your correction was saved. Your reason is still here.')
+      if (!signal?.aborted) {
+        setNotice('Could not confirm your correction was saved. Your reason is still here.')
+        setNoticeError(true)
+      }
     } finally {
       pending.current = false
       if (!signal?.aborted) setPhase('idle')
     }
   }
 
-  return <HomeContinue view={decision.view} missionCount={missions?.length ?? 0} why={decision.why} onOpenMission={() => onOpen(decision.followsSaved)}>
-    {/* The recommendation and the commitment are complementary. When the
-        proposal differs from an existing unfinished saved action, keep a
-        direct, one-tap Resume beside it instead of burying it in reasons or
-        the collapsed alternative. */}
-    {saved && !decision.followsSaved && <button type="button" className={styles.secondary} onClick={() => onOpen(true)}
-      aria-label={`Resume your saved step: ${saved.title}`}>
-      Resume: {saved.title.length > 60 ? `${saved.title.slice(0, 57)}…` : saved.title}
-    </button>}
-    {eligible && <button type="button" className={styles.secondary} disabled={phase !== 'idle' || correcting} onClick={() => void compare()}>
-      {phase === 'reviewing' ? 'Comparing moves…' : 'Compare moves with AI'}
-    </button>}
-    {decision.correction && <button className={styles.secondary} disabled={phase !== 'idle'} aria-expanded={correcting}
-      onClick={() => { setCorrectionTarget(correcting ? null : correctionKey); setReason('') }}>Correct this move</button>}
-    {correcting && <form onSubmit={event => { event.preventDefault(); void saveCorrection() }}>
-      <label>What makes this move wrong now?
-        <textarea className={styles.reason} value={reason} maxLength={2000} onChange={event => setReason(event.target.value)} />
-      </label>
-      <button className={styles.secondary} disabled={!reason.trim() || phase !== 'idle'}>Save correction</button>
-    </form>}
-    {(phase !== 'idle' || notice) && <p role="status" className={styles.quiet}>{phase === 'restoring' ? 'Checking the saved comparison…' :
-      phase === 'saving' ? 'Saving your correction…' : phase === 'reviewing' ? 'Reviewing the project and comparing alternatives…' : notice}</p>}
-  </HomeContinue>
+  // Focused Processing Experience: while a real model comparison is in flight,
+  // remove competing buttons and technical clutter so the active objective and
+  // orb own the stage. Never fabricates progress percentages or fake stages.
+  if (phase === 'reviewing') {
+    return (
+      <section className={styles.processing} aria-label="Comparing moves" role="status">
+        <p className={styles.processingMission}>{mission.title}</p>
+        <h2 className={styles.processingTitle}>
+          {tier === 'deep' ? 'Running deep project review' : 'Comparing next moves'}
+        </h2>
+        <p className={styles.processingDetail}>
+          {tier === 'deep'
+            ? 'Deep · draft and independent critique over your saved mission context.'
+            : 'Economy · single structured pass over your saved mission context.'}
+        </p>
+        <button type="button" className={styles.secondary} onClick={cancelComparison}>
+          Cancel comparison
+        </button>
+      </section>
+    )
+  }
+
+  const provenance = decision.reviewed ? (() => {
+    const info = reviewProvenanceSummary(decision.reviewed)
+    return (
+      <div className={styles.provenanceBlock} aria-label="Review provenance">
+        <div className={styles.provenanceMeta}>
+          {info.tierLabel && <span className={styles.metaTag}>{info.tierLabel}</span>}
+          {info.passLabel && <span className={styles.metaTag}>{info.passLabel}</span>}
+          {info.intelligenceLabel && <span className={styles.metaTag}>{info.intelligenceLabel}</span>}
+          <span className={styles.metaTag}>{info.sourcesSummary}</span>
+          {info.cached && <span className={styles.metaTag}>Cached review</span>}
+          {info.citedLessons.map(lesson => (
+            <span key={lesson.id} className={`${styles.metaTag} ${styles.metaTagLesson}`}>
+              Lesson cited · {lesson.label.length > 48 ? `${lesson.label.slice(0, 45).trimEnd()}…` : lesson.label}
+            </span>
+          ))}
+        </div>
+        {info.citedSources.length > 0 && (
+          <div className={styles.sourceChipList}>
+            {info.citedSources.map(source => (
+              <details key={source.id} className={styles.sourceChip}>
+                <summary>
+                  <span className={styles.sourceKind}>{sourceKindLabel(source.kind)}</span>
+                  <span>{source.label}</span>
+                </summary>
+                <div className={styles.sourceChipBody}>
+                  <span>{source.status}</span>
+                  {source.url && (
+                    <a href={source.url} target="_blank" rel="noreferrer">Open source link ↗</a>
+                  )}
+                  <span className={styles.sourceChipId}>ID: {source.id}</span>
+                </div>
+              </details>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  })() : null
+
+  return (
+    <HomeContinue
+      view={decision.view}
+      missionCount={missions?.length ?? 0}
+      why={decision.why}
+      finishWhen={decision.finishWhen}
+      provenance={provenance}
+      isProposal={Boolean(decision.reviewed && !decision.followsSaved)}
+      onOpenMission={() => onOpen(decision.followsSaved)}
+    >
+      <div className={styles.actionRow}>
+        {/* The recommendation and the commitment are complementary. When the
+            proposal differs from an existing unfinished saved action, keep a
+            direct, one-tap Resume beside it instead of burying it in reasons or
+            the collapsed alternative. */}
+        {saved && !decision.followsSaved && (
+          <button
+            type="button"
+            className={`${styles.secondary} ${styles.resumePill}`}
+            onClick={() => onOpen(true)}
+            aria-label={`Resume your saved step: ${saved.title}`}
+          >
+            Resume: {saved.title.length > 52 ? `${saved.title.slice(0, 49)}…` : saved.title}
+          </button>
+        )}
+        {eligible && (
+          <button
+            type="button"
+            className={styles.secondary}
+            disabled={phase !== 'idle' || correcting}
+            onClick={() => void compare()}
+          >
+            Compare moves with AI
+          </button>
+        )}
+        {decision.correction && (
+          <button
+            type="button"
+            className={styles.secondary}
+            disabled={phase !== 'idle'}
+            aria-expanded={correcting}
+            onClick={() => { setCorrectionTarget(correcting ? null : correctionKey); setReason('') }}
+          >
+            Correct this move
+          </button>
+        )}
+      </div>
+
+      {correcting && (
+        <form className={styles.correctionForm} onSubmit={event => { event.preventDefault(); void saveCorrection() }}>
+          <label>
+            What makes this move wrong now?
+            <textarea className={styles.reason} value={reason} maxLength={2000} onChange={event => setReason(event.target.value)} />
+          </label>
+          <button type="submit" className={styles.secondary} disabled={!reason.trim() || phase !== 'idle'}>
+            Save correction
+          </button>
+        </form>
+      )}
+
+      {(phase !== 'idle' || notice) && (
+        noticeError ? (
+          <div className={styles.interruptedBanner} role="alert">
+            <span>{notice}</span>
+            {eligible && (
+              <button type="button" className={styles.secondary} onClick={() => void compare()}>
+                Try again
+              </button>
+            )}
+          </div>
+        ) : (
+          <p role="status" className={styles.quiet}>
+            {phase === 'restoring' ? 'Checking the saved comparison…' : phase === 'saving' ? 'Saving your correction…' : notice}
+          </p>
+        )
+      )}
+    </HomeContinue>
+  )
 }

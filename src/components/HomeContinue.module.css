@@ -1,78 +1,546 @@
-/* Home's Continue card. Uses the Codex Glass tokens, so light mode and the
-   palettes follow without separate rules. */
+/* Home's Strategic Delta card. Atmospheric Liquid Glass framing around one
+   unmistakable next move. Uses Codex Glass tokens so light mode, palettes,
+   opaque-glass, high-contrast, and reduced-motion follow automatically. */
 .card {
   flex: none;
-  width: min(480px, 100%);
+  width: min(520px, 100%);
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px 18px;
+  gap: 12px;
+  padding: 18px 20px;
   text-align: left;
-  border: 1px solid var(--g-glass-edge);
-  border-radius: 22px;
-  background: color-mix(in srgb, var(--g-mist) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--g-glass-edge) 115%, transparent);
+  border-radius: 26px;
+  background:
+    linear-gradient(155deg, color-mix(in srgb, var(--g-mist) 7%, transparent), color-mix(in srgb, var(--g-mist) 2%, transparent) 55%),
+    color-mix(in srgb, var(--g-ink) 42%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 22%, transparent),
+    0 20px 48px rgba(4, 6, 18, .28);
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
   color: var(--g-mist);
   font-family: var(--g-body);
 }
-.kicker { margin: 0; font: 700 11px/1.4 var(--g-body); letter-spacing: .09em; text-transform: uppercase; color: var(--g-mist-dim); }
-.title {
-  margin: 0; font: 600 clamp(20px, 5.4vw, 26px)/1.18 var(--g-display); letter-spacing: -.015em; text-wrap: balance; overflow-wrap: anywhere;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
-}
-.quiet { margin: 0; font: 400 14px/1.5 var(--g-body); color: var(--g-mist-dim); }
-.step { display: grid; gap: 4px; padding-top: 10px; border-top: 1px solid var(--g-glass-edge); }
-.stepLabel { margin: 0; font: 700 11px/1.4 var(--g-body); letter-spacing: .07em; text-transform: uppercase; color: var(--g-mist-dim); }
-/* Only a step the person saved carries the accent. A suggestion stays neutral
-   so it is never read as a commitment. */
-.stepLabel[data-step="saved"], .stepLabel[data-step="in_progress"] { color: var(--g-teal); }
-.stepTitle {
-  margin: 0; font: 600 16px/1.4 var(--g-body); overflow-wrap: anywhere;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden;
-}
-.card[data-step="no_step"] .stepTitle, .card[data-step="step_unknown"] .stepTitle { font-weight: 400; color: var(--g-mist-dim); }
-.blocker { margin: 4px 0 0; font: 400 14px/1.45 var(--g-body); overflow-wrap: anywhere; }
-.blocker span { font-weight: 700; color: var(--amber, #f5b84b); }
-/* The main button is the existing .glass-continuity-button; this only sizes it
-   for the card. Its colours are the ones already shipped for the saved focus. */
-.primary { min-height: 48px; margin-top: 0; justify-self: stretch; font-size: 15px; -webkit-text-fill-color: currentColor; }
-.secondary {
-  min-height: 48px; padding: 10px 18px; border-radius: 999px; cursor: pointer; align-self: flex-start;
-  font: 600 15px var(--g-body); color: var(--g-mist); -webkit-text-fill-color: currentColor;
-  border: 1px solid var(--g-glass-edge); background: transparent;
-}
-.primary:focus-visible, .secondary:focus-visible, .why summary:focus-visible { outline: 2px solid var(--g-teal); outline-offset: 2px; }
-.why summary {
-  display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; cursor: pointer;
-  font: 600 14px var(--g-body); color: var(--g-mist-dim); border-radius: 8px;
-}
-.why[open] summary { color: var(--g-mist); }
-.why dl { margin: 2px 0 0; display: grid; gap: 10px; }
-.why dt { font: 700 11px/1.4 var(--g-body); letter-spacing: .06em; text-transform: uppercase; color: var(--g-mist-dim); }
-.why dd { margin: 2px 0 0; font: 400 14px/1.5 var(--g-body); overflow-wrap: anywhere; white-space: pre-wrap; }
-:global(:root[data-glass-opaque="true"]) .card { background: var(--g-ink); }
-@media (prefers-reduced-transparency: reduce) { .card { background: var(--g-ink); } }
-@media (max-height: 700px) {
-  .card { gap: 8px; padding: 12px 16px; }
-  .title { font-size: 20px; -webkit-line-clamp: 2; }
-  .stepTitle { -webkit-line-clamp: 3; }
+
+.card[data-proposal="true"] {
+  border-color: color-mix(in srgb, var(--g-violet) 48%, var(--g-glass-edge));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 24%, transparent),
+    0 20px 52px color-mix(in srgb, var(--g-violet) 16%, rgba(4, 6, 18, .32));
 }
 
-/* The original title remains in the collapsed context disclosure. */
-.stepNote {
-  margin: 0; font: 400 13px/1.45 var(--g-body); color: var(--g-mist-dim);
+.missionBar {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--g-glass-edge) 55%, transparent);
+}
+
+.kicker {
+  margin: 0;
+  font: 700 10.5px/1.3 var(--g-body);
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  color: var(--g-mist-dim);
+}
+
+/* Compact, identifiable mission identity so the recommended next move leads. */
+.missionTitle {
+  margin: 0;
+  font: 600 15px/1.3 var(--g-body);
+  letter-spacing: -.005em;
+  color: color-mix(in srgb, var(--g-mist) 88%, var(--g-mist-dim));
   overflow-wrap: anywhere;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.emptyTitle {
+  margin: 0;
+  font: 600 clamp(21px, 5.4vw, 27px)/1.16 var(--g-display);
+  letter-spacing: -.018em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.moveStage {
+  display: grid;
+  gap: 7px;
+}
+
+.stepBadge {
+  margin: 0;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--g-glass-edge) 75%, transparent);
+  background: color-mix(in srgb, var(--g-mist) 6%, transparent);
+  font: 700 10.5px/1.3 var(--g-body);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--g-mist-dim);
+}
+
+/* Saved commitments carry the teal accent; AI proposals carry violet-aurora;
+   clarifications carry warm amber so commitment vs proposal is unmistakable. */
+.stepBadge[data-tone="saved"],
+.stepBadge[data-tone="in_progress"] {
+  color: var(--g-teal);
+  border-color: color-mix(in srgb, var(--g-teal) 45%, transparent);
+  background: color-mix(in srgb, var(--g-teal) 12%, transparent);
+}
+
+.stepBadge[data-tone="proposal"] {
+  color: color-mix(in srgb, var(--g-violet) 52%, var(--g-mist));
+  border-color: color-mix(in srgb, var(--g-violet) 50%, transparent);
+  background: color-mix(in srgb, var(--g-violet) 16%, transparent);
+}
+
+.stepBadge[data-tone="clarify"] {
+  color: var(--amber, #f5b84b);
+  border-color: color-mix(in srgb, var(--amber, #f5b84b) 45%, transparent);
+  background: color-mix(in srgb, var(--amber, #f5b84b) 12%, transparent);
+}
+
+.moveHeadline {
+  margin: 0;
+  font: 600 clamp(20px, 5.2vw, 26px)/1.22 var(--g-display);
+  letter-spacing: -.018em;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+  color: var(--g-mist);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+
+.card[data-step="no_step"] .moveHeadline,
+.card[data-step="step_unknown"] .moveHeadline {
+  font: 400 16px/1.45 var(--g-body);
+  color: var(--g-mist-dim);
+}
+
+.stepNote {
+  margin: 0;
+  font: 400 13px/1.45 var(--g-body);
+  color: var(--g-mist-dim);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.blocker {
+  margin: 2px 0 0;
+  padding: 8px 11px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--amber, #f5b84b) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber, #f5b84b) 32%, transparent);
+  font: 400 13.5px/1.45 var(--g-body);
+  overflow-wrap: anywhere;
+}
+
+.blocker span {
+  font-weight: 700;
+  color: var(--amber, #f5b84b);
+}
+
+.whyNow {
+  margin: 0;
+  font: 400 14px/1.52 var(--g-body);
+  color: color-mix(in srgb, var(--g-mist) 82%, var(--g-mist-dim));
+  overflow-wrap: anywhere;
+}
+
+.whyNowLabel,
+.finishLabel {
+  font-weight: 700;
+  color: var(--g-mist);
+  margin-right: 4px;
+}
+
+.finishCondition {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--g-teal) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--g-teal) 26%, transparent);
+  font: 400 13.5px/1.45 var(--g-body);
+  color: color-mix(in srgb, var(--g-mist) 90%, var(--g-mist-dim));
+  overflow-wrap: anywhere;
+}
+
+.finishLabel {
+  color: var(--g-teal);
+}
+
+.quiet {
+  margin: 0;
+  font: 400 14px/1.5 var(--g-body);
+  color: var(--g-mist-dim);
+}
+
+.ctaGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+/* Primary action: unmistakable luminous touch target. */
+.primary {
+  width: 100%;
+  min-height: 50px;
+  margin-top: 0;
+  padding: 12px 20px;
+  border-radius: 999px;
+  font: 650 15px/1.2 var(--g-body);
+  color: var(--g-ink);
+  -webkit-text-fill-color: currentColor;
+  background: var(--g-mist);
+  border: 1px solid color-mix(in srgb, white 85%, transparent);
+  box-shadow: 0 10px 28px rgba(4, 6, 18, .28);
+  transition: transform 160ms ease, filter 160ms ease, background 160ms ease;
+}
+
+.primary:hover {
+  background: #ffffff;
+  filter: brightness(1.02);
+}
+
+.primary:active {
+  transform: scale(0.99);
+}
+
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.secondary {
+  min-height: 44px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font: 600 13.5px/1.25 var(--g-body);
+  color: var(--g-mist);
+  -webkit-text-fill-color: currentColor;
+  border: 1px solid color-mix(in srgb, var(--g-glass-edge) 85%, transparent);
+  background: color-mix(in srgb, var(--g-mist) 5%, transparent);
+  transition: background 160ms ease, border-color 160ms ease;
+  text-align: left;
+}
+
+.secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--g-mist) 11%, transparent);
+  border-color: color-mix(in srgb, var(--g-mist) 45%, transparent);
+}
+
+.secondary:disabled {
+  opacity: .55;
+  cursor: default;
+}
+
+.resumePill {
+  border-color: color-mix(in srgb, var(--g-teal) 50%, transparent);
+  background: color-mix(in srgb, var(--g-teal) 12%, transparent);
+  color: var(--g-mist);
+}
+
+.resumePill:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--g-teal) 20%, transparent);
+  border-color: var(--g-teal);
+}
+
+.primary:focus-visible,
+.secondary:focus-visible,
+.why summary:focus-visible,
+.sourceChip summary:focus-visible {
+  outline: 2px solid var(--g-teal);
+  outline-offset: 2px;
+}
+
+/* Progressive disclosure */
+.why {
+  border-top: 1px solid color-mix(in srgb, var(--g-glass-edge) 50%, transparent);
+  padding-top: 4px;
+}
+
+.why summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
+  cursor: pointer;
+  font: 600 13.5px var(--g-body);
+  color: var(--g-mist-dim);
+  border-radius: 8px;
+}
+
+.why[open] summary {
+  color: var(--g-mist);
+}
+
+.disclosureBody {
+  display: grid;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.why dl {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.why dt {
+  font: 700 10.5px/1.4 var(--g-body);
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--g-mist-dim);
+}
+
+.why dd {
+  margin: 2px 0 0;
+  font: 400 13.5px/1.5 var(--g-body);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* Intelligence provenance & expandable readable source chips */
+.provenanceBlock {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--g-mist) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--g-glass-edge) 55%, transparent);
+}
+
+.provenanceMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.metaTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font: 600 11.5px/1.3 var(--g-body);
+  color: var(--g-mist);
+  background: color-mix(in srgb, var(--g-mist) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--g-glass-edge) 60%, transparent);
+}
+
+.metaTagLesson {
+  color: var(--g-teal);
+  border-color: color-mix(in srgb, var(--g-teal) 45%, transparent);
+  background: color-mix(in srgb, var(--g-teal) 10%, transparent);
+}
+
+.sourceChipList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sourceChip {
+  max-width: 100%;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--g-glass-edge) 65%, transparent);
+  background: color-mix(in srgb, var(--g-mist) 5%, transparent);
+  font: 500 12.5px/1.35 var(--g-body);
+  color: var(--g-mist);
+}
+
+.sourceChip summary {
+  min-height: 36px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+
+.sourceChip summary::-webkit-details-marker {
+  display: none;
+}
+
+.sourceKind {
+  flex: none;
+  font: 700 10px/1.2 var(--g-body);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--g-teal);
+}
+
+.sourceChipBody {
+  padding: 0 10px 9px;
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--g-mist-dim);
+  overflow-wrap: anywhere;
+}
+
+.sourceChipId {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  opacity: .8;
+  word-break: break-all;
+}
+
+/* Focused Processing State (Section 7 — calm, central, truthful) */
+.processing {
+  flex: none;
+  width: min(460px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 20px 18px;
+  text-align: center;
+  border-radius: 26px;
+  border: 1px solid color-mix(in srgb, var(--g-violet) 38%, var(--g-glass-edge));
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--g-violet) 10%, transparent), color-mix(in srgb, var(--g-teal) 5%, transparent) 60%),
+    color-mix(in srgb, var(--g-ink) 45%, transparent);
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  color: var(--g-mist);
+  font-family: var(--g-body);
+}
+
+.processingMission {
+  margin: 0;
+  font: 600 12px/1.35 var(--g-body);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--g-mist-dim);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.processingTitle {
+  margin: 0;
+  font: 600 clamp(21px, 5.4vw, 26px)/1.2 var(--g-display);
+  letter-spacing: -.018em;
+  color: var(--g-mist);
+}
+
+.processingDetail {
+  margin: 0;
+  max-width: 34ch;
+  font: 400 14px/1.5 var(--g-body);
+  color: var(--g-mist-dim);
+}
+
+.interruptedBanner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--error, #ff6a7a) 45%, transparent);
+  background: color-mix(in srgb, var(--error, #ff6a7a) 10%, transparent);
+  font: 400 13px/1.45 var(--g-body);
+  color: var(--g-mist);
+}
+
+.correctionForm {
+  display: grid;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.correctionForm label {
+  font: 600 13px/1.4 var(--g-body);
+  color: var(--g-mist);
 }
 
 .reason {
   display: block;
   width: 100%;
   min-height: 80px;
-  margin: 6px 0;
-  padding: 8px;
+  margin: 6px 0 0;
+  padding: 10px 12px;
   color: var(--g-mist);
   background: var(--g-ink);
   border: 1px solid var(--g-glass-edge);
-  border-radius: 8px;
+  border-radius: 12px;
   font-size: 16px;
+  font-family: var(--g-body);
+}
+
+/* Light mode readability */
+:global(:root[data-theme="light"]) .card,
+:global(:root[data-theme="light"]) .processing {
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, .9), rgba(246, 247, 255, .82));
+  border-color: rgba(32, 36, 59, .18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .95),
+    0 18px 42px rgba(40, 48, 78, .12);
+}
+
+:global(:root[data-theme="light"]) .primary {
+  background: var(--g-mist);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+:global(:root[data-theme="light"]) .primary:hover {
+  background: #14172b;
+}
+
+:global(:root[data-theme="light"]) .stepBadge[data-tone="proposal"] {
+  color: #4a3cc9;
+}
+
+/* Opaque, reduced-transparency, high-contrast, and reduced-motion fallbacks */
+:global(:root[data-glass-opaque="true"]) .card,
+:global(:root[data-glass-opaque="true"]) .processing {
+  background: var(--g-ink);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .card,
+  .processing {
+    background: var(--g-ink);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primary,
+  .secondary {
+    transition: none;
+  }
+}
+
+@media (max-height: 700px) {
+  .card { gap: 9px; padding: 14px 16px; }
+  .moveHeadline { font-size: 20px; -webkit-line-clamp: 3; }
 }

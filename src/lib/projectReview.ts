@@ -64,6 +64,9 @@ export interface ProjectReview {
   /** Generation provenance: an Economy review must never look like Deep. */
   tier?: 'routine' | 'deep'
   critique?: 'single_pass' | 'independent'
+  /** Provider/model that actually produced this review (read-only metadata). */
+  provider?: 'anthropic' | 'gemini' | 'openai'
+  model?: string
   structuralBridge?: StructuralBridge | null
   transferObservation?: TransferObservation
   workDraft?: string | null

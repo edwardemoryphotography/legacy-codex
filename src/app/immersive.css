@@ -21,6 +21,16 @@
    which can be smaller; the floor drew the orb over the content beneath it. */
 .codex-shell[data-screen="home"] .sd-orb-host[data-orb="hero"],
 .codex-shell[data-screen="home"] .sd-orb-host[data-orb="hero"] .sd-field { min-height: 0; }
+/* When Home scrolls past its orb stage, PersistentOrb docks cleanly into the
+   top-right 44x44 header slot inside .glass-top — clear of all scrolling text. */
+.codex-shell[data-screen="home"] .sd-orb-host[data-orb="dock"] {
+  position: absolute;
+  z-index: 44;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  width: 44px;
+  height: 44px;
+}
 #panel-home { animation: none; }
 .glass-home { min-height: 0; height: 100%; width: 100%; overflow: hidden; }
 .glass-home [hidden] { display: none !important; }
