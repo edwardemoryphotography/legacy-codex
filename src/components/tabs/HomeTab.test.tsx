@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { useState } from 'react'
 import { getAllEntries } from '@/data/codex'
 import { emptyHomeSession, type HomeSession } from '@/lib/homeSession'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import HomeTab, { promptHelpQuestion } from './HomeTab'
 import { QUESTION_LIMIT } from '@/lib/homeRequest'
@@ -177,7 +177,7 @@ it('opens all five Codex tools in a native top-layer dialog and closes cleanly',
     'Ask Codex',
     'Daily Brief',
     'Triage',
-    'Upload a file',
+    'Photos, camera or files',
     'Help me write a prompt',
   ])
   expect(screen.getByRole('button', { name: 'Open tools' })).toHaveAttribute('aria-expanded', 'true')
@@ -186,13 +186,45 @@ it('opens all five Codex tools in a native top-layer dialog and closes cleanly',
   expect(screen.getByRole('button', { name: 'Open tools' })).toHaveAttribute('aria-expanded', 'false')
 })
 
-it('closes the native tools dialog before restoring composer focus on selection', () => {
+it('closes the tools dialog without raising the keyboard for saved-work tools', () => {
   render(<HomeTab onNavigate={() => {}} />)
   fireEvent.click(screen.getByRole('button', { name: 'Open tools' }))
   fireEvent.click(screen.getByRole('menuitem', { name: 'Daily Brief' }))
   expect(screen.queryByRole('dialog', { name: 'Codex tools' })).toBeNull()
-  expect(screen.getByRole('textbox', { name: 'Ask Codex' })).toHaveFocus()
+  // Daily Brief uses saved missions; selecting it must not focus the composer.
+  expect(screen.getByRole('textbox', { name: 'Ask Codex' })).not.toHaveFocus()
   expect(screen.getByRole('button', { name: 'Remove Daily Brief' })).toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Open tools' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Ask Codex' }))
+  expect(screen.getByRole('textbox', { name: 'Ask Codex' })).toHaveFocus()
+})
+
+it('opens a native file picker for attachments instead of navigating to Mission', () => {
+  const onNavigate = vi.fn()
+  render(<HomeTab onNavigate={onNavigate} />)
+  const click = vi.spyOn(HTMLInputElement.prototype, 'click')
+  fireEvent.click(screen.getByRole('button', { name: 'Open tools' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Photos, camera or files' }))
+  expect(click).toHaveBeenCalled()
+  expect(onNavigate).not.toHaveBeenCalled()
+  click.mockRestore()
+})
+
+it('previews selected attachments and lets the owner remove them', async () => {
+  render(<HomeTab onNavigate={() => {}} />)
+  const input = screen.getByTestId('home-attachment-input')
+  fireEvent.change(input, { target: { files: [new File(['hello'], 'notes.txt', { type: 'text/plain' })] } })
+  await waitFor(() => expect(screen.getByRole('group', { name: 'Selected attachments' })).toBeInTheDocument())
+  expect(screen.getByText(/notes\.txt/)).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Remove notes.txt' }))
+  expect(screen.queryByRole('group', { name: 'Selected attachments' })).toBeNull()
+})
+
+it('explains an unsupported attachment rather than accepting it silently', async () => {
+  render(<HomeTab onNavigate={() => {}} />)
+  fireEvent.change(screen.getByTestId('home-attachment-input'), { target: { files: [new File(['zip'], 'archive.zip', { type: 'application/zip' })] } })
+  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/Unsupported file type: archive\.zip/))
 })
 
 describe('HomeTab send arrow', () => {

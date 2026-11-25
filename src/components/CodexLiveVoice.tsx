@@ -520,7 +520,7 @@ export default function CodexLiveVoice({
   useEffect(() => {
     onControlsChange?.({
       mute: toggleMute,
-      end: () => stop('Live voice ended. The spoken-turn transcript was cleared; earlier replies remain in your Home conversation history and no saved records were changed.', { explicit: true }),
+      end: () => stop('Voice ended. Spoken transcript cleared; earlier replies stay in Home; nothing saved.', { explicit: true }),
     })
     return () => onControlsChange?.(null)
   }, [onControlsChange, toggleMute, stop])
@@ -1011,7 +1011,7 @@ export default function CodexLiveVoice({
               type="button"
               className={styles.end}
               aria-label="End voice session"
-              onClick={() => stop('Live voice ended. The spoken-turn transcript was cleared; earlier replies remain in your Home conversation history and no saved records were changed.', { explicit: true })}
+              onClick={() => stop('Voice ended. Spoken transcript cleared; earlier replies stay in Home; nothing saved.', { explicit: true })}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
                 <path d="M6 6l12 12M18 6L6 18" />

@@ -16,6 +16,7 @@ import { homeMissionRoster, homeRequest, QUESTION_LIMIT, PROMPT_LIMIT, promptHel
 import type { TabId } from '@/types'
 import { emptyHomeSession, type HomeReply, type HomeSession } from '@/lib/homeSession'
 import { homeTakeaway } from '@/lib/homeTakeaway'
+import { ATTACH_ACCEPT, attachmentAnalysisLabel, attachmentInstruction, attachmentQuestion, formatBytes, prepareAttachments, removeAttachment, type PendingAttachment } from '@/lib/homeAttachments'
 import { deriveNextAction, type NextActionReadState } from '@/lib/nextAction'
 import { latestAcceptance } from '@/lib/nextActionLedger'
 import styles from './HomeTab.module.css'
@@ -32,6 +33,10 @@ import { activeLessonCount, deriveHomeContinue } from '@/lib/homeContinue'
 
 // Model-authored image URLs must not initiate background requests with project data.
 const answerComponents = { img: ({ alt }: { alt?: string }) => <span>{alt}</span> }
+const inlineMarkdown = { p: ({ children }: { children?: React.ReactNode }) => <>{children}</> }
+function InlineMarkdown({ text }: { text: string }) {
+  return <ReactMarkdown components={inlineMarkdown}>{text}</ReactMarkdown>
+}
 
 type Tool = HomeTool
 const TOOL_LABEL: Record<Tool, string> = { brief: 'Daily Brief', triage: 'Triage', ask: 'Ask Codex', prompt: 'Prompt help' }
@@ -116,6 +121,17 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const requestSignIn = onSignIn ?? (() => onNavigate('controls'))
   const presentation = useOrbPresentation()
   const [local, setLocal] = useState(emptyHomeSession)
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([])
+  const [attachmentError, setAttachmentError] = useState('')
+  const [attachmentBusy, setAttachmentBusy] = useState(false)
+  const fileInput = useRef<HTMLInputElement>(null)
+  const attachmentsRef = useRef<PendingAttachment[]>([])
+  useEffect(() => { attachmentsRef.current = attachments }, [attachments])
+  useEffect(() => () => {
+    for (const attachment of attachmentsRef.current) {
+      if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl)
+    }
+  }, [])
   const [livePhase, setLivePhase] = useState<LiveVoicePhase>('idle')
   const [liveSnapshot, setLiveSnapshot] = useState<LiveVoiceSnapshot>({
     active: false, phase: 'idle', transportState: 'idle', connected: false, muted: false, micState: 'unavailable', micLive: false,
@@ -368,18 +384,93 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const over = !noTextNeeded && text.length > limit
   // Send and microphone remain separate controls. An unavailable submission
   // explains its reason beside the input instead of silently consuming Enter.
-  const ready = access.state === 'owner' && access.configured && !reviewActive && !busy && !voice.active && !over && (noTextNeeded || text.trim() !== '')
+  const ready = access.state === 'owner' && access.configured && !reviewActive && !busy && !voice.active && !over && (noTextNeeded || text.trim() !== '' || attachments.length > 0)
 
   const closeTools = () => {
     setSheetOpen(false)
     if (toolSheet.current?.open) toolSheet.current.close()
   }
 
-  const pick = (next: Tool) => {
+  const pick = (next: HomeTool) => {
     setTool(next)
     // Close the native modal before focusing its inert background textarea.
     closeTools()
-    input.current?.focus()
+    // Daily Brief and Triage use saved work, so selecting them must not raise
+    // the keyboard or steal focus from the composer.
+    if (next === 'ask' || next === 'prompt') input.current?.focus()
+  }
+
+  const chooseFiles = () => {
+    closeTools()
+    fileInput.current?.click()
+  }
+
+  const onFilesSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? [])
+    event.target.value = ''
+    if (files.length === 0) return
+    setAttachmentError('')
+    setAttachmentBusy(true)
+    try {
+      const existingBytes = attachments.reduce((sum, attachment) => sum + attachment.size, 0)
+      const { attachments: prepared, errors } = await prepareAttachments(files, existingBytes, attachments.length)
+      if (errors.length > 0) setAttachmentError(errors.join(' '))
+      if (prepared.length > 0) setAttachments(previous => [...previous, ...prepared])
+    } finally {
+      setAttachmentBusy(false)
+    }
+  }
+
+  const discardAttachments = () => {
+    for (const attachment of attachments) {
+      if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl)
+    }
+    setAttachments([])
+  }
+
+  const sendAttachmentMessage = async () => {
+    const names = attachments.map(attachment => attachment.name)
+    const converted = attachments.filter(attachment => attachment.convertedFrom)
+      .map(attachment => `${attachment.name} (${attachment.convertedFrom} → JPEG)`)
+    setSubmitNotice('Analysing attachments…')
+    setAttachmentError('')
+    setAttachmentBusy(true)
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession()
+      const formData = new FormData()
+      formData.append('instruction', attachmentInstruction(text, names))
+      for (const attachment of attachments) formData.append('files', attachment.file, attachment.name)
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        body: formData,
+        headers: authSession?.access_token ? { Authorization: 'Bearer ' + authSession.access_token } : {},
+      })
+      const result = await response.json().catch(() => ({})) as { text?: string; error?: string; model?: string }
+      if (!response.ok || !result.text?.trim()) {
+        setSubmitNotice((result.error || 'Attachment analysis could not be completed.') + ' Your attachments are still here.')
+        return
+      }
+      const reply: HomeReply = {
+        question: attachmentQuestion(text, names),
+        text: result.text,
+        label: attachmentAnalysisLabel(names, converted),
+        provider: 'Claude · ' + (result.model || 'analysis'),
+      }
+      update(previous => ({
+        ...previous,
+        history: previous.reply ? [...previous.history, previous.reply].slice(-6) : previous.history,
+        reply,
+        text: '',
+        tool: null,
+      }))
+      discardAttachments()
+      setSheetOpen(false)
+      setComposerExpanded(false)
+      setResponseOpen(true)
+      setSubmitNotice('Analysis complete. This file was not stored; follow-up questions use the analysis above.')
+    } finally {
+      setAttachmentBusy(false)
+    }
   }
 
   const send = async () => {
@@ -395,10 +486,17 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
     }
     if (voice.active) return // The visible voice status and Stop control remain available.
     if (over) { setSubmitNotice(`Too long to send: shorten it to ${limit} characters (now ${text.length}).`); return }
-    if (!noTextNeeded && !text.trim()) { setSubmitNotice('Type a question before sending.'); return }
+    if (attachments.length === 0 && !noTextNeeded && !text.trim()) { setSubmitNotice('Type a question or attach a file before sending.'); return }
     if (loadError || missions === null) { setSubmitNotice(loadError || 'Loading your missions…'); return }
     if (brief.visitor) { setSubmitNotice(BRIEF_VISITOR_COPY); return }
     if (!brief.configured) { setSubmitNotice('AI is not configured on the server yet. Your text is still here.'); return }
+    if (attachments.length > 0) {
+      if (attachmentBusy) { setSubmitNotice('Preparing attachments…'); return }
+      if (sending.current) return
+      sending.current = Symbol('attachment-request')
+      try { await sendAttachmentMessage() } finally { sending.current = null }
+      return
+    }
     if (noTextNeeded && missionCount === 0) { setSubmitNotice('Add a mission before requesting a Daily Brief or Triage. You can ask a question here without one.'); return }
     // Routine summaries concern current work. Keep parked/finished projects in
     // Mission and in explicit questions without repeatedly surfacing them in Triage.
@@ -677,7 +775,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
             </div>
             {primaryMission && savedAction && !isReplySavedAsAction && (
               <p className={`glass-note ${styles.currentAction}`} role="status" data-next-action-precedence="saved-first">
-                Current saved action ({savedAction.status === 'IN_PROGRESS' ? 'In progress' : 'Saved'}): <strong>{savedAction.action_title}</strong>.{' '}
+                Current saved action ({savedAction.status === 'IN_PROGRESS' ? 'In progress' : 'Saved'}): <strong><InlineMarkdown text={savedAction.action_title} /></strong>.{' '}
                 {!missionView && (
                   <button type="button" className="underline" onClick={() => onNavigate('mission')}>
                     Continue in Mission
@@ -814,8 +912,8 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
           <button type="button" role="menuitem" onClick={() => pick('triage')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" /></svg>Triage
           </button>
-          <button type="button" role="menuitem" onClick={() => { closeTools(); onNavigate('mission') }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14" /></svg>Upload a file
+          <button type="button" role="menuitem" onClick={chooseFiles}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14" /></svg>Photos, camera or files
           </button>
           <button type="button" role="menuitem" onClick={() => pick('prompt')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16l-1 4zM14 6l3 3" /></svg>Help me write a prompt
@@ -842,6 +940,21 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
             )}
             {access.state !== 'unconfigured' && ' to use it. Your draft stays here.'}
           </p>
+        )}
+        <input ref={fileInput} type="file" multiple accept={ATTACH_ACCEPT} hidden data-testid="home-attachment-input" onChange={event => void onFilesSelected(event)} />
+        {(attachments.length > 0 || attachmentError) && (
+          <div className="glass glass-output" style={{ marginBottom: 8, padding: '10px 12px', borderRadius: 16 }} role="group" aria-label="Selected attachments">
+            {attachments.length > 0 && <p className="glass-note" role="status">Attached for one analysis · files are not stored.</p>}
+            {attachments.map(attachment => (
+              <div key={attachment.id} className="glass-note" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                {attachment.previewUrl && <img src={attachment.previewUrl} alt="" width={36} height={36} style={{ borderRadius: 8, objectFit: 'cover' }} />}
+                <span style={{ flex: 1, wordBreak: 'break-all' }}>{attachment.name} · {formatBytes(attachment.size)}</span>
+                <button type="button" className="glass-chip glass" aria-label={`Remove ${attachment.name}`} disabled={attachmentBusy} onClick={() => setAttachments(previous => removeAttachment(previous, attachment.id))}>Remove</button>
+              </div>
+            ))}
+            {attachmentError && <p className="glass-note" role="alert">{attachmentError}</p>}
+            <p className="glass-note">Photos are analysed once. HEIC photos may be converted to JPEG; the file itself is never stored or re-read.</p>
+          </div>
         )}
         <form className="glass-pill glass" onSubmit={event => { event.preventDefault(); void send() }}>
           <button type="button" className="glass-round glass-plus" aria-label="Open tools" aria-expanded={sheetOpen} aria-controls="glass-tools" disabled={busy || voice.active} onClick={() => setSheetOpen(open => !open)}>
