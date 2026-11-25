@@ -5,7 +5,9 @@ import { getAllEntries } from '@/data/codex'
 // This test uses the real authored source corpus, not fabricated lessons or accounts.
 describe('historical Boomerang Casebook provenance contract', () => {
   it('preserves the recovered public-safe corpus with stable, unique identifiers', () => {
-    expect(BOOMERANG_CASES).toHaveLength(34)
+    expect(BOOMERANG_CASES.length).toBeGreaterThanOrEqual(35)
+    expect(BOOMERANG_CASES.slice(0, 34).map(record => record.id)).toEqual(Array.from({ length: 34 }, (_, index) => `BR-${String(index + 1).padStart(3, '0')}`))
+    expect(BOOMERANG_CASES.find(record => record.id === 'BR-035')?.title).toBe('An interface boundary should not become a cognitive boundary')
     expect(new Set(BOOMERANG_CASES.map(record => record.id)).size).toBe(BOOMERANG_CASES.length)
     expect(BOOMERANG_CASES.every(record => /^BR-\d{3}$/.test(record.id))).toBe(true)
   })
