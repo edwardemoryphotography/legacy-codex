@@ -209,7 +209,9 @@ export default function HomeStrategicDecision({ territory, mission, view, saved,
         <div className={styles.provenanceMeta}>
           {info.tierLabel && <span className={styles.metaTag}>{info.tierLabel}</span>}
           {info.passLabel && <span className={styles.metaTag}>{info.passLabel}</span>}
+          {info.selectionBasis && <span className={styles.metaTag}>{info.selectionBasis}</span>}
           {info.intelligenceLabel && <span className={styles.metaTag}>{info.intelligenceLabel}</span>}
+          {info.elapsedLabel && <span className={styles.metaTag}>{info.elapsedLabel}</span>}
           <span className={styles.metaTag}>{info.sourcesSummary}</span>
           {info.cached && <span className={styles.metaTag}>Cached review</span>}
           {info.citedLessons.map(lesson => (

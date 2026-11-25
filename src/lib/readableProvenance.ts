@@ -83,7 +83,9 @@ export function humanizeSourceText(text: string, sources?: readonly ProjectSourc
 export interface ReviewProvenanceSummary {
   tierLabel: string | null
   passLabel: string | null
+  selectionBasis: string | null
   intelligenceLabel: string | null
+  elapsedLabel: string | null
   sourcesSummary: string
   citedSources: ProjectSource[]
   citedLessons: ProjectSource[]
@@ -93,8 +95,10 @@ export interface ReviewProvenanceSummary {
 
 /**
  * Extracts only the provenance facts actually recorded on a ProjectReview.
- * Never claims an independent critique occurred in single-pass Economy or
- * invents a provider/model name when absent from an older cached record.
+ * Never claims an independent critique occurred in single-pass Economy,
+ * never claims learned adaptive routing when selection was an explicit tier
+ * choice, and never invents a provider/model or duration when absent from an
+ * older cached record.
  */
 export function reviewProvenanceSummary(review: ProjectReview): ReviewProvenanceSummary {
   const tierLabel = review.tier === 'deep' ? 'Deep' : review.tier === 'routine' ? 'Economy' : null
@@ -103,10 +107,18 @@ export function reviewProvenanceSummary(review: ProjectReview): ReviewProvenance
     : review.critique === 'independent'
       ? 'Draft + independent critique'
       : null
+  const selectionBasis = review.tier === 'deep'
+    ? 'Selected by Deep mode'
+    : review.tier === 'routine'
+      ? 'Selected by Economy default'
+      : null
   const providerName = review.provider ? PROVIDER_LABELS[review.provider] : null
   const intelligenceLabel = providerName && review.model
     ? `${providerName} · ${review.model}`
     : providerName ?? review.model ?? null
+  const elapsedLabel = typeof review.elapsedMs === 'number' && Number.isFinite(review.elapsedMs) && review.elapsedMs >= 0
+    ? review.elapsedMs >= 1_000 ? `${(review.elapsedMs / 1_000).toFixed(1)}s` : `${Math.round(review.elapsedMs)}ms`
+    : null
 
   const citedSet = new Set(review.sourceIds)
   const citedSources = review.sources.filter(source => citedSet.has(source.id))
@@ -118,7 +130,9 @@ export function reviewProvenanceSummary(review: ProjectReview): ReviewProvenance
   return {
     tierLabel,
     passLabel,
+    selectionBasis,
     intelligenceLabel,
+    elapsedLabel,
     sourcesSummary,
     citedSources,
     citedLessons,

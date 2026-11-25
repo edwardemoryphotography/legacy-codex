@@ -35,6 +35,7 @@ describe('reviewProvenanceSummary', () => {
       critique: 'single_pass',
       provider: 'gemini',
       model: 'gemini-4-hydrogen',
+      elapsedMs: 16_382,
       missionId: 'f58a32e2-edc0-488b-b56a-3e8ccd32aa33',
       finishLine: 'One print sold',
       operation: 'Publish the three print listings',
@@ -59,7 +60,9 @@ describe('reviewProvenanceSummary', () => {
     const summary = reviewProvenanceSummary(review)
     expect(summary.tierLabel).toBe('Economy')
     expect(summary.passLabel).toBe('Single structured pass')
+    expect(summary.selectionBasis).toBe('Selected by Economy default')
     expect(summary.intelligenceLabel).toBe('Gemini · gemini-4-hydrogen')
+    expect(summary.elapsedLabel).toBe('16.4s')
     expect(summary.sourcesSummary).toBe('2 of 3 supplied sources cited')
     expect(summary.citedLessons).toHaveLength(1)
     expect(sourceKindLabel('lesson')).toBe('Confirmed lesson')
@@ -91,7 +94,9 @@ describe('reviewProvenanceSummary', () => {
     const summary = reviewProvenanceSummary(review)
     expect(summary.tierLabel).toBeNull()
     expect(summary.passLabel).toBeNull()
+    expect(summary.selectionBasis).toBeNull()
     expect(summary.intelligenceLabel).toBeNull()
+    expect(summary.elapsedLabel).toBeNull()
     expect(summary.cached).toBe(true)
   })
 })

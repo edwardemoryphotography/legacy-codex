@@ -109,11 +109,11 @@ export async function POST(req: NextRequest) {
     let baseline: ReviewProposal | null = null
     let parsed: ReviewProposal | null = null
     let winningProvider: ModelProviderId | undefined
+    const reviewStartedAt = Date.now()
     const reviewDeadlineAt = Date.now() + (tier === 'deep' ? 100_000 : 45_000)
     const draftDeadlineAt = Date.now() + (tier === 'deep' ? 55_000 : 40_000)
     if (compact) {
       stage = 'review'
-      const startedAt = Date.now()
       const single = await runProviderChainReviewStep({
         maxTokens: 2_600,
         system: `${PROJECT_REVIEW_RULES}\nThis request is a single pass. No draft and no critique have run. Compare and submit the reviewed decision directly; do not describe or claim a critique.`,
@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
       winningProvider = single.provider
       parsed = (single.stopReason === 'tool_use' || single.stopReason === 'structured_text') && single.toolInput
         ? parseProjectReview(JSON.stringify(single.toolInput), packetSources, body.missionId) : null
-      console.info('/api/delta-review economy pass', { tier, stage: 'review', provider: single.provider, elapsedMs: Date.now() - startedAt, accepted: Boolean(parsed) })
+      console.info('/api/delta-review economy pass', { tier, stage: 'review', provider: single.provider, elapsedMs: Date.now() - reviewStartedAt, accepted: Boolean(parsed) })
     } else {
       stage = 'draft'
       const draft = await runProviderChainReviewStep({
@@ -179,7 +179,7 @@ export async function POST(req: NextRequest) {
     const reviewedAt = new Date().toISOString()
     const transferObservation = measureTransfer({ baseline, after: parsed, sources: packetSources, lessons: context.lessons, missionId: body.missionId, requestContextAdded: Boolean(note), reviewedAt, interventionEvidence: context.interventionEvidence })
     const review: ProjectReview = { ...parsed, transferObservation, missionId: body.missionId, finishLine: body.finishLine, sources: packetSources, warnings: reviewWarnings, contextKey: context.contextKey, reviewedAt, cached: false,
-      tier, critique: compact ? 'single_pass' : 'independent',
+      tier, critique: compact ? 'single_pass' : 'independent', elapsedMs: Date.now() - reviewStartedAt,
       ...(winningProvider ? { provider: winningProvider, model: modelFor(winningProvider, tier) } : {}) }
     // A cached proposal is not an action or evidence. It lives in the existing
     // transitional Delta ledger and is invalidated by context/correction changes.
