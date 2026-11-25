@@ -118,7 +118,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const [livePhase, setLivePhase] = useState<LiveVoicePhase>('idle')
   const [liveSnapshot, setLiveSnapshot] = useState<LiveVoiceSnapshot>({
     active: false, phase: 'idle', muted: false, label: '', detail: '', hasProposal: false, turnCount: 0,
-    micLive: false, billed: false, retainedTurns: 0, suppliedTurns: 0, recoveredTurns: 0,
+    micLive: false, connected: false, billed: false, retainedExchanges: 0, suppliedMessages: 0, recoveredExchanges: 0,
   })
   const [voiceTranscriptOpen, setVoiceTranscriptOpen] = useState(false)
   const orbSwipeOrigin = useRef<{ x: number; y: number } | null>(null)

@@ -1,6 +1,6 @@
 import { QUESTION_LIMIT, type HomeTool } from './homeRequest'
 import type { ConversationTier } from './modelPreference'
-export type LiveEntry = { question: string; text: string; provider: string; actionTitle: string | null; finishWhen: string | null; saved?: boolean }
+export type LiveEntry = { question: string; text: string; provider: string; actionTitle: string | null; finishWhen: string | null; saved?: boolean; /** A live answer with no completion boundary is retained honestly as partial. */ partial?: boolean; source?: 'delegated' | 'direct' }
 export const LIVE_ENTRY_LIMIT = 40
 export type HomeReply = { question: string; text: string; label: string; provider: string; actionTitle?: string | null }
 /** Account-scoped dialogue for this browser tab; never a saved action or lesson. */
@@ -34,7 +34,9 @@ export function restoreHomeSession(accountId: string): HomeSession {
         typeof entry.provider === 'string' && entry.provider.length <= 120 &&
         (entry.actionTitle === null || (typeof entry.actionTitle === 'string' && entry.actionTitle.length <= 240)) &&
         (entry.finishWhen === null || (typeof entry.finishWhen === 'string' && entry.finishWhen.length <= 300)) &&
-        (entry.saved === undefined || typeof entry.saved === 'boolean')
+        (entry.saved === undefined || typeof entry.saved === 'boolean') &&
+        (entry.partial === undefined || typeof entry.partial === 'boolean') &&
+        (entry.source === undefined || entry.source === 'delegated' || entry.source === 'direct')
     }
     const liveEntries = Array.isArray(value.liveEntries) && value.liveEntries.length <= LIVE_ENTRY_LIMIT && value.liveEntries.every(liveEntry)
       ? value.liveEntries as LiveEntry[] : []

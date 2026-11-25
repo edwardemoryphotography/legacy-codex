@@ -48,3 +48,13 @@ describe('live voice completed-turn recovery', () => {
     expect(restoreHomeSession('a').liveEntries).toEqual([])
   })
 })
+
+describe('partial live-turn honesty', () => {
+  it('retains a completion-less fragment as partial and never as a completed exchange', () => {
+    preserveHomeSession({ ...emptyHomeSession('a'), liveEntries: [
+      { question: 'Tell me about boomerangs', text: 'A boomerang is a returning structure…', provider: 'Live voice', actionTitle: null, finishWhen: null, partial: true, source: 'direct' },
+    ] })
+    const restored = restoreHomeSession('a')
+    expect(restored.liveEntries?.[0]).toMatchObject({ partial: true, source: 'direct' })
+  })
+})

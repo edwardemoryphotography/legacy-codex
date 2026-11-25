@@ -91,7 +91,7 @@ export default function CodexApp() {
   const [homeSession, setHomeSession] = useState(emptyHomeSession)
   const [liveVoice, setLiveVoice] = useState<LiveVoiceSnapshot>({
     active: false, phase: 'idle', muted: false, label: '', detail: '', hasProposal: false, turnCount: 0,
-    micLive: false, billed: false, retainedTurns: 0, suppliedTurns: 0, recoveredTurns: 0,
+    micLive: false, connected: false, billed: false, retainedExchanges: 0, suppliedMessages: 0, recoveredExchanges: 0,
   })
   const [liveVoiceControls, setLiveVoiceControls] = useState<{ mute: () => void; end: () => void } | null>(null)
   useEffect(() => {
@@ -246,8 +246,8 @@ export default function CodexApp() {
             </div>
             <p className="voice-continuity-meta" role="status">
               {liveVoice.micLive ? 'Microphone live' : liveVoice.muted ? 'Microphone muted' : 'No microphone'} ·
-              {' '}billed while connected · {liveVoice.retainedTurns} retained · {liveVoice.suppliedTurns} supplied to reasoning
-              {liveVoice.recoveredTurns > 0 ? ` · ${liveVoice.recoveredTurns} recovered` : ''}
+              {liveVoice.connected ? 'connected' : 'connection pending'} · billed while connected · {liveVoice.retainedExchanges} exchange{liveVoice.retainedExchanges === 1 ? '' : 's'} retained · {liveVoice.suppliedMessages} message{liveVoice.suppliedMessages === 1 ? '' : 's'} supplied to backend reasoning
+              {liveVoice.recoveredExchanges > 0 ? ` · ${liveVoice.recoveredExchanges} recovered` : ''}
             </p>
             <div className="voice-continuity-actions">
               <button type="button" className="voice-continuity-return" aria-pressed={liveVoice.muted} onClick={liveVoiceControls?.mute}>
