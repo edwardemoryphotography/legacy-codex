@@ -36,6 +36,7 @@ type FakeChannel = {
   send: ReturnType<typeof vi.fn>
   close: ReturnType<typeof vi.fn>
   onmessage: ((event: { data: string }) => void) | null
+  onopen: (() => void) | null
   onclose: (() => void) | null
 }
 
@@ -65,6 +66,7 @@ function setupLiveVoiceMocks(briefPayload: Record<string, unknown>) {
 
   let activeChannel: FakeChannel | null = null
   class FakePeerConnection {
+    static last: FakePeerConnection | null = null
     iceGatheringState = 'complete'
     connectionState = 'connected'
     localDescription: { sdp: string } | null = null
@@ -77,6 +79,7 @@ function setupLiveVoiceMocks(briefPayload: Record<string, unknown>) {
         send: vi.fn(),
         close: vi.fn(),
         onmessage: null,
+        onopen: null,
         onclose: null,
       }
       return activeChannel
@@ -87,6 +90,7 @@ function setupLiveVoiceMocks(briefPayload: Record<string, unknown>) {
     addEventListener = vi.fn()
     removeEventListener = vi.fn()
     close = vi.fn()
+    constructor() { FakePeerConnection.last = this }
   }
   vi.stubGlobal('RTCPeerConnection', FakePeerConnection)
 
@@ -109,6 +113,8 @@ function setupLiveVoiceMocks(briefPayload: Record<string, unknown>) {
   return {
     audioTrack,
     briefBodies,
+    fetchMock,
+    peer: () => FakePeerConnection.last,
     getChannel: () => activeChannel,
     emit: (payload: Record<string, unknown>) => {
       activeChannel?.onmessage?.({ data: JSON.stringify(payload) })
@@ -229,17 +235,18 @@ describe('CodexLiveVoice orb-first experience & PR #210 review fixes', () => {
     expect(snapshots.at(-1)?.micLive).toBe(true)
     expect(snapshots.at(-1)?.micState).toBe('live')
 
-    // Authoritative completion commits the direct exchange into BOTH entries AND reasoning buffer.
+    // The only supported completion boundary is a new spoken turn: it commits
+    // the previous direct exchange into entries AND reasoning context.
     act(() => {
-      emit({ type: 'session.output_transcript.done', transcript: 'Direct spoken reply.' })
+      emit({ type: 'session.input_transcript.delta', delta: 'What should I do next?', start_ms: 300, end_ms: 600 })
     })
-    expect(snapshots.at(-1)?.retainedExchanges).toBe(2)
+    await vi.waitFor(() => expect(snapshots.at(-1)?.retainedExchanges).toBe(2))
 
-    // Duplicate done event must not duplicate the direct exchange.
+    // A continuation of the same turn must not duplicate the committed exchange.
     act(() => {
-      emit({ type: 'session.response.done', transcript: 'Direct spoken reply.' })
+      emit({ type: 'session.input_transcript.delta', delta: ' please', start_ms: 700, end_ms: 750 })
     })
-    expect(snapshots.at(-1)?.retainedExchanges).toBe(2)
+    await vi.waitFor(() => expect(snapshots.at(-1)?.retainedExchanges).toBe(2))
 
     // Mute toggles actual track without dropping session.
     fireEvent.click(screen.getByRole('button', { name: 'Mute microphone' }))
@@ -252,8 +259,7 @@ describe('CodexLiveVoice orb-first experience & PR #210 review fixes', () => {
 
     // Delegated turn receives BOTH recovered turn AND completed direct turn in conversation payload.
     act(() => {
-      emit({ type: 'session.input_transcript.delta', delta: 'What should I do next?', start_ms: 300, end_ms: 600 })
-      emit({ type: 'session.delegation.created', offset_ms: 700, delegation: { id: 'del-1', target: 'client' } })
+      emit({ type: 'session.delegation.created', offset_ms: 800, delegation: { id: 'del-1', target: 'client' } })
     })
 
     await vi.waitFor(() => expect(onAnswer).toHaveBeenCalledOnce())
@@ -301,5 +307,79 @@ describe('CodexLiveVoice orb-first experience & PR #210 review fixes', () => {
     expect(within(dialog).getByRole('alert')).toHaveTextContent('You already have a saved next step for this mission. Nothing was overwritten.')
     expect(within(dialog).getByText('Existing saved action')).toBeInTheDocument()
     expect(within(dialog).getByText('Upload three prints to the store')).toBeInTheDocument()
+  })
+})
+
+describe('PR #210 behavioral integrity acceptance', () => {
+  const payload = { tier: 'routine', provider: 'gemini', model: 'gemini-4-hydrogen', text: 'Answer.' }
+
+  async function boot(setup: ReturnType<typeof setupLiveVoiceMocks>, props: Record<string, unknown> = {}) {
+    const onAnswer = vi.fn()
+    const onPhaseChange = vi.fn()
+    const onSnapshotChange = vi.fn()
+    const onEntriesChange = vi.fn()
+    render(<CodexLiveVoice missions={[mission]} primaryMissionId="m1" tier="routine"
+      onAnswer={onAnswer} onPhaseChange={onPhaseChange} onSnapshotChange={onSnapshotChange}
+      onEntriesChange={onEntriesChange} {...props} />)
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Talk live with Codex/ })) })
+    act(() => { setup.emit({ type: 'session.started' }) })
+    return { onAnswer, onPhaseChange, onSnapshotChange, onEntriesChange }
+  }
+
+  it('retains a recovered partial transcript but excludes it from backend reasoning', async () => {
+    const setup = setupLiveVoiceMocks(payload)
+    await boot(setup, { initialEntries: [
+      { question: 'PARTIAL-Q', text: 'PARTIAL-A', provider: 'Live voice', actionTitle: null, finishWhen: null, partial: true, source: 'direct' },
+    ] })
+    act(() => {
+      setup.emit({ type: 'session.input_transcript.delta', delta: 'NEXT-Q', start_ms: 0, end_ms: 100 })
+      setup.emit({ type: 'session.delegation.created', offset_ms: 200, delegation: { id: 'del-p', target: 'client' } })
+    })
+    await vi.waitFor(() => expect(setup.briefBodies).toHaveLength(1))
+    const conversation = setup.briefBodies[0].conversation as Array<{ text: string }>
+    expect(conversation.some(message => message.text.includes('PARTIAL-Q') || message.text.includes('PARTIAL-A'))).toBe(false)
+  })
+
+  it('keeps repeated identical questions as distinct exchanges', async () => {
+    const setup = setupLiveVoiceMocks(payload)
+    const { onEntriesChange } = await boot(setup)
+    act(() => {
+      setup.emit({ type: 'session.input_transcript.delta', delta: 'SAME?', start_ms: 0, end_ms: 100 })
+      setup.emit({ type: 'session.output_transcript.delta', delta: 'FIRST-A' })
+      setup.emit({ type: 'session.input_transcript.delta', delta: 'SAME?', start_ms: 1000, end_ms: 1100 })
+      setup.emit({ type: 'session.output_transcript.delta', delta: 'SECOND-A' })
+      setup.emit({ type: 'session.input_transcript.delta', delta: 'NEXT', start_ms: 2000, end_ms: 2100 })
+    })
+    const saved = onEntriesChange.mock.calls.at(-1)?.[0] as Array<{ question: string; text: string }>
+    expect(saved.filter(entry => entry.question === 'SAME?')).toHaveLength(2)
+    expect(saved.map(entry => entry.text)).toEqual(expect.arrayContaining(['FIRST-A', 'SECOND-A']))
+  })
+
+  it('updates connection telemetry on interruption and recovery', async () => {
+    const setup = setupLiveVoiceMocks(payload)
+    const { onSnapshotChange } = await boot(setup)
+    const peer = setup.peer()!
+    act(() => { setup.getChannel()?.onopen?.() })
+    act(() => { peer.connectionState = 'disconnected'; peer.onconnectionstatechange?.() })
+    await vi.waitFor(() => expect(onSnapshotChange.mock.calls.at(-1)?.[0].connected).toBe(false))
+    expect(onSnapshotChange.mock.calls.at(-1)?.[0].transportState).toBe('interrupted')
+    act(() => { peer.connectionState = 'connected'; peer.onconnectionstatechange?.() })
+    await vi.waitFor(() => expect(onSnapshotChange.mock.calls.at(-1)?.[0].connected).toBe(true))
+  })
+
+  it('explicit End clears the transcript and reasoning without another session', async () => {
+    const setup = setupLiveVoiceMocks(payload)
+    const { onEntriesChange } = await boot(setup)
+    act(() => {
+      setup.emit({ type: 'session.input_transcript.delta', delta: 'Q', start_ms: 0, end_ms: 100 })
+      setup.emit({ type: 'session.output_transcript.delta', delta: 'A' })
+      setup.emit({ type: 'session.input_transcript.delta', delta: 'NEXT', start_ms: 1000, end_ms: 1100 })
+    })
+    expect(onEntriesChange.mock.calls.at(-1)?.[0]).toHaveLength(1)
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'End voice session' })) })
+    expect(onEntriesChange.mock.calls.at(-1)?.[0]).toEqual([])
+    const posts = setup.fetchMock.mock.calls.filter(([url, init]) => url === '/api/live-voice' && (init as RequestInit)?.method === 'POST')
+    expect(posts).toHaveLength(1)
+    expect(setup.fetchMock.mock.calls.some(([url, init]) => url === '/api/live-voice' && (init as RequestInit)?.method === 'DELETE')).toBe(true)
   })
 })

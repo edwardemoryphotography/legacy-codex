@@ -76,12 +76,7 @@ const MAX_SPOKEN_UPDATE = 1100
 const MAX_USER_PARTS = 500
 const MAX_RECOVERED_ADVISORY_CHARS = 1200
 
-const AUTHORITATIVE_OUTPUT_DONE_EVENTS = new Set([
-  'session.output_transcript.done',
-  'session.response.done',
-  'response.done',
-  'session.turn.completed',
-])
+
 
 // Model-authored image URLs must never initiate background requests with project data.
 const markdownComponents = { img: ({ alt }: { alt?: string }) => <span>{alt}</span> }
@@ -185,6 +180,7 @@ export default function CodexLiveVoice({
   const onEntriesChangeRef = useRef(onEntriesChange)
   const entriesRef = useRef<TranscriptEntry[]>([])
   const retainedIds = useRef(new Set<string>())
+  const liveTurnCounterRef = useRef(0)
   useEffect(() => { initialEntriesRef.current = initialEntries }, [initialEntries])
   useEffect(() => { onEntriesChangeRef.current = onEntriesChange }, [onEntriesChange])
   useEffect(() => { entriesRef.current = entries }, [entries])
@@ -261,7 +257,8 @@ export default function CodexLiveVoice({
     const question = turnInputBuffer.current.trim()
     const answer = (explicitAnswer ?? turnOutputBuffer.current).trim()
     if (!question || !answer) return
-    const id = `live:${attemptNumberRef.current}:${partial ? 'partial' : 'complete'}:${question.slice(-80)}:${answer.slice(-40)}`
+    liveTurnCounterRef.current += 1
+    const id = `live:${attemptNumberRef.current}:${liveTurnCounterRef.current}:${partial ? 'partial' : 'complete'}`
     if (retainedIds.current.has(id)) return
     retainedIds.current.add(id)
     const entry: TranscriptEntry = {
@@ -568,6 +565,7 @@ export default function CodexLiveVoice({
       { role: 'assistant' as const, text: entry.text },
     ]).slice(-10)
     setRecoveredExchanges(recovered.length)
+    liveTurnCounterRef.current = 0
     setSuppliedMessages(0)
     setDirectRecoveryAdvisorySent(false)
     setActiveProposal(null)
@@ -705,6 +703,10 @@ export default function CodexLiveVoice({
           }
           autoClose.current = setTimeout(() => stop('15-minute voice session limit reached. Start another session if needed.'), MAX_SESSION_MS)
         } else if (event.type === 'session.input_transcript.delta' && typeof event.delta === 'string') {
+          // A new user delta after the assistant spoke is the only completion
+          // boundary the supported delta events expose. Commit the previous
+          // direct exchange; session-end-only fragments stay partial.
+          if (turnOutputBuffer.current.trim() && !delegatedTurn.current) commitDirectExchange(false)
           if (!turnInputBuffer.current.trim()) {
             delegatedTurn.current = false
             turnOutputBuffer.current = ''
@@ -724,27 +726,10 @@ export default function CodexLiveVoice({
           }
           setStatus('')
           setPhase('listening')
-        } else if (event.type === 'session.input_transcript.done') {
-          const finalInput = (typeof event.transcript === 'string' ? event.transcript : typeof event.text === 'string' ? event.text : '').trim()
-          if (finalInput) {
-            turnInputBuffer.current = finalInput.slice(-QUESTION_LIMIT)
-            setInputCaption(turnInputBuffer.current.slice(-700))
-          }
         } else if (event.type === 'session.output_transcript.delta' && typeof event.delta === 'string') {
           turnOutputBuffer.current = (turnOutputBuffer.current + event.delta).slice(-4_000)
           setOutputCaption(turnOutputBuffer.current.slice(-700))
           if (!taskController.current) setPhase('responding')
-          if (event.is_final === true) {
-            commitDirectExchange(false)
-          }
-        } else if (event.type && AUTHORITATIVE_OUTPUT_DONE_EVENTS.has(event.type)) {
-          const explicitOut = (typeof event.transcript === 'string' ? event.transcript : typeof event.text === 'string' ? event.text : '').trim()
-          commitDirectExchange(false, explicitOut || undefined)
-          turnInputBuffer.current = ''
-          turnOutputBuffer.current = ''
-          setInputCaption('')
-          setOutputCaption('')
-          if (!taskController.current) setPhase('listening')
         } else if (event.type === 'session.delegation.created' && event.delegation?.target === 'client' && event.delegation.id) {
           delegatedTurn.current = true
           const delegationId = event.delegation.id
