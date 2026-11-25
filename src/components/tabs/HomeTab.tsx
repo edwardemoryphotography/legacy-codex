@@ -103,7 +103,7 @@ function AccessGate({ state, onSignIn, compact = false, signedIn = false, tester
   )
 }
 
-export default function HomeTab({ onNavigate, session, onSessionChange, variant = 'home', projectRevision = 0, onProjectChange, onSignIn, onLiveVoiceStateChange }: { projectRevision?: number; onProjectChange?: () => void; variant?: 'home' | 'mission'; onNavigate: (id: TabId) => void; session?: HomeSession; onSessionChange?: Dispatch<SetStateAction<HomeSession>>; onSignIn?: () => void; onLiveVoiceStateChange?: (snapshot: LiveVoiceSnapshot) => void }) {
+export default function HomeTab({ onNavigate, session, onSessionChange, variant = 'home', projectRevision = 0, onProjectChange, onSignIn, onLiveVoiceStateChange, onLiveVoiceControls }: { projectRevision?: number; onProjectChange?: () => void; variant?: 'home' | 'mission'; onNavigate: (id: TabId) => void; session?: HomeSession; onSessionChange?: Dispatch<SetStateAction<HomeSession>>; onSignIn?: () => void; onLiveVoiceStateChange?: (snapshot: LiveVoiceSnapshot) => void; onLiveVoiceControls?: (controls: { mute: () => void; end: () => void } | null) => void }) {
   const missionView = variant === 'mission'
   const [reviewActive, setReviewActive] = useState(false)
   const [decisionRevision, setDecisionRevision] = useState(0)
@@ -118,6 +118,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
   const [livePhase, setLivePhase] = useState<LiveVoicePhase>('idle')
   const [liveSnapshot, setLiveSnapshot] = useState<LiveVoiceSnapshot>({
     active: false, phase: 'idle', muted: false, label: '', detail: '', hasProposal: false, turnCount: 0,
+    micLive: false, billed: false, retainedTurns: 0, suppliedTurns: 0, recoveredTurns: 0,
   })
   const [voiceTranscriptOpen, setVoiceTranscriptOpen] = useState(false)
   const orbSwipeOrigin = useRef<{ x: number; y: number } | null>(null)
@@ -708,6 +709,9 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
             transcriptOpen={voiceTranscriptOpen}
             onTranscriptOpenChange={setVoiceTranscriptOpen}
             onPhaseChange={setLivePhase}
+            initialEntries={session?.liveEntries ?? []}
+            onEntriesChange={entries => update(previous => ({ ...previous, liveEntries: entries.slice(-40) }))}
+            onControlsChange={onLiveVoiceControls}
             onSnapshotChange={setLiveSnapshot}
             onSaveAnswer={saveLiveAnswer}
             onOpenMission={() => onNavigate('mission')}

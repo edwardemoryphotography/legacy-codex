@@ -32,3 +32,19 @@ describe('conversation continuity boundaries', () => {
     expect(restoreHomeSession('a')).toEqual(emptyHomeSession('a'))
   })
 })
+
+describe('live voice completed-turn recovery', () => {
+  const entry = { question: 'What should I do next?', text: 'Publish the checkout page.', provider: 'Economy · Gemini', actionTitle: 'Publish checkout', finishWhen: 'Page is live' }
+  it('restores bounded completed turns only under their account', () => {
+    const entries = Array.from({ length: 50 }, (_, index) => ({ ...entry, question: `q${index}` }))
+    preserveHomeSession({ ...emptyHomeSession('a'), liveEntries: entries })
+    const restored = restoreHomeSession('a')
+    expect(restored.liveEntries).toHaveLength(40)
+    expect(restored.liveEntries?.at(-1)?.question).toBe('q49')
+    expect(restoreHomeSession('b').liveEntries).toEqual([])
+  })
+  it('rejects malformed entries instead of trusting them', () => {
+    sessionStorage.setItem('codex-conversation:a', JSON.stringify({ ...emptyHomeSession('a'), liveEntries: [{ question: 'q', text: 42 }] }))
+    expect(restoreHomeSession('a').liveEntries).toEqual([])
+  })
+})

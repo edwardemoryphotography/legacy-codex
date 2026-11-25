@@ -227,3 +227,11 @@ html::before, html::after, body::before, body::after { display: none; }
   cursor: pointer;
 }
 .voice-continuity-return:focus-visible { outline: 2px solid var(--g-teal); outline-offset: 2px; }
+
+/* Persistent live-voice bar: mic/billing truth and Mute/End on every screen. */
+.voice-continuity-meta { margin: 2px 0 0; font-size: 11px; line-height: 1.35; color: var(--g-mist-dim, #a9aec9); }
+.voice-continuity-actions { display: flex; gap: 6px; flex: none; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .voice-continuity-bar { flex-wrap: wrap; gap: 8px; }
+  .voice-continuity-actions { width: 100%; justify-content: flex-end; }
+}

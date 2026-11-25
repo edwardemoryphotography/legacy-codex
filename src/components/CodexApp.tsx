@@ -91,7 +91,9 @@ export default function CodexApp() {
   const [homeSession, setHomeSession] = useState(emptyHomeSession)
   const [liveVoice, setLiveVoice] = useState<LiveVoiceSnapshot>({
     active: false, phase: 'idle', muted: false, label: '', detail: '', hasProposal: false, turnCount: 0,
+    micLive: false, billed: false, retainedTurns: 0, suppliedTurns: 0, recoveredTurns: 0,
   })
+  const [liveVoiceControls, setLiveVoiceControls] = useState<{ mute: () => void; end: () => void } | null>(null)
   useEffect(() => {
     if (typeof supabase.auth.onAuthStateChange !== 'function') return
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
@@ -239,12 +241,21 @@ export default function CodexApp() {
           <div className="voice-continuity-bar glass" role="region" aria-label="Active live voice session">
             <div className="voice-continuity-status">
               <span className="voice-continuity-dot" data-phase={liveVoice.phase} aria-hidden="true" />
-              <span>Live voice · {liveVoice.label || 'Connected'}</span>
+              <span>Live voice · {liveVoice.label || 'Connected'}{liveVoice.muted ? ' · muted' : ''}</span>
               {liveVoice.hasProposal && <span className="voice-continuity-badge">Proposal ready</span>}
             </div>
-            <button type="button" className="voice-continuity-return" onClick={() => selectTab('home')}>
-              Return to voice
-            </button>
+            <p className="voice-continuity-meta" role="status">
+              {liveVoice.micLive ? 'Microphone live' : liveVoice.muted ? 'Microphone muted' : 'No microphone'} ·
+              {' '}billed while connected · {liveVoice.retainedTurns} retained · {liveVoice.suppliedTurns} supplied to reasoning
+              {liveVoice.recoveredTurns > 0 ? ` · ${liveVoice.recoveredTurns} recovered` : ''}
+            </p>
+            <div className="voice-continuity-actions">
+              <button type="button" className="voice-continuity-return" aria-pressed={liveVoice.muted} onClick={liveVoiceControls?.mute}>
+                {liveVoice.muted ? 'Unmute' : 'Mute'}
+              </button>
+              <button type="button" className="voice-continuity-return" onClick={() => selectTab('home')}>Return to voice</button>
+              <button type="button" className="voice-continuity-return" onClick={liveVoiceControls?.end}>End</button>
+            </div>
           </div>
         )}
         {activeTab === 'mission' && (
@@ -266,6 +277,7 @@ export default function CodexApp() {
               session={homeSession}
               onSessionChange={setHomeSession}
               onLiveVoiceStateChange={setLiveVoice}
+              onLiveVoiceControls={setLiveVoiceControls}
             />
           </div>
         )}
