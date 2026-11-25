@@ -892,6 +892,35 @@ export const BOOMERANG_CASES: readonly BoomerangCase[] = [
         "access": "restricted"
       }
     ]
+  },
+  {
+    "id": "BR-037",
+    "era": "2026-11-24",
+    "title": "A global control is only truthful when every relevant execution pathway honors it",
+    "sourceDomain": "On the owner's real iPhone preview, a photograph was successfully selected and analyzed with Economy selected. The attachment route at a958872 hardcodes Claude Opus 5.5 and Home's multipart request does not transmit the selected tier.",
+    "targetDomain": "Cross-feature intelligence selection, permission enforcement, spending limits, privacy and accessibility controls",
+    "sharedStructure": "A shared control can advertise a system-wide constraint while an independent execution path bypasses its effective contract.",
+    "reasoningBridge": "BR-028 establishes that outputs must respect declared truths; this is a distinct concrete application to propagation and enforcement of shared policy across independently implemented endpoints. A working picker and grounded analysis do not establish that the chosen execution policy was honored. This is not BR-036's budget-starvation mechanism.",
+    "practicalConsequence": "Enumerate applicable execution paths; propagate and validate the selected policy at the execution boundary, use modality-capable measured routes, and expose actual selection and justified exceptions. If a path cannot honor a preference, disclose the limitation or seek authorization before an incompatible operation. Do not silently route around mandatory constraints.",
+    "evidenceRequired": "Verify the actual authorized attachment request, selected tier, provider/model and outcome on the same preview; measure usefulness, latency and cost only when observed. Inspect all relevant paths and demonstrate a later distinct control is enforced without owner restatement. Exact provider usage/cost, policy repair and future inheritance are unverified. A legitimate disclosed task-specific override is not necessarily a violation.",
+    "recordStatus": "candidate",
+    "inheritance": "not-demonstrated",
+    "sources": [
+      {
+        "label": "November 24 owner iPhone photo upload and returned analysis (restricted conversation; no photo or transcript republished)",
+        "access": "restricted"
+      },
+      {
+        "label": "Attachment endpoint at inspected commit a958872",
+        "access": "public",
+        "url": "https://github.com/edwardemoryphotography/legacy-codex/blob/a958872965b3cc0a403877fbbc2ec84b0f87e62d/src/app/api/analyze/route.ts"
+      },
+      {
+        "label": "Home multipart submission and selected intelligence tier at inspected commit a958872",
+        "access": "public",
+        "url": "https://github.com/edwardemoryphotography/legacy-codex/blob/a958872965b3cc0a403877fbbc2ec84b0f87e62d/src/components/tabs/HomeTab.tsx"
+      }
+    ]
   }
 ] as const
 
