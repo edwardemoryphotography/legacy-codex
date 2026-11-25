@@ -16,9 +16,11 @@ export const maxDuration = 120
 // combined body, not to each file individually.
 const MAX_TOTAL_BYTES = 4 * 1024 * 1024
 
-// Typed text that reaches the prompt (the directive and each attachment's
-// filename label) is clamped, not rejected. Attachment bytes are bounded above.
-const MAX_TEXT_FIELD_LENGTH = 400
+// The owner's instruction is sent whole or rejected explicitly, never silently
+// truncated. Filename labels are presentation-only and separately bounded, so
+// they cannot consume the request budget. Attachment bytes are bounded above.
+const MAX_INSTRUCTION_LENGTH = 4_000 // mirrors MAX_INSTRUCTION in src/lib/missionFiles.ts
+const MAX_FILENAME_LENGTH = 200
 
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 const IMAGE_EXTENSION_MIMES: Record<string, 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'> = {
@@ -50,13 +52,21 @@ export async function POST(req: NextRequest) {
   }
 
   const formData = await req.formData()
-  const instruction = String(formData.get('instruction') ?? '').trim().slice(0, MAX_TEXT_FIELD_LENGTH)
+  const instruction = String(formData.get('instruction') ?? '').trim()
+  if (instruction.length > MAX_INSTRUCTION_LENGTH) {
+    return NextResponse.json(
+      { error: `Instruction too long: ${instruction.length} characters. Shorten it to ${MAX_INSTRUCTION_LENGTH}. Nothing was analysed.` },
+      { status: 400 },
+    )
+  }
   const files = formData.getAll('files').filter((f): f is File => f instanceof File)
   const rawTier = formData.get('tier')
-  if (rawTier !== null && rawTier !== 'routine' && rawTier !== 'deep') {
+  if (rawTier !== null && rawTier !== '' && rawTier !== 'routine' && rawTier !== 'deep') {
     return NextResponse.json({ error: 'tier must be routine (Economy) or deep.' }, { status: 400 })
   }
-  const tier = rawTier === 'routine' ? 'routine' : 'deep'
+  // A missing tier defaults to Economy; ordinary attachment analysis never
+  // starts on the expensive tier by accident.
+  const tier = rawTier === 'deep' ? 'deep' : 'routine'
   const model = modelFor('anthropic', tier)
 
   let conversationBlock: string | null = null
@@ -120,7 +130,7 @@ export async function POST(req: NextRequest) {
     }
     // Binary blocks carry bytes, not the browser's filename. Keep a source
     // label adjacent to every attachment so attribution never has to guess.
-    content.push({ type: 'text', text: `Untrusted attachment filename: ${JSON.stringify(file.name.slice(0, MAX_TEXT_FIELD_LENGTH))}` })
+    content.push({ type: 'text', text: `Untrusted attachment filename: ${JSON.stringify(file.name.slice(0, MAX_FILENAME_LENGTH))}` })
     content.push(block)
   }
   content.push({
@@ -149,7 +159,17 @@ export async function POST(req: NextRequest) {
       .trim()
 
     if (!text) throw new Error('Invalid model response')
-    return NextResponse.json({ text, provider: 'anthropic', model })
+    const rationale = tier === 'deep'
+      ? 'Deep: higher-capability vision model, used because Deep was selected.'
+      : 'Economy: efficient vision-capable Claude model for routine photographic or document analysis.'
+    console.info('/api/analyze model', { tier, provider: 'anthropic', model, policy: 'analyze_tier_vision_v1' })
+    return NextResponse.json({
+      text,
+      provider: 'anthropic',
+      model,
+      tier,
+      selection: { policy: 'analyze_tier_vision_v1', rationale },
+    })
   } catch {
     console.error('/api/analyze failed [learning-or-provider]')
     return NextResponse.json({ error: 'Analysis unavailable: saved learning or the model could not be read. Retry without replacing your saved work.' }, { status: 503 })
@@ -199,7 +219,7 @@ async function fileToBlock(file: File): Promise<Anthropic.ContentBlockParam | nu
     const text = await file.text()
     return {
       type: 'text',
-      text: `[UNTRUSTED ARTIFACT FILE: ${JSON.stringify(file.name.slice(0, MAX_TEXT_FIELD_LENGTH))}]\n${text}\n[/UNTRUSTED ARTIFACT FILE]`,
+      text: `[UNTRUSTED ARTIFACT FILE: ${JSON.stringify(file.name.slice(0, MAX_FILENAME_LENGTH))}]\n${text}\n[/UNTRUSTED ARTIFACT FILE]`,
     }
   }
 

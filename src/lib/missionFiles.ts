@@ -4,7 +4,10 @@
 // and the reading rules always survive.
 import type { Mission } from '@/types'
 
-export const MAX_INSTRUCTION = 400
+// The owner's request is sent whole or rejected explicitly; safety framing and
+// filenames live outside this budget. Keep in sync with MAX_INSTRUCTION_LENGTH
+// in src/app/api/analyze/route.ts.
+export const MAX_INSTRUCTION = 4_000
 // Must stay in sync with MAX_TOTAL_BYTES in src/app/api/analyze/route.ts.
 export const MAX_ATTACH_BYTES = 4 * 1024 * 1024
 export const ATTACH_ACCEPT = '.pdf,.txt,.md,.csv,.json,image/*'

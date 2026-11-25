@@ -528,7 +528,10 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
             : 'Sign in to your existing account to analyze files. Your files and draft are still here.')
           return
         }
-        const data = await res.json().catch(() => ({})) as { text?: string; provider?: string; model?: string; error?: string }
+        const data = await res.json().catch(() => ({})) as {
+          text?: string; provider?: string; model?: string; tier?: 'routine' | 'deep'; error?: string
+          selection?: { rationale?: string }
+        }
         if (controller.signal.aborted) return
         if (!res.ok || data.error || !data.text?.trim()) {
           throw new Error(data.error || `File analysis failed (HTTP ${res.status}). Your files and draft are still here.`)
@@ -536,9 +539,7 @@ export default function HomeTab({ onNavigate, session, onSessionChange, variant 
         const replyEntry: HomeReply = {
           question: buildAttachmentQuestionSummary(staged, trimmedQuestion),
           text: data.text.trim(),
-          label: staged.length === 1
-            ? 'Attachment analysis · temporary file (not stored)'
-            : 'Attachment analysis · temporary files (not stored)',
+          label: `${staged.length === 1 ? 'Attachment analysis · temporary file' : 'Attachment analysis · temporary files'} (not stored) · ${data.selection?.rationale || 'Tier-selected model'} · Processed once by ${formatAnalyzeProvider(data.provider, undefined, selectedTier).split(' · ')[1] || 'the provider'} for this analysis; this app stores only the analysis, not the file.`,
           provider: formatAnalyzeProvider(data.provider, data.model, selectedTier),
           attachments: staged.map(item => ({
             name: item.originalName,

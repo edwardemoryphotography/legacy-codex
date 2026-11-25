@@ -9,9 +9,9 @@ describe('missionFileInstruction', () => {
     expect(text).toMatch(/Write Unknown where the files are silent\.$/)
   })
 
-  it('stays within the 400-character route clamp so the rules are never cut off', () => {
+  it('stays within the shared 4000-character route limit so the rules are never cut off', () => {
     const text = missionFileInstruction({ title: 't'.repeat(900), finishLine: 'f'.repeat(900) })
-    expect(text.length).toBeLessThanOrEqual(400)
+    expect(text.length).toBeLessThanOrEqual(4_000)
     expect(text).toMatch(/Write Unknown where the files are silent\.$/)
   })
 

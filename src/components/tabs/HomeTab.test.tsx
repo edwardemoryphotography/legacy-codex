@@ -901,7 +901,7 @@ describe('Home native composer file upload', () => {
 
     // Temporary provenance is explicit, staged attachments cleared, and answer displayed in place.
     expect(screen.queryByRole('list', { name: 'Attached files' })).toBeNull()
-    expect(screen.getByText('Attachment analysis · temporary file (not stored) · Excerpt')).toBeInTheDocument()
+    expect(screen.getAllByText(/Attachment analysis · temporary file \(not stored\)/).length).toBeGreaterThan(0)
     expect(screen.getByRole('heading', { name: /Observed evidence: 3 prints are listed in checklist\.md\./ })).toBeInTheDocument()
 
     // Conversational follow-up grounds /api/brief in the explicitly identified temporary analysis.

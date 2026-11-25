@@ -68,19 +68,28 @@ describe('/api/analyze owner gate', () => {
     expect(createMessage).not.toHaveBeenCalled()
   })
 
-  it('lets the owner through to the model', async () => {
+  it('defaults a missing tier to Economy and lets the owner through', async () => {
     const response = await POST(request(userToken(OWNER_ID)))
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ text: 'Analysis text.', provider: 'anthropic', model: 'claude-opus-5-5' })
+    const body = await response.json() as Record<string, unknown>
+    expect(body).toMatchObject({ text: 'Analysis text.', provider: 'anthropic', model: 'claude-sonnet-5-5', tier: 'routine' })
+    expect((body.selection as { rationale: string }).rationale).toMatch(/Economy: efficient vision-capable/)
     expect(createMessage).toHaveBeenCalledOnce()
+    expect(createMessage.mock.calls[0][0].model).toBe('claude-sonnet-5-5')
   })
 
-  it('trims an over-length directive to 400 characters instead of rejecting', async () => {
+  it('sends the whole instruction instead of truncating it', async () => {
     const response = await POST(request(userToken(OWNER_ID), 'd'.repeat(1_000)))
     expect(response.status).toBe(200)
     const content = createMessage.mock.calls[0][0].messages[0].content as Array<{ type: string; text?: string }>
-    const directive = content[content.length - 2].text ?? ''
-    expect(directive).toBe('d'.repeat(400))
+    expect(content.some(block => block.text === 'd'.repeat(1_000))).toBe(true)
+  })
+
+  it('rejects an instruction over 4000 characters explicitly without spending', async () => {
+    const response = await POST(request(userToken(OWNER_ID), 'd'.repeat(4_001)))
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toMatch(/Shorten it to 4000/)
+    expect(createMessage).not.toHaveBeenCalled()
   })
   it('fails closed before spending on the model when saved learning cannot be read', async () => {
     vi.mocked(loadLearnedContext).mockRejectedValueOnce(new Error('Learning unavailable'))
@@ -152,7 +161,7 @@ describe('/api/analyze owner gate', () => {
       body: form,
     }))
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ text: 'Analysis text.', provider: 'anthropic', model: 'claude-sonnet-5-5' })
+    expect(await response.json()).toMatchObject({ text: 'Analysis text.', provider: 'anthropic', model: 'claude-sonnet-5-5', tier: 'routine' })
     const blocks = createMessage.mock.calls[0][0].messages[0].content as Array<{ type: string; text?: string; source?: { media_type?: string } }>
     expect(blocks[0].text).toContain('Earlier question')
     expect(blocks.some(b => b.type === 'image' && b.source?.media_type === 'image/jpeg')).toBe(true)
