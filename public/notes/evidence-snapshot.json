@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-26T08:01:49.090Z",
+  "generatedAt": "2026-11-26T20:59:26.162Z",
   "unavailableSources": [],
   "records": [
     {
@@ -10,7 +10,7 @@
       "status": "unverified",
       "claim": "PR #210 \"feat(voice): integrated Living Voice — persistent session, recovery, mute/end on every screen\" open, not yet merged.",
       "observedAt": "2026-11-25T05:36:09Z",
-      "fetchedAt": "2026-11-26T08:01:45.441Z",
+      "fetchedAt": "2026-11-26T20:59:22.434Z",
       "prReadSucceeded": true
     },
     {
@@ -21,7 +21,7 @@
       "status": "unverified",
       "claim": "PR #215 \"docs: verify PR #210 voice-continuity preview deploy interface\" open, not yet merged.",
       "observedAt": "2026-11-25T04:59:22Z",
-      "fetchedAt": "2026-11-26T08:01:45.441Z",
+      "fetchedAt": "2026-11-26T20:59:22.434Z",
       "prReadSucceeded": true
     },
     {
@@ -32,7 +32,7 @@
       "status": "unverified",
       "claim": "PR #214 \"Capture BR-037: shared controls must govern every applicable execution path\" open, not yet merged.",
       "observedAt": "2026-11-25T04:55:36Z",
-      "fetchedAt": "2026-11-26T08:01:45.441Z",
+      "fetchedAt": "2026-11-26T20:59:22.434Z",
       "prReadSucceeded": true
     },
     {
@@ -43,7 +43,7 @@
       "status": "verified",
       "claim": "PR #213 \"fix(review): use the measured Gemini model for Deep reviews\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-25T03:07:55Z",
-      "fetchedAt": "2026-11-26T08:01:45.811Z",
+      "fetchedAt": "2026-11-26T20:59:22.836Z",
       "prReadSucceeded": true
     },
     {
@@ -54,7 +54,7 @@
       "status": "unverified",
       "claim": "PR #208 \"feat(home): Living Intelligence Experience — scroll-docked aurora orb, Strategic Delta hierarchy, readable provenance\" open, not yet merged.",
       "observedAt": "2026-11-25T02:59:19Z",
-      "fetchedAt": "2026-11-26T08:01:45.811Z",
+      "fetchedAt": "2026-11-26T20:59:22.836Z",
       "prReadSucceeded": true
     },
     {
@@ -65,7 +65,7 @@
       "status": "unverified",
       "claim": "PR #212 \"Capture BR-036: redundancy needs a viable execution budget\" open, not yet merged.",
       "observedAt": "2026-11-25T02:42:45Z",
-      "fetchedAt": "2026-11-26T08:01:45.811Z",
+      "fetchedAt": "2026-11-26T20:59:22.836Z",
       "prReadSucceeded": true
     },
     {
@@ -76,7 +76,7 @@
       "status": "unverified",
       "claim": "PR #211 \"Restore the saved Strategic Delta comparison when switching tiers\" open, not yet merged.",
       "observedAt": "2026-11-25T02:24:32Z",
-      "fetchedAt": "2026-11-26T08:01:45.811Z",
+      "fetchedAt": "2026-11-26T20:59:22.836Z",
       "prReadSucceeded": true
     },
     {
@@ -87,7 +87,7 @@
       "status": "unverified",
       "claim": "PR #209 \"Add BR-035: cognitive continuity across interface boundaries\" open, not yet merged.",
       "observedAt": "2026-11-25T02:11:58Z",
-      "fetchedAt": "2026-11-26T08:01:45.811Z",
+      "fetchedAt": "2026-11-26T20:59:22.836Z",
       "prReadSucceeded": true
     },
     {
@@ -98,7 +98,7 @@
       "status": "verified",
       "claim": "PR #207 \"fix(review): provider-verified models, honest diagnostics, cache and orb integrity\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-24T23:45:59Z",
-      "fetchedAt": "2026-11-26T08:01:46.159Z",
+      "fetchedAt": "2026-11-26T20:59:23.214Z",
       "prReadSucceeded": true
     },
     {
@@ -109,7 +109,7 @@
       "status": "verified",
       "claim": "PR #206 \"fix(review): single compact Economy pass + scroll-tracked orb (P0 #2)\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-24T23:18:45Z",
-      "fetchedAt": "2026-11-26T08:01:46.543Z",
+      "fetchedAt": "2026-11-26T20:59:23.558Z",
       "prReadSucceeded": true
     },
     {
@@ -120,7 +120,7 @@
       "status": "verified",
       "claim": "PR #205 \"fix(review): tier-aware budgets, diagnostics, and phone orb slot (P0)\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-24T22:53:04Z",
-      "fetchedAt": "2026-11-26T08:01:46.871Z",
+      "fetchedAt": "2026-11-26T20:59:23.957Z",
       "prReadSucceeded": true
     },
     {
@@ -131,7 +131,7 @@
       "status": "unverified",
       "claim": "PR #204 \"PocketForge: native Codex reconciliation and truthful Siri capture\" open, not yet merged.",
       "observedAt": "2026-11-24T22:39:52Z",
-      "fetchedAt": "2026-11-26T08:01:46.871Z",
+      "fetchedAt": "2026-11-26T20:59:23.957Z",
       "prReadSucceeded": true
     },
     {
@@ -142,7 +142,7 @@
       "status": "unverified",
       "claim": "PR #203 \"Integration candidate (do not merge): #202 + #200 + #199/#201\" open, not yet merged.",
       "observedAt": "2026-11-24T22:37:36Z",
-      "fetchedAt": "2026-11-26T08:01:46.871Z",
+      "fetchedAt": "2026-11-26T20:59:23.957Z",
       "prReadSucceeded": true
     },
     {
@@ -153,7 +153,7 @@
       "status": "verified",
       "claim": "PR #199 \"Make Strategic Delta reconsider the next move on Home\" merged. 3 check run(s), 3 passing.",
       "observedAt": "2026-11-24T22:35:24Z",
-      "fetchedAt": "2026-11-26T08:01:47.236Z",
+      "fetchedAt": "2026-11-26T20:59:24.345Z",
       "prReadSucceeded": true
     },
     {
@@ -164,7 +164,7 @@
       "status": "verified",
       "claim": "PR #200 \"fix(review): accept validated structured output without forced tool choice\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-24T22:32:02Z",
-      "fetchedAt": "2026-11-26T08:01:47.541Z",
+      "fetchedAt": "2026-11-26T20:59:24.604Z",
       "prReadSucceeded": true
     },
     {
@@ -175,7 +175,7 @@
       "status": "verified",
       "claim": "PR #202 \"fix(security): upgrade Next to patched releases in frontend and Foundry\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-24T22:19:10Z",
-      "fetchedAt": "2026-11-26T08:01:47.891Z",
+      "fetchedAt": "2026-11-26T20:59:24.906Z",
       "prReadSucceeded": true
     },
     {
@@ -186,7 +186,7 @@
       "status": "verified",
       "claim": "PR #201 \"fix(home): keep Secondary clarification and gate Enter during comparison\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-24T22:11:55Z",
-      "fetchedAt": "2026-11-26T08:01:48.186Z",
+      "fetchedAt": "2026-11-26T20:59:25.243Z",
       "prReadSucceeded": true
     },
     {
@@ -197,7 +197,7 @@
       "status": "verified",
       "claim": "PR #198 \"fix(ux): show readable saved-action titles without rewriting history\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-20T00:11:57Z",
-      "fetchedAt": "2026-11-26T08:01:48.518Z",
+      "fetchedAt": "2026-11-26T20:59:25.562Z",
       "prReadSucceeded": true
     },
     {
@@ -208,7 +208,7 @@
       "status": "verified",
       "claim": "PR #197 \"feat(home): lead with what matters, the next step, and why (Operation First Light)\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-19T23:58:58Z",
-      "fetchedAt": "2026-11-26T08:01:48.834Z",
+      "fetchedAt": "2026-11-26T20:59:25.852Z",
       "prReadSucceeded": true
     },
     {
@@ -219,7 +219,7 @@
       "status": "verified",
       "claim": "PR #196 \"docs: record historical provenance release evidence\" merged. 2 check run(s), 2 passing.",
       "observedAt": "2026-11-16T21:14:46Z",
-      "fetchedAt": "2026-11-26T08:01:49.090Z",
+      "fetchedAt": "2026-11-26T20:59:26.162Z",
       "prReadSucceeded": true
     }
   ]
