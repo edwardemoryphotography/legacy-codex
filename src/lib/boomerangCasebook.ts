@@ -834,6 +834,30 @@ export const BOOMERANG_CASES: readonly BoomerangCase[] = [
         "url": "https://github.com/edwardemoryphotography/legacy-codex/pull/187"
       }
     ]
+  },
+  {
+    "id": "BR-035",
+    "era": "2026-11-24",
+    "title": "An interface boundary should not become a cognitive boundary",
+    "sourceDomain": "During a real iPhone voice conversation, navigating to Territory ended the session; the restarted conversation could not recover the preceding discussion and distinguished a new hypothesis from memory.",
+    "targetDomain": "Session, model, device and agent handoffs during interrupted work",
+    "sharedStructure": "A change in presentation or transport can sever access to the intent and reasoning needed to continue, even when durable project records still exist.",
+    "reasoningBridge": "The voice interruption exposes the same continuity problem as resuming work across agent boundaries (BR-023) and preserving the reasoning process (BR-006). A live connection and recoverable conversational context are different responsibilities; preserving one does not establish the other.",
+    "practicalConsequence": "Separate authorized session/context ownership from individual views; preserve relevant completed turns, intent, constraints and pending work under consent and retention rules. Reconnect honestly, distinguish recovered history from inference, and require explicit termination without hidden recording or duplicate paid sessions.",
+    "evidenceRequired": "On a real authorized voice session, navigate across screens and return without losing conversation; after a genuine reconnect recover the preceding topic without restatement. Verify mic termination and no duplicate sessions. Then show a distinct later handoff applying the same rule without owner restatement; neither repair nor inheritance is established yet.",
+    "recordStatus": "candidate",
+    "inheritance": "not-demonstrated",
+    "sources": [
+      {
+        "label": "November 24, 2026 owner iPhone screenshots and incident report (restricted conversation; navigation interruption and failed recall)",
+        "access": "restricted"
+      },
+      {
+        "label": "Existing continuity contract (related target, not proof of voice repair)",
+        "access": "public",
+        "url": "https://github.com/edwardemoryphotography/legacy-codex/blob/main/docs/verification/nextaction-contract-2026-11-03.md"
+      }
+    ]
   }
 ] as const
 
