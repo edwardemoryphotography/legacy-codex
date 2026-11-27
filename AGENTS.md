@@ -84,6 +84,7 @@ Read this file first, then `STATE.md` for the latest project status, then `TODOS
 2. **Keep `STATE.md` current.** Update its shipped / blocked / next lines after any session that changes them, per its own Update Protocol.
 3. **Record only durable lessons.** Append to `STATE.md` Repo-local notes only when a repository-specific improvement is worth preserving.
 4. **Smallest sufficient solution.** Make the changes needed to fully satisfy the outcome; do not let a preference for a tiny patch cause under-delivery or add unrelated scope.
+5. **Wait for Codex before merging.** Don't merge a PR until the Codex review (chatgpt-codex-connector) has finished on the latest commit. "Running" is not finished. If it left a P0, P1 or P2 finding, fix it first. If Codex is down or never reviews, or you want to merge past a finding, get Eddie's written OK first and say so in the PR.
 
 ## Commands
 
