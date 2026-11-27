@@ -400,6 +400,8 @@ export function Tag({
   return (
     <span
       style={{
+        display: 'inline-flex',
+        alignItems: 'center',
         fontSize: '0.69rem',
         letterSpacing: '0.08em',
         fontWeight: 800,
@@ -410,6 +412,11 @@ export function Tag({
         background: c.bg,
         textTransform: 'uppercase',
         whiteSpace: 'nowrap',
+        maxWidth: '100%',
+        minWidth: 0,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        boxSizing: 'border-box',
       }}
     >
       {children}
@@ -431,7 +438,10 @@ export function Badge({
   return (
     <span
       style={{
+        display: 'inline-flex',
+        alignItems: 'center',
         fontSize: '0.7rem',
+        lineHeight: 1.35,
         letterSpacing: '0.09em',
         fontWeight: 800,
         padding: '5px 9px',
@@ -441,9 +451,13 @@ export function Badge({
         background: c.bg,
         textTransform: 'uppercase',
         whiteSpace: wrap ? 'normal' : 'nowrap',
-        maxWidth: wrap ? '100%' : undefined,
-        overflowWrap: wrap ? 'anywhere' : undefined,
-        textAlign: wrap ? 'center' : undefined,
+        maxWidth: '100%',
+        minWidth: 0,
+        overflow: wrap ? 'visible' : 'hidden',
+        textOverflow: wrap ? undefined : 'ellipsis',
+        overflowWrap: 'anywhere',
+        textAlign: wrap ? 'left' : undefined,
+        boxSizing: 'border-box',
       }}
     >
       {children}

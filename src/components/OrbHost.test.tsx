@@ -68,4 +68,51 @@ describe('PersistentOrb', () => {
     expect(dock?.getAttribute('data-cognition')).toBe('insufficient')
     expect(dock?.getAttribute('data-recording')).toBeNull()
   })
+
+  it('docks cleanly when an inner scroll container scrolls past the orb slot instead of painting over text', async () => {
+    function ScrollableHarness() {
+      return (
+        <OrbHostProvider placed>
+          <div className="codex-shell" style={{ position: 'relative' }}>
+            <PersistentOrb />
+            <div data-testid="hero-scroller" style={{ overflowY: 'auto', height: '400px' }}>
+              <Publisher {...settled} />
+            </div>
+          </div>
+        </OrbHostProvider>
+      )
+    }
+    render(<ScrollableHarness />)
+    const host = document.querySelector('.sd-orb-host') as HTMLElement
+    const scroller = screen.getByTestId('hero-scroller')
+    expect(host.getAttribute('data-orb')).toBe('hero')
+
+    // Simulate scrolling down inside Home's .glass-hero scroller.
+    Object.defineProperty(scroller, 'scrollTop', { configurable: true, value: 120 })
+    scroller.dispatchEvent(new Event('scroll', { bubbles: false }))
+    await new Promise(resolve => window.requestAnimationFrame(() => resolve(undefined)))
+    expect(host.getAttribute('data-orb')).toBe('dock')
+
+    // Returning to the top restores the reserved hero placement.
+    Object.defineProperty(scroller, 'scrollTop', { configurable: true, value: 0 })
+    scroller.dispatchEvent(new Event('scroll', { bubbles: false }))
+    await new Promise(resolve => window.requestAnimationFrame(() => resolve(undefined)))
+    expect(host.getAttribute('data-orb')).toBe('hero')
+  })
+
+  it('hides the orb when its slot is inside a display:none subtree', () => {
+    function HiddenHarness() {
+      return (
+        <OrbHostProvider placed>
+          <PersistentOrb />
+          <div style={{ display: 'none' }}>
+            <Publisher {...settled} />
+          </div>
+        </OrbHostProvider>
+      )
+    }
+    render(<HiddenHarness />)
+    const host = document.querySelector('.sd-orb-host') as HTMLElement
+    expect(host.getAttribute('data-orb')).toBe('hidden')
+  })
 })

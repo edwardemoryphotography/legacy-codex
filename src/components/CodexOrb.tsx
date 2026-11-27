@@ -22,31 +22,53 @@ export function codexOrbState(state: OrbPresentationState): CodexOrbState {
   return 'idle'
 }
 
-type Uniforms = { flow: number; rim: number; sweep: number; bright: number; ring: number }
-const TARGETS: Record<CodexOrbState, Uniforms> = {
-  idle: { flow: 0.35, rim: 0.35, sweep: 0, bright: 0.85, ring: 0 },
-  listening: { flow: 0.6, rim: 1.0, sweep: 0, bright: 0.95, ring: 1 },
-  thinking: { flow: 1.1, rim: 0.6, sweep: 1, bright: 1.0, ring: 0 },
-  acting: { flow: 0.75, rim: 1.0, sweep: 0.35, bright: 1.05, ring: 0.65 },
+type Uniforms = { flow: number; rim: number; sweep: number; bright: number; ring: number; tintMix: number; tr: number; tg: number; tb: number }
+
+/** Visual tone derived strictly from actual presentation/cognition states.
+ *  - Ready / Idle: calm ambient movement; settled recommendation gets luminous clarity
+ *  - Listening: responsive outer aura ring + heightened cyan-teal rim
+ *  - Reconstructing / Acting: subtle violet-indigo illumination while assembling context
+ *  - Thinking / Evaluating: focused warm luminous highlight + orbiting sweep (never #FFB05C Ember)
+ *  - Interrupted (blocked): restrained, still, muted rose-slate state */
+function targetUniforms(state: OrbPresentationState, cognition?: string): Uniforms {
+  if (state === 'listening') {
+    return { flow: 0.62, rim: 1.0, sweep: 0.08, bright: 0.98, ring: 1.0, tintMix: 0.22, tr: 0.14, tg: 0.86, tb: 0.80 }
+  }
+  if (state === 'blocked') {
+    return { flow: 0.08, rim: 0.22, sweep: 0.0, bright: 0.58, ring: 0.0, tintMix: 0.55, tr: 0.78, tg: 0.36, tb: 0.44 }
+  }
+  if (state === 'thinking') {
+    return { flow: 1.12, rim: 0.76, sweep: 1.0, bright: 1.06, ring: 0.12, tintMix: 0.32, tr: 0.89, tg: 0.75, tb: 0.41 }
+  }
+  if (state === 'acting') {
+    const reconstructing = cognition === 'reconstructing'
+    return reconstructing
+      ? { flow: 0.68, rim: 0.82, sweep: 0.42, bright: 1.0, ring: 0.35, tintMix: 0.36, tr: 0.56, tg: 0.45, tb: 1.0 }
+      : { flow: 0.78, rim: 0.96, sweep: 0.48, bright: 1.04, ring: 0.58, tintMix: 0.24, tr: 0.22, tg: 0.84, tb: 0.86 }
+  }
+  if (state === 'ready') {
+    return { flow: 0.26, rim: 0.56, sweep: 0.0, bright: 0.96, ring: 0.0, tintMix: 0.14, tr: 0.20, tg: 0.84, tb: 0.78 }
+  }
+  return { flow: 0.34, rim: 0.36, sweep: 0.0, bright: 0.86, ring: 0.0, tintMix: 0.0, tr: 0.42, tg: 0.36, tb: 1.0 }
 }
 
 const FRAG = `precision mediump float;
-uniform vec2 uRes;uniform vec3 uPrimary,uSecondary;uniform float uPhase,uTime,uRim,uSweep,uBright,uRing;
+uniform vec2 uRes;uniform vec3 uPrimary,uSecondary,uTint;uniform float uPhase,uTime,uRim,uSweep,uBright,uRing,uTintMix;
 float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
 float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*n(p);p=p*2.03+vec2(1.7,9.2);a*=.5;}return v;}
 void main(){vec2 p=(gl_FragCoord.xy*2.-uRes)/uRes.y;vec2 q=p/.82;float rr=length(q);float disc=1.-smoothstep(.985,1.,rr);
 vec2 w=vec2(fbm(q*1.4+uPhase*.25),fbm(q*1.4+vec2(5.2,1.3)-uPhase*.2));float f=fbm(q*1.6+w*1.8+vec2(uPhase*.15,-uPhase*.1));
-vec3 violet=uPrimary,teal=uSecondary,ink=vec3(.05,.06,.14);
+vec3 violet=mix(uPrimary,uTint,uTintMix*.65),teal=mix(uSecondary,uTint,uTintMix*.55),ink=vec3(.05,.06,.14);
 vec3 col=mix(ink,violet,smoothstep(.25,.7,f));col=mix(col,teal,smoothstep(.5,.95,fbm(q*2.+w*2.-uPhase*.2))*.9);
 float wave=sin(q.y*3.+f*6.+uPhase*.8)*.5+.5;col+=teal*wave*.16*uBright;
 float rim=smoothstep(.55,1.,rr)*disc;col+=mix(violet,teal,.5+.5*sin(uPhase))*rim*(.35+.9*uRim);
-float a=atan(q.y,q.x);float s=pow(max(0.,cos(a-uPhase*2.2)),8.);col+=teal*s*rim*1.4*uSweep;
+float a=atan(q.y,q.x);float s=pow(max(0.,cos(a-uPhase*2.2)),8.);col+=mix(teal,uTint,uTintMix)*s*rim*1.45*uSweep;
 col*=uBright*(.85+.3*f);float ringR=1.12+.05*sin(uTime*2.);float ring=exp(-pow((rr-ringR)*14.,2.))*uRing;
-float alpha=max(disc,ring*.7);vec3 o=col*disc+teal*ring*.7+(h(gl_FragCoord.xy+uTime)-.5)*.04*disc;
+float alpha=max(disc,ring*.7);vec3 o=col*disc+mix(teal,uTint,uTintMix*.5)*ring*.7+(h(gl_FragCoord.xy+uTime)-.5)*.04*disc;
 gl_FragColor=vec4(min(max(o,0.),vec3(alpha)),alpha);}`
 const VERT = 'attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}'
-const UNIFORMS = ['uRes', 'uPrimary', 'uSecondary', 'uPhase', 'uTime', 'uRim', 'uSweep', 'uBright', 'uRing'] as const
+const UNIFORMS = ['uRes', 'uPrimary', 'uSecondary', 'uTint', 'uPhase', 'uTime', 'uRim', 'uSweep', 'uBright', 'uRing', 'uTintMix'] as const
 
 /** Codex's calm control (`data-reduced-motion`) or the OS setting. */
 function useStill() {
@@ -64,18 +86,17 @@ function useStill() {
   return still
 }
 
-export default function CodexOrb({ state }: { state: OrbPresentationState }) {
+export default function CodexOrb({ state, cognition }: { state: OrbPresentationState; cognition?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const targetRef = useRef<Uniforms>(TARGETS.idle)
+  const targetRef = useRef<Uniforms>(targetUniforms(state, cognition))
   const kickRef = useRef<() => void>(() => {})
   const [fallback, setFallback] = useState(false)
   const still = useStill()
-  const mode = codexOrbState(state)
 
   useEffect(() => {
-    targetRef.current = TARGETS[mode]
+    targetRef.current = targetUniforms(state, cognition)
     kickRef.current()
-  }, [mode])
+  }, [state, cognition])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -133,12 +154,14 @@ export default function CodexOrb({ state }: { state: OrbPresentationState }) {
       gl.uniform2f(U.uRes, canvas.width, canvas.height)
       gl.uniform3f(U.uPrimary, primary[0], primary[1], primary[2])
       gl.uniform3f(U.uSecondary, secondary[0], secondary[1], secondary[2])
+      gl.uniform3f(U.uTint, cur.tr, cur.tg, cur.tb)
       gl.uniform1f(U.uPhase, phase)
       gl.uniform1f(U.uTime, t)
       gl.uniform1f(U.uRim, cur.rim)
       gl.uniform1f(U.uSweep, cur.sweep)
       gl.uniform1f(U.uBright, cur.bright)
       gl.uniform1f(U.uRing, cur.ring)
+      gl.uniform1f(U.uTintMix, cur.tintMix)
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
     }
     const frame = (ts: number) => {

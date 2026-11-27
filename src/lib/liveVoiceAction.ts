@@ -20,3 +20,21 @@ export function parseVoiceAction(raw: string): ParsedVoiceAnswer {
   }
   return { text: kept.join('\n').replace(/\n{3,}/g, '\n\n').trim(), actionTitle }
 }
+
+/**
+ * Extracts an explicit observable finish condition only when the model wrote
+ * one (e.g. "Finish when: ..." or "Done when: ..."). Never invents one.
+ */
+export function extractFinishCondition(text: string): string | null {
+  if (!text) return null
+  const lines = text.replace(/\r\n/g, '\n').split('\n')
+  for (const rawLine of lines) {
+    const cleaned = rawLine.replace(/\*\*|__/g, '').replace(/^\s*[-*•]\s+/, '').trim()
+    const match = cleaned.match(/^(?:finish\s+when|done\s+when|finish\s+condition|observable\s+finish)\s*:\s*(.+)$/i)
+    if (match) {
+      const value = match[1].trim()
+      if (value && !/^none$/i.test(value)) return value.slice(0, 260)
+    }
+  }
+  return null
+}

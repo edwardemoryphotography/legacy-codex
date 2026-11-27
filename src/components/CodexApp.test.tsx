@@ -7,7 +7,7 @@ import { useState } from 'react'
 vi.mock('@/lib/supabase/client', () => ({ supabase: { auth: { onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }) } } }))
 
 vi.mock('./tabs/MissionTab', () => ({ default: ({ onMissionChange }: { onMissionChange?: () => void }) => <button onClick={onMissionChange}>Commit workspace change</button> }))
-vi.mock('./tabs/HomeTab', () => ({ default: function TestConversation({ projectRevision = 0 }: { projectRevision?: number }) { const [pending, setPending] = useState(false); return <><p>Glass home</p><button onClick={() => setPending(true)}>{pending ? 'Answer pending' : 'Start question'}</button><span>Project revision {projectRevision}</span></> } }))
+vi.mock('./tabs/HomeTab', () => ({ default: function TestConversation({ projectRevision = 0, onLiveVoiceStateChange }: { projectRevision?: number; onLiveVoiceStateChange?: (state: { active: boolean; phase: string; muted: boolean; label: string; detail: string; hasProposal: boolean; turnCount: number }) => void }) { const [pending, setPending] = useState(false); return <><p>Glass home</p><button onClick={() => setPending(true)}>{pending ? 'Answer pending' : 'Start question'}</button><button onClick={() => onLiveVoiceStateChange?.({ active: true, phase: 'listening', muted: false, label: 'Listening', detail: '', hasProposal: true, turnCount: 1 })}>Activate live voice</button><span>Project revision {projectRevision}</span></> } }))
 vi.mock('./ThemeReview', () => ({ default: () => null }))
 vi.mock('./OrbHost', () => ({
   OrbHostProvider: ({ children }: { children: unknown }) => children,
@@ -60,4 +60,19 @@ it('keeps a pending conversation mounted across Home and Mission navigation', ()
     if (name === 'Mission') fireEvent.click(screen.getByRole('button', { name: 'Continue conversation with Codex' }))
     expect(screen.getByRole('button', { name: 'Answer pending' })).toBeInTheDocument()
   }
+})
+
+it('keeps an active live voice session mounted across Territory navigation and offers Return to voice', () => {
+  render(<CodexApp />)
+  fireEvent.click(screen.getByRole('button', { name: 'Activate live voice' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Menu' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Territory' }))
+  // Persistent indicator appears on non-Home screen and HomeTab stays mounted (hidden) so voice is not torn down.
+  expect(screen.getByRole('region', { name: 'Active live voice session' })).toBeInTheDocument()
+  expect(screen.getByText('Live voice · Listening')).toBeInTheDocument()
+  expect(screen.getByText('Proposal ready')).toBeInTheDocument()
+  expect(document.getElementById('home-conversation')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Return to voice' }))
+  expect(screen.queryByRole('region', { name: 'Active live voice session' })).not.toBeInTheDocument()
+  expect(screen.getByText('Glass home')).toBeInTheDocument()
 })

@@ -92,10 +92,11 @@ export function OrbHostProvider({
 const GLIDE_MS = 560
 const GLIDE_EASE = 'cubic-bezier(0.2, 0.7, 0.2, 1)'
 
-/** Layout offset of `el` inside `ancestor`'s padding box. Offsets ignore
- *  transforms, so a panel's enter animation cannot leave the field parked
- *  at a mid-animation position. Falls back to rects when `ancestor` is not
- *  on the offsetParent chain. */
+/** Layout offset of `el` inside `ancestor`'s padding box, subtracting any
+ *  intermediate scroll container offsets so an inner scroller (Home's
+ *  `.glass-hero`) carries the slot accurately instead of freezing the orb
+ *  over scrolling recommendation text. Falls back to rects when `ancestor`
+ *  is not on the offsetParent chain. */
 function offsetWithin(el: HTMLElement, ancestor: Element | null): { left: number; top: number } {
   let left = 0
   let top = 0
@@ -110,10 +111,100 @@ function offsetWithin(el: HTMLElement, ancestor: Element | null): { left: number
     }
     current = next
   }
-  if (current === ancestor && ancestor) return { left, top }
+  if (current === ancestor && ancestor) {
+    // Subtract inner scroll offsets between el and ancestor. offsetTop ignores
+    // scrollTop on intermediate overflow-y: auto containers (e.g. .glass-hero).
+    let scrollEl = el.parentElement
+    while (scrollEl && scrollEl !== ancestor) {
+      left -= scrollEl.scrollLeft
+      top -= scrollEl.scrollTop
+      scrollEl = scrollEl.parentElement
+    }
+    return { left, top }
+  }
   const a = ancestor?.getBoundingClientRect()
   const r = el.getBoundingClientRect()
   return { left: r.left - (a?.left ?? 0), top: r.top - (a?.top ?? 0) }
+}
+
+const CLIPPING_OVERFLOW = new Set(['auto', 'scroll', 'hidden', 'clip'])
+
+interface SlotScrollPlacement {
+  dockForScroll: boolean
+  clipPath: string | null
+}
+
+/** Checks every clipping/scrolling ancestor between `slot` and `hostAncestor`.
+ *  - When `slot` lives inside an inner scrollable region (like Home's
+ *    `.glass-hero`) and has scrolled toward or past the top edge, we promote
+ *    the orb into its non-obstructive compact header dock instead of letting
+ *    it paint over recommendation text or the top bar.
+ *  - Otherwise, if a clipping ancestor partially intersects the slot, return
+ *    an exact CSS `clip-path: inset(...)` so the orb can never bleed past its
+ *    reserved visual region. */
+function inspectScrollClip(
+  slot: HTMLElement,
+  hostAncestor: Element | null,
+  slotLeft: number,
+  slotTop: number,
+  slotWidth: number,
+  slotHeight: number,
+): SlotScrollPlacement {
+  let clipTop = 0
+  let clipRight = 0
+  let clipBottom = 0
+  let clipLeft = 0
+  let hasClip = false
+  let dockForScroll = false
+
+  let parent = slot.parentElement
+  while (parent && parent !== hostAncestor) {
+    const style = window.getComputedStyle(parent)
+    const clipsY = CLIPPING_OVERFLOW.has(style.overflowY)
+    const clipsX = CLIPPING_OVERFLOW.has(style.overflowX)
+    if (clipsY || clipsX) {
+      const p = offsetWithin(parent, hostAncestor)
+      const pTop = p.top + parent.clientTop
+      const pLeft = p.left + parent.clientLeft
+      const pWidth = parent.clientWidth
+      const pHeight = parent.clientHeight
+
+      // Inner vertical scroll container (e.g. Home's .glass-hero): once the
+      // user scrolls down enough that the slot enters/crosses the top edge,
+      // glide into the compact top-right header dock so content stays clear.
+      if (clipsY && (style.overflowY === 'auto' || style.overflowY === 'scroll')) {
+        if (parent.scrollTop > 16 || (pHeight > 0 && slotTop < pTop - 4)) {
+          dockForScroll = true
+          break
+        }
+      }
+
+      if (pHeight > 0 && slotHeight > 0 && clipsY) {
+        const overTop = Math.max(0, pTop - slotTop)
+        const overBottom = Math.max(0, slotTop + slotHeight - (pTop + pHeight))
+        if (overTop > 0 || overBottom > 0) {
+          clipTop = Math.max(clipTop, overTop)
+          clipBottom = Math.max(clipBottom, overBottom)
+          hasClip = true
+        }
+      }
+      if (pWidth > 0 && slotWidth > 0 && clipsX) {
+        const overLeft = Math.max(0, pLeft - slotLeft)
+        const overRight = Math.max(0, slotLeft + slotWidth - (pLeft + pWidth))
+        if (overLeft > 0 || overRight > 0) {
+          clipLeft = Math.max(clipLeft, overLeft)
+          clipRight = Math.max(clipRight, overRight)
+          hasClip = true
+        }
+      }
+    }
+    parent = parent.parentElement
+  }
+
+  return {
+    dockForScroll,
+    clipPath: hasClip ? `inset(${Math.round(clipTop)}px ${Math.round(clipRight)}px ${Math.round(clipBottom)}px ${Math.round(clipLeft)}px)` : null,
+  }
 }
 
 /** The one field. It is rendered once, always at this same place in the
@@ -136,14 +227,20 @@ export function PersistentOrb() {
     const previous = modeRef.current
     const from = previous && previous !== mode ? node.getBoundingClientRect() : null
 
-    function place() {
+    function applyDock() {
+      if (!node) return
+      node.dataset.orb = 'dock'
+      node.style.removeProperty('left')
+      node.style.removeProperty('top')
+      node.style.removeProperty('width')
+      node.style.removeProperty('height')
+      node.style.removeProperty('clip-path')
+    }
+
+    function place(animateTransition = false) {
       if (!node) return
       if (!slot) {
-        node.dataset.orb = 'dock'
-        node.style.removeProperty('left')
-        node.style.removeProperty('top')
-        node.style.removeProperty('width')
-        node.style.removeProperty('height')
+        applyDock()
         return
       }
       // A slot inside a collapsed/hidden subtree (composer expansion, empty
@@ -156,18 +253,58 @@ export function PersistentOrb() {
       }
       if (!painted) {
         node.dataset.orb = 'hidden'
+        node.style.removeProperty('clip-path')
         return
       }
-      node.dataset.orb = 'hero'
+      const prevOrb = node.dataset.orb
       const at = offsetWithin(slot, node.offsetParent)
+      const w = slot.offsetWidth
+      const h = slot.offsetHeight
+      const { dockForScroll, clipPath } = inspectScrollClip(slot, node.offsetParent, at.left, at.top, w, h)
+
+      if (dockForScroll) {
+        const startRect = animateTransition && prevOrb === 'hero' ? node.getBoundingClientRect() : null
+        applyDock()
+        if (startRect && motionAllowed && typeof node.animate === 'function') {
+          const endRect = node.getBoundingClientRect()
+          if (endRect.width > 0 && endRect.height > 0 && startRect.width > 0 && startRect.height > 0) {
+            node.animate(
+              [
+                { transform: `translate(${startRect.left - endRect.left}px, ${startRect.top - endRect.top}px) scale(${startRect.width / endRect.width}, ${startRect.height / endRect.height})` },
+                { transform: 'none' },
+              ],
+              { duration: 320, easing: GLIDE_EASE },
+            )
+          }
+        }
+        return
+      }
+
+      const startRect = animateTransition && prevOrb === 'dock' ? node.getBoundingClientRect() : null
+      node.dataset.orb = 'hero'
       node.style.left = `${at.left}px`
       node.style.top = `${at.top}px`
-      node.style.width = `${slot.offsetWidth}px`
-      node.style.height = `${slot.offsetHeight}px`
+      node.style.width = `${w}px`
+      node.style.height = `${h}px`
+      if (clipPath) node.style.clipPath = clipPath
+      else node.style.removeProperty('clip-path')
+
+      if (startRect && motionAllowed && typeof node.animate === 'function') {
+        const endRect = node.getBoundingClientRect()
+        if (endRect.width > 0 && endRect.height > 0 && startRect.width > 0 && startRect.height > 0) {
+          node.animate(
+            [
+              { transform: `translate(${startRect.left - endRect.left}px, ${startRect.top - endRect.top}px) scale(${startRect.width / endRect.width}, ${startRect.height / endRect.height})` },
+              { transform: 'none' },
+            ],
+            { duration: 320, easing: GLIDE_EASE },
+          )
+        }
+      }
     }
 
     node.dataset.orb = mode
-    place()
+    place(false)
     modeRef.current = mode
 
     if (from && motionAllowed && typeof node.animate === 'function') {
@@ -186,9 +323,10 @@ export function PersistentOrb() {
     }
 
     if (!slot) return
+    const reflow = () => place(false)
     // Content above the slot (a finished read, fonts, a resized window) can
     // move it without resizing it; each of these reflows the page.
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(place)
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(reflow)
     observer?.observe(slot)
     observer?.observe(document.body)
     // A response/keyboard can move the slot without resizing the slot itself.
@@ -197,27 +335,27 @@ export function PersistentOrb() {
       observer?.observe(ancestor)
       ancestor = ancestor.parentElement
     }
-    window.addEventListener('resize', place)
+    window.addEventListener('resize', reflow)
     // An inner scroll container moves the slot without resizing it (Home's
-    // recommendation text is the real case). Without this the absolute host
-    // stays put while the slot scrolls away and the orb draws over the copy.
+    // recommendation text is the real case). Track scroll offsets on rAF and
+    // dock cleanly into the top bar when content scrolls past the orb.
     let frame = 0
     const onScroll = () => {
       if (frame) return
       frame = window.requestAnimationFrame(() => {
         frame = 0
-        place()
+        place(true)
       })
     }
     window.addEventListener('scroll', onScroll, { capture: true, passive: true })
     let live = true
-    void document.fonts?.ready.then(() => { if (live) place() })
+    void document.fonts?.ready.then(() => { if (live) place(false) })
     return () => {
       live = false
       if (frame) window.cancelAnimationFrame(frame)
       window.removeEventListener('scroll', onScroll, { capture: true })
       observer?.disconnect()
-      window.removeEventListener('resize', place)
+      window.removeEventListener('resize', reflow)
     }
   }, [slot, motionAllowed])
 
@@ -236,7 +374,7 @@ export function PersistentOrb() {
       data-interaction={host.interaction}
     >
       <CognitionField />
-      <CodexOrb state={presentation.state} />
+      <CodexOrb state={presentation.state} cognition={live.cognition} />
       <span className="orb-status" role="status" aria-live="polite" aria-atomic="true">{presentation.label}</span>
     </div>
   )

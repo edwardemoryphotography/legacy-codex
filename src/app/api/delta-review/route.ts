@@ -10,7 +10,7 @@ import { unsupportedReviewAssertions } from '@/lib/claimIntegrity'
 import { measureTransfer } from '@/lib/structuralTransfer'
 import { isConcreteMove } from '@/lib/strategicDelta'
 import { cachedProjectReview, projectIsReviewable } from '@/lib/projectReviewStore'
-import { isModelChainConfigured, providerFailureReason, runProviderChainReviewStep } from '@/lib/modelProviderChain'
+import { isModelChainConfigured, modelFor, providerFailureReason, runProviderChainReviewStep, type ModelProviderId, type ReviewAttempt } from '@/lib/modelProviderChain'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -58,9 +58,18 @@ export async function POST(req: NextRequest) {
   // Economy is the default. Deep is an explicit investigation choice and gets
   // a longer, tier-appropriate budget; both keep the same validation gates.
   const tier: 'routine' | 'deep' = body.tier === 'deep' ? 'deep' : 'routine'
+  // The client abort stops this screen; the platform may still let server work
+  // finish. Honour that truth: never persist a review for a disconnected request,
+  // and never claim the provider call was cancelled.
+  const cancelled = () => req.signal.aborted
+  const cancelledResponse = () => {
+    console.info('/api/delta-review cancelled', { stage, tier })
+    return new NextResponse(null, { status: 499 })
+  }
   try {
     const client = projectUserClient(owner.url, req.headers.get('Authorization') ?? '')
     let context = await loadProjectContext(client, owner.userId, body.missionId)
+    if (cancelled()) return cancelledResponse()
     if (context.mission.finish_line !== body.finishLine) return NextResponse.json({ error: 'The finish line changed. Refresh your project before reviewing.' }, { status: 409 })
     if (!projectIsReviewable(context)) {
       return NextResponse.json({ operation: null, review: null, lessons: context.lessons })
@@ -108,11 +117,15 @@ export async function POST(req: NextRequest) {
     const comparingLessons = withheld.length !== context.sources.length
     let baseline: ReviewProposal | null = null
     let parsed: ReviewProposal | null = null
+    let winningProvider: ModelProviderId | undefined
+    let draftParticipant: { provider: ModelProviderId; model: string } | null = null
+    let critiqueParticipant: { provider: ModelProviderId; model: string } | null = null
+    let attempts: ReviewAttempt[] = []
+    const reviewStartedAt = Date.now()
     const reviewDeadlineAt = Date.now() + (tier === 'deep' ? 100_000 : 45_000)
     const draftDeadlineAt = Date.now() + (tier === 'deep' ? 55_000 : 40_000)
     if (compact) {
       stage = 'review'
-      const startedAt = Date.now()
       const single = await runProviderChainReviewStep({
         maxTokens: 2_600,
         system: `${PROJECT_REVIEW_RULES}\nThis request is a single pass. No draft and no critique have run. Compare and submit the reviewed decision directly; do not describe or claim a critique.`,
@@ -122,9 +135,12 @@ export async function POST(req: NextRequest) {
         tier,
         userContent: `Compare feasible moves and propose one reviewed decision from this context. Submit it through submit_project_review. Cite only supplied source IDs, state unknowns, and keep the operation concrete.\n${packet}`,
       })
+      winningProvider = single.provider
       parsed = (single.stopReason === 'tool_use' || single.stopReason === 'structured_text') && single.toolInput
         ? parseProjectReview(JSON.stringify(single.toolInput), packetSources, body.missionId) : null
-      console.info('/api/delta-review economy pass', { tier, stage: 'review', provider: single.provider, elapsedMs: Date.now() - startedAt, accepted: Boolean(parsed) })
+      draftParticipant = { provider: single.provider, model: single.model ?? modelFor(single.provider, tier) }
+      attempts = single.attempts ?? []
+      console.info('/api/delta-review economy pass', { tier, stage: 'review', provider: single.provider, elapsedMs: Date.now() - reviewStartedAt, accepted: Boolean(parsed) })
     } else {
       stage = 'draft'
       const draft = await runProviderChainReviewStep({
@@ -154,8 +170,12 @@ export async function POST(req: NextRequest) {
         tier,
         userContent: `Critique the draft independently against the original context. Does the chosen move beat the alternatives on impact, urgency, dependencies, reported capacity and uncertainty? Is resuming a saved action better? Does the finish condition describe an observable result? Does a missing fact change the winner? Find unsupported facts, stale evidence, duplicates and paraphrases of corrected approaches. Revise once; submit through submit_project_review. A self-check is still a model proposal, not verification.\nOriginal context:\n${packet}\nDraft (untrusted proposal):\n${draftText.slice(0, 10_000)}`,
       })
+      winningProvider = final.provider
       parsed = (final.stopReason === 'tool_use' || final.stopReason === 'structured_text') && final.toolInput
         ? parseProjectReview(JSON.stringify(final.toolInput), packetSources, body.missionId) : null
+      draftParticipant = draft.provider && draft.model ? { provider: draft.provider, model: draft.model } : null
+      critiqueParticipant = { provider: final.provider, model: final.model ?? modelFor(final.provider, tier) }
+      attempts = [...(draft.attempts ?? []), ...(final.attempts ?? [])]
     }
     stage = 'validation'
     if (!parsed || (parsed.operation && !isConcreteMove(parsed.operation, { title: context.mission.title, finishLine: context.mission.finish_line }))) {
@@ -170,13 +190,23 @@ export async function POST(req: NextRequest) {
     }
     // Do not apply a proposal if notes, corrections, commitments or sources
     // changed while the two model calls were running.
+    if (cancelled()) return cancelledResponse()
     stage = 'context-recheck'
     const current = await loadProjectContext(client, owner.userId, body.missionId)
     if (current.contextKey !== context.contextKey) return NextResponse.json({ error: 'Your project changed during review. Review the updated context.' }, { status: 409 })
     const reviewedAt = new Date().toISOString()
     const transferObservation = measureTransfer({ baseline, after: parsed, sources: packetSources, lessons: context.lessons, missionId: body.missionId, requestContextAdded: Boolean(note), reviewedAt, interventionEvidence: context.interventionEvidence })
+    const winner = winningProvider ?? draftParticipant?.provider ?? 'anthropic'
+    const winnerModel = (compact ? draftParticipant?.model : critiqueParticipant?.model) ?? modelFor(winner, tier)
     const review: ProjectReview = { ...parsed, transferObservation, missionId: body.missionId, finishLine: body.finishLine, sources: packetSources, warnings: reviewWarnings, contextKey: context.contextKey, reviewedAt, cached: false,
-      tier, critique: compact ? 'single_pass' : 'independent' }
+      tier, critique: compact ? 'single_pass' : 'independent', elapsedMs: Date.now() - reviewStartedAt,
+      provider: winner, model: winnerModel,
+      execution: {
+        tier, selectionPolicy: 'static_measured_v1', provider: winner, model: winnerModel,
+        fallbacks: attempts.map(attempt => ({ provider: attempt.provider, model: attempt.model, reason: attempt.reason, ...(attempt.skipped ? { skipped: true } : {}) })),
+        draft: draftParticipant, critique: critiqueParticipant,
+        elapsedMs: Date.now() - reviewStartedAt, elapsedBasis: 'request_start_to_review_built',
+      } }
     // A cached proposal is not an action or evidence. It lives in the existing
     // transitional Delta ledger and is invalidated by context/correction changes.
     stage = 'persistence'

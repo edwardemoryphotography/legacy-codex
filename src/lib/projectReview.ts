@@ -64,6 +64,24 @@ export interface ProjectReview {
   /** Generation provenance: an Economy review must never look like Deep. */
   tier?: 'routine' | 'deep'
   critique?: 'single_pass' | 'independent'
+  /** Only facts observed during this execution; absent means unknown. */
+  execution?: {
+    tier: 'routine' | 'deep'
+    /** Static measured policy; deliberately not described as learned routing. */
+    selectionPolicy: 'static_measured_v1'
+    provider: 'anthropic' | 'gemini' | 'openai'
+    model: string
+    fallbacks: Array<{ provider: 'anthropic' | 'gemini' | 'openai'; model: string | null; reason: string; skipped?: boolean }>
+    draft: { provider: 'anthropic' | 'gemini' | 'openai'; model: string } | null
+    critique: { provider: 'anthropic' | 'gemini' | 'openai'; model: string } | null
+    elapsedMs: number
+    /** The measured interval, stated explicitly so it is never over-read. */
+    elapsedBasis: 'request_start_to_review_built'
+  }
+  /** Provider/model and execution duration recorded on completion (read-only metadata). */
+  provider?: 'anthropic' | 'gemini' | 'openai'
+  model?: string
+  elapsedMs?: number
   structuralBridge?: StructuralBridge | null
   transferObservation?: TransferObservation
   workDraft?: string | null

@@ -92,6 +92,17 @@ export interface ReviewStepResult {
   completion?: string | null
   usage?: { input?: number; output?: number } | null
   validation?: string | null
+  /** Actual model that produced this result (never reconstructed by the caller). */
+  model?: string
+  /** Providers tried and failing/skipped before this result, in order. */
+  attempts?: ReviewAttempt[]
+}
+
+export interface ReviewAttempt {
+  provider: ModelProviderId
+  model: string | null
+  reason: string
+  skipped?: boolean
 }
 
 /**
@@ -458,6 +469,7 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
   }
 
   const deadlineAt = req.deadlineAt ?? Date.now() + (tier === 'deep' ? 110_000 : 45_000)
+  const attempts: ReviewAttempt[] = []
   let lastError: unknown = null
   for (let i = 0; i < providers.length; i += 1) {
     const provider = providers[i]!
@@ -471,6 +483,7 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
     const remainingMs = deadlineAt - Date.now()
     if (remainingMs < minimumAttemptMs) {
       console.warn('Model review provider skipped', { provider, tier, reason: 'insufficient_deadline', remainingMs })
+      attempts.push({ provider, model, reason: 'insufficient_deadline', skipped: true })
       lastError ??= new Error('Model request deadline exceeded')
       break
     }
@@ -544,9 +557,10 @@ export async function runProviderChainReviewStep(req: ReviewStepRequest): Promis
         validation = called.validation ?? validation
       }
       if (!result) throw new Error('Invalid model response')
-      return result
+      return { ...result, model: model ?? undefined, attempts }
     } catch (err) {
       lastError = err
+      attempts.push({ provider, model, reason: providerFailureReason(err).reason })
       // Operational diagnostics only: no prompts, project text or raw output.
       console.warn('Model review provider failed', {
         provider, tier, attempt: i + 1, of: providers.length, model,

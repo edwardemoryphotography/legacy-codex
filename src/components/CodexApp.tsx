@@ -16,6 +16,7 @@ import BriefTab from './tabs/BriefTab'
 import OriginTab from './tabs/OriginTab'
 import TerritoryTab from './tabs/TerritoryTab'
 import HomeTab from './tabs/HomeTab'
+import type { LiveVoiceSnapshot } from './CodexLiveVoice'
 import { OrbHostProvider, PersistentOrb } from './OrbHost'
 import ThemeReview from './ThemeReview'
 import { supabase } from '@/lib/supabase/client'
@@ -88,6 +89,9 @@ export default function CodexApp() {
   const [signInRequested, setSignInRequested] = useState(false)
   const [missionTalkOpen, setMissionTalkOpen] = useState(false)
   const [homeSession, setHomeSession] = useState(emptyHomeSession)
+  const [liveVoice, setLiveVoice] = useState<LiveVoiceSnapshot>({
+    active: false, phase: 'idle', muted: false, label: '', detail: '', hasProposal: false, turnCount: 0,
+  })
   useEffect(() => {
     if (typeof supabase.auth.onAuthStateChange !== 'function') return
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
@@ -231,6 +235,18 @@ export default function CodexApp() {
       )}
 
       <main className="codex-main">
+        {liveVoice.active && activeTab !== 'home' && (
+          <div className="voice-continuity-bar glass" role="region" aria-label="Active live voice session">
+            <div className="voice-continuity-status">
+              <span className="voice-continuity-dot" data-phase={liveVoice.phase} aria-hidden="true" />
+              <span>Live voice · {liveVoice.label || 'Connected'}</span>
+              {liveVoice.hasProposal && <span className="voice-continuity-badge">Proposal ready</span>}
+            </div>
+            <button type="button" className="voice-continuity-return" onClick={() => selectTab('home')}>
+              Return to voice
+            </button>
+          </div>
+        )}
         {activeTab === 'mission' && (
           <div className="mission-conversation-bar">
             <button type="button" className="glass-chip glass" aria-expanded={missionTalkOpen} aria-controls="home-conversation" onClick={() => setMissionTalkOpen(open => !open)}>
@@ -238,9 +254,19 @@ export default function CodexApp() {
             </button>
           </div>
         )}
-        {(activeTab === 'home' || activeTab === 'mission') && (
-          <div id="home-conversation" hidden={activeTab === 'mission' && !missionTalkOpen}>
-            <HomeTab key={homeSession.accountId} variant={activeTab === 'mission' ? 'mission' : 'home'} projectRevision={missionRevision} onProjectChange={refreshConversationProject} onNavigate={selectTab} onSignIn={requestSignIn} session={homeSession} onSessionChange={setHomeSession} />
+        {(activeTab === 'home' || activeTab === 'mission' || liveVoice.active) && (
+          <div id="home-conversation" hidden={activeTab !== 'home' && (activeTab !== 'mission' || !missionTalkOpen)}>
+            <HomeTab
+              key={homeSession.accountId}
+              variant={activeTab === 'home' ? 'home' : 'mission'}
+              projectRevision={missionRevision}
+              onProjectChange={refreshConversationProject}
+              onNavigate={selectTab}
+              onSignIn={requestSignIn}
+              session={homeSession}
+              onSessionChange={setHomeSession}
+              onLiveVoiceStateChange={setLiveVoice}
+            />
           </div>
         )}
         {activeTab !== 'home' && <div

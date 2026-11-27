@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Mission } from '@/types'
 import type { MissionTerritory } from '@/hooks/useMissionTerritory'
@@ -45,5 +45,36 @@ describe('HomeStrategicDecision resume visibility', () => {
   it('does not duplicate Resume when the saved step already leads', () => {
     renderDecision(mission)
     expect(screen.queryByRole('button', { name: /Resume your saved step/ })).toBeNull()
+  })
+
+  it('shows a focused truthful Economy processing state with cancellation while comparing', async () => {
+    const territory = { accountId: 'acc', missions: [mission], evidence: [], links: [], events: [] } as unknown as MissionTerritory
+    const getSession = vi.fn().mockResolvedValue({ data: { session: { user: { id: 'acc' }, access_token: 'tok' } } })
+    const { supabase } = await import('@/lib/supabase/client')
+    vi.spyOn(supabase.auth, 'getSession').mockImplementation(getSession)
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true })
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const onReviewActivity = vi.fn()
+    try {
+      render(<HomeStrategicDecision
+        territory={territory} mission={mission} saved={saved} view={viewFor(mission)}
+        allowReview tier="routine" onOpen={() => {}} onChange={() => {}} onReviewActivity={onReviewActivity}
+      />)
+      fireEvent.click(screen.getByRole('button', { name: 'Compare moves with AI' }))
+      expect(await screen.findByText('Comparing next moves')).toBeTruthy()
+      expect(screen.getByText(/Economy · single structured pass/)).toBeTruthy()
+      expect(screen.queryByText(/independent critique/i)).toBeNull()
+      expect(onReviewActivity).toHaveBeenCalledWith(true)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Stop waiting' }))
+      expect(await screen.findByText(/Stopped waiting/)).toBeTruthy()
+      expect(screen.getByText(/may still finish on the server/i)).toBeTruthy()
+      await waitFor(() => expect(onReviewActivity).toHaveBeenCalledWith(false))
+    } finally {
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
+    }
   })
 })

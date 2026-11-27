@@ -1,14 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { supabase } from '@/lib/supabase/client'
 import { missionsToBriefContext } from '@/lib/dailyBrief'
 import { homeMissionRoster, QUESTION_LIMIT } from '@/lib/homeRequest'
+import { homeTakeaway } from '@/lib/homeTakeaway'
 import type { Mission } from '@/types'
-import { parseVoiceAction } from '@/lib/liveVoiceAction'
+import { extractFinishCondition, parseVoiceAction } from '@/lib/liveVoiceAction'
 import styles from './CodexLiveVoice.module.css'
 
-export type LiveVoicePhase = 'idle' | 'connecting' | 'listening' | 'reasoning' | 'responding'
+export type LiveVoicePhase = 'idle' | 'connecting' | 'listening' | 'reasoning' | 'responding' | 'interrupted'
 type LiveEvent = {
   type?: string
   delta?: string
@@ -18,11 +21,34 @@ type LiveEvent = {
   delegation?: { id?: string; target?: string }
 }
 export type VoiceAnswer = { question: string; text: string; provider: string; actionTitle: string | null }
+export type VoiceSaveConflict = { existingTitle: string; missionTitle: string }
+export type VoiceSaveResult = { ok: boolean; error?: string; conflict?: VoiceSaveConflict }
+export type LiveVoiceSnapshot = {
+  active: boolean
+  phase: LiveVoicePhase
+  muted: boolean
+  label: string
+  detail: string
+  hasProposal: boolean
+  turnCount: number
+}
 type UserFragment = { text: string; start: number; end: number }
+type TranscriptEntry = {
+  id: string
+  question: string
+  text: string
+  provider: string
+  actionTitle: string | null
+  finishWhen: string | null
+  saved?: boolean
+}
 
 const MAX_SESSION_MS = 15 * 60 * 1000
 const MAX_SPOKEN_UPDATE = 1100
 const MAX_USER_PARTS = 500
+
+// Model-authored image URLs must never initiate background requests with project data.
+const markdownComponents = { img: ({ alt }: { alt?: string }) => <span>{alt}</span> }
 
 function sendLive(channel: RTCDataChannel, type: string, delegationId: string | null, content: string) {
   if (channel.readyState !== 'open') return
@@ -34,27 +60,63 @@ function sendLive(channel: RTCDataChannel, type: string, delegationId: string | 
   }))
 }
 
+export function liveVoiceActivityLabel(phase: LiveVoicePhase, muted: boolean): string {
+  if (phase === 'connecting') return 'Connecting…'
+  if (phase === 'reasoning') return 'Codex is working'
+  if (phase === 'responding') return 'Codex speaking'
+  if (phase === 'interrupted') return 'Connection interrupted'
+  if (phase === 'listening') return muted ? 'Microphone muted' : 'Listening'
+  return ''
+}
+
 /** Browser-side GPT-Live transport. Actual reasoning still uses owner-gated /api/brief. */
 export default function CodexLiveVoice({
-  missions, primaryMissionId, tier, disabled, canSave = false, onAnswer, onPhaseChange, onSaveAnswer,
+  missions,
+  primaryMissionId,
+  tier,
+  disabled,
+  canSave = false,
+  transcriptOpen = false,
+  onTranscriptOpenChange,
+  onAnswer,
+  onPhaseChange,
+  onSnapshotChange,
+  onSaveAnswer,
+  onOpenMission,
 }: {
   missions: Mission[]
   primaryMissionId: string | null
   tier: 'routine' | 'deep'
   disabled?: boolean
+  canSave?: boolean
+  transcriptOpen?: boolean
+  onTranscriptOpenChange?: (open: boolean) => void
   onAnswer: (answer: VoiceAnswer) => void
   onPhaseChange: (phase: LiveVoicePhase) => void
-  onSaveAnswer?: (answer: VoiceAnswer) => Promise<{ ok: boolean; error?: string }>
-  canSave?: boolean
+  onSnapshotChange?: (snapshot: LiveVoiceSnapshot) => void
+  onSaveAnswer?: (answer: VoiceAnswer) => Promise<VoiceSaveResult>
+  onOpenMission?: () => void
 }) {
   const [phase, setPhase] = useState<LiveVoicePhase>('idle')
   const [status, setStatus] = useState('')
+  const [muted, setMuted] = useState(false)
   const [inputCaption, setInputCaption] = useState('')
   const [outputCaption, setOutputCaption] = useState('')
-  const [lastAnswer, setLastAnswer] = useState<VoiceAnswer | null>(null)
+  const [entries, setEntries] = useState<TranscriptEntry[]>([])
+  const [activeProposal, setActiveProposal] = useState<TranscriptEntry | null>(null)
+  const [proposalOpen, setProposalOpen] = useState(false)
   const [audioBlocked, setAudioBlocked] = useState(false)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [saveError, setSaveError] = useState('')
+  const [saveConflict, setSaveConflict] = useState<VoiceSaveConflict | null>(null)
+  const [localTranscriptOpen, setLocalTranscriptOpen] = useState(false)
+
+  const isTranscriptOpen = onTranscriptOpenChange ? transcriptOpen : localTranscriptOpen
+  const setTranscriptVisible = useCallback((next: boolean) => {
+    if (onTranscriptOpenChange) onTranscriptOpenChange(next)
+    else setLocalTranscriptOpen(next)
+  }, [onTranscriptOpenChange])
+
   const peer = useRef<RTCPeerConnection | null>(null)
   const microphone = useRef<MediaStream | null>(null)
   const audio = useRef<HTMLAudioElement | null>(null)
@@ -71,9 +133,60 @@ export default function CodexLiveVoice({
   const userParts = useRef<UserFragment[]>([])
   const handledThrough = useRef(0)
   const previousTurns = useRef<Array<{ role: 'user' | 'assistant'; text: string }>>([])
+  const transcriptScrollRef = useRef<HTMLDivElement>(null)
+  const savedScrollTop = useRef(0)
+  const proposalDialogRef = useRef<HTMLDialogElement>(null)
+  const swipeOrigin = useRef<{ x: number; y: number } | null>(null)
   const currentInputs = useRef({ missions, primaryMissionId, tier, onAnswer })
+
   useEffect(() => { currentInputs.current = { missions, primaryMissionId, tier, onAnswer } }, [missions, primaryMissionId, tier, onAnswer])
   useEffect(() => { onPhaseChange(phase) }, [phase, onPhaseChange])
+
+  const active = phase !== 'idle'
+  const latestProposal = entries.slice().reverse().find(entry => Boolean(entry.actionTitle)) ?? null
+  const activeLabel = liveVoiceActivityLabel(phase, muted)
+
+  useEffect(() => {
+    onSnapshotChange?.({
+      active,
+      phase,
+      muted,
+      label: activeLabel,
+      detail: phase === 'interrupted' ? status : '',
+      hasProposal: Boolean(latestProposal && !latestProposal.saved),
+      turnCount: entries.length,
+    })
+  }, [active, phase, muted, activeLabel, status, latestProposal, entries.length, onSnapshotChange])
+
+  // Preserve reading position when returning to the transcript layer.
+  useEffect(() => {
+    if (!isTranscriptOpen) return
+    const scroller = transcriptScrollRef.current
+    if (scroller && savedScrollTop.current > 0) {
+      scroller.scrollTop = savedScrollTop.current
+    }
+  }, [isTranscriptOpen])
+
+  // Escape returns from the transcript curtain to the orb-first experience.
+  useEffect(() => {
+    if (!isTranscriptOpen || proposalOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setTranscriptVisible(false)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [isTranscriptOpen, proposalOpen, setTranscriptVisible])
+
+  // Native top-layer <dialog> for the compact Action Proposal sheet.
+  useEffect(() => {
+    const dialog = proposalDialogRef.current
+    if (!dialog) return
+    if (proposalOpen && activeProposal) {
+      if (!dialog.open) dialog.showModal()
+    } else if (dialog.open) {
+      dialog.close()
+    }
+  }, [proposalOpen, activeProposal])
 
   const stop = useCallback((message = 'Live conversation ended.') => {
     generation.current += 1
@@ -113,9 +226,12 @@ export default function CodexLiveVoice({
     }
     audio.current = null
     setAudioBlocked(false)
+    setMuted(false)
+    setProposalOpen(false)
+    setTranscriptVisible(false)
     setPhase('idle')
     setStatus(message)
-  }, [])
+  }, [setTranscriptVisible])
 
   useEffect(() => {
     // Only a session that was actually open can end. Without this guard,
@@ -132,6 +248,26 @@ export default function CodexLiveVoice({
     }
   }, [stop])
 
+  function toggleMute() {
+    const stream = microphone.current
+    if (!stream) return
+    const nextMuted = !muted
+    stream.getAudioTracks().forEach(track => { track.enabled = !nextMuted })
+    setMuted(nextMuted)
+  }
+
+  function openProposalSheet(entry: TranscriptEntry) {
+    setActiveProposal(entry)
+    setSaveState(entry.saved ? 'saved' : 'idle')
+    setSaveError('')
+    setSaveConflict(null)
+    setProposalOpen(true)
+  }
+
+  function closeProposalSheet() {
+    setProposalOpen(false)
+  }
+
   async function start() {
     if (phase !== 'idle' || disabled) return
     if (!navigator.mediaDevices?.getUserMedia || typeof RTCPeerConnection === 'undefined') {
@@ -141,11 +277,17 @@ export default function CodexLiveVoice({
 
     const attempt = ++generation.current
     setStatus('Checking Codex account access…')
+    setMuted(false)
     setInputCaption('')
     setOutputCaption('')
-    setLastAnswer(null)
+    setEntries([])
+    setActiveProposal(null)
+    setProposalOpen(false)
+    setTranscriptVisible(false)
+    savedScrollTop.current = 0
     setSaveState('idle')
     setSaveError('')
+    setSaveConflict(null)
     setPhase('connecting')
     userParts.current = []
     handledThrough.current = 0
@@ -204,12 +346,14 @@ export default function CodexLiveVoice({
         if (connection.connectionState === 'failed' || connection.connectionState === 'closed') {
           stop('Voice connection ended. No records were changed.')
         } else if (connection.connectionState === 'disconnected' && !disconnectTimer.current) {
+          setPhase('interrupted')
           setStatus('Reconnecting live voice…')
           disconnectTimer.current = setTimeout(() => stop('Voice connection lost. Start again to reconnect.'), 5000)
         } else if (connection.connectionState === 'connected' && disconnectTimer.current) {
           clearTimeout(disconnectTimer.current)
           disconnectTimer.current = null
-          setStatus('Live voice connected.')
+          setPhase('listening')
+          setStatus('')
         }
       }
 
@@ -227,7 +371,7 @@ export default function CodexLiveVoice({
           if (startupTimer.current) clearTimeout(startupTimer.current)
           startupTimer.current = null
           setPhase('listening')
-          setStatus('Listening. Interrupt or change direction whenever you want.')
+          setStatus('')
           const title = currentInputs.current.missions.find(m => m.id === currentInputs.current.primaryMissionId)?.title
           sendLive(events, 'session.thinking.append', null,
             title ? 'Current selected Primary mission: ' + title + '. Project changes require confirmation in the interface.'
@@ -246,6 +390,7 @@ export default function CodexLiveVoice({
             taskController.current.abort()
             taskController.current = null
           }
+          setStatus('')
           setPhase('listening')
         } else if (event.type === 'session.output_transcript.delta' && typeof event.delta === 'string') {
           setOutputCaption(previous => (previous + event.delta).slice(-700))
@@ -272,7 +417,7 @@ export default function CodexLiveVoice({
             const controller = new AbortController()
             taskController.current = controller
             setPhase('reasoning')
-            setStatus('Consulting real Codex missions, lessons and model routing…')
+            setStatus('')
             try {
               const current = currentInputs.current
               const scoped = homeMissionRoster(current.missions).slice(0, 40)
@@ -305,13 +450,22 @@ export default function CodexLiveVoice({
                 (names[result.provider || ''] || 'Codex') + (result.model ? ' · ' + result.model : '')
               const parsed = parseVoiceAction(result.text)
               const actual: VoiceAnswer = { question: utterance, text: parsed.text, provider, actionTitle: parsed.actionTitle }
+              const entry: TranscriptEntry = {
+                id: `${attempt}-${version}`,
+                ...actual,
+                finishWhen: extractFinishCondition(parsed.text),
+                saved: false,
+              }
               setSaveState('idle')
               setSaveError('')
+              setSaveConflict(null)
+              setInputCaption('')
+              setOutputCaption('')
               previousTurns.current = [...previousTurns.current, { role: 'user' as const, text: utterance },
                 { role: 'assistant' as const, text: parsed.text.slice(0, 4000) }].slice(-10)
-              setLastAnswer(actual)
+              setEntries(previous => [...previous, entry].slice(-20))
               current.onAnswer(actual)
-              setStatus('Real Codex response received. Nothing has been saved automatically.')
+              setStatus('')
               sendLive(events, 'session.commentary.append', delegationId,
                 'Legacy Codex backend returned this answer, which is not a saved action: ' +
                 parsed.text.slice(0, MAX_SPOKEN_UPDATE))
@@ -322,7 +476,7 @@ export default function CodexLiveVoice({
               setStatus(message + ' Nothing was saved.')
               sendLive(events, 'session.commentary.append', delegationId,
                 'The Codex backend could not complete that request. ' + message + ' No records were changed.')
-              setPhase('listening')
+              setPhase('interrupted')
             } finally {
               if (taskController.current === controller) taskController.current = null
             }
@@ -356,7 +510,7 @@ export default function CodexLiveVoice({
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) throw new Error('Sign in to your existing Codex account to use live voice.')
       accessToken.current = session.access_token
-      setStatus('Connecting to GPT-Live…')
+      setStatus('Connecting to live voice…')
       const response = await fetch('/api/live-voice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
@@ -391,55 +545,374 @@ export default function CodexLiveVoice({
     }
   }
 
-  const active = phase !== 'idle'
+  // Swipe up on the transcript handle / header returns smoothly to the orb
+  // without interfering with vertical scrolling or text selection inside the body.
+  const handleSwipeStart = (x: number, y: number) => {
+    swipeOrigin.current = { x, y }
+  }
+  const handleSwipeUpEnd = (x: number, y: number) => {
+    const startPoint = swipeOrigin.current
+    swipeOrigin.current = null
+    if (!startPoint) return
+    const dx = x - startPoint.x
+    const dy = y - startPoint.y
+    if (dy < -36 && Math.abs(dy) > Math.abs(dx) * 1.25) {
+      setTranscriptVisible(false)
+    }
+  }
+
+  async function confirmProposalSave() {
+    if (!activeProposal || !onSaveAnswer || saveState !== 'idle') return
+    setSaveState('saving')
+    setSaveError('')
+    setSaveConflict(null)
+    const result = await onSaveAnswer(activeProposal)
+    if (result.ok) {
+      setSaveState('saved')
+      setEntries(previous => previous.map(item => item.id === activeProposal.id ? { ...item, saved: true } : item))
+      setActiveProposal(current => current ? { ...current, saved: true } : current)
+    } else {
+      setSaveState('idle')
+      if (result.conflict) {
+        setSaveConflict(result.conflict)
+        setSaveError('')
+      } else {
+        setSaveError(result.error || 'Could not save this action.')
+      }
+    }
+  }
+
+  const hasLiveCaption = Boolean(inputCaption.trim() || outputCaption.trim())
+
   return (
     <section className={styles.root} data-active={active ? 'true' : undefined} aria-label="Legacy Codex live voice">
       {!active ? (
-        <button type="button" className={styles.start} disabled={disabled} title="Live audio is billed per connected second. No project write happens without confirmation." aria-description="Live audio is billed per connected second. No project write happens without confirmation." onClick={() => void start()}>
+        <button
+          type="button"
+          className={styles.start}
+          disabled={disabled}
+          title="Live audio is billed per connected second. No project write happens without confirmation."
+          onClick={() => void start()}
+        >
           <span aria-hidden="true">◉</span> Talk live with Codex
         </button>
       ) : (
         <div className={styles.controls}>
-          <p className={styles.state} role="status">
-            {phase === 'connecting' ? 'Connecting' : phase === 'reasoning' ? 'Codex is working' : phase === 'responding' ? 'Codex responding' : 'Listening'}
-          </p>
-          {inputCaption && <p className={styles.caption} data-role="user"><span>You</span> {inputCaption}</p>}
-          {outputCaption && <p className={styles.caption} data-role="codex"><span>Codex</span> {outputCaption}</p>}
-          {lastAnswer && (
-            <section className={styles.answer} aria-label="Codex answer and proposed action">
-              <p className={styles.answerMeta}>{lastAnswer.provider} · spoken answer</p>
-              <p className={styles.userTurn}><span>You</span>{lastAnswer.question}</p>
-              <div className={styles.assistantTurn}><span>Codex</span><p>{lastAnswer.text}</p></div>
-              {lastAnswer.actionTitle ? (
-                <div className={styles.proposedAction}>
-                  <p>Proposed next action</p>
-                  <strong>{lastAnswer.actionTitle}</strong>
-                  {onSaveAnswer && canSave ? (
-                    <button type="button" className={styles.save} disabled={saveState !== 'idle'} onClick={() => {
-                      setSaveState('saving')
-                      setSaveError('')
-                      void onSaveAnswer(lastAnswer).then(result => {
-                        if (result.ok) setSaveState('saved')
-                        else { setSaveState('idle'); setSaveError(result.error || 'Could not save this action.') }
-                      })
-                    }}>
-                      {saveState === 'saved' ? 'Saved as next action' : saveState === 'saving' ? 'Saving…' : 'Save as my next action'}
-                    </button>
-                  ) : (
-                    <p className={styles.noAction}>Choose a Primary mission in Mission before saving this action.</p>
-                  )}
-                  {saveError && <p className={styles.saveError} role="alert">{saveError}</p>}
-                </div>
-              ) : (
-                <p className={styles.noAction}>No concrete action was proposed, so there is nothing to save from this answer.</p>
-              )}
-            </section>
+          {phase === 'interrupted' && status && (
+            <p className={styles.interruptedNote} role="status">{status}</p>
           )}
-          {audioBlocked && <button type="button" className={styles.audio} onClick={() => void audio.current?.play().then(() => setAudioBlocked(false)).catch(() => setStatus('Speaker playback is blocked in this browser.'))}>Enable speaker audio</button>}
-          <button type="button" className={styles.end} onClick={() => stop()}>End voice session</button>
+
+          {latestProposal && (
+            <button
+              type="button"
+              className={styles.proposalPill}
+              data-saved={latestProposal.saved ? 'true' : undefined}
+              onClick={() => openProposalSheet(latestProposal)}
+            >
+              <span className={styles.proposalDot} aria-hidden="true" />
+              <span>{latestProposal.saved ? 'Action saved · View' : 'Proposed action ready · Review'}</span>
+            </button>
+          )}
+
+          {audioBlocked && (
+            <button
+              type="button"
+              className={styles.audio}
+              onClick={() => void audio.current?.play().then(() => setAudioBlocked(false)).catch(() => setStatus('Speaker playback is blocked in this browser.'))}
+            >
+              Enable speaker audio
+            </button>
+          )}
+
+          <div className={styles.bar} role="group" aria-label="Voice session controls">
+            <button
+              type="button"
+              className={styles.iconBtn}
+              aria-pressed={muted}
+              aria-label={muted ? 'Unmute microphone' : 'Mute microphone'}
+              disabled={phase === 'connecting'}
+              onClick={toggleMute}
+            >
+              {muted ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <line x1="2" y1="2" x2="22" y2="22" />
+                  <path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2" />
+                  <path d="M5 10v2a7 7 0 0 0 12 5" />
+                  <path d="M15 9.34V5a3 3 0 0 0-5.68-1.33" />
+                  <path d="M9 9v3a3 3 0 0 0 5.12 2.12" />
+                  <line x1="12" y1="19" x2="12" y2="22" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="9" y="2" width="6" height="12" rx="3" />
+                  <path d="M5 10v2a7 7 0 0 0 14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="22" />
+                </svg>
+              )}
+              <span>{muted ? 'Unmute' : 'Mute'}</span>
+            </button>
+
+            <button
+              type="button"
+              className={styles.transcriptToggle}
+              aria-expanded={isTranscriptOpen}
+              aria-controls="live-voice-transcript"
+              onClick={() => setTranscriptVisible(!isTranscriptOpen)}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 6h16M4 12h12M4 18h8" />
+              </svg>
+              <span>Transcript{entries.length > 0 ? ` · ${entries.length}` : ''}</span>
+            </button>
+
+            <button
+              type="button"
+              className={styles.end}
+              aria-label="End voice session"
+              onClick={() => stop()}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+              <span>End</span>
+            </button>
+          </div>
         </div>
       )}
-      {status && <p className={styles.notice} role="status">{status}</p>}
+
+      {/* Secondary Transcript Layer: mounted while active so reading position,
+          audio playback, and mic capture stay uninterrupted across transitions. */}
+      {active && (
+        <div
+          id="live-voice-transcript"
+          role="region"
+          aria-label="Live voice transcript"
+          aria-hidden={!isTranscriptOpen}
+          className={styles.transcriptCurtain}
+          data-open={isTranscriptOpen ? 'true' : undefined}
+        >
+          <header
+            className={styles.transcriptHeader}
+            onTouchStart={event => {
+              const t = event.touches[0]
+              if (t) handleSwipeStart(t.clientX, t.clientY)
+            }}
+            onTouchEnd={event => {
+              const t = event.changedTouches[0]
+              if (t) handleSwipeUpEnd(t.clientX, t.clientY)
+            }}
+            onPointerDown={event => {
+              if (event.pointerType === 'touch') return
+              handleSwipeStart(event.clientX, event.clientY)
+            }}
+            onPointerUp={event => {
+              if (event.pointerType === 'touch') return
+              handleSwipeUpEnd(event.clientX, event.clientY)
+            }}
+          >
+            <div className={styles.transcriptState}>
+              <span className={styles.liveDot} data-phase={phase} aria-hidden="true" />
+              <span>{activeLabel}</span>
+            </div>
+            <button
+              type="button"
+              className={styles.backToOrb}
+              onClick={() => setTranscriptVisible(false)}
+            >
+              Back to orb ↑
+            </button>
+          </header>
+
+          <div
+            ref={transcriptScrollRef}
+            className={styles.transcriptBody}
+            onScroll={event => { savedScrollTop.current = event.currentTarget.scrollTop }}
+          >
+            {entries.length === 0 && !hasLiveCaption ? (
+              <p className={styles.emptyTranscript}>
+                {phase === 'connecting'
+                  ? 'Connecting your live conversation…'
+                  : 'Speak naturally. Your live transcript will appear here as you talk.'}
+              </p>
+            ) : (
+              <div className={styles.turnList}>
+                {entries.map(entry => (
+                  <article key={entry.id} className={styles.turnGroup}>
+                    <div className={styles.userBubble}>
+                      <span className={styles.speakerLabel}>You</span>
+                      <p>{entry.question}</p>
+                    </div>
+                    <div className={styles.codexTurn}>
+                      <span className={styles.speakerLabelCodex}>Codex</span>
+                      <div className={styles.markdown}>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                          {entry.text}
+                        </ReactMarkdown>
+                      </div>
+                      <div className={styles.turnFooter}>
+                        <span className={styles.turnProvider}>{entry.provider}</span>
+                        {entry.actionTitle && (
+                          <button
+                            type="button"
+                            className={styles.inlineProposalBtn}
+                            onClick={() => openProposalSheet(entry)}
+                          >
+                            {entry.saved ? 'Action saved · View' : 'Review proposed action'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                ))}
+
+                {inputCaption.trim() && (
+                  <div className={styles.liveCaption} data-role="user">
+                    <span className={styles.speakerLabel}>You</span>
+                    <p>{inputCaption}</p>
+                  </div>
+                )}
+                {outputCaption.trim() && (
+                  <div className={styles.liveCaption} data-role="codex">
+                    <span className={styles.speakerLabelCodex}>Codex</span>
+                    <p>{outputCaption}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div
+            className={styles.swipeHandleZone}
+            onTouchStart={event => {
+              const t = event.touches[0]
+              if (t) handleSwipeStart(t.clientX, t.clientY)
+            }}
+            onTouchEnd={event => {
+              const t = event.changedTouches[0]
+              if (t) handleSwipeUpEnd(t.clientX, t.clientY)
+            }}
+            onPointerDown={event => {
+              if (event.pointerType === 'touch') return
+              handleSwipeStart(event.clientX, event.clientY)
+            }}
+            onPointerUp={event => {
+              if (event.pointerType === 'touch') return
+              handleSwipeUpEnd(event.clientX, event.clientY)
+            }}
+          >
+            <span className={styles.swipePill} aria-hidden="true" />
+            <span className={styles.swipeHint}>Swipe up for orb</span>
+          </div>
+        </div>
+      )}
+
+      {/* Compact Action Proposal Sheet: top-layer dialog, never covers orb or transcript by default. */}
+      <dialog
+        ref={proposalDialogRef}
+        className={styles.proposalDialog}
+        aria-labelledby="voice-proposal-title"
+        onCancel={closeProposalSheet}
+        onClose={closeProposalSheet}
+        onClick={event => { if (event.target === event.currentTarget) closeProposalSheet() }}
+      >
+        {activeProposal && (
+          <div className={styles.proposalSheet}>
+            <header className={styles.proposalHeader}>
+              <span className={styles.proposalStatus} data-saved={saveState === 'saved' || activeProposal.saved ? 'true' : undefined}>
+                {saveState === 'saved' || activeProposal.saved ? 'Saved as next action' : 'Proposed action · not saved'}
+              </span>
+              <button
+                type="button"
+                className={styles.proposalClose}
+                aria-label="Close proposed action"
+                onClick={closeProposalSheet}
+              >
+                ✕
+              </button>
+            </header>
+
+            <h3 id="voice-proposal-title" className={styles.proposalActionTitle}>
+              {activeProposal.actionTitle}
+            </h3>
+
+            <div className={styles.proposalField}>
+              <span className={styles.proposalFieldLabel}>Why it matters</span>
+              <p>{homeTakeaway(activeProposal.text)}</p>
+            </div>
+
+            {activeProposal.finishWhen && (
+              <div className={styles.proposalField}>
+                <span className={styles.proposalFieldLabel}>Finish when</span>
+                <p>{activeProposal.finishWhen}</p>
+              </div>
+            )}
+
+            {saveConflict && (
+              <div className={styles.conflictBox} role="alert">
+                <p className={styles.conflictLead}>
+                  You already have a saved next step for this mission. Nothing was overwritten.
+                </p>
+                <p className={styles.conflictHint}>
+                  Open Mission to resume, complete, or explicitly replace it.
+                </p>
+                <details className={styles.conflictDetails}>
+                  <summary>Existing saved action</summary>
+                  <div className={styles.conflictDetailsBody}>
+                    <p><strong>Action:</strong> {saveConflict.existingTitle}</p>
+                    <p><strong>Mission:</strong> {saveConflict.missionTitle}</p>
+                  </div>
+                </details>
+                {onOpenMission && (
+                  <button
+                    type="button"
+                    className={styles.conflictAction}
+                    onClick={() => { closeProposalSheet(); onOpenMission() }}
+                  >
+                    Open Mission
+                  </button>
+                )}
+              </div>
+            )}
+
+            {saveError && !saveConflict && (
+              <p className={styles.saveError} role="alert">{saveError}</p>
+            )}
+
+            <div className={styles.proposalActions}>
+              {onSaveAnswer && canSave ? (
+                <button
+                  type="button"
+                  className={styles.save}
+                  disabled={saveState !== 'idle' || activeProposal.saved}
+                  onClick={() => void confirmProposalSave()}
+                >
+                  {saveState === 'saved' || activeProposal.saved
+                    ? 'Saved as next action'
+                    : saveState === 'saving'
+                      ? 'Saving…'
+                      : 'Save as my next action'}
+                </button>
+              ) : (
+                <p className={styles.noAction}>Choose a Primary mission in Mission before saving this action.</p>
+              )}
+            </div>
+
+            <details className={styles.supportingDetails}>
+              <summary>Supporting details</summary>
+              <div className={styles.supportingBody}>
+                <p className={styles.supportingProvider}>{activeProposal.provider}</p>
+                <div className={styles.markdown}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                    {activeProposal.text}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            </details>
+          </div>
+        )}
+      </dialog>
+
+      {!active && status && <p className={styles.notice} role="status">{status}</p>}
       {!active && <p className={styles.cost}>Live audio is billed per connected second. No project write happens without confirmation.</p>}
     </section>
   )
