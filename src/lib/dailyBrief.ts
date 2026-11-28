@@ -136,10 +136,11 @@ export function buildBriefDirective(mode: BriefMode, missions: BriefMissionConte
   }
 
   if (mode === 'architect' || mode === 'unblock') {
-    return target ? buildSingleMissionDirective(mode, missions[0], target) : 'No mission was chosen. Say plainly that a mission must be chosen first — do not pick one.'
+    return target ? buildSingleMissionDirective(mode, missions[0], target, withTerritory) : 'No mission was chosen. Say plainly that a mission must be chosen first — do not pick one.'
   }
 
   const roster = missions.map(describeMission).join('\n')
+  const territoryToo = withTerritory ? ', and in the saved Territory evidence below' : ''
 
   if (mode === 'triage') {
     const stalled = stalledMissions(missions)
@@ -147,7 +148,7 @@ export function buildBriefDirective(mode: BriefMode, missions: BriefMissionConte
       return `Missions:\n${roster}\n\nNone of these are blocked or capacity-mismatched right now. Say so in one line; do not invent a problem to solve.`
     }
     const stalledRoster = stalled.map(describeMission).join('\n')
-    return `All missions:\n${roster}\n\nBlocked or capacity-mismatched right now:\n${stalledRoster}\n\nFor each one listed as blocked or capacity-mismatched: name one concrete, physical next action that would actually test or clear it. Ground every suggestion in the blocker or why text given — never invent a blocker that was not stated.`
+    return `All missions:\n${roster}\n\nBlocked or capacity-mismatched right now:\n${stalledRoster}\n\nFor each one listed as blocked or capacity-mismatched: name one concrete, physical next action that would actually test or clear it. Ground every suggestion in the blocker or why text given${territoryToo} — never invent a blocker that was not stated.`
   }
 
   if (mode === 'question') {
@@ -155,7 +156,7 @@ export function buildBriefDirective(mode: BriefMode, missions: BriefMissionConte
     return `Missions:\n${roster}\n\nQuestion: ${q}`
   }
 
-  return `Missions:\n${roster}\n\nGive the 3 highest-leverage moves across these missions right now, grounded only in the state, why, finish line, and blocker text given above.`
+  return `Missions:\n${roster}\n\nGive the 3 highest-leverage moves across these missions right now, grounded only in the state, why, finish line, and blocker text given above${territoryToo}.`
 }
 
 function describeAction(action: BriefActionContext): string {
@@ -165,11 +166,12 @@ function describeAction(action: BriefActionContext): string {
 // Each Architect Scan line is bound to named saved fields. Where those fields
 // are empty the directive itself carries the Unknown line, so "nothing saved"
 // is decided here and testable, not left to the model's judgement.
-function buildSingleMissionDirective(mode: 'architect' | 'unblock', m: BriefMissionContext, target: BriefTarget): string {
+function buildSingleMissionDirective(mode: 'architect' | 'unblock', m: BriefMissionContext, target: BriefTarget, withTerritory = false): string {
   const header = `The only mission in scope:\n${describeMission(m)}`
+  const hops = withTerritory ? ' and this mission\'s saved one-hop connections listed below (say "via connection" when you use one)' : ''
   if (mode === 'unblock') {
     const wall = target.kind === 'action' && target.action ? `Saved unfinished action: ${describeAction(target.action)}` : `Saved blocker: ${m.blocker}`
-    return `${header}\n\nWall to break — ${wall}\n\nGive the smallest physical action or command that can be done in 30 minutes and makes measurable progress on exactly this wall. One sentence. Ground it only in the saved text above. If that text is too thin to ground a concrete step, output exactly: NONE`
+    return `${header}\n\nWall to break — ${wall}\n\nGive the smallest physical action or command that can be done in 30 minutes and makes measurable progress on exactly this wall. One sentence. Ground it only in the saved text above${hops}. If that text is too thin to ground a concrete step, output exactly: NONE`
   }
 
   const saved = (value: string | null | undefined) => value?.trim() || UNKNOWN_LINE
@@ -192,7 +194,7 @@ Saved fields:
 - Blocker: ${saved(blocking)}
 - Unfinished saved action: ${target.action ? describeAction(target.action) : UNKNOWN_LINE}
 
-Return exactly six lines, in this order, each starting with its label. Use only the saved fields above.
+Return exactly six lines, in this order, each starting with its label. Use only the saved fields above${hops}.
 ${line('Intended end-state', m.finishLine || target.evidenceRequirement, 'restate what the finish line and evidence requirement say the finished state is')}
 Current reality: summarize the state "${m.state}"${m.capacityMismatch ? ', the reported capacity mismatch' : ''} and the unfinished saved action, if any
 ${line("What's blocking", blocking, 'name the saved blocker; do not add any other blocker')}
