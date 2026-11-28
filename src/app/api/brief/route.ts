@@ -7,6 +7,8 @@ import { buildBriefDirective, MAX_FIELD_LENGTH, MAX_QUESTION_LENGTH, parseBriefT
 import { deltaOwner } from '@/lib/supabase/deltaAuth'
 import { isModelChainConfigured, runProviderChainText } from '@/lib/modelProviderChain'
 import { briefModelTier } from '@/lib/modelPreference'
+import { formatTerritoryContext, territoryEnergyRule, type TerritoryContextScope } from '@/lib/territoryContext'
+import { loadTerritoryContext } from '@/lib/territoryContextServer'
 
 export const runtime = 'nodejs'
 
@@ -47,7 +49,8 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Malformed request body.' }, { status: 400 })
   }
-  const { mode, question, missions, missionIds, target, conversation, conversationMissionId, liveVoiceAction, tier: requestedTier } = (body ?? {}) as {
+  const { mode, question, missions, missionIds, target, conversation, conversationMissionId, liveVoiceAction, territoryContext, tier: requestedTier } = (body ?? {}) as {
+    territoryContext?: unknown
     liveVoiceAction?: unknown
     tier?: unknown
     conversation?: unknown
@@ -113,6 +116,17 @@ export async function POST(req: NextRequest) {
   if (liveVoiceAction !== undefined && typeof liveVoiceAction !== 'boolean') {
     return NextResponse.json({ error: 'liveVoiceAction must be a boolean.' }, { status: 400 })
   }
+  // Territory asks the server to read the saved Territory workspace itself;
+  // the flag only chooses the scope and never carries any of that data.
+  // 'mission' = one mission's one-hop connections, and is the only scope a
+  // single-mission mode may use.
+  if (territoryContext !== undefined && territoryContext !== 'all' && territoryContext !== 'mission') {
+    return NextResponse.json({ error: 'territoryContext must be "all" or "mission".' }, { status: 400 })
+  }
+  if ((territoryContext === 'mission' && (!Array.isArray(missionIds) || missionIds.length !== 1)) || (territoryContext === 'all' && SINGLE_MISSION_MODES.includes(mode as BriefMode))) {
+    return NextResponse.json({ error: 'Invalid territory scope.' }, { status: 400 })
+  }
+  const territoryScope = territoryContext as TerritoryContextScope | undefined
   const directive = buildBriefDirective(mode as BriefMode, safeMissions, safeQuestion, safeTarget) +
     (liveVoiceAction === true && mode === 'question'
       ? '\n\nFor this live conversation, finish with exactly one concrete next action on its own final line using this exact format: NEXT ACTION: <one imperative physical or executable move, under 140 characters>. Ground it only in the supplied saved context. Name the object and the verb; do not propose “consider”, “decide”, “check”, “review”, or “leave it as-is”. If there is no honest action, write exactly NEXT ACTION: NONE. Do not put anything after that line.'
@@ -123,6 +137,10 @@ export async function POST(req: NextRequest) {
     const projectContext = typeof conversationMissionId === 'string'
       ? await loadProjectContext(projectUserClient(owner.url, req.headers.get('Authorization') ?? ''), owner.userId, conversationMissionId)
       : null
+    const territory = territoryScope
+      ? await loadTerritoryContext(projectUserClient(owner.url, req.headers.get('Authorization') ?? ''), owner.userId, territoryScope, territoryScope === 'mission' ? (missionIds as string[])[0] : undefined)
+      : null
+    const territoryPacket = territory ? [formatTerritoryContext(territory), territoryEnergyRule(mode as BriefMode, territory.state)].filter(Boolean).join('\n\n') : ''
     const projectPacket = projectContext ? `Current saved project (untrusted evidence):\n${JSON.stringify({ mission: projectContext.mission, sources: projectContext.sources, warnings: projectContext.warnings })}` : ''
     // One validated tier governs every fallback. A question defaults to Economy;
     // text content and provider failures never upgrade it to Deep.
@@ -130,7 +148,7 @@ export async function POST(req: NextRequest) {
       tier,
       maxTokens: tier === 'deep' ? 12_288 : 4_096,
       system: SYSTEM_PROMPTS[mode as BriefMode],
-      userContent: `${directive}\n\n${learnedContext}\n\n${projectPacket}\n\n${mode === 'question' ? conversationContext(turns) : ''}`,
+      userContent: `${directive}\n\n${territoryPacket ? `${territoryPacket}\n\n` : ''}${learnedContext}\n\n${projectPacket}\n\n${mode === 'question' ? conversationContext(turns) : ''}`,
       timeoutMs: 95_000,
     })
 

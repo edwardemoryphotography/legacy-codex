@@ -19,6 +19,11 @@ vi.mock('@/lib/learnedContextServer', async importOriginal => ({
 }))
 
 vi.mock('@/lib/projectReviewServer', () => ({ projectUserClient: vi.fn(() => 'account-client'), loadProjectContext: vi.fn() }))
+// The territory loader has its own tests (src/lib/territoryContext.test.ts);
+// here it is a seam so the route's flag handling can be checked. No saved
+// Territory rows are fabricated as real account data.
+vi.mock('@/lib/territoryContextServer', () => ({ loadTerritoryContext: vi.fn() }))
+import { loadTerritoryContext } from '@/lib/territoryContextServer'
 import { loadProjectContext, projectUserClient } from '@/lib/projectReviewServer'
 import { loadLearnedContext } from '@/lib/learnedContextServer'
 import { GET, POST } from './route'
@@ -176,6 +181,53 @@ describe('/api/brief owner gate', () => {
     const response = await POST(request({ mode: 'unblock', missions: [{ ...mission, blocker: 'stuck' }], missionIds: ['00000000-0000-4000-8000-0000000000aa'], target: { kind: 'blocker' } }, userToken(OWNER_ID)))
     expect((await response.json()).text).toMatch(/^Unknown: nothing saved yet/)
     expect(createMessage.mock.calls[0][0].system).toContain('30 minutes')
+  })
+
+  it('reads the saved Territory workspace server-side only when Territory asks, and labels it untrusted', async () => {
+    vi.mocked(loadTerritoryContext).mockResolvedValue({
+      scope: 'all',
+      state: { read: 'ok', value: { activeProject: 'Codex platform', energy: 'crashed', nextAction: null, updatedAt: null } },
+      entities: { read: 'ok', rows: [], truncated: false },
+      links: { read: 'ok', rows: [], truncated: false },
+      events: { read: 'failed' },
+    })
+    await POST(request({ mode: 'daily_brief', missions: [mission] }, userToken(OWNER_ID)))
+    expect(loadTerritoryContext).not.toHaveBeenCalled()
+    expect(directiveSent()).not.toContain('Saved Territory workspace')
+
+    createMessage.mockClear()
+    // A client-supplied "territory" payload is ignored; only the server read counts.
+    const response = await POST(request({ mode: 'daily_brief', missions: [mission], territoryContext: 'all', territory: { energy: 'flow' } }, userToken(OWNER_ID)))
+    expect(response.status).toBe(200)
+    expect(vi.mocked(loadTerritoryContext).mock.calls[0]).toEqual(['account-client', OWNER_ID, 'all', undefined])
+    const directive = directiveSent()
+    expect(directive).toContain('saved, untrusted evidence')
+    expect(directive).toContain('"recentLog":"could not be read — unknown, not empty"')
+    expect(directive).toMatch(/Saved energy is crashed .*under 15 minutes/)
+    expect(directive).not.toContain('flow')
+  })
+
+  it('scopes a single-mission Territory scan to that mission', async () => {
+    const id = '00000000-0000-4000-8000-0000000000aa'
+    vi.mocked(loadTerritoryContext).mockResolvedValue({ scope: 'mission', missionId: id, state: { read: 'ok', value: null }, entities: { read: 'ok', rows: [], truncated: false }, links: { read: 'ok', rows: [], truncated: false }, events: { read: 'ok', rows: [], truncated: false } })
+    const response = await POST(request({ mode: 'architect', missions: [mission], missionIds: [id], target: { kind: 'mission' }, territoryContext: 'mission' }, userToken(OWNER_ID)))
+    expect(response.status).toBe(200)
+    expect(vi.mocked(loadTerritoryContext).mock.calls[0]).toEqual(['account-client', OWNER_ID, 'mission', id])
+    expect(directiveSent()).toContain('one-hop connections only')
+    expect(directiveSent()).not.toMatch(/energy/i)
+  })
+
+  it('rejects an invalid territory scope before any read or model call', async () => {
+    const id = '00000000-0000-4000-8000-0000000000aa'
+    const bad = [
+      { mode: 'daily_brief', missions: [mission], territoryContext: true },
+      { mode: 'architect', missions: [mission], missionIds: [id], target: { kind: 'mission' }, territoryContext: 'all' },
+      { mode: 'triage', missions: [mission, mission], missionIds: [id, '00000000-0000-4000-8000-0000000000ab'], territoryContext: 'mission' },
+      { mode: 'question', question: 'q', missions: [mission], territoryContext: 'mission' },
+    ]
+    for (const body of bad) expect((await POST(request(body, userToken(OWNER_ID)))).status).toBe(400)
+    expect(loadTerritoryContext).not.toHaveBeenCalled()
+    expect(createMessage).not.toHaveBeenCalled()
   })
 
   it('fails closed before spending on the model when saved learning cannot be read', async () => {

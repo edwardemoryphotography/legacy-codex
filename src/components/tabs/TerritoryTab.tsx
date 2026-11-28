@@ -179,7 +179,7 @@ export default function TerritoryTab() {
                   key={mode}
                   variant={mode === 'daily_brief' ? 'primary' : 'secondary'}
                   disabled={brief.status === 'running' || !brief.configured || brief.visitor || missions.length === 0}
-                  onClick={() => void brief.run(mode, { mode, missions: missionsToBriefContext(missions), missionIds: missions.slice(0, 40).map(m => m.id) }, mode === 'daily_brief' ? 'Daily Brief · all missions' : 'Triage · all missions')}
+                  onClick={() => void brief.run(mode, { mode, missions: missionsToBriefContext(missions), missionIds: missions.slice(0, 40).map(m => m.id), territoryContext: 'all' }, mode === 'daily_brief' ? 'Daily Brief · all missions' : 'Triage · all missions')}
                 >
                   {brief.status === 'running' && brief.activeMode === mode ? 'Thinking…' : mode === 'daily_brief' ? 'Daily Brief' : 'Triage'}
                 </ActionBtn>
@@ -261,7 +261,7 @@ function MissionDetail({ card, actionsRead, brief, onBack }: {
       <Card className="mb-4">
         <MissionFacts card={card} actionsRead={actionsRead} heading />
         <div className="mt-3">
-          <MissionBriefPanel key={card.mission.id} mission={card.mission} action={card.action} actionsRead={actionsRead} brief={brief} withTriageAndAsk />
+          <MissionBriefPanel key={card.mission.id} mission={card.mission} action={card.action} actionsRead={actionsRead} brief={brief} withTriageAndAsk territoryContext />
         </div>
       </Card>
       <BriefOutput brief={brief} />
