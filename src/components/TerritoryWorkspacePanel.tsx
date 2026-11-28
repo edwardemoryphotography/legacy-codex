@@ -94,6 +94,7 @@ export default function TerritoryWorkspacePanel({ missions, entities, workspace,
       question: q,
       missions: missionsToBriefContext(missions),
       missionIds: missions.slice(0, 40).map(mission => mission.id),
+      territoryContext: 'all',
     }, 'Territory question')
   }
 
@@ -187,7 +188,7 @@ export default function TerritoryWorkspacePanel({ missions, entities, workspace,
 
       <Card>
         <FieldLabel>Ask about this territory</FieldLabel>
-        <p className="text-sm mb-2" style={{ color: 'var(--text-soft)' }}>Uses the existing owner-gated Brief path over saved missions. Nothing is saved by asking.</p>
+        <p className="text-sm mb-2" style={{ color: 'var(--text-soft)' }}>Uses your saved missions, and the server also reads your saved entities, connections, active state and latest 20 log entries. Nothing is saved by asking.</p>
         <Textarea value={question} onChange={setQuestion} rows={3} compact placeholder="What connects this work? What should I do next?" />
         <div className="flex flex-wrap items-center gap-2 mt-2">
           <ActionBtn onClick={ask} disabled={brief.status === 'running' || !brief.configured || brief.visitor || !question.trim()}>{brief.status === 'running' ? 'Thinking…' : 'Ask'}</ActionBtn>

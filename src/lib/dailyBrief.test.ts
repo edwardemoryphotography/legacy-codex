@@ -202,4 +202,20 @@ describe('presentBriefText', () => {
     expect(presentBriefText('architect', 'NONE')).toBe('NONE')
     expect(presentBriefText('daily_brief', '')).toBe('No brief text returned.')
   })
+  it('lets a Territory question with no saved missions use the saved workspace, without inventing missions', () => {
+    const plain = buildBriefDirective('question', [], 'What connects this?')
+    const territory = buildBriefDirective('question', [], 'What connects this?', undefined, true)
+    expect(plain).toMatch(/do not invent project context or claim anything was saved/)
+    expect(territory).toMatch(/saved Territory workspace supplied below/)
+    expect(territory).toMatch(/do not invent missions/)
+    expect(territory).not.toMatch(/claim anything was saved\./)
+  })
+  it('widens each mission directive to the saved Territory evidence only when Territory supplies it', () => {
+    const m = { title: 'M', state: 'blocked' as const, why: 'w', finishLine: 'f', blocker: 'b', capacityMismatch: false }
+    const target = { kind: 'mission' as const, evidenceRequirement: null, action: null }
+    for (const [mode, t] of [['daily_brief', undefined], ['triage', undefined], ['architect', target], ['unblock', { ...target, kind: 'blocker' as const }]] as const) {
+      expect(buildBriefDirective(mode, [m], undefined, t)).not.toMatch(/Territory|one-hop/)
+      expect(buildBriefDirective(mode, [m], undefined, t, true)).toMatch(/saved Territory evidence below|one-hop connections listed below/)
+    }
+  })
 })

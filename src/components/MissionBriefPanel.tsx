@@ -23,13 +23,16 @@ const MODE_LABELS: Partial<Record<BriefMode, string>> = { architect: 'Architect 
 
 // Model calls about ONE mission. Render with key={mission.id} so the chosen
 // wall and question reset with the mission; the parent resets the runner.
-export default function MissionBriefPanel({ mission, action, acceptance = null, actionsRead, brief, withTriageAndAsk = false }: {
+export default function MissionBriefPanel({ mission, action, acceptance = null, actionsRead, brief, withTriageAndAsk = false, territoryContext = false }: {
   mission: Mission
   action: OpenAction | null
   acceptance?: AcceptanceSnapshot | null
   actionsRead: ReadState
   brief: BriefRunner
   withTriageAndAsk?: boolean
+  // Territory only: the server also reads this mission's saved one-hop
+  // connections and the saved energy level. Brief leaves it off.
+  territoryContext?: boolean
 }) {
   const [wall, setWall] = useState<Wall | ''>('')
   const [question, setQuestion] = useState('')
@@ -72,6 +75,7 @@ export default function MissionBriefPanel({ mission, action, acceptance = null, 
     // even if the server default ever changes. Architect/Break Wall keep
     // their existing explicit Deep default.
     if (mode === 'question' || mode === 'triage') body.tier = 'routine'
+    if (territoryContext) body.territoryContext = 'mission'
     void brief.run(mode, body, label)
   }
   const thinking = (mode: BriefMode) => busy && brief.activeMode === mode
