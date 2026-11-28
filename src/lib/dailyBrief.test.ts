@@ -202,4 +202,12 @@ describe('presentBriefText', () => {
     expect(presentBriefText('architect', 'NONE')).toBe('NONE')
     expect(presentBriefText('daily_brief', '')).toBe('No brief text returned.')
   })
+  it('lets a Territory question with no saved missions use the saved workspace, without inventing missions', () => {
+    const plain = buildBriefDirective('question', [], 'What connects this?')
+    const territory = buildBriefDirective('question', [], 'What connects this?', undefined, true)
+    expect(plain).toMatch(/do not invent project context or claim anything was saved/)
+    expect(territory).toMatch(/saved Territory workspace supplied below/)
+    expect(territory).toMatch(/do not invent missions/)
+    expect(territory).not.toMatch(/claim anything was saved\./)
+  })
 })

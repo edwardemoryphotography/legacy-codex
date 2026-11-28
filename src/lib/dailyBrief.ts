@@ -123,10 +123,13 @@ function describeMission(m: BriefMissionContext): string {
 // Pure and exported so it is testable without a network call or a server
 // route — see dailyBrief.test.ts. Given the same missions and mode, this
 // always produces the same directive text.
-export function buildBriefDirective(mode: BriefMode, missions: BriefMissionContext[], question?: string, target?: BriefTarget): string {
+// withTerritory: the server appends the saved Territory workspace after this
+// directive, so an empty mission list must not forbid using it.
+export function buildBriefDirective(mode: BriefMode, missions: BriefMissionContext[], question?: string, target?: BriefTarget, withTerritory = false): string {
   if (missions.length === 0) {
     if (mode === 'question') {
       const q = (question ?? '').trim() || 'What matters most right now?'
+      if (withTerritory) return `There are no saved missions for this account. Answer the question using the person's supplied text and the saved Territory workspace supplied below, citing those saved items; do not invent missions or claim anything else was saved. Ask one concrete clarification if needed.\n\nQuestion: ${q}`
       return `There are no saved missions for this account. Answer the question using only the person's supplied text; do not invent project context or claim anything was saved. Ask one concrete clarification if needed.\n\nQuestion: ${q}`
     }
     return 'No missions exist yet for this account. Say plainly that there is nothing to brief until a mission is added — do not invent one.'

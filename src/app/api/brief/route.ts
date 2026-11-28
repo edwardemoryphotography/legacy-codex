@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid territory scope.' }, { status: 400 })
   }
   const territoryScope = territoryContext as TerritoryContextScope | undefined
-  const directive = buildBriefDirective(mode as BriefMode, safeMissions, safeQuestion, safeTarget) +
+  const directive = buildBriefDirective(mode as BriefMode, safeMissions, safeQuestion, safeTarget, territoryScope !== undefined) +
     (liveVoiceAction === true && mode === 'question'
       ? '\n\nFor this live conversation, finish with exactly one concrete next action on its own final line using this exact format: NEXT ACTION: <one imperative physical or executable move, under 140 characters>. Ground it only in the supplied saved context. Name the object and the verb; do not propose “consider”, “decide”, “check”, “review”, or “leave it as-is”. If there is no honest action, write exactly NEXT ACTION: NONE. Do not put anything after that line.'
       : '')
